@@ -8,9 +8,8 @@
 }
 
 html {
-  height: 100%;
-  overflow-x: hidden;
-  /* Smooth scrolling on iOS */
+  /* overflow-x clip on html is safe — doesn't break iOS vertical scroll */
+  overflow-x: clip;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -18,12 +17,7 @@ body {
   margin: 0;
   padding: 0;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  overflow-x: hidden;
-  /* Prevent elastic overscroll on iOS from revealing background */
-  overscroll-behavior: none;
-  /* Use dynamic viewport so content sits above browser chrome */
-  min-height: 100dvh;
-  min-height: 100vh; /* fallback */
+  /* Do NOT set overflow-x: hidden on body — iOS Safari kills vertical scroll */
 }
 
 /* ── Scrollbars ────────────────────────────────────────────────────────────── */
