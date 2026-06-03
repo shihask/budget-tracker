@@ -18,6 +18,7 @@ import { FAB, QuickAddSheet } from '@/components/QuickAdd'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { TransactionsPage } from '@/components/TransactionsPage'
 import { Glyph } from '@/components/Glyph'
+import { PWAPrompt } from '@/components/PWAPrompt'
 
 export default function App() {
   const [accent, setAccent] = useState('#10B981')
@@ -46,6 +47,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={c}>
+      <PWAPrompt />
       <div style={{
         minHeight: '100svh',
         width: '100%',
