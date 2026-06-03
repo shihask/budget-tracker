@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { AppState, Transaction, Commitment, TransactionType } from '@/types'
 
-// Income credits the account; everything else debits it
 const delta = (type: TransactionType, amount: number) =>
   type === 'income' ? amount : -amount
 
@@ -15,7 +14,9 @@ const EMPTY_STATE: AppState = {
   transactions: [],
 }
 
-export function useSupabaseData() {
+const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 20000, salary_date: null }
+
+export function useSupabaseData(userId: string) {
   const [state, setState] = useState<AppState>(EMPTY_STATE)
   const [loading, setLoading] = useState(true)
   const [usingSupabase, setUsingSupabase] = useState(false)
@@ -24,29 +25,40 @@ export function useSupabaseData() {
     async function load() {
       try {
         const [
-          { data: settings },
+          { data: settingsRow },
           { data: accounts },
           { data: categories },
           { data: borrowings },
           { data: commitments },
           { data: transactions },
         ] = await Promise.all([
-          supabase.from('settings').select('*').limit(1).single(),
-          supabase.from('accounts').select('*').eq('is_active', true).order('name'),
+          supabase.from('settings').select('*').eq('user_id', userId).limit(1).single(),
+          supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
           supabase.from('categories').select('*').order('group_name'),
-          supabase.from('borrowings').select('*').order('person_name'),
-          supabase.from('commitments').select('*').order('name'),
+          supabase.from('borrowings').select('*').eq('user_id', userId).order('person_name'),
+          supabase.from('commitments').select('*').eq('user_id', userId).order('name'),
           supabase.from('transactions')
             .select('*, category:categories(*), from_account:accounts!from_account_id(*)')
+            .eq('user_id', userId)
             .order('transaction_date', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(200),
         ])
 
+        // First login — create default settings for this user
+        let settings = settingsRow
         if (!settings) {
-          console.warn('No settings found in Supabase')
-          setLoading(false)
-          return
+          const { data: created, error } = await supabase
+            .from('settings')
+            .insert({ ...DEFAULT_SETTINGS, user_id: userId })
+            .select('*')
+            .single()
+          if (error || !created) {
+            console.error('Failed to create settings:', error)
+            setLoading(false)
+            return
+          }
+          settings = created
         }
 
         setState({
@@ -58,7 +70,6 @@ export function useSupabaseData() {
           transactions: (transactions as Transaction[]) || [],
         })
         setUsingSupabase(true)
-        console.info('✅ Loaded all data from Supabase')
       } catch (err) {
         console.error('Supabase load failed:', err)
       } finally {
@@ -66,7 +77,7 @@ export function useSupabaseData() {
       }
     }
     load()
-  }, [])
+  }, [userId])
 
   const addTransaction = useCallback(async (
     form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>
@@ -83,6 +94,7 @@ export function useSupabaseData() {
           from_account_id: form.from_account_id,
           to_account_id: null,
           notes: '',
+          user_id: userId,
         })
         .select('*, category:categories(*), from_account:accounts!from_account_id(*)')
         .single()
@@ -90,14 +102,8 @@ export function useSupabaseData() {
       if (txErr) throw txErr
 
       if (form.from_account_id) {
-        const { data: acc } = await supabase
-          .from('accounts').select('current_balance')
-          .eq('id', form.from_account_id).single()
-        if (acc) {
-          await supabase.from('accounts')
-            .update({ current_balance: acc.current_balance + delta(form.transaction_type, form.amount) })
-            .eq('id', form.from_account_id)
-        }
+        const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', form.from_account_id).single()
+        if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + delta(form.transaction_type, form.amount) }).eq('id', form.from_account_id)
       }
 
       setState(s => ({
@@ -113,7 +119,7 @@ export function useSupabaseData() {
       console.error('Failed to save transaction:', err)
       throw err
     }
-  }, [])
+  }, [userId])
 
   const deleteTransaction = useCallback(async (t: Transaction) => {
     try {
@@ -156,7 +162,6 @@ export function useSupabaseData() {
 
       if (error) throw error
 
-      // Reverse old balance effect, then apply new
       if (old.from_account_id) {
         const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', old.from_account_id).single()
         if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - delta(old.transaction_type, old.amount) }).eq('id', old.from_account_id)
@@ -182,6 +187,22 @@ export function useSupabaseData() {
     }
   }, [])
 
+  const addAccount = useCallback(async (form: { name: string; type: string; current_balance: number }) => {
+    const { data, error } = await supabase
+      .from('accounts')
+      .insert({ ...form, is_active: true, user_id: userId })
+      .select('*')
+      .single()
+    if (error) throw error
+    setState(s => ({ ...s, accounts: [...s.accounts, data as AppState['accounts'][0]] }))
+  }, [userId])
+
+  const deleteAccount = useCallback(async (accountId: string) => {
+    // Soft-delete so transaction history is preserved
+    await supabase.from('accounts').update({ is_active: false }).eq('id', accountId)
+    setState(s => ({ ...s, accounts: s.accounts.filter(a => a.id !== accountId) }))
+  }, [])
+
   const adjustBalance = useCallback(async (accountId: string, newBalance: number) => {
     try {
       await supabase.from('accounts').update({ current_balance: newBalance }).eq('id', accountId)
@@ -196,10 +217,10 @@ export function useSupabaseData() {
   }, [])
 
   const addBorrowing = useCallback(async (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null }) => {
-    const { data, error } = await supabase.from('borrowings').insert(form).select('*').single()
+    const { data, error } = await supabase.from('borrowings').insert({ ...form, user_id: userId }).select('*').single()
     if (error) throw error
     setState(s => ({ ...s, borrowings: [...s.borrowings, data as AppState['borrowings'][0]] }))
-  }, [])
+  }, [userId])
 
   const updateBorrowing = useCallback(async (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null }) => {
     const { data, error } = await supabase.from('borrowings').update(form).eq('id', id).select('*').single()
@@ -232,33 +253,28 @@ export function useSupabaseData() {
         from_account_id: accountId,
         to_account_id: null,
         notes: '',
+        user_id: userId,
       })
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
-      if (acc) {
-        const newBal = incoming ? acc.current_balance + payment : acc.current_balance - payment
-        await supabase.from('accounts').update({ current_balance: newBal }).eq('id', accountId)
-      }
+      if (acc) await supabase.from('accounts').update({ current_balance: incoming ? acc.current_balance + payment : acc.current_balance - payment }).eq('id', accountId)
     }
 
     setState(s => ({
       ...s,
       borrowings: s.borrowings.map(b =>
-        b.id === borrowing.id
-          ? { ...b, paid_amount: newPaid, remaining_amount: b.total_amount - newPaid }
-          : b
+        b.id === borrowing.id ? { ...b, paid_amount: newPaid, remaining_amount: b.total_amount - newPaid } : b
       ),
-      accounts: accountId ? s.accounts.map(a => {
-        if (a.id !== accountId) return a
-        return { ...a, current_balance: a.current_balance + (incoming ? payment : -payment) }
-      }) : s.accounts,
+      accounts: accountId ? s.accounts.map(a =>
+        a.id !== accountId ? a : { ...a, current_balance: a.current_balance + (incoming ? payment : -payment) }
+      ) : s.accounts,
     }))
-  }, [])
+  }, [userId])
 
   const addCommitment = useCallback(async (form: Omit<Commitment, 'id'>) => {
-    const { data, error } = await supabase.from('commitments').insert(form).select('*').single()
+    const { data, error } = await supabase.from('commitments').insert({ ...form, user_id: userId }).select('*').single()
     if (error) throw error
     setState(s => ({ ...s, commitments: [...s.commitments, data as Commitment] }))
-  }, [])
+  }, [userId])
 
   const updateCommitment = useCallback(async (id: string, form: Omit<Commitment, 'id'>) => {
     const { data, error } = await supabase.from('commitments').update(form).eq('id', id).select('*').single()
@@ -285,6 +301,7 @@ export function useSupabaseData() {
         from_account_id: cm.from_account_id,
         to_account_id: null,
         notes: '',
+        user_id: userId,
       })
       .select('*, category:categories(*), from_account:accounts!from_account_id(*)')
       .single()
@@ -304,12 +321,10 @@ export function useSupabaseData() {
     setState(s => ({
       ...s,
       transactions: [newTx as Transaction, ...s.transactions],
-      accounts: s.accounts.map(a =>
-        a.id === cm.from_account_id ? { ...a, current_balance: a.current_balance - payAmount } : a
-      ),
+      accounts: s.accounts.map(a => a.id === cm.from_account_id ? { ...a, current_balance: a.current_balance - payAmount } : a),
       commitments: s.commitments.map(c => c.id === cm.id ? { ...c, remaining: newRemaining } : c),
     }))
-  }, [])
+  }, [userId])
 
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {
@@ -321,5 +336,5 @@ export function useSupabaseData() {
     }
   }, [state.settings.id])
 
-  return { state, setState, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, adjustBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid }
+  return { state, setState, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid }
 }

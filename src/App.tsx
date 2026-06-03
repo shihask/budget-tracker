@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
@@ -19,8 +21,36 @@ import { SettingsPanel } from '@/components/SettingsPanel'
 import { TransactionsPage } from '@/components/TransactionsPage'
 import { Glyph } from '@/components/Glyph'
 import { PWAPrompt } from '@/components/PWAPrompt'
+import { AuthPage } from '@/components/AuthPage'
 
+// ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (session === undefined) return (
+    <div style={{ minHeight: '100svh', background: '#EDE7DD', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 36, height: 36, borderRadius: 999, border: '3px solid #10B981', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+
+  if (session === null) return <AuthPage />
+
+  return <AppContent session={session} />
+}
+
+// ── AppContent: all hooks live here, no early returns before them ─────────────
+function AppContent({ session }: { session: Session }) {
+  const user = session.user
+  const userName  = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
+  const userEmail = user.email || ''
+
   const [accent, setAccent] = useState('#10B981')
   const [dark, setDark] = useState(false)
   const [layout, setLayout] = useState<Layout>('grid')
@@ -30,7 +60,7 @@ export default function App() {
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, adjustBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData()
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
 
@@ -40,37 +70,31 @@ export default function App() {
     setTimeout(() => setFlash(null), 2200)
   }
 
-  // Settings panel width: full-width on narrow screens, 280px on desktop
   const panelW = typeof window !== 'undefined' ? Math.min(280, window.innerWidth) : 280
-
   const W = 402
 
   return (
     <ThemeContext.Provider value={c}>
       <PWAPrompt />
       <div style={{
-        minHeight: '100svh',
-        width: '100%',
+        minHeight: '100svh', width: '100%',
         background: dark ? '#0C0A07' : '#EDE7DD',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         fontFamily: 'Plus Jakarta Sans, sans-serif',
       }}>
         <div style={{ width: '100%', maxWidth: W, position: 'relative' }}>
           <div style={{
-            background: c.bg,
-            minHeight: '100svh',
+            background: c.bg, minHeight: '100svh',
             padding: `4px 16px calc(130px + env(safe-area-inset-bottom, 0px))`,
           }}>
-            {/* Safe-area top spacer */}
             <div style={{ height: 'calc(50px + env(safe-area-inset-top, 0px))' }} />
-            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} />
+            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} />
 
             {/* Settings gear */}
             <button onClick={() => setSettingsOpen(v => !v)} style={{
               position: 'fixed',
               top: 'calc(16px + env(safe-area-inset-top, 0px))',
-              right: settingsOpen ? panelW + 16 : 16,
-              zIndex: 300,
+              right: settingsOpen ? panelW + 16 : 16, zIndex: 300,
               width: 40, height: 40, borderRadius: 999,
               background: c.surface, border: `1px solid ${c.faint}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -82,24 +106,10 @@ export default function App() {
               </svg>
             </button>
 
-            {/* Loading bar */}
             {loading && (
               <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${c.accent}, ${c.heroB})`, zIndex: 999 }} />
             )}
 
-            {/* Supabase status badge */}
-            <div style={{
-              position: 'fixed',
-              top: 'calc(66px + env(safe-area-inset-top, 0px))',
-              right: 16, zIndex: 300,
-              background: usingSupabase ? c.goodSoft : c.warnSoft,
-              color: usingSupabase ? c.good : c.warn,
-              font: '700 10px Plus Jakarta Sans',
-              padding: '3px 8px', borderRadius: 999,
-              border: `1px solid ${usingSupabase ? c.good + '44' : c.warn + '44'}`,
-            }}>
-              {loading ? '...' : usingSupabase ? '● Supabase' : '● Local'}
-            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <HeroWeekly d={d} settings={state.settings} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} />
@@ -120,10 +130,7 @@ export default function App() {
           </div>
 
           {/* FAB */}
-          <div style={{
-            position: 'fixed', bottom: 0, width: '100%', maxWidth: W,
-            pointerEvents: 'none', zIndex: 50,
-          }}>
+          <div style={{ position: 'fixed', bottom: 0, width: '100%', maxWidth: W, pointerEvents: 'none', zIndex: 50 }}>
             <div style={{ position: 'relative', height: 'calc(100px + env(safe-area-inset-bottom, 0px))' }}>
               <div style={{ pointerEvents: 'auto' }}>
                 <FAB onClick={() => setSheetOpen(true)} />
@@ -156,13 +163,11 @@ export default function App() {
             <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} />
           </div>
 
-          {/* Transactions full screen */}
           {txnsOpen && (
             <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => setTxnsOpen(false)} />
           )}
         </div>
 
-        {/* Settings panel */}
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />

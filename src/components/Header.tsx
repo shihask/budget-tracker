@@ -1,13 +1,36 @@
+import { useState, useRef, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { Glyph } from './Glyph'
 
 interface HeaderProps {
   dark: boolean
   onToggleTheme: () => void
+  userName: string
+  userEmail: string
+  synced: boolean
+  onSignOut: () => void
 }
 
-export function Header({ dark, onToggleTheme }: HeaderProps) {
+export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSignOut }: HeaderProps) {
   const c = useTheme()
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const initials = userName.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
 
   const iconBtnStyle: React.CSSProperties = {
     width: 40, height: 40, borderRadius: 999,
@@ -20,23 +43,80 @@ export function Header({ dark, onToggleTheme }: HeaderProps) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px 14px' }}>
       <div>
         <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.01em' }}>
-          Good morning
+          {greeting}
         </div>
         <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 2 }}>
-          Rahul Menon
+          {userName}
         </div>
       </div>
+
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <button onClick={onToggleTheme} aria-label="Toggle theme" style={iconBtnStyle}>
           <Glyph name={dark ? 'sun' : 'moon'} color={c.ink} size={18} />
         </button>
-        <div style={{
-          width: 40, height: 40, borderRadius: 999,
-          background: c.accent, color: '#fff',
-          font: '800 15px Plus Jakarta Sans',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          RM
+
+        {/* Avatar + dropdown */}
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            style={{
+              width: 40, height: 40, borderRadius: 999,
+              background: c.accent, color: '#fff',
+              font: '800 15px Plus Jakarta Sans',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, border: 'none', cursor: 'pointer',
+              position: 'relative',
+            }}
+          >
+            {initials}
+            {/* Sync status dot */}
+            <span style={{
+              position: 'absolute', bottom: 1, right: 1,
+              width: 10, height: 10, borderRadius: 999,
+              background: synced ? '#22C55E' : '#F59E0B',
+              border: `2px solid ${c.bg}`,
+            }} />
+          </button>
+
+          {menuOpen && (
+            <div style={{
+              position: 'absolute', top: 48, right: 0, zIndex: 400,
+              background: c.surface, borderRadius: 16, padding: '6px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.16)',
+              border: `1px solid ${c.faint}`,
+              minWidth: 200,
+            }}>
+              {/* User info */}
+              <div style={{ padding: '10px 12px 8px' }}>
+                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{userName}</div>
+                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{userEmail}</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, background: synced ? '#22C55E18' : '#F59E0B18', borderRadius: 999, padding: '3px 8px' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 999, background: synced ? '#22C55E' : '#F59E0B', flexShrink: 0 }} />
+                  <span style={{ font: '600 10px Plus Jakarta Sans', color: synced ? '#22C55E' : '#F59E0B' }}>
+                    {synced ? 'Synced with cloud' : 'Offline — local data'}
+                  </span>
+                </div>
+              </div>
+              <div style={{ height: 1, background: c.faint, margin: '4px 0' }} />
+              {/* Sign out */}
+              <button
+                onClick={() => { setMenuOpen(false); onSignOut() }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 12px', background: 'none', border: 'none',
+                  borderRadius: 10, cursor: 'pointer', color: c.bad,
+                  font: '700 13px Plus Jakarta Sans', textAlign: 'left',
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Sign Out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

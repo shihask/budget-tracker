@@ -171,7 +171,7 @@ export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate,
           ))}
         </div>
       </div>
-      <div style={{ ...rowStyle, borderBottom: 'none' }}>
+      <div style={rowStyle}>
         <span style={labelStyle}>Dark mode</span>
         <button
           onClick={() => onDark(!dark)}
@@ -189,6 +189,7 @@ export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate,
           }} />
         </button>
       </div>
+
     </div>
   )
 }
