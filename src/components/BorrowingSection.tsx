@@ -198,7 +198,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
       {sheetOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={closeSheet} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
-          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px 40px', overflowY: 'auto', maxHeight: '88vh' }}>
+          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', maxHeight: '88svh' }}>
             <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>
               {editingId ? 'Edit Entry' : 'Add Borrowing'}
@@ -241,7 +241,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
       {payTarget && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={closePay} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
-          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px 40px', overflowY: 'auto' }}>
+          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto' }}>
             <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Record Payment</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, marginBottom: 16 }}>

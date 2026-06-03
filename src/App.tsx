@@ -39,25 +39,36 @@ export default function App() {
     setTimeout(() => setFlash(null), 2200)
   }
 
+  // Settings panel width: full-width on narrow screens, 280px on desktop
+  const panelW = typeof window !== 'undefined' ? Math.min(280, window.innerWidth) : 280
 
   const W = 402
 
   return (
     <ThemeContext.Provider value={c}>
       <div style={{
-        minHeight: '100vh', width: '100%',
+        minHeight: '100svh',
+        width: '100%',
         background: dark ? '#0C0A07' : '#EDE7DD',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         fontFamily: 'Plus Jakarta Sans, sans-serif',
       }}>
         <div style={{ width: '100%', maxWidth: W, position: 'relative' }}>
-          <div style={{ background: c.bg, minHeight: '100vh', padding: '4px 16px 130px' }}>
-            <div style={{ height: 50 }} />
+          <div style={{
+            background: c.bg,
+            minHeight: '100svh',
+            padding: `4px 16px calc(130px + env(safe-area-inset-bottom, 0px))`,
+          }}>
+            {/* Safe-area top spacer */}
+            <div style={{ height: 'calc(50px + env(safe-area-inset-top, 0px))' }} />
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} />
 
             {/* Settings gear */}
             <button onClick={() => setSettingsOpen(v => !v)} style={{
-              position: 'fixed', top: 16, right: settingsOpen ? 296 : 16, zIndex: 300,
+              position: 'fixed',
+              top: 'calc(16px + env(safe-area-inset-top, 0px))',
+              right: settingsOpen ? panelW + 16 : 16,
+              zIndex: 300,
               width: 40, height: 40, borderRadius: 999,
               background: c.surface, border: `1px solid ${c.faint}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -76,7 +87,9 @@ export default function App() {
 
             {/* Supabase status badge */}
             <div style={{
-              position: 'fixed', top: 66, right: 16, zIndex: 300,
+              position: 'fixed',
+              top: 'calc(66px + env(safe-area-inset-top, 0px))',
+              right: 16, zIndex: 300,
               background: usingSupabase ? c.goodSoft : c.warnSoft,
               color: usingSupabase ? c.good : c.warn,
               font: '700 10px Plus Jakarta Sans',
@@ -105,8 +118,11 @@ export default function App() {
           </div>
 
           {/* FAB */}
-          <div style={{ position: 'fixed', bottom: 0, width: '100%', maxWidth: W, pointerEvents: 'none', zIndex: 50 }}>
-            <div style={{ position: 'relative', height: 100 }}>
+          <div style={{
+            position: 'fixed', bottom: 0, width: '100%', maxWidth: W,
+            pointerEvents: 'none', zIndex: 50,
+          }}>
+            <div style={{ position: 'relative', height: 'calc(100px + env(safe-area-inset-bottom, 0px))' }}>
               <div style={{ pointerEvents: 'auto' }}>
                 <FAB onClick={() => setSheetOpen(true)} />
               </div>
@@ -115,9 +131,10 @@ export default function App() {
 
           {/* Toast */}
           <div style={{
-            position: 'fixed', bottom: flash ? 100 : 70,
+            position: 'fixed',
+            bottom: `calc(${flash ? 100 : 70}px + env(safe-area-inset-bottom, 0px))`,
             left: '50%', transform: 'translateX(-50%)',
-            width: 'calc(min(100%, 402px) - 32px)',
+            width: `calc(min(100%, ${W}px) - 32px)`,
             opacity: flash ? 1 : 0,
             transition: 'all 0.35s cubic-bezier(0.32,0.72,0,1)',
             pointerEvents: 'none', zIndex: 80,

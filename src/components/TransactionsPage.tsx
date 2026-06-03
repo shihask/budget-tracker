@@ -118,7 +118,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose }: Transac
   return (
     <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
       {/* Header */}
-      <div style={{ position: 'sticky', top: 0, background: c.bg, zIndex: 10, padding: '52px 16px 12px', borderBottom: `1px solid ${c.faint}` }}>
+      <div style={{ position: 'sticky', top: 0, background: c.bg, zIndex: 10, padding: 'calc(52px + env(safe-area-inset-top, 0px)) 16px 12px', borderBottom: `1px solid ${c.faint}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -164,7 +164,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose }: Transac
       </div>
 
       {/* List */}
-      <div style={{ padding: '8px 16px 40px' }}>
+      <div style={{ padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', font: '600 14px Plus Jakarta Sans', color: c.muted }}>No transactions found</div>
         ) : (
@@ -229,7 +229,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose }: Transac
       {editingTx && editForm && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={closeEdit} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
-          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px 40px', overflowY: 'auto', maxHeight: '88vh' }}>
+          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', maxHeight: '88svh' }}>
             <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 20px' }} />
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>Edit Transaction</div>
 

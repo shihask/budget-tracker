@@ -52,11 +52,14 @@ export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate,
     padding: '14px 0 6px',
   }
 
+  const panelW = typeof window !== 'undefined' ? Math.min(280, window.innerWidth) : 280
+
   return (
     <div style={{
-      position: 'fixed', right: 0, top: 0, bottom: 0, width: 280,
-      background: c.surface, borderLeft: `1px solid ${c.faint}`,
-      padding: '60px 20px 20px', zIndex: 200,
+      position: 'fixed', right: 0, top: 0, bottom: 0, width: panelW,
+      background: c.surface, borderLeft: panelW < window.innerWidth ? `1px solid ${c.faint}` : 'none',
+      padding: `calc(60px + env(safe-area-inset-top, 0px)) 20px calc(20px + env(safe-area-inset-bottom, 0px))`,
+      zIndex: 200,
       boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
       overflowY: 'auto',
     }}>

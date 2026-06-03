@@ -1,18 +1,90 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
 
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; padding: 0; }
-body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
-::-webkit-scrollbar { width: 0; height: 0; }
-input, select, button, textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
-
-select {
-  -webkit-appearance: none; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239C938A' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 14px center; padding-right: 34px !important;
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
+html {
+  height: 100%;
+  overflow-x: hidden;
+  /* Smooth scrolling on iOS */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  overflow-x: hidden;
+  /* Prevent elastic overscroll on iOS from revealing background */
+  overscroll-behavior: none;
+  /* Use dynamic viewport so content sits above browser chrome */
+  min-height: 100dvh;
+  min-height: 100vh; /* fallback */
+}
+
+/* ── Scrollbars ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 0; height: 0; }
+
+/* ── Forms ─────────────────────────────────────────────────────────────────── */
+input, select, button, textarea {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Prevent iOS Safari from zooming in when tapping inputs (triggered when
+   font-size < 16px). Override the inline font shorthand with !important. */
+@media (hover: none) and (pointer: coarse) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Remove iOS inner shadow on inputs */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Faster button response on touch (no 300ms delay) */
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Minimum touch target size for accessibility */
+button {
+  min-height: 28px;
+}
+
+/* ── Select dropdown arrow ─────────────────────────────────────────────────── */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239C938A' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 34px !important;
+}
+
+/* ── Number input ──────────────────────────────────────────────────────────── */
 input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 input[type=number] { -moz-appearance: textfield; }
+
+/* ── Date input calendar icon color ───────────────────────────────────────── */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+/* ── Safe area utility classes ─────────────────────────────────────────────── */
+.safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
