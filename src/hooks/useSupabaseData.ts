@@ -9,7 +9,7 @@ const delta = (type: TransactionType, amount: number) =>
 const EMPTY_STATE: AppState = {
   accounts: [],
   categories: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 20000 },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 20000, salary_date: null },
   commitments: [],
   borrowings: [],
   transactions: [],

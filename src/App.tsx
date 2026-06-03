@@ -26,6 +26,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
+  const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
 
   const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, adjustBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData()
@@ -86,10 +87,10 @@ export default function App() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <HeroWeekly d={d} />
+              <HeroWeekly d={d} settings={state.settings} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} />
               <div>
                 <SectionTitle action="Customize" onAction={() => setSettingsOpen(true)}>Your money</SectionTitle>
-                <MetricCards d={d} layout={layout} />
+                <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} />
               </div>
               <Analytics state={state} />
               <AccountsSection state={state} onAdjustBalance={adjustBalance} />
@@ -146,7 +147,7 @@ export default function App() {
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-            <SettingsPanel accent={accent} dark={dark} layout={layout} weeklyBudget={state.settings.weekly_budget} emergencyFund={state.settings.emergency_fund} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onWeeklyBudget={v => updateSettings({ weekly_budget: v })} onEmergencyFund={v => updateSettings({ emergency_fund: v })} />
+            <SettingsPanel accent={accent} dark={dark} layout={layout} emergencyFund={state.settings.emergency_fund} salaryDate={state.settings.salary_date} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onEmergencyFund={v => updateSettings({ emergency_fund: v })} onSalaryDate={v => updateSettings({ salary_date: v })} />
           </>
         )}
       </div>

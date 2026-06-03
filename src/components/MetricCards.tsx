@@ -30,9 +30,10 @@ function buildMetrics(d: DerivedMetrics): Metric[] {
 interface MetricCardsProps {
   d: DerivedMetrics
   layout: Layout
+  onEditBudget?: () => void
 }
 
-export function MetricCards({ d, layout }: MetricCardsProps) {
+export function MetricCards({ d, layout, onEditBudget }: MetricCardsProps) {
   const c = useTheme()
   const metrics = buildMetrics(d)
 
@@ -105,7 +106,16 @@ export function MetricCards({ d, layout }: MetricCardsProps) {
               <div style={{ width: 34, height: 34, borderRadius: 11, background: toneSoft(c, m.tone), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Glyph name={m.icon} color={col} />
               </div>
-              <span style={{ width: 8, height: 8, borderRadius: 999, background: col, marginTop: 4 }} />
+              {m.key === 'wbudget' && onEditBudget ? (
+                <button onClick={onEditBudget} style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: toneSoft(c, m.tone), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+              ) : (
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: col, marginTop: 4 }} />
+              )}
             </div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 12 }}>{m.label}</div>
             <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 2 }}>{fmt(m.value)}</div>
