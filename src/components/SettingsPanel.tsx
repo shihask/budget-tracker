@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { ACCENT_OPTIONS } from '@/lib/tokens'
 import type { Layout } from '@/types'
@@ -6,13 +7,37 @@ interface SettingsPanelProps {
   accent: string
   dark: boolean
   layout: Layout
+  weeklyBudget: number
+  emergencyFund: number
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
+  onWeeklyBudget: (v: number) => Promise<void>
+  onEmergencyFund: (v: number) => Promise<void>
 }
 
-export function SettingsPanel({ accent, dark, layout, onAccent, onDark, onLayout }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, weeklyBudget, emergencyFund, onAccent, onDark, onLayout, onWeeklyBudget, onEmergencyFund }: SettingsPanelProps) {
   const c = useTheme()
+  const [budgetInput, setBudgetInput] = useState(String(weeklyBudget))
+  const [emergencyInput, setEmergencyInput] = useState(String(emergencyFund))
+  const [savingBudget, setSavingBudget] = useState(false)
+  const [savingEmergency, setSavingEmergency] = useState(false)
+
+  const handleBudgetSave = async () => {
+    const v = parseFloat(budgetInput)
+    if (isNaN(v) || v <= 0) return
+    setSavingBudget(true)
+    try { await onWeeklyBudget(v) } catch (_) {}
+    setSavingBudget(false)
+  }
+
+  const handleEmergencySave = async () => {
+    const v = parseFloat(emergencyInput)
+    if (isNaN(v) || v < 0) return
+    setSavingEmergency(true)
+    try { await onEmergencyFund(v) } catch (_) {}
+    setSavingEmergency(false)
+  }
 
   const rowStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -57,6 +82,73 @@ export function SettingsPanel({ accent, dark, layout, onAccent, onDark, onLayout
             </button>
           ))}
         </div>
+      </div>
+
+      <div style={sectionLabel}>Budget</div>
+      <div style={{ paddingBottom: 4, borderBottom: `1px solid ${c.faint}` }}>
+        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Weekly spending limit</div>
+        <div style={{ position: 'relative', marginBottom: 8 }}>
+          <span style={{
+            position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+            font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none',
+          }}>₹</span>
+          <input
+            type="number"
+            value={budgetInput}
+            onChange={e => setBudgetInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleBudgetSave()}
+            style={{
+              width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`,
+              borderRadius: 11, padding: '11px 12px 11px 26px',
+              font: '800 16px Plus Jakarta Sans', color: c.ink,
+              outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <button
+          onClick={handleBudgetSave}
+          disabled={savingBudget}
+          style={{
+            width: '100%', background: c.accent, color: '#fff', border: 'none',
+            borderRadius: 11, padding: '11px', marginBottom: 16,
+            font: '700 13px Plus Jakarta Sans',
+            cursor: savingBudget ? 'not-allowed' : 'pointer', opacity: savingBudget ? 0.6 : 1,
+          }}
+        >
+          {savingBudget ? 'Saving...' : 'Save Budget'}
+        </button>
+
+        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Emergency fund reserve</div>
+        <div style={{ position: 'relative', marginBottom: 8 }}>
+          <span style={{
+            position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+            font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none',
+          }}>₹</span>
+          <input
+            type="number"
+            value={emergencyInput}
+            onChange={e => setEmergencyInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleEmergencySave()}
+            style={{
+              width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`,
+              borderRadius: 11, padding: '11px 12px 11px 26px',
+              font: '800 16px Plus Jakarta Sans', color: c.ink,
+              outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <button
+          onClick={handleEmergencySave}
+          disabled={savingEmergency}
+          style={{
+            width: '100%', background: c.warn, color: '#fff', border: 'none',
+            borderRadius: 11, padding: '11px', marginBottom: 14,
+            font: '700 13px Plus Jakarta Sans',
+            cursor: savingEmergency ? 'not-allowed' : 'pointer', opacity: savingEmergency ? 0.6 : 1,
+          }}
+        >
+          {savingEmergency ? 'Saving...' : 'Save Emergency Fund'}
+        </button>
       </div>
 
       <div style={sectionLabel}>Theme</div>

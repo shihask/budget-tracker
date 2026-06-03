@@ -1,0 +1,391 @@
+import { useState } from 'react'
+import { useTheme } from '@/lib/theme-context'
+import { fmt } from '@/lib/utils'
+import { CAT_COLORS } from '@/lib/tokens'
+import { Card } from './Card'
+import { catById as buildCatById } from '@/lib/data'
+import type { AppState, DerivedMetrics, Commitment } from '@/types'
+
+type Freq = 'monthly' | 'weekly' | 'yearly'
+
+type CForm = {
+  name: string
+  amount: string
+  remaining: string
+  category_id: string
+  is_recurring: boolean
+  frequency: Freq
+  due_day: string
+  from_account_id: string
+}
+
+const EMPTY_FORM: CForm = {
+  name: '', amount: '', remaining: '',
+  category_id: '', is_recurring: false,
+  frequency: 'monthly', due_day: '', from_account_id: '',
+}
+
+const ord = (n: number) => {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+
+interface Props {
+  state: AppState
+  d: DerivedMetrics
+  onMarkPaid: (c: Commitment) => Promise<void>
+  onAdd: (form: Omit<Commitment, 'id'>) => Promise<void>
+  onUpdate: (id: string, form: Omit<Commitment, 'id'>) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+}
+
+export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDelete }: Props) {
+  const c = useTheme()
+  const catMap = buildCatById(state.categories)
+  const accounts = state.accounts.filter(a => a.is_active)
+
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState<CForm>(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+  const [paying, setPaying] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const openAdd = () => {
+    setEditingId(null)
+    setForm(EMPTY_FORM)
+    setSheetOpen(true)
+  }
+
+  const openEdit = (cm: Commitment) => {
+    setEditingId(cm.id)
+    setForm({
+      name: cm.name,
+      amount: String(cm.amount),
+      remaining: String(cm.remaining),
+      category_id: cm.category_id || '',
+      is_recurring: cm.is_recurring,
+      frequency: cm.frequency || 'monthly',
+      due_day: cm.due_day ? String(cm.due_day) : '',
+      from_account_id: cm.from_account_id || '',
+    })
+    setSheetOpen(true)
+  }
+
+  const closeSheet = () => { setSheetOpen(false); setForm(EMPTY_FORM); setEditingId(null) }
+
+  const set = (key: keyof CForm, val: string | boolean) =>
+    setForm(f => ({ ...f, [key]: val }))
+
+  const handleSave = async () => {
+    const amount = parseFloat(form.amount)
+    if (!form.name.trim() || isNaN(amount) || amount <= 0) return
+    const remaining = form.is_recurring ? amount : (parseFloat(form.remaining) || amount)
+    const payload: Omit<Commitment, 'id'> = {
+      name: form.name.trim(),
+      amount,
+      remaining,
+      category_id: form.category_id || null,
+      is_recurring: form.is_recurring,
+      frequency: form.is_recurring ? form.frequency : null,
+      due_day: (form.is_recurring && form.frequency === 'monthly' && form.due_day)
+        ? parseInt(form.due_day) : null,
+      from_account_id: form.from_account_id || null,
+      is_active: true,
+    }
+    setSaving(true)
+    try {
+      if (editingId) await onUpdate(editingId, payload)
+      else await onAdd(payload)
+      closeSheet()
+    } catch (_) {}
+    setSaving(false)
+  }
+
+  const handleMarkPaid = async (cm: Commitment) => {
+    setPaying(cm.id)
+    try { await onMarkPaid(cm) } catch (_) {}
+    setPaying(null)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this commitment?')) return
+    setDeleting(id)
+    try { await onDelete(id) } catch (_) {}
+    setDeleting(null)
+  }
+
+  const inp: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box', background: c.surface2,
+    border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px',
+    font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none',
+  }
+  const lbl: React.CSSProperties = {
+    font: '600 11px Plus Jakarta Sans', color: c.muted,
+    textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5, display: 'block',
+  }
+
+  const active = state.commitments.filter(c => c.is_active !== false)
+
+  return (
+    <>
+      <Card>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div>
+            <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Commitments</div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+              Total: {fmt(d.remainingCommitments)}
+            </div>
+          </div>
+          <button
+            onClick={openAdd}
+            style={{
+              width: 32, height: 32, borderRadius: 10, border: 'none',
+              background: c.accentSoft, color: c.accent, cursor: 'pointer',
+              font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >+</button>
+        </div>
+
+        {active.length === 0 ? (
+          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '8px 0' }}>
+            No commitments yet. Tap + to add one.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {active.map((cm, i) => {
+              const cat = catMap[cm.category_id!]
+              const col = (cat && CAT_COLORS[cat.name]) || c.accent
+              const completed = !cm.is_recurring && cm.remaining <= 0
+              const amount = cm.amount || cm.remaining || 0
+              const isPaying = paying === cm.id
+              const isDeleting = deleting === cm.id
+
+              return (
+                <div key={cm.id} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 11,
+                  paddingTop: i === 0 ? 0 : 12, paddingBottom: 12,
+                  borderBottom: i < active.length - 1 ? `1px solid ${c.faint}` : 'none',
+                  opacity: isDeleting ? 0.4 : 1,
+                }}>
+                  {/* Icon */}
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 11, flexShrink: 0,
+                    background: completed ? c.surface2 : col + '20',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {completed ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                      </svg>
+                    )}
+                  </div>
+
+                  {/* Info + actions */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{cm.name}</span>
+                      {cm.is_recurring && (
+                        <span style={{
+                          font: '600 10px Plus Jakarta Sans', color: c.accent,
+                          background: c.accentSoft, borderRadius: 999, padding: '2px 7px',
+                        }}>
+                          🔄 {cm.frequency}
+                        </span>
+                      )}
+                      {completed && (
+                        <span style={{
+                          font: '600 10px Plus Jakarta Sans', color: c.good,
+                          background: c.goodSoft, borderRadius: 999, padding: '2px 7px',
+                        }}>
+                          Completed
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                      {cm.is_recurring
+                        ? (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
+                        : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}`
+                      }
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
+                      {!completed && (
+                        <button
+                          onClick={() => handleMarkPaid(cm)}
+                          disabled={isPaying}
+                          style={{
+                            background: c.goodSoft, color: c.good, border: 'none',
+                            borderRadius: 8, padding: '5px 10px',
+                            font: '700 11px Plus Jakarta Sans', cursor: 'pointer',
+                            opacity: isPaying ? 0.6 : 1,
+                          }}
+                        >
+                          {isPaying ? '...' : '✓ Mark Paid'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openEdit(cm)}
+                        style={{
+                          background: c.surface2, color: c.muted, border: 'none',
+                          borderRadius: 8, padding: '5px 10px',
+                          font: '700 11px Plus Jakarta Sans', cursor: 'pointer',
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(cm.id)}
+                        disabled={isDeleting}
+                        style={{
+                          background: 'none', color: c.bad + '99', border: 'none',
+                          borderRadius: 8, padding: '5px 0',
+                          font: '600 11px Plus Jakarta Sans', cursor: 'pointer',
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Amount */}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ font: '800 15px Plus Jakarta Sans', color: completed ? c.muted : c.ink }}>
+                      {fmt(amount)}
+                    </div>
+                    <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+                      {cm.is_recurring ? `/${cm.frequency?.slice(0, 2)}` : 'each'}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* Add / Edit Sheet */}
+      {sheetOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={closeSheet} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
+          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px 40px', overflowY: 'auto', maxHeight: '90vh' }}>
+            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>
+              {editingId ? 'Edit Commitment' : 'Add Commitment'}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Name */}
+              <div>
+                <label style={lbl}>Name</label>
+                <input value={form.name} onChange={e => set('name', e.target.value)}
+                  placeholder="e.g. SIP, Kuri, Loan EMI" style={inp} autoFocus />
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label style={lbl}>
+                  {form.is_recurring ? 'Amount per period' : 'Instalment amount'}
+                </label>
+                <input type="number" value={form.amount} onChange={e => set('amount', e.target.value)}
+                  placeholder="0" min="0" step="0.01" style={inp} />
+              </div>
+
+              {/* One-time / Recurring toggle */}
+              <div>
+                <label style={lbl}>Type</label>
+                <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
+                  {([false, true] as const).map(v => (
+                    <button
+                      key={String(v)}
+                      type="button"
+                      onClick={() => set('is_recurring', v)}
+                      style={{
+                        flex: 1, border: 'none', borderRadius: 10, padding: '9px',
+                        font: '700 13px Plus Jakarta Sans',
+                        background: form.is_recurring === v ? c.accent : 'transparent',
+                        color: form.is_recurring === v ? '#fff' : c.muted,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {v ? '🔄 Recurring' : '📋 One-time'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recurring: frequency + due day */}
+              {form.is_recurring && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>Frequency</label>
+                    <select value={form.frequency} onChange={e => set('frequency', e.target.value)} style={inp}>
+                      <option value="monthly">Monthly</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+                  {form.frequency === 'monthly' && (
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Due day (1–31)</label>
+                      <input type="number" value={form.due_day} onChange={e => set('due_day', e.target.value)}
+                        placeholder="e.g. 5" min="1" max="31" style={inp} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* One-time: total remaining */}
+              {!form.is_recurring && (
+                <div>
+                  <label style={lbl}>Total remaining balance</label>
+                  <input type="number" value={form.remaining} onChange={e => set('remaining', e.target.value)}
+                    placeholder="Total amount still owed" min="0" step="0.01" style={inp} />
+                </div>
+              )}
+
+              {/* Category + Account */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Category</label>
+                  <select value={form.category_id} onChange={e => set('category_id', e.target.value)} style={inp}>
+                    <option value="">None</option>
+                    {state.categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Pay from account</label>
+                  <select value={form.from_account_id} onChange={e => set('from_account_id', e.target.value)} style={inp}>
+                    <option value="">None</option>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={closeSheet} style={{
+                flex: 1, background: c.surface2, color: c.muted, border: 'none',
+                borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer',
+              }}>Cancel</button>
+              <button onClick={handleSave} disabled={saving} style={{
+                flex: 2, background: c.accent, color: '#fff', border: 'none',
+                borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans',
+                cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+              }}>
+                {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Commitment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}

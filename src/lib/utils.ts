@@ -20,7 +20,7 @@ export function fmt(n: number, opts: { decimals?: number; sign?: boolean } = {})
   return pre + '₹' + s
 }
 
-export const TODAY = new Date('2026-06-03T09:00:00')
+export const TODAY = new Date()
 
 export function iso(d: Date): string {
   return d.toISOString().slice(0, 10)

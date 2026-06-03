@@ -3,18 +3,27 @@ import { useTheme } from '@/lib/theme-context'
 import { CAT_COLORS, ACC_COLORS } from '@/lib/tokens'
 import { fmt, fmtDate } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
-import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction } from '@/types'
+import type { AppState, Transaction, TransactionType } from '@/types'
+
+type EditForm = {
+  description: string
+  amount: string
+  transaction_date: string
+  transaction_type: TransactionType
+  category_id: string
+  from_account_id: string
+}
 
 interface TransactionsPageProps {
   state: AppState
-  onDelete: (id: string) => void
+  onDelete: (t: Transaction) => Promise<void>
+  onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<void>
   onClose: () => void
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose }: TransactionsPageProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
 
@@ -26,6 +35,9 @@ export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageP
   const [filterDateTo, setFilterDateTo] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('date_desc')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [editForm, setEditForm] = useState<EditForm | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const accounts = state.accounts.filter(a => a.is_active)
   const groups = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer']
@@ -39,10 +51,10 @@ export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageP
     if (filterDateFrom) txns = txns.filter(t => t.transaction_date >= filterDateFrom)
     if (filterDateTo) txns = txns.filter(t => t.transaction_date <= filterDateTo)
     txns.sort((a, b) => {
-      if (sortKey === 'date_desc')    return a.transaction_date < b.transaction_date ? 1 : -1
-      if (sortKey === 'date_asc')     return a.transaction_date > b.transaction_date ? 1 : -1
-      if (sortKey === 'amount_desc')  return b.amount - a.amount
-      if (sortKey === 'amount_asc')   return a.amount - b.amount
+      if (sortKey === 'date_desc')   return a.transaction_date < b.transaction_date ? 1 : -1
+      if (sortKey === 'date_asc')    return a.transaction_date > b.transaction_date ? 1 : -1
+      if (sortKey === 'amount_desc') return b.amount - a.amount
+      if (sortKey === 'amount_asc')  return a.amount - b.amount
       return 0
     })
     return txns
@@ -53,15 +65,41 @@ export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageP
   const handleDelete = async (t: Transaction) => {
     if (!confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
     setDeleting(t.id)
-    try {
-      await supabase.from('transactions').delete().eq('id', t.id)
-      if (t.from_account_id) {
-        const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
-        if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + t.amount }).eq('id', t.from_account_id)
-      }
-    } catch (_) {}
-    onDelete(t.id)
+    try { await onDelete(t) } catch (_) {}
     setDeleting(null)
+  }
+
+  const openEdit = (t: Transaction) => {
+    setEditingTx(t)
+    setEditForm({
+      description: t.description,
+      amount: String(t.amount),
+      transaction_date: t.transaction_date,
+      transaction_type: t.transaction_type,
+      category_id: t.category_id || '',
+      from_account_id: t.from_account_id || '',
+    })
+  }
+
+  const closeEdit = () => { setEditingTx(null); setEditForm(null) }
+
+  const handleEditSave = async () => {
+    if (!editingTx || !editForm) return
+    const amount = parseFloat(editForm.amount)
+    if (!editForm.description.trim() || isNaN(amount) || amount <= 0) return
+    setSaving(true)
+    try {
+      await onUpdate(editingTx, {
+        description: editForm.description.trim(),
+        amount,
+        transaction_date: editForm.transaction_date,
+        transaction_type: editForm.transaction_type,
+        category_id: editForm.category_id || null,
+        from_account_id: editForm.from_account_id || null,
+      })
+      closeEdit()
+    } catch (_) {}
+    setSaving(false)
   }
 
   const clearFilters = () => {
@@ -71,10 +109,10 @@ export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageP
   const hasFilters = search || filterAccount !== 'all' || filterCategory !== 'all' ||
     filterGroup !== 'all' || filterDateFrom || filterDateTo
 
-  const inputStyle: React.CSSProperties = {
+  const inp: React.CSSProperties = {
     width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`,
     borderRadius: 11, padding: '9px 12px', font: '600 13px Plus Jakarta Sans',
-    color: c.ink, outline: 'none',
+    color: c.ink, outline: 'none', boxSizing: 'border-box',
   }
 
   return (
@@ -95,23 +133,23 @@ export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageP
             </button>
           )}
         </div>
-        <input placeholder="Search description..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+        <input placeholder="Search description..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inp, marginBottom: 10 }} />
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterCategory('all') }} style={{ ...inputStyle, flex: 1 }}>
+          <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterCategory('all') }} style={{ ...inp, flex: 1 }}>
             <option value="all">All groups</option>
             {groups.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
-          <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+          <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...inp, flex: 1 }}>
             <option value="all">All categories</option>
             {state.categories.filter(cat => filterGroup === 'all' || cat.group_name === filterGroup).map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+          <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} style={{ ...inp, flex: 1 }}>
             <option value="all">All accounts</option>
             {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)} style={{ ...inputStyle, flex: 1 }}>
+          <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)} style={{ ...inp, flex: 1 }}>
             <option value="date_desc">Newest first</option>
             <option value="date_asc">Oldest first</option>
             <option value="amount_desc">Highest amount</option>
@@ -119,9 +157,9 @@ export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageP
           </select>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={{ ...inp, flex: 1 }} />
           <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>to</span>
-          <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
         </div>
       </div>
 
@@ -159,10 +197,25 @@ export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageP
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ font: '800 14px Plus Jakarta Sans', color: c.ink }}>−{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}</div>
-                      <button onClick={() => handleDelete(t)} disabled={isDeleting} style={{ marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', color: c.bad + 'AA', padding: '2px 0', font: '600 11px Plus Jakarta Sans' }}>
-                        {isDeleting ? '...' : 'Delete'}
-                      </button>
+                      <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : c.bad }}>
+                        {t.transaction_type === 'income' ? '+' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => openEdit(t)}
+                          disabled={isDeleting}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.accent, padding: '2px 0', font: '600 11px Plus Jakarta Sans' }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(t)}
+                          disabled={isDeleting}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.bad + 'AA', padding: '2px 0', font: '600 11px Plus Jakarta Sans' }}
+                        >
+                          {isDeleting ? '...' : 'Delete'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -171,6 +224,120 @@ export function TransactionsPage({ state, onDelete, onClose }: TransactionsPageP
           </div>
         )}
       </div>
+
+      {/* Edit Sheet */}
+      {editingTx && editForm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={closeEdit} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
+          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px 40px', overflowY: 'auto', maxHeight: '88vh' }}>
+            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 20px' }} />
+            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>Edit Transaction</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <Label>Description</Label>
+                <input
+                  value={editForm.description}
+                  onChange={e => setEditForm(f => f ? { ...f, description: e.target.value } : f)}
+                  style={inp}
+                  placeholder="Description"
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <Label>Amount</Label>
+                  <input
+                    type="number"
+                    value={editForm.amount}
+                    onChange={e => setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
+                    style={inp}
+                    placeholder="0"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Label>Date</Label>
+                  <input
+                    type="date"
+                    value={editForm.transaction_date}
+                    onChange={e => setEditForm(f => f ? { ...f, transaction_date: e.target.value } : f)}
+                    style={inp}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Type</Label>
+                <select
+                  value={editForm.transaction_type}
+                  onChange={e => setEditForm(f => f ? { ...f, transaction_type: e.target.value as TransactionType } : f)}
+                  style={inp}
+                >
+                  <option value="expense">Expense</option>
+                  <option value="income">Income</option>
+                  <option value="transfer">Transfer</option>
+                  <option value="commitment">Commitment</option>
+                  <option value="borrowing">Borrowing</option>
+                  <option value="borrowing_repayment">Borrowing Repayment</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <Label>Category</Label>
+                  <select
+                    value={editForm.category_id}
+                    onChange={e => setEditForm(f => f ? { ...f, category_id: e.target.value } : f)}
+                    style={inp}
+                  >
+                    <option value="">No category</option>
+                    {state.categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Label>Account</Label>
+                  <select
+                    value={editForm.from_account_id}
+                    onChange={e => setEditForm(f => f ? { ...f, from_account_id: e.target.value } : f)}
+                    style={inp}
+                  >
+                    <option value="">No account</option>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button
+                onClick={closeEdit}
+                style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={saving}
+                style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  const c = useTheme()
+  return (
+    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      {children}
     </div>
   )
 }

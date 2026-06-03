@@ -53,8 +53,14 @@ export interface Settings {
 export interface Commitment {
   id: string
   name: string
+  amount: number
   remaining: number
-  category_id: string
+  category_id: string | null
+  is_recurring: boolean
+  frequency: 'monthly' | 'weekly' | 'yearly' | null
+  due_day: number | null
+  from_account_id: string | null
+  is_active: boolean
 }
 
 export interface AppState {

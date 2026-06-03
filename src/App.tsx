@@ -11,7 +11,9 @@ import { SectionTitle } from '@/components/SectionTitle'
 import { MetricCards } from '@/components/MetricCards'
 import { Analytics } from '@/components/Analytics'
 import { AccountsSection } from '@/components/AccountsSection'
-import { CommitmentsSection, BorrowingSection, RenovationSection, RecentTxns } from '@/components/Sections'
+import { CommitmentsSection } from '@/components/CommitmentsSection'
+import { BorrowingSection } from '@/components/BorrowingSection'
+import { RenovationSection, RecentTxns } from '@/components/Sections'
 import { FAB, QuickAddSheet } from '@/components/QuickAdd'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { TransactionsPage } from '@/components/TransactionsPage'
@@ -26,7 +28,7 @@ export default function App() {
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
 
-  const { state, setState, loading, usingSupabase, addTransaction } = useSupabaseData()
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, adjustBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData()
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
 
@@ -36,9 +38,6 @@ export default function App() {
     setTimeout(() => setFlash(null), 2200)
   }
 
-  const handleDelete = (id: string) => {
-    setState(s => ({ ...s, transactions: s.transactions.filter(t => t.id !== id) }))
-  }
 
   const W = 402
 
@@ -93,9 +92,9 @@ export default function App() {
                 <MetricCards d={d} layout={layout} />
               </div>
               <Analytics state={state} />
-              <AccountsSection state={state} />
-              <CommitmentsSection state={state} d={d} />
-              <BorrowingSection state={state} />
+              <AccountsSection state={state} onAdjustBalance={adjustBalance} />
+              <CommitmentsSection state={state} d={d} onMarkPaid={markCommitmentPaid} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} />
+              <BorrowingSection state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} />
               <RenovationSection state={state} d={d} />
               <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} />
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
@@ -139,7 +138,7 @@ export default function App() {
 
           {/* Transactions full screen */}
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={handleDelete} onClose={() => setTxnsOpen(false)} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => setTxnsOpen(false)} />
           )}
         </div>
 
@@ -147,7 +146,7 @@ export default function App() {
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-            <SettingsPanel accent={accent} dark={dark} layout={layout} onAccent={setAccent} onDark={setDark} onLayout={setLayout} />
+            <SettingsPanel accent={accent} dark={dark} layout={layout} weeklyBudget={state.settings.weekly_budget} emergencyFund={state.settings.emergency_fund} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onWeeklyBudget={v => updateSettings({ weekly_budget: v })} onEmergencyFund={v => updateSettings({ emergency_fund: v })} />
           </>
         )}
       </div>

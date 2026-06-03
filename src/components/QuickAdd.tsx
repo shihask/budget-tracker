@@ -1,17 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, TODAY, iso } from '@/lib/utils'
 import { Glyph } from './Glyph'
-import type { AppState, Transaction } from '@/types'
+import type { AppState, Transaction, TransactionType } from '@/types'
 
 const schema = z.object({
   date: z.string().min(1),
   description: z.string().min(1, 'Description required'),
   amount: z.number().positive('Amount must be positive'),
-  category_id: z.string().min(1),
+  category_id: z.string(),
   from_account_id: z.string().min(1),
 })
 type FormValues = z.infer<typeof schema>
@@ -54,6 +54,7 @@ interface QuickAddSheetProps {
 
 export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetProps) {
   const c = useTheme()
+  const [txType, setTxType] = useState<'expense' | 'income'>('expense')
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors, isValid } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -68,11 +69,15 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
   })
 
   useEffect(() => {
-    if (open) reset({ date: iso(TODAY), description: '', amount: 0, category_id: 'c_tea', from_account_id: 'a3' })
+    if (open) {
+      reset({ date: iso(TODAY), description: '', amount: 0, category_id: 'c_tea', from_account_id: 'a3' })
+      setTxType('expense')
+    }
   }, [open, reset])
 
   const descriptionVal = watch('description')
   const amountVal = watch('amount')
+  const categoryVal = watch('category_id')
 
   const applyQuick = (q: typeof QUICK[number]) => {
     setValue('description', q.label, { shouldValidate: true })
@@ -85,8 +90,8 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
       transaction_date: data.date,
       description: data.description,
       amount: data.amount,
-      transaction_type: 'expense',
-      category_id: data.category_id,
+      transaction_type: txType as TransactionType,
+      category_id: data.category_id || null,
       from_account_id: data.from_account_id,
     })
     onClose()
@@ -101,7 +106,10 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
   const labelStyle: React.CSSProperties = {
     font: '700 12px Plus Jakarta Sans', color: c.muted, marginBottom: 6, display: 'block',
   }
-  const valid = isValid && amountVal > 0 && !!descriptionVal.trim()
+
+  const isExpense = txType === 'expense'
+  const typeColor = isExpense ? c.bad : c.good
+  const valid = isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal)
   const accs = state.accounts.filter(a => a.is_active)
   const cats = state.categories
 
@@ -116,47 +124,76 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
         boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxHeight: '88%', overflowY: 'auto',
       }}>
         <div style={{ width: 40, height: 5, borderRadius: 999, background: c.faint, margin: '6px auto 14px' }} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ font: '800 19px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Quick Add Expense</div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ font: '800 19px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
+            {isExpense ? 'Add Expense' : 'Add Income'}
+          </div>
           <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 999, background: c.surface2, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <Glyph name="close" color={c.sub} size={16} />
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-          {QUICK.map(q => {
-            const active = descriptionVal === q.label
-            return (
-              <button key={q.label} type="button" onClick={() => applyQuick(q)} style={{
-                border: `1.5px solid ${active ? c.accent : c.faint}`, cursor: 'pointer',
-                background: active ? c.accentSoft : c.surface, color: active ? c.accent : c.sub,
-                borderRadius: 999, padding: '8px 14px', font: '700 13px Plus Jakarta Sans',
-              }}>{q.label}</button>
-            )
-          })}
+        {/* Expense / Income toggle */}
+        <div style={{ display: 'flex', background: c.surface2, borderRadius: 14, padding: 4, marginBottom: 16, gap: 4 }}>
+          {(['expense', 'income'] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTxType(t)}
+              style={{
+                flex: 1, border: 'none', borderRadius: 11, padding: '9px 0',
+                font: '700 13px Plus Jakarta Sans',
+                background: txType === t ? (t === 'income' ? c.good : c.accent) : 'transparent',
+                color: txType === t ? '#fff' : c.muted,
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              {t === 'expense' ? '↑ Expense' : '↓ Income'}
+            </button>
+          ))}
         </div>
+
+        {/* Quick chips — expense only */}
+        {isExpense && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+            {QUICK.map(q => {
+              const active = descriptionVal === q.label
+              return (
+                <button key={q.label} type="button" onClick={() => applyQuick(q)} style={{
+                  border: `1.5px solid ${active ? c.accent : c.faint}`, cursor: 'pointer',
+                  background: active ? c.accentSoft : c.surface, color: active ? c.accent : c.sub,
+                  borderRadius: 999, padding: '8px 14px', font: '700 13px Plus Jakarta Sans',
+                }}>{q.label}</button>
+              )
+            })}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <div style={{ textAlign: 'center', marginBottom: 18 }}>
-            <span style={{ font: '700 22px Plus Jakarta Sans', color: c.muted, verticalAlign: 'middle', marginRight: 4 }}>₹</span>
+            <span style={{ font: '700 22px Plus Jakarta Sans', color: typeColor, verticalAlign: 'middle', marginRight: 4 }}>
+              {isExpense ? '−₹' : '+₹'}
+            </span>
             <input
               {...register('amount', { valueAsNumber: true })}
               inputMode="decimal"
               placeholder="0"
-              style={{ border: 'none', background: 'transparent', outline: 'none', width: 180, textAlign: 'center', font: '800 44px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em' }}
+              style={{ border: 'none', background: 'transparent', outline: 'none', width: 160, textAlign: 'center', font: '800 44px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em' }}
             />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label style={labelStyle}>Description</label>
-              <input {...register('description')} placeholder="e.g. Evening Tea"
+              <input {...register('description')} placeholder={isExpense ? 'e.g. Evening Tea' : 'e.g. Salary'}
                 style={{ ...inputStyle, borderColor: errors.description ? c.bad : c.faint }} />
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Category</label>
+                <label style={labelStyle}>Category {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}</label>
                 <select {...register('category_id')} style={inputStyle}>
+                  {txType === 'income' && <option value="">No category</option>}
                   {cats.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
                 </select>
               </div>
@@ -176,10 +213,10 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
           <button type="submit" disabled={!valid} style={{
             width: '100%', marginTop: 20, border: 'none', borderRadius: 15, padding: '15px 0',
             font: '800 16px Plus Jakarta Sans', cursor: valid ? 'pointer' : 'not-allowed',
-            background: valid ? c.accent : c.faint, color: valid ? '#fff' : c.muted,
-            boxShadow: valid ? `0 6px 16px ${c.accent}55` : 'none', transition: 'all 0.2s',
+            background: valid ? typeColor : c.faint, color: valid ? '#fff' : c.muted,
+            boxShadow: valid ? `0 6px 16px ${typeColor}55` : 'none', transition: 'all 0.2s',
           }}>
-            {valid ? `Save  ·  ${fmt(amountVal)}` : 'Enter amount & description'}
+            {valid ? `${isExpense ? 'Save Expense' : 'Add Income'}  ·  ${fmt(amountVal)}` : 'Enter amount & description'}
           </button>
         </form>
       </div>
