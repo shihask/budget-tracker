@@ -38,32 +38,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose }: Transac
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [saving, setSaving] = useState(false)
-  const [filtersVisible, setFiltersVisible] = useState(true)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const lastScrollY = useRef(0)
-  const ticking = useRef(false)
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const handler = () => {
-      if (ticking.current) return
-      ticking.current = true
-      requestAnimationFrame(() => {
-        const current = el.scrollTop
-        const diff = current - lastScrollY.current
-        if (current === 0) {
-          setFiltersVisible(true)
-        } else if (diff > 8) {
-          setFiltersVisible(false)
-        }
-        lastScrollY.current = current
-        ticking.current = false
-      })
-    }
-    el.addEventListener('scroll', handler, { passive: true })
-    return () => el.removeEventListener('scroll', handler)
-  }, [])
+  const [filtersVisible, setFiltersVisible] = useState(false)
   const accounts = state.accounts.filter(a => a.is_active)
   const groups = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer']
 
@@ -141,45 +116,56 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose }: Transac
   }
 
   return (
-    <div ref={scrollRef} style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
 
-      {/* Outer sticky wrapper — slides up to hide filters, keeps title visible */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 10,
-        willChange: 'transform',
-        background: c.bg,
-      }}>
-        {/* Always-visible title bar */}
-        <div style={{ padding: 'calc(12px + env(safe-area-inset-top, 0px)) 16px 10px', borderBottom: `1px solid ${filtersVisible ? 'transparent' : c.faint}`, transition: 'border-color 0.2s ease' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-            </button>
-            <div style={{ flex: 1 }}>
-              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>All Transactions</div>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{filtered.length} entries · {fmt(totalFiltered)}</div>
-            </div>
+      {/* Sticky header */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: c.bg, borderBottom: `1px solid ${c.faint}` }}>
+
+        {/* Title bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 'calc(12px + env(safe-area-inset-top, 0px)) 16px 12px' }}>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>All Transactions</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{filtered.length} entries · {fmt(totalFiltered)}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {hasFilters && (
               <button onClick={clearFilters} style={{ background: c.badSoft, color: c.bad, border: 'none', borderRadius: 999, padding: '6px 12px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
                 Clear
               </button>
             )}
+            {/* Filter toggle */}
+            <button
+              onClick={() => setFiltersVisible(v => !v)}
+              style={{
+                width: 36, height: 36, borderRadius: 999, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                background: filtersVisible ? c.accent : c.surface2,
+                transition: 'background 0.2s ease',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={filtersVisible ? '#fff' : c.ink} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+                <line x1="11" y1="18" x2="13" y2="18"/>
+              </svg>
+            </button>
           </div>
         </div>
 
-        {/* Filters — smooth slide + fade */}
+        {/* Collapsible filters */}
         <div style={{
           overflow: 'hidden',
           maxHeight: filtersVisible ? '260px' : '0px',
           opacity: filtersVisible ? 1 : 0,
           transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease',
           willChange: 'max-height, opacity',
-          padding: filtersVisible ? '0 16px 12px' : '0 16px',
-          borderBottom: `1px solid ${c.faint}`,
         }}>
-          <div style={{ paddingTop: 10 }}>
-            <input placeholder="Search description..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inp, marginBottom: 8 }} />
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <div style={{ padding: '4px 16px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input placeholder="Search description..." value={search} onChange={e => setSearch(e.target.value)} style={inp} />
+            <div style={{ display: 'flex', gap: 8 }}>
               <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterCategory('all') }} style={{ ...inp, flex: 1 }}>
                 <option value="all">All groups</option>
                 {groups.map(g => <option key={g} value={g}>{g}</option>)}
@@ -189,7 +175,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose }: Transac
                 {state.categories.filter(cat => filterGroup === 'all' || cat.group_name === filterGroup).map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} style={{ ...inp, flex: 1 }}>
                 <option value="all">All accounts</option>
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
