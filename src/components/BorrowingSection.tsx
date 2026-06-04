@@ -45,6 +45,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
   const [payTarget, setPayTarget] = useState<Borrowing | null>(null)
   const [payForm, setPayForm] = useState<PayForm>(EMPTY_PAY)
   const [paying, setPaying] = useState(false)
+  const [infoOpen, setInfoOpen] = useState<string | null>(null)
 
   const openAdd = () => { setEditingId(null); setForm(EMPTY_BFORM); setSheetOpen(true) }
   const openEdit = (b: Borrowing) => {
@@ -83,13 +84,32 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
     setDeleting(null)
   }
 
+  const [showConfirm, setShowConfirm] = useState(false)
+
   const handlePayment = async () => {
     if (!payTarget) return
     const amt = parseFloat(payForm.amount)
     if (isNaN(amt) || amt <= 0) return
+    // Only ask about expense if paying out (you are paying someone)
+    if (!payForm.incoming && payForm.account_id) {
+      setShowConfirm(true)
+      return
+    }
+    await doPayment(false)
+  }
+
+  const doPayment = async (addAsExpense: boolean) => {
+    if (!payTarget) return
+    const amt = parseFloat(payForm.amount)
     setPaying(true)
+    setShowConfirm(false)
     try {
-      await onPayment(payTarget, amt, payForm.account_id || null, payForm.incoming, payForm.category_id || null)
+      await onPayment(
+        payTarget, amt,
+        addAsExpense ? payForm.account_id || null : null,
+        payForm.incoming,
+        addAsExpense ? payForm.category_id || null : null,
+      )
       closePay()
     } catch (_) {}
     setPaying(false)
@@ -132,6 +152,11 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
               const done = (b.remaining_amount ?? (b.total_amount - b.paid_amount)) <= 0
               const col = colorFor(b.person_name)
               const isDeleting = deleting === b.id
+              const direction = b.direction || 'lent'
+              const remaining = fmt(b.remaining_amount ?? (b.total_amount - b.paid_amount))
+              const infoText = direction === 'lent'
+                ? `You gave money to ${b.person_name}. ${done ? 'Fully paid back.' : `${b.person_name} owes you ${remaining}.`}`
+                : `${b.person_name} gave money to you. ${done ? 'Fully repaid.' : `You owe ${b.person_name} ${remaining}.`}`
 
               return (
                 <div key={b.id} style={{ opacity: isDeleting ? 0.4 : 1 }}>
@@ -147,15 +172,34 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{b.person_name}</span>
-                        <span style={{ font: '600 10px Plus Jakarta Sans', color: (b.direction || 'lent') === 'lent' ? c.good : c.bad, background: (b.direction || 'lent') === 'lent' ? c.goodSoft : c.badSoft, borderRadius: 999, padding: '2px 7px' }}>
-                          {(b.direction || 'lent') === 'lent' ? 'Lent' : 'Borrowed'}
+                        <span style={{ font: '600 10px Plus Jakarta Sans', color: direction === 'lent' ? c.good : c.bad, background: direction === 'lent' ? c.goodSoft : c.badSoft, borderRadius: 999, padding: '2px 7px' }}>
+                          {direction === 'lent' ? 'Lent' : 'Borrowed'}
                         </span>
+                        {/* ⓘ info icon */}
+                        <button
+                          type="button"
+                          title={infoText}
+                          onClick={() => setInfoOpen(infoOpen === b.id ? null : b.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: c.muted }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="16" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                          </svg>
+                        </button>
                         {done && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 999, padding: '2px 7px' }}>
                             Cleared
                           </span>
                         )}
                       </div>
+                      {/* Info tooltip */}
+                      {infoOpen === b.id && (
+                        <div style={{ marginTop: 6, background: c.surface2, borderRadius: 10, padding: '8px 10px', font: '600 12px Plus Jakarta Sans', color: c.ink, lineHeight: 1.5, border: `1px solid ${c.faint}` }}>
+                          {infoText}
+                        </div>
+                      )}
                       {b.notes && <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{b.notes}</div>}
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -329,6 +373,44 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
               <button onClick={closePay} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
               <button onClick={handlePayment} disabled={paying} style={{ flex: 2, background: c.good, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.7 : 1 }}>
                 {paying ? 'Saving...' : 'Record Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expense confirmation modal */}
+      {showConfirm && payTarget && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setShowConfirm(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            {/* Icon */}
+            <div style={{ width: 48, height: 48, borderRadius: 999, background: c.badSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c.bad} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+              </svg>
+            </div>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8, letterSpacing: '-0.01em' }}>
+              Add to expenses?
+            </div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              You're paying <strong style={{ color: c.ink }}>{fmt(parseFloat(payForm.amount))}</strong> to <strong style={{ color: c.ink }}>{payTarget.person_name}</strong>.
+              Do you want this recorded as an expense in your transaction history?
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={() => doPayment(true)}
+                disabled={paying}
+                style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: paying ? 0.7 : 1 }}
+              >
+                ✓ Yes, add as expense
+              </button>
+              <button
+                onClick={() => doPayment(false)}
+                disabled={paying}
+                style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                No, just update tracker
               </button>
             </div>
           </div>
