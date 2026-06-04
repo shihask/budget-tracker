@@ -90,7 +90,7 @@ function AppContent({ session }: { session: Session }) {
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
 
@@ -192,7 +192,7 @@ function AppContent({ session }: { session: Session }) {
           </div>
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => setTxnsOpen(false)} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onAddCategory={addCategory} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => setTxnsOpen(false)} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onAddCategory={addCategory} onReversePayment={reversePayment} />
           )}
 
           {catsOpen && (

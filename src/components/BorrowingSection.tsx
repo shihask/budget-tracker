@@ -11,6 +11,7 @@ type BForm = {
   paid_amount: string
   notes: string
   direction: 'lent' | 'borrowed'
+  account_id: string
 }
 
 type PayForm = {
@@ -20,15 +21,15 @@ type PayForm = {
   incoming: boolean
 }
 
-const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent' }
+const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent', account_id: '' }
 const EMPTY_PAY: PayForm = { amount: '', account_id: '', category_id: '', incoming: true }
 
 interface Props {
   state: AppState
-  onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => Promise<void>
+  onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }, addTransaction: boolean, accountId: string | null) => Promise<void>
   onUpdate: (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => Promise<void>
-  onDelete: (id: string) => Promise<void>
-  onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean, categoryId: string | null) => Promise<void>
+  onDelete: (id: string, deleteTransactions: boolean) => Promise<void>
+  onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean, categoryId: string | null, addTransaction: boolean) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<void>
 }
 
@@ -41,75 +42,96 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
   const [form, setForm] = useState<BForm>(EMPTY_BFORM)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [infoOpen, setInfoOpen] = useState<string | null>(null)
 
+  // Payment sheet
   const [payTarget, setPayTarget] = useState<Borrowing | null>(null)
   const [payForm, setPayForm] = useState<PayForm>(EMPTY_PAY)
   const [paying, setPaying] = useState(false)
-  const [infoOpen, setInfoOpen] = useState<string | null>(null)
 
-  const openAdd = () => { setEditingId(null); setForm(EMPTY_BFORM); setSheetOpen(true) }
+  // Confirmation modals
+  const [addConfirm, setAddConfirm] = useState(false)       // new entry: record as income?
+  const [payConfirm, setPayConfirm] = useState(false)       // payment: record as expense/income?
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null) // delete: also delete txns?
+  const [pendingAddForm, setPendingAddForm] = useState<{ person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' } | null>(null)
+
+  const openAdd = () => { setEditingId(null); setForm({ ...EMPTY_BFORM, account_id: accounts[0]?.id || '' }); setSheetOpen(true) }
   const openEdit = (b: Borrowing) => {
     setEditingId(b.id)
-    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent' })
+    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent', account_id: accounts[0]?.id || '' })
     setSheetOpen(true)
   }
   const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_BFORM) }
 
   const openPay = (b: Borrowing) => {
     setPayTarget(b)
-    // lent = they pay you back = incoming. borrowed = you pay back = outgoing
     const incoming = (b.direction || 'lent') === 'lent'
     setPayForm({ amount: String(b.remaining_amount || 0), account_id: accounts[0]?.id || '', category_id: '', incoming })
   }
   const closePay = () => { setPayTarget(null); setPayForm(EMPTY_PAY) }
 
+  // ── Save new/edit entry ───────────────────────────────────────────────────────
   const handleSave = async () => {
     const total = parseFloat(form.total_amount)
     const paid = parseFloat(form.paid_amount) || 0
     if (!form.person_name.trim() || isNaN(total) || total <= 0) return
+    const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction }
+
+    if (!editingId && form.direction === 'borrowed') {
+      // New borrowed entry — ask if we should record as income
+      setPendingAddForm(payload)
+      setAddConfirm(true)
+      return
+    }
+
     setSaving(true)
     try {
-      const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction }
       if (editingId) await onUpdate(editingId, payload)
-      else await onAdd(payload)
+      else await onAdd(payload, false, null)
       closeSheet()
     } catch (_) {}
     setSaving(false)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this borrowing entry?')) return
+  const doAdd = async (addAsIncome: boolean) => {
+    if (!pendingAddForm) return
+    setSaving(true)
+    setAddConfirm(false)
+    try {
+      await onAdd(pendingAddForm, addAsIncome, addAsIncome ? form.account_id || null : null)
+      closeSheet()
+    } catch (_) {}
+    setSaving(false)
+    setPendingAddForm(null)
+  }
+
+  // ── Delete entry ─────────────────────────────────────────────────────────────
+  const handleDelete = (id: string) => {
+    setDeleteConfirm(id)
+  }
+
+  const doDelete = async (id: string, deleteTransactions: boolean) => {
     setDeleting(id)
-    try { await onDelete(id) } catch (_) {}
+    setDeleteConfirm(null)
+    try { await onDelete(id, deleteTransactions) } catch (_) {}
     setDeleting(null)
   }
 
-  const [showConfirm, setShowConfirm] = useState(false)
-
+  // ── Record payment ───────────────────────────────────────────────────────────
   const handlePayment = async () => {
     if (!payTarget) return
     const amt = parseFloat(payForm.amount)
     if (isNaN(amt) || amt <= 0) return
-    // Only ask about expense if paying out (you are paying someone)
-    if (!payForm.incoming && payForm.account_id) {
-      setShowConfirm(true)
-      return
-    }
-    await doPayment(false)
+    setPayConfirm(true)
   }
 
-  const doPayment = async (addAsExpense: boolean) => {
+  const doPayment = async (addTransaction: boolean) => {
     if (!payTarget) return
     const amt = parseFloat(payForm.amount)
     setPaying(true)
-    setShowConfirm(false)
+    setPayConfirm(false)
     try {
-      await onPayment(
-        payTarget, amt,
-        addAsExpense ? payForm.account_id || null : null,
-        payForm.incoming,
-        addAsExpense ? payForm.category_id || null : null,
-      )
+      await onPayment(payTarget, amt, payForm.account_id || null, payForm.incoming, payForm.category_id || null, addTransaction)
       closePay()
     } catch (_) {}
     setPaying(false)
@@ -128,19 +150,33 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
   const avatarColors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899']
   const colorFor = (name: string) => avatarColors[name.charCodeAt(0) % avatarColors.length]
 
+  const ConfirmModal = ({ title, message, yesLabel, noLabel, onYes, onNo, yesColor }: {
+    title: string; message: React.ReactNode; yesLabel: string; noLabel: string
+    onYes: () => void; onNo: () => void; yesColor?: string
+  }) => (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={onNo} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+        <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>{title}</div>
+        <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>{message}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button onClick={onYes} style={{ width: '100%', background: yesColor || c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>
+            {yesLabel}
+          </button>
+          <button onClick={onNo} style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>
+            {noLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <>
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: state.borrowings.length ? 16 : 0 }}>
           <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Borrowing Tracker</div>
-          <button
-            onClick={openAdd}
-            style={{
-              width: 32, height: 32, borderRadius: 10, border: 'none',
-              background: c.accentSoft, color: c.accent, cursor: 'pointer',
-              font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >+</button>
+          <button onClick={openAdd} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
         </div>
 
         {state.borrowings.length === 0 ? (
@@ -161,40 +197,23 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
               return (
                 <div key={b.id} style={{ opacity: isDeleting ? 0.4 : 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 999, flexShrink: 0,
-                      background: col + '22', color: col,
-                      font: '800 15px Plus Jakarta Sans',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 999, flexShrink: 0, background: col + '22', color: col, font: '800 15px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {b.person_name.slice(0, 1).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{b.person_name}</span>
                         <span style={{ font: '600 10px Plus Jakarta Sans', color: direction === 'lent' ? c.good : c.bad, background: direction === 'lent' ? c.goodSoft : c.badSoft, borderRadius: 999, padding: '2px 7px' }}>
                           {direction === 'lent' ? 'Lent' : 'Borrowed'}
                         </span>
-                        {/* ⓘ info icon */}
-                        <button
-                          type="button"
-                          title={infoText}
-                          onClick={() => setInfoOpen(infoOpen === b.id ? null : b.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: c.muted }}
-                        >
+                        <button type="button" onClick={() => setInfoOpen(infoOpen === b.id ? null : b.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: c.muted }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="16" x2="12" y2="12"/>
-                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                           </svg>
                         </button>
-                        {done && (
-                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 999, padding: '2px 7px' }}>
-                            Cleared
-                          </span>
-                        )}
+                        {done && <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 999, padding: '2px 7px' }}>Cleared</span>}
                       </div>
-                      {/* Info tooltip */}
                       {infoOpen === b.id && (
                         <div style={{ marginTop: 6, background: c.surface2, borderRadius: 10, padding: '8px 10px', font: '600 12px Plus Jakarta Sans', color: c.ink, lineHeight: 1.5, border: `1px solid ${c.faint}` }}>
                           {infoText}
@@ -210,7 +229,6 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                     </div>
                   </div>
 
-                  {/* Progress bar */}
                   <div style={{ height: 8, borderRadius: 999, background: c.surface2, overflow: 'hidden' }}>
                     <div style={{ width: Math.min(100, pct) + '%', height: '100%', borderRadius: 999, background: done ? c.good : col, transition: 'width 0.4s' }} />
                   </div>
@@ -219,26 +237,14 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                     <span style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted }}>of {fmt(b.total_amount)} · {pct}%</span>
                   </div>
 
-                  {/* Actions */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     {!done && (
-                      <button
-                        onClick={() => openPay(b)}
-                        style={{
-                          background: c.goodSoft, color: c.good, border: 'none',
-                          borderRadius: 8, padding: '5px 10px',
-                          font: '700 11px Plus Jakarta Sans', cursor: 'pointer',
-                        }}
-                      >
+                      <button onClick={() => openPay(b)} style={{ background: c.goodSoft, color: c.good, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
                         ₹ Record Payment
                       </button>
                     )}
-                    <button onClick={() => openEdit(b)} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(b.id)} style={{ background: 'none', color: c.bad + '99', border: 'none', borderRadius: 8, padding: '5px 0', font: '600 11px Plus Jakarta Sans', cursor: 'pointer' }}>
-                      Delete
-                    </button>
+                    <button onClick={() => openEdit(b)} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>Edit</button>
+                    <button onClick={() => handleDelete(b.id)} style={{ background: 'none', color: c.bad + '99', border: 'none', borderRadius: 8, padding: '5px 0', font: '600 11px Plus Jakarta Sans', cursor: 'pointer' }}>Delete</button>
                   </div>
                 </div>
               )
@@ -247,7 +253,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
         )}
       </Card>
 
-      {/* Add / Edit Sheet */}
+      {/* ── Add / Edit Sheet ──────────────────────────────────────────────────── */}
       {sheetOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={closeSheet} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
@@ -257,6 +263,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
               {editingId ? 'Edit Entry' : 'Add Borrowing'}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Direction */}
               <div>
                 <label style={lbl}>Type</label>
                 <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
@@ -265,21 +272,20 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                       flex: 1, border: 'none', borderRadius: 10, padding: '9px',
                       font: '700 12px Plus Jakarta Sans',
                       background: form.direction === d ? (d === 'lent' ? c.good : c.bad) : 'transparent',
-                      color: form.direction === d ? '#fff' : c.muted,
-                      cursor: 'pointer',
+                      color: form.direction === d ? '#fff' : c.muted, cursor: 'pointer',
                     }}>
-                      {d === 'lent' ? '↑ I lent money' : '↓ I borrowed money'}
+                      {d === 'lent' ? '↑ I gave money' : '↓ I received money'}
                     </button>
                   ))}
                 </div>
                 <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 5 }}>
-                  {form.direction === 'lent' ? 'You gave money — they owe you' : 'You took money — you owe them'}
+                  {form.direction === 'lent' ? 'You gave money — they owe you' : 'You received money — you owe them'}
                 </div>
               </div>
               <div>
                 <label style={lbl}>Person name</label>
                 <input value={form.person_name} onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))}
-                  placeholder="e.g. Rahul, Noushad" style={inp} autoFocus />
+                  placeholder="e.g. Noushad" style={inp} autoFocus />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
@@ -293,6 +299,16 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                     placeholder="0" min="0" step="0.01" style={inp} />
                 </div>
               </div>
+              {/* Account — shown for new borrowed entries */}
+              {!editingId && form.direction === 'borrowed' && (
+                <div>
+                  <label style={lbl}>Account received into (for income record)</label>
+                  <select value={form.account_id} onChange={e => setForm(f => ({ ...f, account_id: e.target.value }))} style={inp}>
+                    <option value="">No account</option>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label style={lbl}>Notes (optional)</label>
                 <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -309,7 +325,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
         </div>
       )}
 
-      {/* Record Payment Sheet */}
+      {/* ── Record Payment Sheet ──────────────────────────────────────────────── */}
       {payTarget && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={closePay} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
@@ -319,14 +335,12 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, marginBottom: 16 }}>
               {payTarget.person_name} · Remaining {fmt(payTarget.remaining_amount ?? (payTarget.total_amount - payTarget.paid_amount))}
             </div>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Payment amount</label>
                 <input type="number" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
                   placeholder="0" min="0" step="0.01" style={inp} autoFocus />
               </div>
-
               <div>
                 <label style={lbl}>Direction</label>
                 <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
@@ -335,8 +349,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                       flex: 1, border: 'none', borderRadius: 10, padding: '9px',
                       font: '700 12px Plus Jakarta Sans',
                       background: payForm.incoming === v ? (v ? c.good : c.bad) : 'transparent',
-                      color: payForm.incoming === v ? '#fff' : c.muted,
-                      cursor: 'pointer',
+                      color: payForm.incoming === v ? '#fff' : c.muted, cursor: 'pointer',
                     }}>
                       {v ? '↓ Receiving' : '↑ Paying out'}
                     </button>
@@ -346,29 +359,19 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                   {payForm.incoming ? 'They paid you back → your balance increases' : 'You paid them → your balance decreases'}
                 </div>
               </div>
-
               <div>
-                <label style={lbl}>Account (optional)</label>
+                <label style={lbl}>Account</label>
                 <select value={payForm.account_id} onChange={e => setPayForm(f => ({ ...f, account_id: e.target.value }))} style={inp}>
                   <option value="">No account update</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
-
               <div>
                 <label style={lbl}>Category (optional)</label>
-                <CategorySelect
-                  value={payForm.category_id}
-                  onChange={v => setPayForm(f => ({ ...f, category_id: v }))}
-                  state={state}
-                  onAddCategory={onAddCategory}
-                  style={inp}
-                  includeEmpty
-                  emptyLabel="No category"
-                />
+                <CategorySelect value={payForm.category_id} onChange={v => setPayForm(f => ({ ...f, category_id: v }))}
+                  state={state} onAddCategory={onAddCategory} style={inp} includeEmpty emptyLabel="No category" />
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button onClick={closePay} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
               <button onClick={handlePayment} disabled={paying} style={{ flex: 2, background: c.good, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.7 : 1 }}>
@@ -379,42 +382,47 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
         </div>
       )}
 
-      {/* Expense confirmation modal */}
-      {showConfirm && payTarget && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setShowConfirm(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-            {/* Icon */}
-            <div style={{ width: 48, height: 48, borderRadius: 999, background: c.badSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c.bad} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-              </svg>
-            </div>
-            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8, letterSpacing: '-0.01em' }}>
-              Add to expenses?
-            </div>
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
-              You're paying <strong style={{ color: c.ink }}>{fmt(parseFloat(payForm.amount))}</strong> to <strong style={{ color: c.ink }}>{payTarget.person_name}</strong>.
-              Do you want this recorded as an expense in your transaction history?
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button
-                onClick={() => doPayment(true)}
-                disabled={paying}
-                style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: paying ? 0.7 : 1 }}
-              >
-                ✓ Yes, add as expense
-              </button>
-              <button
-                onClick={() => doPayment(false)}
-                disabled={paying}
-                style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
-              >
-                No, just update tracker
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* ── Confirm: new borrowed entry → record as income? ───────────────────── */}
+      {addConfirm && pendingAddForm && (
+        <ConfirmModal
+          title="Record as income?"
+          message={<><strong style={{ color: c.ink }}>{pendingAddForm.person_name}</strong> gave you <strong style={{ color: c.ink }}>{fmt(pendingAddForm.total_amount)}</strong>. Do you want to add this as an income transaction?</>}
+          yesLabel="✓ Yes, add as income"
+          noLabel="No, just track it"
+          yesColor={c.good}
+          onYes={() => doAdd(true)}
+          onNo={() => doAdd(false)}
+        />
+      )}
+
+      {/* ── Confirm: payment → record as expense/income? ──────────────────────── */}
+      {payConfirm && payTarget && (
+        <ConfirmModal
+          title={payForm.incoming ? 'Record as income?' : 'Record as expense?'}
+          message={
+            payForm.incoming
+              ? <><strong style={{ color: c.ink }}>{payTarget.person_name}</strong> paid you back <strong style={{ color: c.ink }}>{fmt(parseFloat(payForm.amount))}</strong>. Add this to your income transactions?</>
+              : <>You're paying <strong style={{ color: c.ink }}>{fmt(parseFloat(payForm.amount))}</strong> to <strong style={{ color: c.ink }}>{payTarget.person_name}</strong>. Add this as an expense transaction?</>
+          }
+          yesLabel={payForm.incoming ? '✓ Yes, add as income' : '✓ Yes, add as expense'}
+          noLabel="No, just update tracker"
+          yesColor={payForm.incoming ? c.good : c.accent}
+          onYes={() => doPayment(true)}
+          onNo={() => doPayment(false)}
+        />
+      )}
+
+      {/* ── Confirm: delete entry → also delete transactions? ─────────────────── */}
+      {deleteConfirm && (
+        <ConfirmModal
+          title="Delete borrowing entry?"
+          message="Do you also want to delete all transactions linked to this borrowing entry?"
+          yesLabel="Delete entry + transactions"
+          noLabel="Delete entry only"
+          yesColor={c.bad}
+          onYes={() => doDelete(deleteConfirm, true)}
+          onNo={() => doDelete(deleteConfirm, false)}
+        />
       )}
     </>
   )

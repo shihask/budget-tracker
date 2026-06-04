@@ -28,11 +28,12 @@ interface TransactionsPageProps {
   synced: boolean
   onSignOut: () => void
   onAddCategory: (name: string, group_name: string) => Promise<void>
+  onReversePayment: (t: Transaction) => Promise<void>
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onAddCategory }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onAddCategory, onReversePayment }: TransactionsPageProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
 
@@ -83,10 +84,27 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
 
   const totalFiltered = filtered.reduce((s, t) => s + t.amount, 0)
 
+  const [borrowingDeleteTarget, setBorrowingDeleteTarget] = useState<Transaction | null>(null)
+
   const handleDelete = async (t: Transaction) => {
     if (!confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
+    // Check if this transaction is linked to a borrowing
+    if (t.borrowing_id) {
+      setBorrowingDeleteTarget(t)
+      return
+    }
     setDeleting(t.id)
     try { await onDelete(t) } catch (_) {}
+    setDeleting(null)
+  }
+
+  const doDeleteWithBorrowingChoice = async (t: Transaction, reverseInTracker: boolean) => {
+    setBorrowingDeleteTarget(null)
+    setDeleting(t.id)
+    try {
+      if (reverseInTracker) await onReversePayment(t)
+      else await onDelete(t)
+    } catch (_) {}
     setDeleting(null)
   }
 
@@ -412,6 +430,39 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                 style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
               >
                 {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Borrowing-linked delete confirmation */}
+      {borrowingDeleteTarget && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setBorrowingDeleteTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Borrowing-linked transaction</div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              This transaction is linked to a borrowing entry. Do you want to also reverse it in the borrowing tracker?
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={() => doDeleteWithBorrowingChoice(borrowingDeleteTarget, true)}
+                style={{ width: '100%', background: c.bad, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Delete + reverse in tracker
+              </button>
+              <button
+                onClick={() => doDeleteWithBorrowingChoice(borrowingDeleteTarget, false)}
+                style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Delete transaction only
+              </button>
+              <button
+                onClick={() => setBorrowingDeleteTarget(null)}
+                style={{ width: '100%', background: 'none', color: c.muted, border: 'none', borderRadius: 12, padding: '8px', font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Cancel
               </button>
             </div>
           </div>

@@ -262,38 +262,106 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, categories: s.categories.filter(c => c.id !== id) }))
   }, [])
 
-  const addBorrowing = useCallback(async (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null }) => {
+  const addBorrowing = useCallback(async (
+    form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' },
+    addTransaction: boolean,
+    accountId: string | null,
+  ) => {
+    const today = new Date().toISOString().slice(0, 10)
     const { data, error } = await supabase.from('borrowings').insert({ ...form, user_id: userId }).select('*').single()
     if (error) throw error
-    setState(s => ({ ...s, borrowings: [...s.borrowings, data as AppState['borrowings'][0]] }))
+    const borrowing = data as AppState['borrowings'][0]
+
+    // If borrowed and user wants to record as income
+    if (addTransaction && accountId && form.direction === 'borrowed') {
+      const { data: newTx } = await supabase.from('transactions').insert({
+        transaction_date: today,
+        description: `${form.person_name} – borrowed`,
+        amount: form.total_amount,
+        transaction_type: 'income',
+        category_id: null,
+        from_account_id: accountId,
+        to_account_id: null,
+        notes: '',
+        user_id: userId,
+        borrowing_id: borrowing.id,
+      }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
+
+      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
+      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + form.total_amount }).eq('id', accountId)
+
+      setState(s => ({
+        ...s,
+        borrowings: [...s.borrowings, borrowing],
+        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+        accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance + form.total_amount } : a),
+      }))
+    } else {
+      setState(s => ({ ...s, borrowings: [...s.borrowings, borrowing] }))
+    }
   }, [userId])
 
-  const updateBorrowing = useCallback(async (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null }) => {
+  const updateBorrowing = useCallback(async (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => {
     const { data, error } = await supabase.from('borrowings').update(form).eq('id', id).select('*').single()
     if (error) throw error
     setState(s => ({ ...s, borrowings: s.borrowings.map(b => b.id === id ? data as AppState['borrowings'][0] : b) }))
   }, [])
 
-  const deleteBorrowing = useCallback(async (id: string) => {
+  const deleteBorrowing = useCallback(async (id: string, deleteTransactions: boolean) => {
+    if (deleteTransactions) {
+      // Get linked transactions and reverse their account impact
+      const { data: txns } = await supabase.from('transactions').select('*').eq('borrowing_id', id)
+      if (txns) {
+        for (const t of txns) {
+          if (t.from_account_id) {
+            const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
+            if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - delta(t.transaction_type, t.amount) }).eq('id', t.from_account_id)
+          }
+        }
+        await supabase.from('transactions').delete().eq('borrowing_id', id)
+      }
+    }
     await supabase.from('borrowings').delete().eq('id', id)
-    setState(s => ({ ...s, borrowings: s.borrowings.filter(b => b.id !== id) }))
+    setState(s => ({
+      ...s,
+      borrowings: s.borrowings.filter(b => b.id !== id),
+      transactions: deleteTransactions ? s.transactions.filter(t => (t as any).borrowing_id !== id) : s.transactions,
+    }))
   }, [])
 
   const recordBorrowingPayment = useCallback(async (
-    borrowing: AppState['borrowings'][0], payment: number, accountId: string | null, incoming: boolean, categoryId: string | null = null,
+    borrowing: AppState['borrowings'][0], payment: number, accountId: string | null,
+    incoming: boolean, categoryId: string | null = null, addTransaction: boolean = true,
   ) => {
     const today = new Date().toISOString().slice(0, 10)
     const newPaid = Math.min(borrowing.total_amount, borrowing.paid_amount + payment)
     await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', borrowing.id)
-    if (accountId) {
-      await supabase.from('transactions').insert({ transaction_date: today, description: `${borrowing.person_name} – repayment`, amount: payment, transaction_type: incoming ? 'income' : 'expense', category_id: categoryId, from_account_id: accountId, to_account_id: null, notes: '', user_id: userId })
+
+    let newTx: Transaction | null = null
+    if (addTransaction && accountId) {
+      const { data } = await supabase.from('transactions').insert({
+        transaction_date: today,
+        description: `${borrowing.person_name} – ${incoming ? 'received repayment' : 'repayment'}`,
+        amount: payment,
+        transaction_type: incoming ? 'income' : 'expense',
+        category_id: categoryId,
+        from_account_id: accountId,
+        to_account_id: null,
+        notes: '',
+        user_id: userId,
+        borrowing_id: borrowing.id,
+      }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
+      newTx = data as Transaction
+
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
       if (acc) await supabase.from('accounts').update({ current_balance: incoming ? acc.current_balance + payment : acc.current_balance - payment }).eq('id', accountId)
     }
+
     setState(s => ({
       ...s,
       borrowings: s.borrowings.map(b => b.id === borrowing.id ? { ...b, paid_amount: newPaid, remaining_amount: b.total_amount - newPaid } : b),
-      accounts: accountId ? s.accounts.map(a => a.id !== accountId ? a : { ...a, current_balance: a.current_balance + (incoming ? payment : -payment) }) : s.accounts,
+      transactions: newTx ? [newTx, ...s.transactions] : s.transactions,
+      accounts: (addTransaction && accountId) ? s.accounts.map(a => a.id !== accountId ? a : { ...a, current_balance: a.current_balance + (incoming ? payment : -payment) }) : s.accounts,
     }))
   }, [userId])
 
@@ -343,13 +411,37 @@ export function useSupabaseData(userId: string) {
     } catch (err) { console.error('Failed to update settings:', err); throw err }
   }, [state.settings.id])
 
+  // Reverse a borrowing-linked transaction (called when user deletes it from TransactionsPage)
+  const reversePayment = useCallback(async (t: Transaction) => {
+    if (!t.borrowing_id) return
+    // Reverse account balance
+    if (t.from_account_id) {
+      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
+      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - delta(t.transaction_type, t.amount) }).eq('id', t.from_account_id)
+    }
+    // Reverse paid_amount on borrowing
+    const { data: borrowing } = await supabase.from('borrowings').select('paid_amount, total_amount').eq('id', t.borrowing_id).single()
+    if (borrowing) {
+      const newPaid = Math.max(0, borrowing.paid_amount - t.amount)
+      await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', t.borrowing_id)
+      setState(s => ({
+        ...s,
+        borrowings: s.borrowings.map(b => b.id === t.borrowing_id ? { ...b, paid_amount: newPaid, remaining_amount: b.total_amount - newPaid } : b),
+        accounts: t.from_account_id ? s.accounts.map(a => a.id === t.from_account_id ? { ...a, current_balance: a.current_balance - delta(t.transaction_type, t.amount) } : a) : s.accounts,
+      }))
+    }
+    // Delete the transaction
+    await supabase.from('transactions').delete().eq('id', t.id)
+    setState(s => ({ ...s, transactions: s.transactions.filter(tx => tx.id !== t.id) }))
+  }, [])
+
   return {
     state, setState, loading, usingSupabase,
     addTransaction, deleteTransaction, updateTransaction, updateSettings,
     addAccount, deleteAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup,
     addCategory, updateCategory, deleteCategory,
-    addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment,
+    addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
   }
 }

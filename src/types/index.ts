@@ -1,6 +1,18 @@
 export type AccountType = 'bank' | 'cash' | 'credit_card'
-export type CategoryGroup = 'Lifestyle' | 'Commitment' | 'Renovation' | 'Family' | 'Transfer'
 export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment'
+
+export interface Group {
+  id: string
+  name: string
+  user_id?: string
+}
+
+export interface Category {
+  id: string
+  name: string
+  group_name: string
+  user_id?: string
+}
 
 export interface Account {
   id: string
@@ -9,12 +21,6 @@ export interface Account {
   current_balance: number
   is_active: boolean
   created_at?: string
-}
-
-export interface Category {
-  id: string
-  name: string
-  group_name: CategoryGroup
 }
 
 export interface Transaction {
@@ -28,6 +34,7 @@ export interface Transaction {
   to_account_id: string | null
   notes: string | null
   created_at: string
+  borrowing_id?: string | null
   // joined
   category?: Category
   from_account?: Account
@@ -40,6 +47,7 @@ export interface Borrowing {
   paid_amount: number
   remaining_amount: number
   notes: string | null
+  direction: 'lent' | 'borrowed'
 }
 
 export interface Settings {
@@ -67,6 +75,7 @@ export interface Commitment {
 export interface AppState {
   accounts: Account[]
   categories: Category[]
+  groups: Group[]
   settings: Settings
   commitments: Commitment[]
   borrowings: Borrowing[]
