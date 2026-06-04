@@ -14,18 +14,19 @@ type BForm = {
 type PayForm = {
   amount: string
   account_id: string
+  category_id: string
   incoming: boolean
 }
 
 const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '' }
-const EMPTY_PAY: PayForm = { amount: '', account_id: '', incoming: true }
+const EMPTY_PAY: PayForm = { amount: '', account_id: '', category_id: '', incoming: true }
 
 interface Props {
   state: AppState
   onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null }) => Promise<void>
   onUpdate: (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null }) => Promise<void>
   onDelete: (id: string) => Promise<void>
-  onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean) => Promise<void>
+  onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean, categoryId: string | null) => Promise<void>
 }
 
 export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }: Props) {
@@ -83,7 +84,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
     if (isNaN(amt) || amt <= 0) return
     setPaying(true)
     try {
-      await onPayment(payTarget, amt, payForm.account_id || null, payForm.incoming)
+      await onPayment(payTarget, amt, payForm.account_id || null, payForm.incoming, payForm.category_id || null)
       closePay()
     } catch (_) {}
     setPaying(false)
@@ -280,6 +281,20 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
                 <select value={payForm.account_id} onChange={e => setPayForm(f => ({ ...f, account_id: e.target.value }))} style={inp}>
                   <option value="">No account update</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={lbl}>Category (optional)</label>
+                <select value={payForm.category_id} onChange={e => setPayForm(f => ({ ...f, category_id: e.target.value }))} style={inp}>
+                  <option value="">No category</option>
+                  {state.groups.map(g => (
+                    <optgroup key={g.id} label={g.name}>
+                      {state.categories.filter(c => c.group_name === g.name).map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
             </div>
