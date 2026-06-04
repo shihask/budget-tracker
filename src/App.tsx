@@ -83,12 +83,25 @@ function AppContent({ session }: { session: Session }) {
         fontFamily: 'Plus Jakarta Sans, sans-serif',
       }}>
         <div style={{ width: '100%', maxWidth: W, position: 'relative' }}>
+          {/* Fixed Header */}
+          <div style={{
+            position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
+            width: '100%', maxWidth: W, zIndex: 200,
+            background: dark ? 'rgba(12,10,7,0.85)' : 'rgba(237,231,221,0.85)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            padding: `env(safe-area-inset-top, 0px) 16px 0`,
+            borderBottom: `1px solid ${c.faint}`,
+          }}>
+            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} />
+          </div>
+
           <div style={{
             background: c.bg, minHeight: '100svh',
             padding: `4px 16px calc(130px + env(safe-area-inset-bottom, 0px))`,
           }}>
-            <div style={{ height: 'calc(50px + env(safe-area-inset-top, 0px))' }} />
-            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} />
+            {/* Spacer to offset fixed header height */}
+            <div style={{ height: 'calc(72px + env(safe-area-inset-top, 0px))' }} />
 
             {/* Settings gear */}
             <button onClick={() => setSettingsOpen(v => !v)} style={{
@@ -127,6 +140,7 @@ function AppContent({ session }: { session: Session }) {
                 BudgetTracker · {usingSupabase ? 'synced with Supabase' : 'local session data'}
               </div>
             </div>
+          </div>
           </div>
 
           {/* FAB */}
