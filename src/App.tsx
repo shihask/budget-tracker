@@ -21,24 +21,52 @@ import { SettingsPanel } from '@/components/SettingsPanel'
 import { TransactionsPage } from '@/components/TransactionsPage'
 import { Glyph } from '@/components/Glyph'
 import { PWAPrompt } from '@/components/PWAPrompt'
-import { AuthPage } from '@/components/AuthPage'
+import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  // Check URL hash immediately — Supabase puts #type=recovery on reset links
+  const [isResetting, setIsResetting] = useState(() => {
+    const hash = window.location.hash
+    return hash.includes('type=recovery') || hash.includes('type=signup')
+      ? hash.includes('type=recovery')
+      : false
+  })
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    // If recovery token in URL, don't call getSession yet — wait for onAuthStateChange
+    const hash = window.location.hash
+    const hasRecoveryToken = hash.includes('type=recovery')
+
+    if (!hasRecoveryToken) {
+      supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsResetting(true)
+        setSession(s)
+        window.history.replaceState(null, '', window.location.pathname)
+      } else {
+        if (!isResetting) setSession(s)
+      }
+    })
     return () => subscription.unsubscribe()
   }, [])
 
-  if (session === undefined) return (
+  if (session === undefined && !isResetting) return (
     <div style={{ minHeight: '100svh', background: '#EDE7DD', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: 36, height: 36, borderRadius: 999, border: '3px solid #10B981', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
+
+  if (isResetting) return <ResetPasswordPage onDone={async () => {
+    setIsResetting(false)
+    const { data: { session } } = await supabase.auth.getSession()
+    setSession(session)
+  }} />
 
   if (session === null) return <AuthPage />
 

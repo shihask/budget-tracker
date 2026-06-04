@@ -297,3 +297,84 @@ function TextBtn({ children, onClick }: { children: React.ReactNode; onClick: ()
     </button>
   )
 }
+
+// ── Reset Password Page (shown after clicking email link) ─────────────────────
+export function ResetPasswordPage({ onDone }: { onDone: () => void }) {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [done, setDone]         = useState(false)
+
+  const handleReset = async () => {
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (password !== confirm) { setError('Passwords do not match'); return }
+    setLoading(true); setError(null)
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) { setError(error.message); setLoading(false); return }
+    setDone(true)
+    setLoading(false)
+    // Session is still valid after updateUser — just dismiss reset screen, go to dashboard
+    setTimeout(() => onDone(), 2000)
+  }
+
+  return (
+    <Screen>
+      {done ? (
+        <div style={{ textAlign: 'center', padding: '0 8px' }}>
+          <div style={{ width: 72, height: 72, borderRadius: 999, background: accent + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <div style={{ font: '800 22px Plus Jakarta Sans', color: '#1C1410', marginBottom: 10 }}>Password updated!</div>
+          <div style={{ font: '600 14px Plus Jakarta Sans', color: '#9C938A', lineHeight: 1.6 }}>
+            Your password has been updated. Taking you to your dashboard…
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ font: '800 24px Plus Jakarta Sans', color: '#1C1410', marginBottom: 6 }}>Set new password</div>
+          <div style={{ font: '600 13px Plus Jakarta Sans', color: '#9C938A', marginBottom: 24 }}>
+            Choose a strong password for your account.
+          </div>
+          {error && <ErrorBox msg={error} />}
+          <Field label="New Password">
+            <input
+              type="password" value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Min. 6 characters"
+              autoComplete="new-password"
+              style={inp} autoFocus
+            />
+          </Field>
+          <Field label="Confirm Password">
+            <div style={{ position: 'relative' }}>
+              <input
+                type="password" value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleReset() }}
+                placeholder="Re-enter password"
+                autoComplete="new-password"
+                style={{
+                  ...inp,
+                  borderColor: confirm.length > 0
+                    ? confirm === password ? '#10B981' : '#EF4444'
+                    : '#E5DDD5',
+                }}
+              />
+              {confirm.length > 0 && (
+                <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', font: '700 12px Plus Jakarta Sans', color: confirm === password ? '#10B981' : '#EF4444' }}>
+                  {confirm === password ? '✓ Match' : '✗ No match'}
+                </div>
+              )}
+            </div>
+          </Field>
+          <PrimaryBtn loading={loading} onClick={handleReset} disabled={!password || !confirm}>
+            Update Password
+          </PrimaryBtn>
+        </>
+      )}
+    </Screen>
+  )
+}
