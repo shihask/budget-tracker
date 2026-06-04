@@ -9,9 +9,10 @@ interface HeaderProps {
   userEmail: string
   synced: boolean
   onSignOut: () => void
+  onSettings: () => void
 }
 
-export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSignOut }: HeaderProps) {
+export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings }: HeaderProps) {
   const c = useTheme()
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -20,7 +21,6 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // Close on outside click
   useEffect(() => {
     if (!menuOpen) return
     const handler = (e: MouseEvent) => {
@@ -39,8 +39,17 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
     cursor: 'pointer', boxShadow: c.cardShadow,
   }
 
+  const menuItemStyle: React.CSSProperties = {
+    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+    padding: '10px 12px', background: 'none', border: 'none',
+    borderRadius: 10, cursor: 'pointer',
+    font: '700 13px Plus Jakarta Sans', textAlign: 'left',
+    color: c.ink,
+  }
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px 14px' }}>
+      {/* Greeting + Name */}
       <div>
         <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.01em' }}>
           {greeting}
@@ -50,6 +59,7 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
         </div>
       </div>
 
+      {/* Right: theme toggle + avatar */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <button onClick={onToggleTheme} aria-label="Toggle theme" style={iconBtnStyle}>
           <Glyph name={dark ? 'sun' : 'moon'} color={c.ink} size={18} />
@@ -69,7 +79,6 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
             }}
           >
             {initials}
-            {/* Sync status dot */}
             <span style={{
               position: 'absolute', bottom: 1, right: 1,
               width: 10, height: 10, borderRadius: 999,
@@ -84,7 +93,7 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
               background: c.surface, borderRadius: 16, padding: '6px',
               boxShadow: '0 8px 32px rgba(0,0,0,0.16)',
               border: `1px solid ${c.faint}`,
-              minWidth: 200,
+              minWidth: 210,
             }}>
               {/* User info */}
               <div style={{ padding: '10px 12px 8px' }}>
@@ -97,16 +106,27 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
                   </span>
                 </div>
               </div>
+
               <div style={{ height: 1, background: c.faint, margin: '4px 0' }} />
+
+              {/* Settings */}
+              <button
+                onClick={() => { setMenuOpen(false); onSettings() }}
+                style={menuItemStyle}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                </svg>
+                Settings
+              </button>
+
+              <div style={{ height: 1, background: c.faint, margin: '4px 0' }} />
+
               {/* Sign out */}
               <button
                 onClick={() => { setMenuOpen(false); onSignOut() }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 12px', background: 'none', border: 'none',
-                  borderRadius: 10, cursor: 'pointer', color: c.bad,
-                  font: '700 13px Plus Jakarta Sans', textAlign: 'left',
-                }}
+                style={{ ...menuItemStyle, color: c.bad }}
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>

@@ -93,7 +93,7 @@ function AppContent({ session }: { session: Session }) {
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
           }}>
-            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} />
+            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} />
           </div>
 
           <div style={{
@@ -102,22 +102,6 @@ function AppContent({ session }: { session: Session }) {
           }}>
             {/* Spacer to offset fixed header height */}
             <div style={{ height: 'calc(72px + env(safe-area-inset-top, 0px))' }} />
-
-            {/* Settings gear */}
-            <button onClick={() => setSettingsOpen(v => !v)} style={{
-              position: 'fixed',
-              top: 'calc(16px + env(safe-area-inset-top, 0px))',
-              right: settingsOpen ? panelW + 16 : 16, zIndex: 300,
-              width: 40, height: 40, borderRadius: 999,
-              background: c.surface, border: `1px solid ${c.faint}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', boxShadow: c.cardShadow,
-              transition: 'right 0.3s cubic-bezier(0.32,0.72,0,1)',
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-              </svg>
-            </button>
 
             {loading && (
               <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${c.accent}, ${c.heroB})`, zIndex: 999 }} />
@@ -140,7 +124,6 @@ function AppContent({ session }: { session: Session }) {
                 BudgetTracker · {usingSupabase ? 'synced with Supabase' : 'local session data'}
               </div>
             </div>
-          </div>
           </div>
 
           {/* FAB */}
