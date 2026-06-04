@@ -101,7 +101,7 @@ export function CategoriesPage({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 300, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
 
       {/* Header */}
       <div style={{ position: 'sticky', top: 0, zIndex: 10, background: c.bg, borderBottom: `1px solid ${c.faint}`, padding: 'calc(12px + env(safe-area-inset-top, 0px)) 16px 12px' }}>

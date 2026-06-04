@@ -22,6 +22,7 @@ import { TransactionsPage } from '@/components/TransactionsPage'
 import { Glyph } from '@/components/Glyph'
 import { PWAPrompt } from '@/components/PWAPrompt'
 import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
+import { CategoriesPage } from '@/components/CategoriesPage'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -85,10 +86,11 @@ function AppContent({ session }: { session: Session }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
+  const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
 
@@ -122,7 +124,7 @@ function AppContent({ session }: { session: Session }) {
             borderBottom: `1px solid ${c.faint}`,
             display: txnsOpen ? 'none' : 'block',
           }}>
-            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} />
+            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} />
           </div>
 
           <div style={{
@@ -191,6 +193,19 @@ function AppContent({ session }: { session: Session }) {
 
           {txnsOpen && (
             <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => setTxnsOpen(false)} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} />
+          )}
+
+          {catsOpen && (
+            <CategoriesPage
+              state={state}
+              onClose={() => setCatsOpen(false)}
+              onAddGroup={addGroup}
+              onUpdateGroup={updateGroup}
+              onDeleteGroup={deleteGroup}
+              onAddCategory={addCategory}
+              onUpdateCategory={updateCategory}
+              onDeleteCategory={deleteCategory}
+            />
           )}
         </div>
 
