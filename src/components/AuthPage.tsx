@@ -15,11 +15,12 @@ const inp: React.CSSProperties = {
 
 export function AuthPage() {
   const [mode, setMode] = useState<Mode>('login')
-  const [name, setName]         = useState('')
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+  const [name, setName]             = useState('')
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [confirm, setConfirm]       = useState('')
+  const [loading, setLoading]       = useState(false)
+  const [error, setError]           = useState<string | null>(null)
 
   const clearError = () => setError(null)
 
@@ -34,6 +35,7 @@ export function AuthPage() {
   const handleSignup = async () => {
     if (!name.trim() || !email || !password) return
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (password !== confirm) { setError('Passwords do not match'); return }
     setLoading(true); clearError()
     const { error } = await supabase.auth.signUp({
       email,
@@ -137,7 +139,7 @@ export function AuthPage() {
       {/* Toggle */}
       <div style={{ display: 'flex', background: '#EDE7DD', borderRadius: 14, padding: 4, gap: 4, marginBottom: 24 }}>
         {(['login', 'signup'] as Mode[]).map(m => (
-          <button key={m} onClick={() => { setMode(m); clearError(); setName(''); setEmail(''); setPassword('') }} style={{
+          <button key={m} onClick={() => { setMode(m); clearError(); setName(''); setEmail(''); setPassword(''); setConfirm('') }} style={{
             flex: 1, border: 'none', borderRadius: 11, padding: '10px',
             font: '700 13px Plus Jakarta Sans',
             background: mode === m ? '#fff' : 'transparent',
@@ -175,6 +177,32 @@ export function AuthPage() {
           style={inp} />
       </Field>
 
+      {isSignup && (
+        <Field label="Confirm Password">
+          <div style={{ position: 'relative' }}>
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+              onKeyDown={e => onKey(e, handleSignup)}
+              placeholder="Re-enter password"
+              autoComplete="new-password"
+              style={{
+                ...inp,
+                borderColor: confirm.length > 0
+                  ? confirm === password ? '#10B981' : '#EF4444'
+                  : '#E5DDD5',
+              }} />
+            {confirm.length > 0 && (
+              <div style={{
+                position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                font: '700 12px Plus Jakarta Sans',
+                color: confirm === password ? '#10B981' : '#EF4444',
+              }}>
+                {confirm === password ? '✓ Match' : '✗ No match'}
+              </div>
+            )}
+          </div>
+        </Field>
+      )}
+
       {!isSignup && (
         <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 16 }}>
           <button onClick={() => { setMode('forgot'); clearError() }} style={{
@@ -189,7 +217,7 @@ export function AuthPage() {
       <PrimaryBtn
         loading={loading}
         onClick={isSignup ? handleSignup : handleLogin}
-        disabled={isSignup ? !name || !email || !password : !email || !password}
+        disabled={isSignup ? !name || !email || !password || !confirm : !email || !password}
       >
         {isSignup ? 'Create Account' : 'Sign In'}
       </PrimaryBtn>
