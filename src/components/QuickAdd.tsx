@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, TODAY, iso } from '@/lib/utils'
 import { Glyph } from './Glyph'
-import type { AppState, Transaction, TransactionType } from '@/types'
+import type { AppState, Transaction, TransactionType, Category } from '@/types'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -16,13 +16,43 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
-const QUICK = [
-  { label: 'Tea',       cat: 'c_tea',  amt: 40  },
-  { label: 'Petrol',    cat: 'c_fuel', amt: 950 },
-  { label: 'Groceries', cat: 'c_groc', amt: 600 },
-  { label: 'Medical',   cat: 'c_med',  amt: 300 },
-  { label: 'Shopping',  cat: 'c_shop', amt: 500 },
+// Quick-add chips — matched to category by name, not hardcoded ID
+const QUICK_DEFS = [
+  { label: 'Tea',       catName: 'Food & Tea', amt: 40  },
+  { label: 'Petrol',    catName: 'Fuel',       amt: 950 },
+  { label: 'Groceries', catName: 'Groceries',  amt: 600 },
+  { label: 'Medical',   catName: 'Medical',    amt: 300 },
+  { label: 'Shopping',  catName: 'Shopping',   amt: 500 },
 ]
+
+// Keyword → category name mapping for auto-detection
+const KEYWORD_CATS: [string[], string][] = [
+  [['tea', 'coffee', 'chai', 'juice', 'drink', 'snack', 'breakfast', 'lunch', 'dinner', 'food', 'eat', 'restaurant', 'hotel', 'bakery', 'biscuit', 'sweet', 'biriyani', 'parotta', 'dosa', 'idli'], 'Food & Tea'],
+  [['petrol', 'fuel', 'diesel', 'gas', 'bunk', 'pump', 'filling station'], 'Fuel'],
+  [['grocery', 'groceries', 'vegetable', 'rice', 'dal', 'flour', 'milk', 'bread', 'egg', 'fruit', 'supermarket', 'provision', 'store', 'market', 'sabzi'], 'Groceries'],
+  [['medical', 'medicine', 'doctor', 'hospital', 'pharmacy', 'tablet', 'injection', 'clinic', 'health', 'lab', 'prescription'], 'Medical'],
+  [['shopping', 'clothes', 'shirt', 'pants', 'dress', 'shoes', 'amazon', 'flipkart', 'mall', 'apparel'], 'Shopping'],
+  [['electricity', 'electric', 'bill', 'internet', 'wifi', 'broadband', 'mobile recharge', 'recharge', 'bsnl', 'jio', 'airtel', 'kseb', 'utility'], 'Utilities'],
+  [['loan', 'emi', 'mortgage', 'installment'], 'Loan EMI'],
+  [['gold', 'jewel', 'chit', 'kuri', 'chitty'], 'Gold Scheme'],
+  [['sip', 'mutual fund', 'investment'], 'SIP'],
+  [['kitchen', 'utensil', 'vessel', 'cooker'], 'Kitchen'],
+  [['granite', 'marble', 'tiles', 'flooring'], 'Granite'],
+  [['wiring', 'electrician', 'switch', 'fan', 'bulb', 'mcb'], 'Electrical'],
+  [['plumbing', 'pipe', 'tap', 'bathroom', 'toilet', 'sink'], 'Plumbing'],
+  [['family', 'home expense', 'domestic'], 'Family'],
+]
+
+function guessCategory(description: string, categories: Category[]): string | null {
+  const lower = description.toLowerCase()
+  for (const [keywords, catName] of KEYWORD_CATS) {
+    if (keywords.some(kw => lower.includes(kw))) {
+      const cat = categories.find(c => c.name.toLowerCase().includes(catName.toLowerCase()))
+      if (cat) return cat.id
+    }
+  }
+  return null
+}
 
 interface FABProps { onClick: () => void }
 
@@ -56,6 +86,9 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income'>('expense')
 
+  const accs = state.accounts.filter(a => a.is_active)
+  const cats = state.categories
+
   const { register, handleSubmit, setValue, watch, reset, formState: { errors, isValid } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: 'onChange',
@@ -63,25 +96,36 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
       date: iso(TODAY),
       description: '',
       amount: 0,
-      category_id: 'c_tea',
-      from_account_id: 'a3',
+      category_id: '',
+      from_account_id: '',
     },
   })
 
+  // Reset with correct first account & category each time sheet opens
   useEffect(() => {
     if (open) {
-      reset({ date: iso(TODAY), description: '', amount: 0, category_id: 'c_tea', from_account_id: 'a3' })
+      const firstAccount = accs[0]?.id || ''
+      const firstCat = cats.find(c => c.group_name === 'Lifestyle')?.id || cats[0]?.id || ''
+      reset({ date: iso(TODAY), description: '', amount: 0, category_id: firstCat, from_account_id: firstAccount })
       setTxType('expense')
     }
-  }, [open, reset])
+  }, [open, reset, accs.length, cats.length])
 
   const descriptionVal = watch('description')
   const amountVal = watch('amount')
   const categoryVal = watch('category_id')
 
-  const applyQuick = (q: typeof QUICK[number]) => {
+  // Auto-detect category from description
+  useEffect(() => {
+    if (!descriptionVal.trim()) return
+    const guessed = guessCategory(descriptionVal, cats)
+    if (guessed) setValue('category_id', guessed, { shouldValidate: true })
+  }, [descriptionVal, cats, setValue])
+
+  const applyQuick = (q: typeof QUICK_DEFS[number]) => {
+    const cat = cats.find(c => c.name.toLowerCase().includes(q.catName.toLowerCase()))
     setValue('description', q.label, { shouldValidate: true })
-    setValue('category_id', q.cat, { shouldValidate: true })
+    if (cat) setValue('category_id', cat.id, { shouldValidate: true })
     if (!amountVal) setValue('amount', q.amt, { shouldValidate: true })
   }
 
@@ -110,8 +154,6 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
   const isExpense = txType === 'expense'
   const typeColor = isExpense ? c.bad : c.good
   const valid = isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal)
-  const accs = state.accounts.filter(a => a.is_active)
-  const cats = state.categories
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: open ? 'auto' : 'none' }}>
@@ -137,18 +179,13 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
         {/* Expense / Income toggle */}
         <div style={{ display: 'flex', background: c.surface2, borderRadius: 14, padding: 4, marginBottom: 16, gap: 4 }}>
           {(['expense', 'income'] as const).map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTxType(t)}
-              style={{
-                flex: 1, border: 'none', borderRadius: 11, padding: '9px 0',
-                font: '700 13px Plus Jakarta Sans',
-                background: txType === t ? (t === 'income' ? c.good : c.accent) : 'transparent',
-                color: txType === t ? '#fff' : c.muted,
-                cursor: 'pointer', transition: 'all 0.15s',
-              }}
-            >
+            <button key={t} type="button" onClick={() => setTxType(t)} style={{
+              flex: 1, border: 'none', borderRadius: 11, padding: '9px 0',
+              font: '700 13px Plus Jakarta Sans',
+              background: txType === t ? (t === 'income' ? c.good : c.accent) : 'transparent',
+              color: txType === t ? '#fff' : c.muted,
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}>
               {t === 'expense' ? '↑ Expense' : '↓ Income'}
             </button>
           ))}
@@ -157,7 +194,7 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
         {/* Quick chips — expense only */}
         {isExpense && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-            {QUICK.map(q => {
+            {QUICK_DEFS.map(q => {
               const active = descriptionVal === q.label
               return (
                 <button key={q.label} type="button" onClick={() => applyQuick(q)} style={{
@@ -179,6 +216,7 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
               {...register('amount', { valueAsNumber: true })}
               inputMode="decimal"
               placeholder="0"
+              onFocus={e => e.target.select()}
               style={{ border: 'none', background: 'transparent', outline: 'none', width: 160, textAlign: 'center', font: '800 44px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em' }}
             />
           </div>
