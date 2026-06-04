@@ -118,7 +118,7 @@ function AppContent({ session }: { session: Session }) {
                 <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} />
               </div>
               <Analytics state={state} />
-              <AccountsSection state={state} onAdjustBalance={adjustBalance} />
+              <AccountsSection state={state} onAdjustBalance={adjustBalance} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />
               <CommitmentsSection state={state} d={d} onMarkPaid={markCommitmentPaid} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} />
               <BorrowingSection state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} />
               <RenovationSection state={state} d={d} />
