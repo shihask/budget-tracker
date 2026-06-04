@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { CAT_COLORS, ACC_COLORS } from '@/lib/tokens'
 import { fmt, fmtDate } from '@/lib/utils'
@@ -38,7 +38,32 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose }: Transac
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [saving, setSaving] = useState(false)
+  const [filtersVisible, setFiltersVisible] = useState(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const lastScrollY = useRef(0)
+  const ticking = useRef(false)
 
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const handler = () => {
+      if (ticking.current) return
+      ticking.current = true
+      requestAnimationFrame(() => {
+        const current = el.scrollTop
+        const diff = current - lastScrollY.current
+        if (current === 0) {
+          setFiltersVisible(true)
+        } else if (diff > 8) {
+          setFiltersVisible(false)
+        }
+        lastScrollY.current = current
+        ticking.current = false
+      })
+    }
+    el.addEventListener('scroll', handler, { passive: true })
+    return () => el.removeEventListener('scroll', handler)
+  }, [])
   const accounts = state.accounts.filter(a => a.is_active)
   const groups = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer']
 
@@ -116,50 +141,72 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose }: Transac
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-      {/* Header */}
-      <div style={{ position: 'sticky', top: 0, background: c.bg, zIndex: 10, padding: 'calc(52px + env(safe-area-inset-top, 0px)) 16px 12px', borderBottom: `1px solid ${c.faint}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          </button>
-          <div style={{ flex: 1 }}>
-            <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>All Transactions</div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{filtered.length} entries · {fmt(totalFiltered)}</div>
-          </div>
-          {hasFilters && (
-            <button onClick={clearFilters} style={{ background: c.badSoft, color: c.bad, border: 'none', borderRadius: 999, padding: '6px 12px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
-              Clear
+    <div ref={scrollRef} style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+
+      {/* Outer sticky wrapper — slides up to hide filters, keeps title visible */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 10,
+        willChange: 'transform',
+        background: c.bg,
+      }}>
+        {/* Always-visible title bar */}
+        <div style={{ padding: 'calc(12px + env(safe-area-inset-top, 0px)) 16px 10px', borderBottom: `1px solid ${filtersVisible ? 'transparent' : c.faint}`, transition: 'border-color 0.2s ease' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             </button>
-          )}
+            <div style={{ flex: 1 }}>
+              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>All Transactions</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{filtered.length} entries · {fmt(totalFiltered)}</div>
+            </div>
+            {hasFilters && (
+              <button onClick={clearFilters} style={{ background: c.badSoft, color: c.bad, border: 'none', borderRadius: 999, padding: '6px 12px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
+                Clear
+              </button>
+            )}
+          </div>
         </div>
-        <input placeholder="Search description..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inp, marginBottom: 10 }} />
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterCategory('all') }} style={{ ...inp, flex: 1 }}>
-            <option value="all">All groups</option>
-            {groups.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-          <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...inp, flex: 1 }}>
-            <option value="all">All categories</option>
-            {state.categories.filter(cat => filterGroup === 'all' || cat.group_name === filterGroup).map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} style={{ ...inp, flex: 1 }}>
-            <option value="all">All accounts</option>
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)} style={{ ...inp, flex: 1 }}>
-            <option value="date_desc">Newest first</option>
-            <option value="date_asc">Oldest first</option>
-            <option value="amount_desc">Highest amount</option>
-            <option value="amount_asc">Lowest amount</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={{ ...inp, flex: 1 }} />
-          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>to</span>
-          <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
+
+        {/* Filters — smooth slide + fade */}
+        <div style={{
+          overflow: 'hidden',
+          maxHeight: filtersVisible ? '260px' : '0px',
+          opacity: filtersVisible ? 1 : 0,
+          transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease',
+          willChange: 'max-height, opacity',
+          padding: filtersVisible ? '0 16px 12px' : '0 16px',
+          borderBottom: `1px solid ${c.faint}`,
+        }}>
+          <div style={{ paddingTop: 10 }}>
+            <input placeholder="Search description..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inp, marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterCategory('all') }} style={{ ...inp, flex: 1 }}>
+                <option value="all">All groups</option>
+                {groups.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+              <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...inp, flex: 1 }}>
+                <option value="all">All categories</option>
+                {state.categories.filter(cat => filterGroup === 'all' || cat.group_name === filterGroup).map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} style={{ ...inp, flex: 1 }}>
+                <option value="all">All accounts</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)} style={{ ...inp, flex: 1 }}>
+                <option value="date_desc">Newest first</option>
+                <option value="date_asc">Oldest first</option>
+                <option value="amount_desc">Highest amount</option>
+                <option value="amount_asc">Lowest amount</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={{ ...inp, flex: 1 }} />
+              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>to</span>
+              <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
+            </div>
+          </div>
         </div>
       </div>
 
