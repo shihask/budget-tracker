@@ -68,7 +68,7 @@ export default function App() {
     setSession(session)
   }} />
 
-  if (session === null) return <AuthPage />
+  if (!session) return <AuthPage />
 
   return <AppContent session={session} />
 }
