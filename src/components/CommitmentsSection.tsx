@@ -4,6 +4,7 @@ import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
 import { catById as buildCatById } from '@/lib/data'
+import { CategorySelect } from './CategorySelect'
 import type { AppState, DerivedMetrics, Commitment } from '@/types'
 
 type Freq = 'monthly' | 'weekly' | 'yearly'
@@ -38,9 +39,10 @@ interface Props {
   onAdd: (form: Omit<Commitment, 'id'>) => Promise<void>
   onUpdate: (id: string, form: Omit<Commitment, 'id'>) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<void>
 }
 
-export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDelete }: Props) {
+export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDelete, onAddCategory }: Props) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
   const accounts = state.accounts.filter(a => a.is_active)
@@ -355,10 +357,15 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Category</label>
-                  <select value={form.category_id} onChange={e => set('category_id', e.target.value)} style={inp}>
-                    <option value="">None</option>
-                    {state.categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                  </select>
+                  <CategorySelect
+                    value={form.category_id}
+                    onChange={v => set('category_id', v)}
+                    state={state}
+                    onAddCategory={onAddCategory}
+                    style={inp}
+                    includeEmpty
+                    emptyLabel="None"
+                  />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Pay from account</label>

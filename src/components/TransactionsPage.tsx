@@ -4,6 +4,7 @@ import { CAT_COLORS, ACC_COLORS } from '@/lib/tokens'
 import { fmt, fmtDate } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { Glyph } from './Glyph'
+import { CategorySelect } from './CategorySelect'
 import type { AppState, Transaction, TransactionType } from '@/types'
 
 type EditForm = {
@@ -26,11 +27,12 @@ interface TransactionsPageProps {
   userEmail: string
   synced: boolean
   onSignOut: () => void
+  onAddCategory: (name: string, group_name: string) => Promise<void>
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onToggleTheme, userName, userEmail, synced, onSignOut }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onAddCategory }: TransactionsPageProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
 
@@ -373,14 +375,15 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <Label>Category</Label>
-                  <select
+                  <CategorySelect
                     value={editForm.category_id}
-                    onChange={e => setEditForm(f => f ? { ...f, category_id: e.target.value } : f)}
+                    onChange={v => setEditForm(f => f ? { ...f, category_id: v } : f)}
+                    state={state}
+                    onAddCategory={onAddCategory}
                     style={inp}
-                  >
-                    <option value="">No category</option>
-                    {state.categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                  </select>
+                    includeEmpty
+                    emptyLabel="No category"
+                  />
                 </div>
                 <div style={{ flex: 1 }}>
                   <Label>Account</Label>

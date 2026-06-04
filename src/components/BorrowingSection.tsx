@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
+import { CategorySelect } from './CategorySelect'
 import type { AppState, Borrowing } from '@/types'
 
 type BForm = {
@@ -9,6 +10,7 @@ type BForm = {
   total_amount: string
   paid_amount: string
   notes: string
+  direction: 'lent' | 'borrowed'
 }
 
 type PayForm = {
@@ -18,18 +20,19 @@ type PayForm = {
   incoming: boolean
 }
 
-const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '' }
+const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent' }
 const EMPTY_PAY: PayForm = { amount: '', account_id: '', category_id: '', incoming: true }
 
 interface Props {
   state: AppState
-  onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null }) => Promise<void>
-  onUpdate: (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null }) => Promise<void>
+  onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => Promise<void>
+  onUpdate: (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean, categoryId: string | null) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<void>
 }
 
-export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }: Props) {
+export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, onAddCategory }: Props) {
   const c = useTheme()
   const accounts = state.accounts.filter(a => a.is_active)
 
@@ -46,14 +49,16 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
   const openAdd = () => { setEditingId(null); setForm(EMPTY_BFORM); setSheetOpen(true) }
   const openEdit = (b: Borrowing) => {
     setEditingId(b.id)
-    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '' })
+    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent' })
     setSheetOpen(true)
   }
   const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_BFORM) }
 
   const openPay = (b: Borrowing) => {
     setPayTarget(b)
-    setPayForm({ amount: String(b.remaining_amount || 0), account_id: accounts[0]?.id || '', incoming: true })
+    // lent = they pay you back = incoming. borrowed = you pay back = outgoing
+    const incoming = (b.direction || 'lent') === 'lent'
+    setPayForm({ amount: String(b.remaining_amount || 0), account_id: accounts[0]?.id || '', category_id: '', incoming })
   }
   const closePay = () => { setPayTarget(null); setPayForm(EMPTY_PAY) }
 
@@ -63,7 +68,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
     if (!form.person_name.trim() || isNaN(total) || total <= 0) return
     setSaving(true)
     try {
-      const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null }
+      const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction }
       if (editingId) await onUpdate(editingId, payload)
       else await onAdd(payload)
       closeSheet()
@@ -142,6 +147,9 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{b.person_name}</span>
+                        <span style={{ font: '600 10px Plus Jakarta Sans', color: (b.direction || 'lent') === 'lent' ? c.good : c.bad, background: (b.direction || 'lent') === 'lent' ? c.goodSoft : c.badSoft, borderRadius: 999, padding: '2px 7px' }}>
+                          {(b.direction || 'lent') === 'lent' ? 'Lent' : 'Borrowed'}
+                        </span>
                         {done && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 999, padding: '2px 7px' }}>
                             Cleared
@@ -205,6 +213,25 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
               {editingId ? 'Edit Entry' : 'Add Borrowing'}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={lbl}>Type</label>
+                <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
+                  {(['lent', 'borrowed'] as const).map(d => (
+                    <button key={d} type="button" onClick={() => setForm(f => ({ ...f, direction: d }))} style={{
+                      flex: 1, border: 'none', borderRadius: 10, padding: '9px',
+                      font: '700 12px Plus Jakarta Sans',
+                      background: form.direction === d ? (d === 'lent' ? c.good : c.bad) : 'transparent',
+                      color: form.direction === d ? '#fff' : c.muted,
+                      cursor: 'pointer',
+                    }}>
+                      {d === 'lent' ? '↑ I lent money' : '↓ I borrowed money'}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 5 }}>
+                  {form.direction === 'lent' ? 'You gave money — they owe you' : 'You took money — you owe them'}
+                </div>
+              </div>
               <div>
                 <label style={lbl}>Person name</label>
                 <input value={form.person_name} onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))}
@@ -286,16 +313,15 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment }
 
               <div>
                 <label style={lbl}>Category (optional)</label>
-                <select value={payForm.category_id} onChange={e => setPayForm(f => ({ ...f, category_id: e.target.value }))} style={inp}>
-                  <option value="">No category</option>
-                  {state.groups.map(g => (
-                    <optgroup key={g.id} label={g.name}>
-                      {state.categories.filter(c => c.group_name === g.name).map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                <CategorySelect
+                  value={payForm.category_id}
+                  onChange={v => setPayForm(f => ({ ...f, category_id: v }))}
+                  state={state}
+                  onAddCategory={onAddCategory}
+                  style={inp}
+                  includeEmpty
+                  emptyLabel="No category"
+                />
               </div>
             </div>
 

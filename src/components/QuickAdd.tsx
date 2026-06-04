@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, TODAY, iso } from '@/lib/utils'
 import { Glyph } from './Glyph'
+import { CategorySelect } from './CategorySelect'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
 
 const schema = z.object({
@@ -15,15 +16,6 @@ const schema = z.object({
   from_account_id: z.string().min(1),
 })
 type FormValues = z.infer<typeof schema>
-
-// Quick-add chips — matched to category by name, not hardcoded ID
-const QUICK_DEFS = [
-  { label: 'Tea',       catName: 'Food & Tea', amt: 40  },
-  { label: 'Petrol',    catName: 'Fuel',       amt: 950 },
-  { label: 'Groceries', catName: 'Groceries',  amt: 600 },
-  { label: 'Medical',   catName: 'Medical',    amt: 300 },
-  { label: 'Shopping',  catName: 'Shopping',   amt: 500 },
-]
 
 // Keyword → category name mapping for auto-detection
 const KEYWORD_CATS: [string[], string][] = [
@@ -80,14 +72,33 @@ interface QuickAddSheetProps {
   onClose: () => void
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
   state: AppState
+  onAddCategory: (name: string, group_name: string) => Promise<void>
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income'>('expense')
+  const amountRef = useRef<HTMLInputElement | null>(null)
 
   const accs = state.accounts.filter(a => a.is_active)
   const cats = state.categories
+
+  // Compute top 8 most-used expense descriptions from transaction history
+  const topDescriptions = useMemo(() => {
+    const freq: Record<string, { count: number; category_id: string | null }> = {}
+    state.transactions
+      .filter(t => t.transaction_type === 'expense')
+      .forEach(t => {
+        const key = t.description.trim()
+        if (!key) return
+        if (!freq[key]) freq[key] = { count: 0, category_id: t.category_id }
+        freq[key].count++
+      })
+    return Object.entries(freq)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 8)
+      .map(([label, { category_id }]) => ({ label, category_id }))
+  }, [state.transactions])
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors, isValid } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -122,11 +133,19 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
   }, [descriptionVal, cats, setValue])
 
-  const applyQuick = (q: typeof QUICK_DEFS[number]) => {
-    const cat = cats.find(c => c.name.toLowerCase().includes(q.catName.toLowerCase()))
-    setValue('description', q.label, { shouldValidate: true })
-    if (cat) setValue('category_id', cat.id, { shouldValidate: true })
-    if (!amountVal) setValue('amount', q.amt, { shouldValidate: true })
+  const applyQuick = (label: string, category_id: string | null) => {
+    setValue('description', label, { shouldValidate: true })
+    if (category_id) setValue('category_id', category_id, { shouldValidate: true })
+    else {
+      const guessed = guessCategory(label, cats)
+      if (guessed) setValue('category_id', guessed, { shouldValidate: true })
+    }
+    // Clear amount and focus it
+    setValue('amount', 0, { shouldValidate: false })
+    setTimeout(() => {
+      amountRef.current?.focus()
+      amountRef.current?.select()
+    }, 50)
   }
 
   const onSubmit = (data: FormValues) => {
@@ -191,19 +210,36 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
           ))}
         </div>
 
-        {/* Quick chips — expense only */}
+        {/* Quick chips — expense only, dynamic from history */}
         {isExpense && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-            {QUICK_DEFS.map(q => {
-              const active = descriptionVal === q.label
-              return (
-                <button key={q.label} type="button" onClick={() => applyQuick(q)} style={{
-                  border: `1.5px solid ${active ? c.accent : c.faint}`, cursor: 'pointer',
-                  background: active ? c.accentSoft : c.surface, color: active ? c.accent : c.sub,
-                  borderRadius: 999, padding: '8px 14px', font: '700 13px Plus Jakarta Sans',
-                }}>{q.label}</button>
-              )
-            })}
+          <div style={{
+            display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18,
+            maxHeight: '72px', overflow: 'hidden',
+          }}>
+            {topDescriptions.length === 0 ? (
+              // Fallback when no history yet
+              ['Tea', 'Petrol', 'Groceries', 'Medical', 'Shopping'].map(label => {
+                const active = descriptionVal === label
+                return (
+                  <button key={label} type="button" onClick={() => applyQuick(label, null)} style={{
+                    border: `1.5px solid ${active ? c.accent : c.faint}`, cursor: 'pointer',
+                    background: active ? c.accentSoft : c.surface, color: active ? c.accent : c.sub,
+                    borderRadius: 999, padding: '8px 14px', font: '700 13px Plus Jakarta Sans', whiteSpace: 'nowrap',
+                  }}>{label}</button>
+                )
+              })
+            ) : (
+              topDescriptions.map(({ label, category_id }) => {
+                const active = descriptionVal === label
+                return (
+                  <button key={label} type="button" onClick={() => applyQuick(label, category_id)} style={{
+                    border: `1.5px solid ${active ? c.accent : c.faint}`, cursor: 'pointer',
+                    background: active ? c.accentSoft : c.surface, color: active ? c.accent : c.sub,
+                    borderRadius: 999, padding: '8px 14px', font: '700 13px Plus Jakarta Sans', whiteSpace: 'nowrap',
+                  }}>{label}</button>
+                )
+              })
+            )}
           </div>
         )}
 
@@ -214,6 +250,7 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
             </span>
             <input
               {...register('amount', { valueAsNumber: true })}
+              ref={e => { register('amount').ref(e); amountRef.current = e }}
               inputMode="decimal"
               placeholder="0"
               onFocus={e => e.target.select()}
@@ -230,10 +267,15 @@ export function QuickAddSheet({ open, onClose, onSave, state }: QuickAddSheetPro
             <div style={{ display: 'flex', gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Category {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}</label>
-                <select {...register('category_id')} style={inputStyle}>
-                  {txType === 'income' && <option value="">No category</option>}
-                  {cats.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                </select>
+                <CategorySelect
+                  value={categoryVal}
+                  onChange={v => setValue('category_id', v, { shouldValidate: true })}
+                  state={state}
+                  onAddCategory={onAddCategory}
+                  style={inputStyle}
+                  includeEmpty={txType === 'income'}
+                  emptyLabel="No category"
+                />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Account</label>
