@@ -20,18 +20,19 @@ const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 20000, salary_da
 const DEFAULT_GROUPS = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer']
 
 const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
-  { name: 'Food & Tea',   group_name: 'Lifestyle' },
-  { name: 'Groceries',    group_name: 'Lifestyle' },
-  { name: 'Fuel',         group_name: 'Lifestyle' },
-  { name: 'Shopping',     group_name: 'Lifestyle' },
-  { name: 'Medical',      group_name: 'Lifestyle' },
-  { name: 'Utilities',    group_name: 'Lifestyle' },
-  { name: 'Loan EMI',     group_name: 'Commitment' },
-  { name: 'Gold Scheme',  group_name: 'Commitment' },
-  { name: 'SIP',          group_name: 'Commitment' },
-  { name: 'Renovation',   group_name: 'Renovation' },
-  { name: 'Family',       group_name: 'Family' },
-  { name: 'Transfer',     group_name: 'Transfer' },
+  { name: 'Food & Tea',        group_name: 'Lifestyle' },
+  { name: 'Groceries',         group_name: 'Lifestyle' },
+  { name: 'Fuel',              group_name: 'Lifestyle' },
+  { name: 'Shopping',          group_name: 'Lifestyle' },
+  { name: 'Medical',           group_name: 'Lifestyle' },
+  { name: 'Utilities',         group_name: 'Lifestyle' },
+  { name: 'Loan EMI',          group_name: 'Commitment' },
+  { name: 'Gold Scheme',       group_name: 'Commitment' },
+  { name: 'SIP',               group_name: 'Commitment' },
+  { name: 'Borrow Repayment',  group_name: 'Commitment' },
+  { name: 'Renovation',        group_name: 'Renovation' },
+  { name: 'Family',            group_name: 'Family' },
+  { name: 'Transfer',          group_name: 'Transfer' },
 ]
 
 export function useSupabaseData(userId: string) {
@@ -279,13 +280,13 @@ export function useSupabaseData(userId: string) {
   }, [])
 
   const recordBorrowingPayment = useCallback(async (
-    borrowing: AppState['borrowings'][0], payment: number, accountId: string | null, incoming: boolean,
+    borrowing: AppState['borrowings'][0], payment: number, accountId: string | null, incoming: boolean, categoryId: string | null = null,
   ) => {
     const today = new Date().toISOString().slice(0, 10)
     const newPaid = Math.min(borrowing.total_amount, borrowing.paid_amount + payment)
     await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', borrowing.id)
     if (accountId) {
-      await supabase.from('transactions').insert({ transaction_date: today, description: `${borrowing.person_name} – repayment`, amount: payment, transaction_type: 'borrowing_repayment', category_id: null, from_account_id: accountId, to_account_id: null, notes: '', user_id: userId })
+      await supabase.from('transactions').insert({ transaction_date: today, description: `${borrowing.person_name} – repayment`, amount: payment, transaction_type: incoming ? 'income' : 'expense', category_id: categoryId, from_account_id: accountId, to_account_id: null, notes: '', user_id: userId })
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
       if (acc) await supabase.from('accounts').update({ current_balance: incoming ? acc.current_balance + payment : acc.current_balance - payment }).eq('id', accountId)
     }
