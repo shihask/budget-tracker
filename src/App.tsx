@@ -83,7 +83,7 @@ function AppContent({ session }: { session: Session }) {
         fontFamily: 'Plus Jakarta Sans, sans-serif',
       }}>
         <div style={{ width: '100%', maxWidth: W, position: 'relative' }}>
-          {/* Fixed Header */}
+          {/* Fixed Header — hidden when transactions page is open */}
           <div style={{
             position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
             width: '100%', maxWidth: W, zIndex: 200,
@@ -92,6 +92,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
+            display: txnsOpen ? 'none' : 'block',
           }}>
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} />
           </div>
@@ -161,7 +162,7 @@ function AppContent({ session }: { session: Session }) {
           </div>
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => setTxnsOpen(false)} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => setTxnsOpen(false)} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} />
           )}
         </div>
 
