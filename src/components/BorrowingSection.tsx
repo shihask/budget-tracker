@@ -195,7 +195,11 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                 : `${b.person_name} gave money to you. ${done ? 'Fully repaid.' : `You owe ${b.person_name} ${remaining}.`}`
 
               return (
-                <div key={b.id} style={{ opacity: isDeleting ? 0.4 : 1 }}>
+                <div
+                  key={b.id}
+                  onClick={() => openEdit(b)}
+                  style={{ opacity: isDeleting ? 0.4 : 1, cursor: 'pointer' }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                     <div style={{ width: 40, height: 40, borderRadius: 999, flexShrink: 0, background: col + '22', color: col, font: '800 15px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {b.person_name.slice(0, 1).toUpperCase()}
@@ -237,14 +241,21 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                     <span style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted }}>of {fmt(b.total_amount)} · {pct}%</span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
                     {!done && (
-                      <button onClick={() => openPay(b)} style={{ background: c.goodSoft, color: c.good, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
+                      <button onClick={e => { e.stopPropagation(); openPay(b) }} style={{ background: c.goodSoft, color: c.good, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
                         ₹ Record Payment
                       </button>
                     )}
-                    <button onClick={() => openEdit(b)} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>Edit</button>
-                    <button onClick={() => handleDelete(b.id)} style={{ background: 'none', color: c.bad + '99', border: 'none', borderRadius: 8, padding: '5px 0', font: '600 11px Plus Jakarta Sans', cursor: 'pointer' }}>Delete</button>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDelete(b.id) }}
+                      disabled={isDeleting}
+                      style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginLeft: 'auto' }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )
@@ -285,7 +296,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
               <div>
                 <label style={lbl}>Person name</label>
                 <input value={form.person_name} onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))}
-                  placeholder="e.g. Noushad" style={inp} autoFocus />
+                  placeholder="e.g. Noushad" style={inp} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
@@ -339,7 +350,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
               <div>
                 <label style={lbl}>Payment amount</label>
                 <input type="number" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
-                  placeholder="0" min="0" step="0.01" style={inp} autoFocus />
+                  placeholder="0" min="0" step="0.01" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Direction</label>

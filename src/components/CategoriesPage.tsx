@@ -128,7 +128,7 @@ export function CategoriesPage({
         {showAddGroup && (
           <div style={{ background: c.surface, borderRadius: 16, padding: 14, marginBottom: 12, border: `1px solid ${c.faint}` }}>
             <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>New Group</div>
-            <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddGroup()} placeholder="Group name" style={inp} autoFocus />
+            <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddGroup()} placeholder="Group name" style={inp} />
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button onClick={() => setShowAddGroup(false)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleAddGroup} disabled={saving || !inputVal.trim()} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>Add Group</button>
@@ -176,7 +176,7 @@ export function CategoriesPage({
               {/* Edit group inline */}
               {editingGroup?.id === group.id && (
                 <div style={{ padding: '0 14px 14px' }}>
-                  <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUpdateGroup()} style={inp} autoFocus />
+                  <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUpdateGroup()} style={inp} />
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     <button onClick={() => { setEditingGroup(null); setInputVal('') }} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '9px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
                     <button onClick={handleUpdateGroup} disabled={saving} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '9px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>Save</button>
@@ -191,7 +191,7 @@ export function CategoriesPage({
                     <div key={cat.id}>
                       {editingCategory?.id === cat.id ? (
                         <div style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUpdateCategory()} style={{ ...inp, flex: 1 }} autoFocus />
+                          <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUpdateCategory()} style={{ ...inp, flex: 1 }} />
                           <button onClick={() => { setEditingCategory(null); setInputVal('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap' }}>✕</button>
                           <button onClick={handleUpdateCategory} disabled={saving} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap', opacity: saving ? 0.6 : 1 }}>Save</button>
                         </div>
@@ -224,7 +224,7 @@ export function CategoriesPage({
                   {/* Add category inline */}
                   {showAddCategory === group.name ? (
                     <div style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCategory(group.name)} placeholder="Category name" style={{ ...inp, flex: 1 }} autoFocus />
+                      <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCategory(group.name)} placeholder="Category name" style={{ ...inp, flex: 1 }} />
                       <button onClick={() => { setShowAddCategory(null); setInputVal('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>✕</button>
                       <button onClick={() => handleAddCategory(group.name)} disabled={saving || !inputVal.trim()} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>Add</button>
                     </div>

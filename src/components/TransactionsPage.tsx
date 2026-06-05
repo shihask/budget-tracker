@@ -347,7 +347,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                   onChange={e => setEditForm(f => f ? { ...f, description: e.target.value } : f)}
                   style={inp}
                   placeholder="Description"
-                  autoFocus
+                 
                 />
               </div>
 
@@ -356,8 +356,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                   <Label>Amount</Label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={editForm.amount}
                     onChange={e => setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
+                    onFocus={e => e.target.select()}
                     style={inp}
                     placeholder="0"
                     min="0"

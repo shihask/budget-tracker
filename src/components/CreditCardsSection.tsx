@@ -257,7 +257,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Card Name</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Axis Visa" style={inp} autoFocus />
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Axis Visa" style={inp} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
@@ -269,7 +269,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     Credit Limit
                     <InfoIcon id="limit" text="The maximum amount you can spend on this card. Check your card statement or bank app." />
                   </label>
-                  <input type="number" value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
+                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -278,21 +278,21 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     Cycle Start
                     <InfoIcon id="cycle" text="The day your billing cycle begins each month. E.g. if your cycle is 16th to 15th, enter 16." />
                   </label>
-                  <input type="number" value={form.cycle_start_day} onChange={e => setForm(f => ({ ...f, cycle_start_day: e.target.value }))} min="1" max="31" style={inp} />
+                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.cycle_start_day} onChange={e => setForm(f => ({ ...f, cycle_start_day: e.target.value }))} min="1" max="31" style={inp} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>
                     Bill Date
                     <InfoIcon id="bill" text="The date your statement is generated each month. Your total spend up to this date becomes the bill amount." />
                   </label>
-                  <input type="number" value={form.bill_day} onChange={e => setForm(f => ({ ...f, bill_day: e.target.value }))} min="1" max="31" style={inp} />
+                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.bill_day} onChange={e => setForm(f => ({ ...f, bill_day: e.target.value }))} min="1" max="31" style={inp} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>
                     Due Date
                     <InfoIcon id="due" text="The last date to pay your bill without penalty. Usually 15-20 days after the bill date." />
                   </label>
-                  <input type="number" value={form.due_day} onChange={e => setForm(f => ({ ...f, due_day: e.target.value }))} min="1" max="31" style={inp} />
+                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.due_day} onChange={e => setForm(f => ({ ...f, due_day: e.target.value }))} min="1" max="31" style={inp} />
                 </div>
               </div>
               <div>
@@ -300,7 +300,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   Current Outstanding
                   <InfoIcon id="balance" text="How much you currently owe on this card right now. Check your bank app or last statement." />
                 </label>
-                <input type="number" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
+                <input type="number" inputMode="numeric" onFocus={e => e.target.select()} placeholder="0" style={inp} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
@@ -324,7 +324,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Payment Amount</label>
-                <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" style={inp} autoFocus />
+                <input type="number" inputMode="numeric" onFocus={e => e.target.select()} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Pay from Account</label>

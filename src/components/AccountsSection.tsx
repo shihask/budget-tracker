@@ -138,7 +138,7 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>₹</span>
                       <input
-                        autoFocus type="number" value={editValue}
+                        type="number" value={editValue}
                         onChange={e => setEditValue(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') confirmEdit(a.id); if (e.key === 'Escape') cancelEdit() }}
                         style={{ width: 100, background: c.surface2, border: `1.5px solid ${c.accent}`, borderRadius: 8, padding: '5px 8px', font: '700 13px Plus Jakarta Sans', color: c.ink, outline: 'none', boxSizing: 'border-box' }}
@@ -191,7 +191,7 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
               <div>
                 <label style={lbl}>Account name</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Axis Bank, Cash" style={inp} autoFocus />
+                  placeholder="e.g. Axis Bank, Cash" style={inp} />
               </div>
 
               <div>

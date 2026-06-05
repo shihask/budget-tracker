@@ -307,7 +307,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               <div>
                 <label style={lbl}>Name</label>
                 <input value={form.name} onChange={e => set('name', e.target.value)}
-                  placeholder="e.g. SIP, Kuri, Loan EMI" style={inp} autoFocus />
+                  placeholder="e.g. SIP, Kuri, Loan EMI" style={inp} />
               </div>
 
               {/* Amount */}
@@ -398,11 +398,11 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Total installments</label>
-                  <input type="number" value={form.total_installments} onChange={e => set('total_installments', e.target.value)} placeholder="e.g. 12" min="1" style={inp} />
+                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.total_installments} onChange={e => set('total_installments', e.target.value)} placeholder="e.g. 12" min="1" style={inp} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Paid so far</label>
-                  <input type="number" value={form.current_installment} onChange={e => set('current_installment', e.target.value)} placeholder="e.g. 8" min="0" style={inp} />
+                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.current_installment} onChange={e => set('current_installment', e.target.value)} placeholder="e.g. 8" min="0" style={inp} />
                 </div>
               </div>
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: -4 }}>
