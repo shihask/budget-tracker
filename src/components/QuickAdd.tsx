@@ -283,20 +283,17 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
                       {label}
                     </button>
 
-                    {/* Mini quick-save popup on long press */}
+                    {/* Mini quick-save popup on long press — fixed to avoid clipping */}
                     {isLongPressed && (
                       <div style={{
-                        position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%',
+                        position: 'fixed', bottom: 'calc(50% - 60px)', left: '50%',
                         transform: 'translateX(-50%)',
-                        background: c.surface, borderRadius: 16, padding: 12,
-                        boxShadow: '0 8px 28px rgba(0,0,0,0.18)', border: `1px solid ${c.faint}`,
-                        zIndex: 100, minWidth: 200,
+                        background: c.surface, borderRadius: 16, padding: 14,
+                        boxShadow: '0 8px 28px rgba(0,0,0,0.22)', border: `1px solid ${c.faint}`,
+                        zIndex: 200, minWidth: 220, width: '80vw', maxWidth: 300,
                       }}>
-                        {/* Arrow */}
-                        <div style={{ position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, background: c.surface, border: `1px solid ${c.faint}`, borderTop: 'none', borderLeft: 'none', rotate: '45deg' }} />
-                        <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>{label}</div>
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                          {/* Amount */}
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>⚡ Quick Save — {label}</div>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Amount</div>
                             <input
@@ -308,25 +305,25 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
                               placeholder="0"
                               inputMode="decimal"
                               onFocus={e => e.target.select()}
-                              style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '8px 10px', font: '700 16px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 10px', font: '700 18px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
                             />
                           </div>
-                          {/* Account */}
                           <div style={{ flex: 1 }}>
                             <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Account</div>
                             <select value={quickAccountId} onChange={e => setQuickAccountId(e.target.value)}
-                              style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '8px 6px', font: '600 12px Plus Jakarta Sans', color: c.ink, outline: 'none' }}>
+                              style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 6px', font: '600 12px Plus Jakarta Sans', color: c.ink, outline: 'none' }}>
                               {state.accounts.filter(a => a.is_active).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                              {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name} (CC)</option>)}
                             </select>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 8 }}>
                           <button type="button" onClick={() => setLongPressChip(null)}
-                            style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '8px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>
+                            style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
                             Cancel
                           </button>
                           <button type="button" onClick={handleQuickSave} disabled={!quickAmount || parseFloat(quickAmount) <= 0}
-                            style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '8px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', opacity: !quickAmount ? 0.6 : 1 }}>
+                            style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', opacity: !quickAmount ? 0.6 : 1 }}>
                             Save ₹{quickAmount || '0'}
                           </button>
                         </div>
@@ -379,7 +376,14 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Account</label>
                 <select {...register('from_account_id')} style={inputStyle}>
-                  {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  <optgroup label="Bank / Cash">
+                    {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </optgroup>
+                  {isExpense && (state.credit_cards || []).length > 0 && (
+                    <optgroup label="Credit Cards">
+                      {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                    </optgroup>
+                  )}
                 </select>
               </div>
             </div>

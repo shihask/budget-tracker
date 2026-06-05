@@ -124,6 +124,7 @@ export function useSupabaseData(userId: string) {
     form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>
   ) => {
     try {
+      const isCreditCard = state.credit_cards.some(c => c.id === form.from_account_id)
       const { data: newTx, error: txErr } = await supabase
         .from('transactions')
         .insert({
@@ -132,7 +133,8 @@ export function useSupabaseData(userId: string) {
           amount: form.amount,
           transaction_type: form.transaction_type,
           category_id: form.category_id,
-          from_account_id: form.from_account_id,
+          from_account_id: isCreditCard ? null : form.from_account_id,
+          credit_card_id: isCreditCard ? form.from_account_id : null,
           to_account_id: null,
           notes: '',
           user_id: userId,
@@ -140,17 +142,31 @@ export function useSupabaseData(userId: string) {
         .select('*, category:categories(*), from_account:accounts!from_account_id(*)')
         .single()
       if (txErr) throw txErr
-      if (form.from_account_id) {
-        const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', form.from_account_id).single()
-        if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + delta(form.transaction_type, form.amount) }).eq('id', form.from_account_id)
+      if (isCreditCard) {
+        // Increase credit card outstanding balance
+        const card = state.credit_cards.find(c => c.id === form.from_account_id)
+        if (card) {
+          const newBalance = card.current_balance + form.amount
+          await supabase.from('credit_cards').update({ current_balance: newBalance }).eq('id', card.id)
+          setState(s => ({
+            ...s,
+            transactions: [newTx as Transaction, ...s.transactions],
+            credit_cards: s.credit_cards.map(c => c.id === card.id ? { ...c, current_balance: newBalance } : c),
+          }))
+        }
+      } else {
+        if (form.from_account_id) {
+          const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', form.from_account_id).single()
+          if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + delta(form.transaction_type, form.amount) }).eq('id', form.from_account_id)
+        }
+        setState(s => ({
+          ...s,
+          transactions: [newTx as Transaction, ...s.transactions],
+          accounts: s.accounts.map(a => a.id === form.from_account_id ? { ...a, current_balance: a.current_balance + delta(form.transaction_type, form.amount) } : a),
+        }))
       }
-      setState(s => ({
-        ...s,
-        transactions: [newTx as Transaction, ...s.transactions],
-        accounts: s.accounts.map(a => a.id === form.from_account_id ? { ...a, current_balance: a.current_balance + delta(form.transaction_type, form.amount) } : a),
-      }))
     } catch (err) { console.error('Failed to save transaction:', err); throw err }
-  }, [userId])
+  }, [userId, state.credit_cards])
 
   const deleteTransaction = useCallback(async (t: Transaction) => {
     try {

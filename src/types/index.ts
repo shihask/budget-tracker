@@ -35,6 +35,7 @@ export interface Transaction {
   notes: string | null
   created_at: string
   borrowing_id?: string | null
+  credit_card_id?: string | null
   // joined
   category?: Category
   from_account?: Account
