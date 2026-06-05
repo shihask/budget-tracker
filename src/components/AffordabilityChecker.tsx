@@ -79,7 +79,7 @@ export function AffordabilityChecker({ d }: Props) {
       {open && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={close} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'relative', background: c.bg, borderRadius: '22px 22px 0 0', width: '100%', maxWidth: 600, padding: '8px 20px calc(40px + env(safe-area-inset-bottom, 0px))', maxHeight: '90svh', overflowY: 'auto' }}>
+          <div style={{ position: 'relative', background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', width: '100%', maxWidth: 600, padding: '8px 20px calc(40px + env(safe-area-inset-bottom, 0px))', maxHeight: '90svh', overflowY: 'auto' }}>
             <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 20px' }} />
 
             {/* Header */}
