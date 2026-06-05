@@ -256,8 +256,11 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{cm.name}</span>
                       {cm.is_recurring && (
-                        <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>
-                          🔄 {cm.frequency}
+                        <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15"/>
+                          </svg>
+                          {cm.frequency}
                         </span>
                       )}
                       {cm.total_installments && (

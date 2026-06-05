@@ -232,7 +232,14 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     <div style={{ flex: 1, background: isUrgent ? c.badSoft : c.surface, borderRadius: 10, padding: '8px 10px', border: isUrgent ? `1px solid ${c.bad}40` : 'none' }}>
                       <div style={{ font: '600 10px Plus Jakarta Sans', color: isUrgent ? c.bad : c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Due date</div>
                       <div style={{ font: '700 13px Plus Jakarta Sans', color: isUrgent ? c.bad : c.ink, marginTop: 2 }}>{card.due_day}th</div>
-                      <div style={{ font: '600 10px Plus Jakarta Sans', color: isUrgent ? c.bad : c.muted, marginTop: 1 }}>{isUrgent ? '⚠️ ' : ''}in {daysUntilDue} days</div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: isUrgent ? c.bad : c.muted, marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        {isUrgent && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.bad} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><circle cx="12" cy="17" r=".8" fill={c.bad}/>
+                          </svg>
+                        )}
+                        in {daysUntilDue} days
+                      </div>
                     </div>
                     <div style={{ flex: 1, background: c.surface, borderRadius: 10, padding: '8px 10px' }}>
                       <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cycle</div>
