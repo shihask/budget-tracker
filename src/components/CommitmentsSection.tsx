@@ -95,6 +95,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
         ? parseInt(form.due_day) : null,
       from_account_id: form.from_account_id || null,
       is_active: true,
+      last_paid_date: null,
     }
     setSaving(true)
     try {
