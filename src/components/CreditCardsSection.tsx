@@ -300,7 +300,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   Current Outstanding
                   <InfoIcon id="balance" text="How much you currently owe on this card right now. Check your bank app or last statement." />
                 </label>
-                <input type="number" inputMode="numeric" onFocus={e => e.target.select()} placeholder="0" style={inp} />
+                <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
@@ -324,7 +324,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Payment Amount</label>
-                <input type="number" inputMode="numeric" onFocus={e => e.target.select()} placeholder="0" style={inp} />
+                <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Pay from Account</label>

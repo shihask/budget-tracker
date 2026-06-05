@@ -210,7 +210,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                         <span style={{ font: '600 10px Plus Jakarta Sans', color: direction === 'lent' ? c.good : c.bad, background: direction === 'lent' ? c.goodSoft : c.badSoft, borderRadius: 999, padding: '2px 7px' }}>
                           {direction === 'lent' ? 'Lent' : 'Borrowed'}
                         </span>
-                        <button type="button" onClick={() => setInfoOpen(infoOpen === b.id ? null : b.id)}
+                        <button type="button" onClick={e => { e.stopPropagation(); setInfoOpen(infoOpen === b.id ? null : b.id) }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: c.muted }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>

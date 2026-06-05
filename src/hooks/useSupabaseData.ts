@@ -415,10 +415,26 @@ export function useSupabaseData(userId: string) {
     if (isComplete) commitmentUpdate.is_active = false
     await supabase.from('commitments').update(commitmentUpdate).eq('id', cm.id)
 
-    // CC commitment — just mark paid, no transaction
+    // CC commitment — record expense + increase card outstanding
     if (isCreditCard) {
+      const { data: newTx } = await supabase.from('transactions').insert({
+        transaction_date: today, description: cm.name, amount: payAmount,
+        transaction_type: 'expense', category_id: cm.category_id,
+        from_account_id: null, credit_card_id: cm.from_account_id,
+        to_account_id: null, notes: '', user_id: userId,
+      }).select('*, category:categories(*)').single()
+
+      // Increase card outstanding
+      const card = state.credit_cards.find(c => c.id === cm.from_account_id)
+      if (card) {
+        const newBalance = card.current_balance + payAmount
+        await supabase.from('credit_cards').update({ current_balance: newBalance }).eq('id', card.id)
+      }
+
       setState(s => ({
         ...s,
+        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+        credit_cards: s.credit_cards.map(c => c.id === cm.from_account_id ? { ...c, current_balance: c.current_balance + payAmount } : c),
         commitments: s.commitments.map(c => c.id === cm.id ? {
           ...c, last_paid_date: today, current_installment: newInstallment,
           remaining: commitmentUpdate.remaining ?? c.remaining,

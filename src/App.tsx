@@ -24,6 +24,7 @@ import { PWAPrompt } from '@/components/PWAPrompt'
 import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
+import { AffordabilityChecker } from '@/components/AffordabilityChecker'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -149,6 +150,7 @@ function AppContent({ session }: { session: Session }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <HeroWeekly d={d} settings={state.settings} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} />
+              <AffordabilityChecker d={d} />
               <div>
                 <SectionTitle action="Customize" onAction={() => setSettingsOpen(true)}>Your money</SectionTitle>
                 <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} />

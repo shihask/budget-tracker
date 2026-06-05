@@ -290,7 +290,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
               const cat = catMap[t.category_id!]
               const col = (cat && CAT_COLORS[cat.name]) || c.muted
               const acc = state.accounts.find(a => a.id === t.from_account_id)
-              const creditCard = (state.credit_cards || []).find(cc => cc.id === (t as any).credit_card_id)
+              const creditCard = !acc ? (state.credit_cards || []).find(cc => cc.id === t.from_account_id || cc.id === (t as any).credit_card_id) : null
               const accLabel = acc ? acc.name : creditCard ? creditCard.name : ''
               const accColor = acc ? (ACC_COLORS[acc.name] || c.accent) : creditCard ? '#6366F1' : c.muted
               const isDeleting = deleting === t.id
@@ -390,7 +390,16 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                 <Label>Type</Label>
                 <select
                   value={editForm.transaction_type}
-                  onChange={e => setEditForm(f => f ? { ...f, transaction_type: e.target.value as TransactionType } : f)}
+                  onChange={e => {
+                    const newType = e.target.value as TransactionType
+                    const noCardTypes = ['income', 'borrowing']
+                    const isCreditCard = (state.credit_cards || []).some(cc => cc.id === editForm.from_account_id)
+                    setEditForm(f => f ? {
+                      ...f,
+                      transaction_type: newType,
+                      from_account_id: noCardTypes.includes(newType) && isCreditCard ? (accounts[0]?.id || '') : f.from_account_id,
+                    } : f)
+                  }}
                   style={inp}
                 >
                   <option value="expense">Expense</option>
@@ -426,7 +435,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                     <optgroup label="Bank / Cash">
                       {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </optgroup>
-                    {(state.credit_cards || []).length > 0 && (
+                    {(state.credit_cards || []).length > 0 && !['income', 'borrowing'].includes(editForm.transaction_type) && (
                       <optgroup label="Credit Cards">
                         {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                       </optgroup>
