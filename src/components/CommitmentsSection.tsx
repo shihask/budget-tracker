@@ -165,13 +165,27 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               const isPaying = paying === cm.id
               const isDeleting = deleting === cm.id
 
+              // Check if already paid this month (for recurring)
+              const paidThisMonth = cm.is_recurring && cm.last_paid_date
+                ? (() => {
+                    const paid = new Date(cm.last_paid_date)
+                    const now = new Date()
+                    return paid.getMonth() === now.getMonth() && paid.getFullYear() === now.getFullYear()
+                  })()
+                : false
+
               return (
-                <div key={cm.id} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 11,
-                  paddingTop: i === 0 ? 0 : 12, paddingBottom: 12,
-                  borderBottom: i < active.length - 1 ? `1px solid ${c.faint}` : 'none',
-                  opacity: isDeleting ? 0.4 : 1,
-                }}>
+                <div
+                  key={cm.id}
+                  onClick={() => !isPaying && !isDeleting && openEdit(cm)}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 11,
+                    paddingTop: i === 0 ? 0 : 12, paddingBottom: 12,
+                    borderBottom: i < active.length - 1 ? `1px solid ${c.faint}` : 'none',
+                    opacity: isDeleting ? 0.4 : 1,
+                    cursor: 'pointer',
+                  }}
+                >
                   {/* Icon */}
                   <div style={{
                     width: 38, height: 38, borderRadius: 11, flexShrink: 0,
@@ -213,15 +227,17 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
 
                     <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
                       {cm.is_recurring
-                        ? (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
+                        ? paidThisMonth
+                          ? `✓ Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                          : (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
                         : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}`
                       }
                     </div>
 
                     <div style={{ display: 'flex', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
-                      {!completed && (
+                      {!completed && !paidThisMonth && (
                         <button
-                          onClick={() => handleMarkPaid(cm)}
+                          onClick={e => { e.stopPropagation(); handleMarkPaid(cm) }}
                           disabled={isPaying}
                           style={{
                             background: c.goodSoft, color: c.good, border: 'none',
@@ -233,38 +249,33 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                           {isPaying ? '...' : '✓ Mark Paid'}
                         </button>
                       )}
-                      <button
-                        onClick={() => openEdit(cm)}
-                        style={{
-                          background: c.surface2, color: c.muted, border: 'none',
-                          borderRadius: 8, padding: '5px 10px',
-                          font: '700 11px Plus Jakarta Sans', cursor: 'pointer',
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(cm.id)}
-                        disabled={isDeleting}
-                        style={{
-                          background: 'none', color: c.bad + '99', border: 'none',
-                          borderRadius: 8, padding: '5px 0',
-                          font: '600 11px Plus Jakarta Sans', cursor: 'pointer',
-                        }}
-                      >
-                        Delete
-                      </button>
+                      {paidThisMonth && (
+                        <span style={{ font: '600 11px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 8, padding: '5px 10px' }}>
+                          ✓ Paid this month
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Amount */}
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ font: '800 15px Plus Jakarta Sans', color: completed ? c.muted : c.ink }}>
-                      {fmt(amount)}
+                  {/* Amount + delete */}
+                  <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                    <div>
+                      <div style={{ font: '800 15px Plus Jakarta Sans', color: completed ? c.muted : c.ink }}>
+                        {fmt(amount)}
+                      </div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+                        {cm.is_recurring ? `/${cm.frequency?.slice(0, 2)}` : 'each'}
+                      </div>
                     </div>
-                    <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-                      {cm.is_recurring ? `/${cm.frequency?.slice(0, 2)}` : 'each'}
-                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDelete(cm.id) }}
+                      disabled={isDeleting}
+                      style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )

@@ -398,13 +398,15 @@ export function useSupabaseData(userId: string) {
     let newRemaining = cm.remaining
     if (!cm.is_recurring) {
       newRemaining = Math.max(0, cm.remaining - payAmount)
-      await supabase.from('commitments').update({ remaining: newRemaining }).eq('id', cm.id)
+      await supabase.from('commitments').update({ remaining: newRemaining, last_paid_date: today }).eq('id', cm.id)
+    } else {
+      await supabase.from('commitments').update({ last_paid_date: today }).eq('id', cm.id)
     }
     setState(s => ({
       ...s,
       transactions: [newTx as Transaction, ...s.transactions],
       accounts: s.accounts.map(a => a.id === cm.from_account_id ? { ...a, current_balance: a.current_balance - payAmount } : a),
-      commitments: s.commitments.map(c => c.id === cm.id ? { ...c, remaining: newRemaining } : c),
+      commitments: s.commitments.map(c => c.id === cm.id ? { ...c, remaining: newRemaining, last_paid_date: today } : c),
     }))
   }, [userId])
 

@@ -85,6 +85,7 @@ export interface Commitment {
   due_day: number | null
   from_account_id: string | null
   is_active: boolean
+  last_paid_date: string | null
 }
 
 export interface AppState {
