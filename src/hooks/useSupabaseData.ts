@@ -405,12 +405,28 @@ export function useSupabaseData(userId: string) {
   const markCommitmentPaid = useCallback(async (cm: Commitment) => {
     const today = new Date().toISOString().slice(0, 10)
     const payAmount = cm.amount || cm.remaining || 0
-    const { data: newTx, error } = await supabase.from('transactions').insert({ transaction_date: today, description: cm.name, amount: payAmount, transaction_type: 'commitment', category_id: cm.category_id, from_account_id: cm.from_account_id, to_account_id: null, notes: '', user_id: userId }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
+    const isCreditCard = state.credit_cards.some(c => c.id === cm.from_account_id)
+
+    const { data: newTx, error } = await supabase.from('transactions').insert({
+      transaction_date: today, description: cm.name, amount: payAmount,
+      transaction_type: 'commitment', category_id: cm.category_id,
+      from_account_id: isCreditCard ? null : cm.from_account_id,
+      credit_card_id: isCreditCard ? cm.from_account_id : null,
+      to_account_id: null, notes: '', user_id: userId,
+    }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
     if (error) throw error
-    if (cm.from_account_id) {
+
+    if (isCreditCard && cm.from_account_id) {
+      const card = state.credit_cards.find(c => c.id === cm.from_account_id)
+      if (card) {
+        const newBalance = card.current_balance + payAmount
+        await supabase.from('credit_cards').update({ current_balance: newBalance }).eq('id', card.id)
+      }
+    } else if (cm.from_account_id) {
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', cm.from_account_id).single()
       if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - payAmount }).eq('id', cm.from_account_id)
     }
+
     let newRemaining = cm.remaining
     if (!cm.is_recurring) {
       newRemaining = Math.max(0, cm.remaining - payAmount)
@@ -418,13 +434,15 @@ export function useSupabaseData(userId: string) {
     } else {
       await supabase.from('commitments').update({ last_paid_date: today }).eq('id', cm.id)
     }
+
     setState(s => ({
       ...s,
       transactions: [newTx as Transaction, ...s.transactions],
-      accounts: s.accounts.map(a => a.id === cm.from_account_id ? { ...a, current_balance: a.current_balance - payAmount } : a),
+      accounts: isCreditCard ? s.accounts : s.accounts.map(a => a.id === cm.from_account_id ? { ...a, current_balance: a.current_balance - payAmount } : a),
+      credit_cards: isCreditCard ? s.credit_cards.map(c => c.id === cm.from_account_id ? { ...c, current_balance: c.current_balance + payAmount } : c) : s.credit_cards,
       commitments: s.commitments.map(c => c.id === cm.id ? { ...c, remaining: newRemaining, last_paid_date: today } : c),
     }))
-  }, [userId])
+  }, [userId, state.credit_cards])
 
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {

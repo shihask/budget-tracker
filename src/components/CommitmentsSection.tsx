@@ -383,7 +383,14 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                   <label style={lbl}>Pay from account</label>
                   <select value={form.from_account_id} onChange={e => set('from_account_id', e.target.value)} style={inp}>
                     <option value="">None</option>
-                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    <optgroup label="Bank / Cash">
+                      {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </optgroup>
+                    {(state.credit_cards || []).length > 0 && (
+                      <optgroup label="Credit Cards">
+                        {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
