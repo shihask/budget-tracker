@@ -29,13 +29,18 @@ interface TransactionsPageProps {
   onSignOut: () => void
   onAddCategory: (name: string, group_name: string) => Promise<void>
   onReversePayment: (t: Transaction) => Promise<void>
+  initialEditTx?: Transaction | null
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onAddCategory, onReversePayment }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onAddCategory, onReversePayment, initialEditTx }: TransactionsPageProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
+
+  useEffect(() => {
+    if (initialEditTx) openEdit(initialEditTx)
+  }, [])
 
   const [search, setSearch] = useState('')
   const [filterAccount, setFilterAccount] = useState('all')

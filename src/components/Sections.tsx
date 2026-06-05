@@ -51,13 +51,31 @@ export function RenovationSection({ state, d }: RenovationProps) {
 }
 
 // ── Recent Transactions ───────────────────────────────────────────────────────
-interface RecentTxnsProps { state: AppState; limit?: number; onSeeAll?: () => void }
+import { useState } from 'react'
+import type { Transaction } from '@/types'
 
-export function RecentTxns({ state, limit = 6, onSeeAll }: RecentTxnsProps) {
+interface RecentTxnsProps {
+  state: AppState
+  limit?: number
+  onSeeAll?: () => void
+  onEdit?: (t: Transaction) => void
+  onDelete?: (t: Transaction) => void
+}
+
+export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: RecentTxnsProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
   const acctById = Object.fromEntries(state.accounts.map(a => [a.id, a]))
   const txns = state.transactions.slice(0, limit)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const handleDelete = async (e: React.MouseEvent, t: Transaction) => {
+    e.stopPropagation()
+    if (!confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
+    setDeleting(t.id)
+    await onDelete?.(t)
+    setDeleting(null)
+  }
 
   return (
     <Card pad={6}>
@@ -71,8 +89,13 @@ export function RecentTxns({ state, limit = 6, onSeeAll }: RecentTxnsProps) {
         const cat = catMap[t.category_id!]
         const col = (cat && CAT_COLORS[cat.name]) || c.muted
         const acc = acctById[t.from_account_id!]
+        const isDeleting = deleting === t.id
         return (
-          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', borderTop: `1px solid ${c.faint}` }}>
+          <div
+            key={t.id}
+            onClick={() => !isDeleting && onEdit?.(t)}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', borderTop: `1px solid ${c.faint}`, cursor: onEdit ? 'pointer' : 'default', opacity: isDeleting ? 0.5 : 1 }}
+          >
             <div style={{ width: 38, height: 38, borderRadius: 11, background: col + '20', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', font: '800 14px Plus Jakarta Sans', color: col }}>
               {t.description.slice(0, 1).toUpperCase()}
             </div>
@@ -80,11 +103,24 @@ export function RecentTxns({ state, limit = 6, onSeeAll }: RecentTxnsProps) {
               <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
               <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted }}>{cat ? cat.name : 'Other'} · {acc ? acc.name : ''}</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : c.bad }}>
-                {t.transaction_type === 'income' ? '+' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : c.bad }}>
+                  {t.transaction_type === 'income' ? '+' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                </div>
+                <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted }}>{fmtDate(t.transaction_date)}</div>
               </div>
-              <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted }}>{fmtDate(t.transaction_date)}</div>
+              {onDelete && (
+                <button
+                  onClick={e => handleDelete(e, t)}
+                  disabled={isDeleting}
+                  style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         )

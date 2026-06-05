@@ -89,6 +89,7 @@ function AppContent({ session }: { session: Session }) {
   const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
+  const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
 
   const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
@@ -150,7 +151,7 @@ function AppContent({ session }: { session: Session }) {
               <CommitmentsSection state={state} d={d} onMarkPaid={markCommitmentPaid} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />
               <BorrowingSection state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} />
               <RenovationSection state={state} d={d} />
-              <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} />
+              <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
                 BudgetTracker · {usingSupabase ? 'synced with Supabase' : 'local session data'}
               </div>
@@ -192,7 +193,7 @@ function AppContent({ session }: { session: Session }) {
           </div>
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => setTxnsOpen(false)} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onAddCategory={addCategory} onReversePayment={reversePayment} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onAddCategory={addCategory} onReversePayment={reversePayment} initialEditTx={dashEditTx} />
           )}
 
           {catsOpen && (
