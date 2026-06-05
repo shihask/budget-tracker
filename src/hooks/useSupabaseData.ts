@@ -461,13 +461,10 @@ export function useSupabaseData(userId: string) {
 
   const payCreditCardBill = useCallback(async (card: CreditCard, amount: number, accountId: string) => {
     const today = new Date().toISOString().slice(0, 10)
-    // Deduct from bank account
     const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
     if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - amount }).eq('id', accountId)
-    // Reset card balance
     await supabase.from('credit_cards').update({ current_balance: card.current_balance - amount }).eq('id', card.id)
-    // Record as expense transaction
-    await supabase.from('transactions').insert({
+    const { data: newTx } = await supabase.from('transactions').insert({
       transaction_date: today,
       description: `${card.name} bill payment`,
       amount,
@@ -477,11 +474,13 @@ export function useSupabaseData(userId: string) {
       to_account_id: null,
       notes: '',
       user_id: userId,
-    })
+    }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
+
     setState(s => ({
       ...s,
       credit_cards: s.credit_cards.map(c => c.id === card.id ? { ...c, current_balance: c.current_balance - amount } : c),
       accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - amount } : a),
+      transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
     }))
   }, [userId])
 
