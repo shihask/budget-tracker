@@ -37,10 +37,10 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
       { label: 'Actual balance', value: d.actualBalance },
       { label: 'Emergency fund', value: -d.emergencyFund, muted: true },
       { separator: true },
-      { label: 'Available balance', value: d.availableBalance },
+      { label: 'Spendable balance', value: d.availableBalance },
     ]
     case 'free': return [
-      { label: 'Available balance', value: d.availableBalance },
+      { label: 'Spendable balance', value: d.availableBalance },
       { label: 'Remaining commitments', value: -d.remainingCommitments, muted: true },
       { separator: true },
       { label: 'Real free money', value: d.realFreeMoney },
@@ -76,8 +76,8 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
 function buildMetrics(d: DerivedMetrics): Metric[] {
   return [
     { key: 'actual',  label: 'Actual Balance',          value: d.actualBalance,          hint: 'All active accounts',       tone: 'ink',    icon: 'wallet' },
-    { key: 'avail',   label: 'Available Balance',        value: d.availableBalance,        hint: 'After emergency fund',      tone: 'accent', icon: 'shield' },
-    { key: 'free',    label: 'Real Free Money',          value: d.realFreeMoney,           hint: 'After commitments',         tone: 'good',   icon: 'spark'  },
+    { key: 'avail',   label: 'Spendable Balance',         value: d.availableBalance,        hint: 'Emergency fund protected',  tone: 'accent', icon: 'shield' },
+    { key: 'free',    label: 'Real Free Money',          value: d.realFreeMoney,           hint: 'After bills & commitments', tone: 'good',   icon: 'spark'  },
     { key: 'emerg',   label: 'Emergency Fund',           value: d.emergencyFund,           hint: 'Reserved',                  tone: 'warn',   icon: 'lock'   },
     { key: 'commit',  label: 'Remaining Commitments',    value: d.remainingCommitments,    hint: 'Still owed',                tone: 'bad',    icon: 'doc'    },
     { key: 'wbudget', label: 'Weekly Budget',            value: d.weeklyBudget,            hint: 'Mon–Sun',                   tone: 'ink',    icon: 'cal'    },

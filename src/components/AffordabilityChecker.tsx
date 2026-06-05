@@ -98,7 +98,7 @@ export function AffordabilityChecker({ d }: Props) {
                 {[
                   { label: 'Actual Balance', value: fmt(d.actualBalance), muted: false },
                   { label: 'Emergency Fund', value: `− ${fmt(d.emergencyFund)}`, muted: true },
-                  { label: 'Available Balance', value: fmt(d.availableBalance), muted: false },
+                  { label: 'Spendable Balance', value: fmt(d.availableBalance), muted: false },
                   { label: 'Remaining Commitments', value: `− ${fmt(d.remainingCommitments)}`, muted: true },
                 ].map((row, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
