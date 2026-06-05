@@ -87,6 +87,8 @@ export interface Commitment {
   from_account_id: string | null
   is_active: boolean
   last_paid_date: string | null
+  total_installments: number | null
+  current_installment: number | null
 }
 
 export interface AppState {

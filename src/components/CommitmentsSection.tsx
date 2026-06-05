@@ -18,12 +18,14 @@ type CForm = {
   frequency: Freq
   due_day: string
   from_account_id: string
+  total_installments: string
 }
 
 const EMPTY_FORM: CForm = {
   name: '', amount: '', remaining: '',
   category_id: '', is_recurring: false,
   frequency: 'monthly', due_day: '', from_account_id: '',
+  total_installments: '',
 }
 
 const ord = (n: number) => {
@@ -35,7 +37,7 @@ const ord = (n: number) => {
 interface Props {
   state: AppState
   d: DerivedMetrics
-  onMarkPaid: (c: Commitment) => Promise<void>
+  onMarkPaid: (c: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
   onAdd: (form: Omit<Commitment, 'id'>) => Promise<void>
   onUpdate: (id: string, form: Omit<Commitment, 'id'>) => Promise<void>
   onDelete: (id: string) => Promise<void>
@@ -53,6 +55,8 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
   const [saving, setSaving] = useState(false)
   const [paying, setPaying] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [confirmPay, setConfirmPay] = useState<Commitment | null>(null)
+  const [confirmAccountId, setConfirmAccountId] = useState('')
 
   const openAdd = () => {
     setEditingId(null)
@@ -71,6 +75,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
       frequency: cm.frequency || 'monthly',
       due_day: cm.due_day ? String(cm.due_day) : '',
       from_account_id: cm.from_account_id || '',
+      total_installments: cm.total_installments ? String(cm.total_installments) : '',
     })
     setSheetOpen(true)
   }
@@ -96,6 +101,8 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
       from_account_id: form.from_account_id || null,
       is_active: true,
       last_paid_date: null,
+      total_installments: form.total_installments ? parseInt(form.total_installments) : null,
+      current_installment: 0,
     }
     setSaving(true)
     try {
@@ -107,9 +114,17 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
   }
 
   const handleMarkPaid = async (cm: Commitment) => {
-    setPaying(cm.id)
-    try { await onMarkPaid(cm) } catch (_) {}
-    setPaying(null)
+    const isCreditCard = (state.credit_cards || []).some(c => c.id === cm.from_account_id)
+    if (isCreditCard) {
+      // CC commitment — just mark paid, no expense
+      setPaying(cm.id)
+      try { await onMarkPaid(cm, false, null) } catch (_) {}
+      setPaying(null)
+    } else {
+      // Non-CC — show confirmation
+      setConfirmAccountId(cm.from_account_id || accounts[0]?.id || '')
+      setConfirmPay(cm)
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -209,18 +224,17 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{cm.name}</span>
                       {cm.is_recurring && (
-                        <span style={{
-                          font: '600 10px Plus Jakarta Sans', color: c.accent,
-                          background: c.accentSoft, borderRadius: 999, padding: '2px 7px',
-                        }}>
+                        <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>
                           🔄 {cm.frequency}
                         </span>
                       )}
+                      {cm.total_installments && (
+                        <span style={{ font: '700 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px' }}>
+                          {(cm.current_installment || 0)}/{cm.total_installments}
+                        </span>
+                      )}
                       {completed && (
-                        <span style={{
-                          font: '600 10px Plus Jakarta Sans', color: c.good,
-                          background: c.goodSoft, borderRadius: 999, padding: '2px 7px',
-                        }}>
+                        <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 999, padding: '2px 7px' }}>
                           Completed
                         </span>
                       )}
@@ -240,12 +254,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                         <button
                           onClick={e => { e.stopPropagation(); handleMarkPaid(cm) }}
                           disabled={isPaying}
-                          style={{
-                            background: c.goodSoft, color: c.good, border: 'none',
-                            borderRadius: 8, padding: '5px 10px',
-                            font: '700 11px Plus Jakarta Sans', cursor: 'pointer',
-                            opacity: isPaying ? 0.6 : 1,
-                          }}
+                          style={{ background: c.goodSoft, color: c.good, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer', opacity: isPaying ? 0.6 : 1 }}
                         >
                           {isPaying ? '...' : '✓ Mark Paid'}
                         </button>
@@ -369,15 +378,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Category</label>
-                  <CategorySelect
-                    value={form.category_id}
-                    onChange={v => set('category_id', v)}
-                    state={state}
-                    onAddCategory={onAddCategory}
-                    style={inp}
-                    includeEmpty
-                    emptyLabel="None"
-                  />
+                  <CategorySelect value={form.category_id} onChange={v => set('category_id', v)} state={state} onAddCategory={onAddCategory} style={inp} includeEmpty emptyLabel="None" />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Pay from account</label>
@@ -394,6 +395,20 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                   </select>
                 </div>
               </div>
+
+              {/* Total installments */}
+              <div>
+                <label style={lbl}>Total installments (optional)</label>
+                <input
+                  type="number" value={form.total_installments}
+                  onChange={e => set('total_installments', e.target.value)}
+                  placeholder="e.g. 12 for 1 year EMI"
+                  min="1" style={inp}
+                />
+                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 4 }}>
+                  Leave empty if unknown. Shows 5/12 progress on the card.
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
@@ -407,6 +422,51 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
               }}>
                 {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Commitment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation modal for non-CC Mark Paid */}
+      {confirmPay && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setConfirmPay(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Record as expense?</div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 16 }}>
+              Mark <strong style={{ color: c.ink }}>{confirmPay.name}</strong> ({fmt(confirmPay.amount)}) as paid this month.
+              Do you want to record this as an expense and deduct from your account?
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Pay from account</label>
+              <select value={confirmAccountId} onChange={e => setConfirmAccountId(e.target.value)}
+                style={{ width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none' }}>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={async () => {
+                  const cm = confirmPay; setConfirmPay(null)
+                  setPaying(cm.id)
+                  try { await onMarkPaid(cm, true, confirmAccountId) } catch (_) {}
+                  setPaying(null)
+                }}
+                style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                ✓ Yes, record as expense
+              </button>
+              <button
+                onClick={async () => {
+                  const cm = confirmPay; setConfirmPay(null)
+                  setPaying(cm.id)
+                  try { await onMarkPaid(cm, false, null) } catch (_) {}
+                  setPaying(null)
+                }}
+                style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                No, just mark as paid
               </button>
             </div>
           </div>

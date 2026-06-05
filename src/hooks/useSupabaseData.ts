@@ -402,46 +402,63 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, commitments: s.commitments.filter(c => c.id !== id) }))
   }, [])
 
-  const markCommitmentPaid = useCallback(async (cm: Commitment) => {
+  const markCommitmentPaid = useCallback(async (cm: Commitment, recordExpense: boolean = false, accountId: string | null = null) => {
     const today = new Date().toISOString().slice(0, 10)
     const payAmount = cm.amount || cm.remaining || 0
     const isCreditCard = state.credit_cards.some(c => c.id === cm.from_account_id)
+    const newInstallment = (cm.current_installment || 0) + 1
+    const isComplete = cm.total_installments ? newInstallment >= cm.total_installments : false
 
-    const { data: newTx, error } = await supabase.from('transactions').insert({
-      transaction_date: today, description: cm.name, amount: payAmount,
-      transaction_type: 'commitment', category_id: cm.category_id,
-      from_account_id: isCreditCard ? null : cm.from_account_id,
-      credit_card_id: isCreditCard ? cm.from_account_id : null,
-      to_account_id: null, notes: '', user_id: userId,
-    }).select('*, category:categories(*)').single()
-    if (error) throw error
+    // Update commitment
+    const commitmentUpdate: any = { last_paid_date: today, current_installment: newInstallment }
+    if (!cm.is_recurring) commitmentUpdate.remaining = Math.max(0, cm.remaining - payAmount)
+    if (isComplete) commitmentUpdate.is_active = false
+    await supabase.from('commitments').update(commitmentUpdate).eq('id', cm.id)
 
-    if (isCreditCard && cm.from_account_id) {
-      const card = state.credit_cards.find(c => c.id === cm.from_account_id)
-      if (card) {
-        const newBalance = card.current_balance + payAmount
-        await supabase.from('credit_cards').update({ current_balance: newBalance }).eq('id', card.id)
-      }
-    } else if (cm.from_account_id) {
-      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', cm.from_account_id).single()
-      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - payAmount }).eq('id', cm.from_account_id)
+    // CC commitment — just mark paid, no transaction
+    if (isCreditCard) {
+      setState(s => ({
+        ...s,
+        commitments: s.commitments.map(c => c.id === cm.id ? {
+          ...c, last_paid_date: today, current_installment: newInstallment,
+          remaining: commitmentUpdate.remaining ?? c.remaining,
+          is_active: isComplete ? false : c.is_active,
+        } : c),
+      }))
+      return
     }
 
-    let newRemaining = cm.remaining
-    if (!cm.is_recurring) {
-      newRemaining = Math.max(0, cm.remaining - payAmount)
-      await supabase.from('commitments').update({ remaining: newRemaining, last_paid_date: today }).eq('id', cm.id)
+    // Non-CC — record expense if confirmed
+    if (recordExpense && accountId) {
+      const { data: newTx } = await supabase.from('transactions').insert({
+        transaction_date: today, description: cm.name, amount: payAmount,
+        transaction_type: 'commitment', category_id: cm.category_id,
+        from_account_id: accountId, to_account_id: null, notes: '', user_id: userId,
+      }).select('*, category:categories(*)').single()
+
+      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
+      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - payAmount }).eq('id', accountId)
+
+      setState(s => ({
+        ...s,
+        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+        accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - payAmount } : a),
+        commitments: s.commitments.map(c => c.id === cm.id ? {
+          ...c, last_paid_date: today, current_installment: newInstallment,
+          remaining: commitmentUpdate.remaining ?? c.remaining,
+          is_active: isComplete ? false : c.is_active,
+        } : c),
+      }))
     } else {
-      await supabase.from('commitments').update({ last_paid_date: today }).eq('id', cm.id)
+      setState(s => ({
+        ...s,
+        commitments: s.commitments.map(c => c.id === cm.id ? {
+          ...c, last_paid_date: today, current_installment: newInstallment,
+          remaining: commitmentUpdate.remaining ?? c.remaining,
+          is_active: isComplete ? false : c.is_active,
+        } : c),
+      }))
     }
-
-    setState(s => ({
-      ...s,
-      transactions: [newTx as Transaction, ...s.transactions],
-      accounts: isCreditCard ? s.accounts : s.accounts.map(a => a.id === cm.from_account_id ? { ...a, current_balance: a.current_balance - payAmount } : a),
-      credit_cards: isCreditCard ? s.credit_cards.map(c => c.id === cm.from_account_id ? { ...c, current_balance: c.current_balance + payAmount } : c) : s.credit_cards,
-      commitments: s.commitments.map(c => c.id === cm.id ? { ...c, remaining: newRemaining, last_paid_date: today } : c),
-    }))
   }, [userId, state.credit_cards])
 
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
