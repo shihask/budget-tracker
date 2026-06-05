@@ -213,7 +213,7 @@ function AppContent({ session }: { session: Session }) {
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-            <SettingsPanel accent={accent} dark={dark} layout={layout} emergencyFund={state.settings.emergency_fund} salaryDate={state.settings.salary_date} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onEmergencyFund={v => updateSettings({ emergency_fund: v })} onSalaryDate={v => updateSettings({ salary_date: v })} />
+            <SettingsPanel accent={accent} dark={dark} layout={layout} emergencyFund={state.settings.emergency_fund} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onEmergencyFund={v => updateSettings({ emergency_fund: v })} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} />
           </>
         )}
       </div>
