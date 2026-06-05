@@ -13,6 +13,7 @@ type CForm = {
   name: string
   amount: string
   remaining: string
+  total_amount: string
   category_id: string
   is_recurring: boolean
   frequency: Freq
@@ -23,7 +24,7 @@ type CForm = {
 }
 
 const EMPTY_FORM: CForm = {
-  name: '', amount: '', remaining: '',
+  name: '', amount: '', remaining: '', total_amount: '',
   category_id: '', is_recurring: false,
   frequency: 'monthly', due_day: '', from_account_id: '',
   total_installments: '', current_installment: '0',
@@ -78,6 +79,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
       from_account_id: cm.from_account_id || '',
       total_installments: cm.total_installments ? String(cm.total_installments) : '',
       current_installment: String(cm.current_installment || 0),
+      total_amount: (cm.total_installments && cm.amount) ? String(Math.round(cm.total_installments * cm.amount)) : '',
     })
     setSheetOpen(true)
   }
@@ -86,6 +88,38 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
 
   const set = (key: keyof CForm, val: string | boolean) =>
     setForm(f => ({ ...f, [key]: val }))
+
+  // Auto-calculate: EMI × tenure = total, total ÷ tenure = EMI, total ÷ EMI = tenure
+  const handleAmountChange = (val: string) => {
+    const emi = parseFloat(val)
+    const tenure = parseFloat(form.total_installments)
+    setForm(f => ({
+      ...f, amount: val,
+      total_amount: (!isNaN(emi) && !isNaN(tenure)) ? String(Math.round(emi * tenure)) : f.total_amount,
+    }))
+  }
+
+  const handleTotalChange = (val: string) => {
+    const total = parseFloat(val)
+    const tenure = parseFloat(form.total_installments)
+    const emi = parseFloat(form.amount)
+    setForm(f => ({
+      ...f, total_amount: val,
+      amount: (!isNaN(total) && !isNaN(tenure) && tenure > 0) ? String(Math.round(total / tenure)) : f.amount,
+      remaining: (!isNaN(total) && !isNaN(emi) && emi > 0) ? String(Math.round((total / emi - parseFloat(f.current_installment || '0')) * emi)) : f.remaining,
+    }))
+  }
+
+  const handleTenureChange = (val: string) => {
+    const tenure = parseFloat(val)
+    const emi = parseFloat(form.amount)
+    const total = parseFloat(form.total_amount)
+    setForm(f => ({
+      ...f, total_installments: val,
+      total_amount: (!isNaN(tenure) && !isNaN(emi)) ? String(Math.round(tenure * emi)) : (!isNaN(tenure) && !isNaN(total)) ? f.total_amount : f.total_amount,
+      amount: (!isNaN(tenure) && !isNaN(total) && tenure > 0 && !(!isNaN(emi) && emi > 0)) ? String(Math.round(total / tenure)) : f.amount,
+    }))
+  }
 
   const handleSave = async () => {
     const amount = parseFloat(form.amount)
@@ -238,14 +272,29 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                       )}
                     </div>
 
-                    <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-                      {cm.is_recurring
-                        ? paidThisMonth
-                          ? `✓ Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
-                          : (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
-                        : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}`
-                      }
+                  <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                    {cm.is_recurring
+                      ? paidThisMonth
+                        ? `✓ Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                        : (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
+                      : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}`
+                    }
+                  </div>
+                  {/* Total and remaining for installment-based */}
+                  {cm.total_installments && cm.amount && (
+                    <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                      <div>
+                        <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>Total </span>
+                        <span style={{ font: '700 11px Plus Jakarta Sans', color: c.ink }}>{fmt(cm.total_installments * cm.amount)}</span>
+                      </div>
+                      <div>
+                        <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>Remaining </span>
+                        <span style={{ font: '700 11px Plus Jakarta Sans', color: c.bad }}>
+                          {fmt((cm.total_installments - (cm.current_installment || 0)) * cm.amount)}
+                        </span>
+                      </div>
                     </div>
+                  )}
 
                     <div style={{ display: 'flex', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
                       {!completed && !paidThisMonth && (
@@ -272,7 +321,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                         {fmt(amount)}
                       </div>
                       <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-                        {cm.is_recurring ? `/${cm.frequency?.slice(0, 2)}` : 'each'}
+                        {cm.total_installments ? 'EMI/mo' : cm.is_recurring ? `/${cm.frequency?.slice(0, 2)}` : 'each'}
                       </div>
                     </div>
                     <button
@@ -310,13 +359,50 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                   placeholder="e.g. SIP, Kuri, Loan EMI" style={inp} />
               </div>
 
-              {/* Amount */}
-              <div>
-                <label style={lbl}>
-                  {form.is_recurring ? 'Amount per period' : 'Instalment amount'}
-                </label>
-                <input type="number" value={form.amount} onChange={e => set('amount', e.target.value)}
-                  placeholder="0" min="0" step="0.01" style={inp} />
+              {/* Loan calculator fields */}
+              <div style={{ background: c.surface2, borderRadius: 14, padding: 12 }}>
+                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                  Fill any 2 → third auto-calculates
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>EMI Amount</label>
+                    <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
+                      value={form.amount} onChange={e => handleAmountChange(e.target.value)}
+                      placeholder="₹" min="0" style={inp} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>Total Months</label>
+                    <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
+                      value={form.total_installments} onChange={e => handleTenureChange(e.target.value)}
+                      placeholder="e.g. 12" min="1" style={inp} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>Total Amount</label>
+                    <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
+                      value={form.total_amount} onChange={e => handleTotalChange(e.target.value)}
+                      placeholder="₹" min="0" style={inp} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>Paid so far (months)</label>
+                    <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
+                      value={form.current_installment} onChange={e => set('current_installment', e.target.value)}
+                      placeholder="0" min="0" style={inp} />
+                  </div>
+                  {form.amount && form.total_installments && form.current_installment !== '' && (
+                    <div style={{ flex: 1, background: c.accentSoft, borderRadius: 11, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, textTransform: 'uppercase' }}>Remaining</div>
+                      <div style={{ font: '800 15px Plus Jakarta Sans', color: c.accent, marginTop: 2 }}>
+                        {fmt((parseFloat(form.total_installments) - parseFloat(form.current_installment || '0')) * parseFloat(form.amount))}
+                      </div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, marginTop: 1 }}>
+                        {parseFloat(form.total_installments) - parseFloat(form.current_installment || '0')} months left
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* One-time / Recurring toggle */}
@@ -394,20 +480,6 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 </div>
               </div>
 
-              {/* Installments */}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Total installments</label>
-                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.total_installments} onChange={e => set('total_installments', e.target.value)} placeholder="e.g. 12" min="1" style={inp} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Paid so far</label>
-                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.current_installment} onChange={e => set('current_installment', e.target.value)} placeholder="e.g. 8" min="0" style={inp} />
-                </div>
-              </div>
-              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: -4 }}>
-                Shows as 8/12 on the card. Edit "Paid so far" to correct your current count.
-              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
