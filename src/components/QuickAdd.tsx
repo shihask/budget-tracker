@@ -85,6 +85,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
   const [quickAmount, setQuickAmount] = useState('')
   const [quickAccountId, setQuickAccountId] = useState('')
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFired = useRef(false)
   const quickAmountRef = useRef<HTMLInputElement | null>(null)
 
   const accs = state.accounts.filter(a => a.is_active)
@@ -109,8 +110,9 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
 
   // Long press handlers
   const startLongPress = (label: string, category_id: string | null) => {
+    longPressFired.current = false
     longPressTimer.current = setTimeout(() => {
-      // Find last used amount for this description
+      longPressFired.current = true
       const lastTx = state.transactions.find(t => t.description.trim() === label && t.transaction_type === 'expense')
       const lastAcc = state.accounts.find(a => a.is_active)
       setQuickAmount(lastTx ? String(lastTx.amount) : '')
@@ -122,6 +124,14 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
 
   const cancelLongPress = () => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current)
+  }
+
+  const handleChipTouchEnd = (label: string, category_id: string | null) => {
+    if (!longPressFired.current) {
+      cancelLongPress()
+      if (!longPressChip) applyQuick(label, category_id)
+    }
+    longPressFired.current = false
   }
 
   const handleQuickSave = () => {
@@ -268,8 +278,9 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
                       onMouseDown={() => startLongPress(label, category_id)}
                       onMouseUp={cancelLongPress}
                       onMouseLeave={cancelLongPress}
-                      onTouchStart={() => startLongPress(label, category_id)}
-                      onTouchEnd={cancelLongPress}
+                      onTouchStart={e => { e.preventDefault(); startLongPress(label, category_id) }}
+                      onTouchEnd={e => { e.preventDefault(); handleChipTouchEnd(label, category_id) }}
+                      onContextMenu={e => e.preventDefault()}
                       style={{
                         border: `1.5px solid ${active || isLongPressed ? c.accent : c.faint}`,
                         cursor: 'pointer',
@@ -278,6 +289,8 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
                         borderRadius: 999, padding: '8px 14px',
                         font: '700 13px Plus Jakarta Sans', whiteSpace: 'nowrap',
                         userSelect: 'none', WebkitUserSelect: 'none',
+                        // @ts-ignore
+                        WebkitTouchCallout: 'none',
                       }}
                     >
                       {label}
