@@ -72,7 +72,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
   const filtered = useMemo(() => {
     let txns = [...state.transactions]
     if (search.trim()) txns = txns.filter(t => t.description.toLowerCase().includes(search.toLowerCase()))
-    if (filterAccount !== 'all') txns = txns.filter(t => t.from_account_id === filterAccount)
+    if (filterAccount !== 'all') txns = txns.filter(t => t.from_account_id === filterAccount || (t as any).credit_card_id === filterAccount)
     if (filterCategory !== 'all') txns = txns.filter(t => t.category_id === filterCategory)
     if (filterGroup !== 'all') txns = txns.filter(t => catMap[t.category_id!]?.group_name === filterGroup)
     if (filterDateFrom) txns = txns.filter(t => t.transaction_date >= filterDateFrom)
@@ -121,7 +121,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
       transaction_date: t.transaction_date,
       transaction_type: t.transaction_type,
       category_id: t.category_id || '',
-      from_account_id: t.from_account_id || '',
+      from_account_id: t.from_account_id || (t as any).credit_card_id || '',
     })
   }
 
@@ -255,7 +255,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
             <div style={{ display: 'flex', gap: 8 }}>
               <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} style={{ ...inp, flex: 1 }}>
                 <option value="all">All accounts</option>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                <optgroup label="Bank / Cash">
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </optgroup>
+                {(state.credit_cards || []).length > 0 && (
+                  <optgroup label="Credit Cards">
+                    {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                  </optgroup>
+                )}
               </select>
               <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)} style={{ ...inp, flex: 1 }}>
                 <option value="date_desc">Newest first</option>
@@ -283,7 +290,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
               const cat = catMap[t.category_id!]
               const col = (cat && CAT_COLORS[cat.name]) || c.muted
               const acc = state.accounts.find(a => a.id === t.from_account_id)
-              const accColor = acc ? (ACC_COLORS[acc.name] || c.accent) : c.muted
+              const creditCard = (state.credit_cards || []).find(cc => cc.id === (t as any).credit_card_id)
+              const accLabel = acc ? acc.name : creditCard ? creditCard.name : ''
+              const accColor = acc ? (ACC_COLORS[acc.name] || c.accent) : creditCard ? '#6366F1' : c.muted
               const isDeleting = deleting === t.id
               const prevDate = i > 0 ? filtered[i - 1].transaction_date : null
               const showDateHeader = t.transaction_date !== prevDate
@@ -306,7 +315,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                       <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                         {cat && <span style={{ font: '600 10px Plus Jakarta Sans', color: col, background: col + '18', borderRadius: 999, padding: '2px 7px' }}>{cat.name}</span>}
-                        {acc && <span style={{ font: '600 10px Plus Jakarta Sans', color: accColor, background: accColor + '18', borderRadius: 999, padding: '2px 7px' }}>{acc.name}</span>}
+                        {accLabel && <span style={{ font: '600 10px Plus Jakarta Sans', color: accColor, background: accColor + '18', borderRadius: 999, padding: '2px 7px' }}>{accLabel}</span>}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -414,7 +423,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                     style={inp}
                   >
                     <option value="">No account</option>
-                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    <optgroup label="Bank / Cash">
+                      {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </optgroup>
+                    {(state.credit_cards || []).length > 0 && (
+                      <optgroup label="Credit Cards">
+                        {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
