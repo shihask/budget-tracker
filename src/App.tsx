@@ -103,7 +103,13 @@ function AppContent({ session }: { session: Session }) {
   }
 
   const panelW = typeof window !== 'undefined' ? Math.min(280, window.innerWidth) : 280
-  const W = 402
+  const [windowW, setWindowW] = useState(typeof window !== 'undefined' ? window.innerWidth : 402)
+  useEffect(() => {
+    const handler = () => setWindowW(window.innerWidth)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  const W = windowW >= 768 ? Math.min(windowW * 0.6, 720) : 402
 
   return (
     <ThemeContext.Provider value={c}>
