@@ -216,7 +216,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
 
       {/* Add/Edit sheet */}
       {sheetOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 350, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={closeSheet} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
           <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', maxHeight: '90svh' }}>
             <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
@@ -275,7 +275,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
 
       {/* Pay bill sheet */}
       {payTarget && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 350, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={() => setPayTarget(null)} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
           <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
             <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
