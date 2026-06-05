@@ -116,12 +116,8 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
   const handleMarkPaid = async (cm: Commitment) => {
     const isCreditCard = (state.credit_cards || []).some(c => c.id === cm.from_account_id)
     if (isCreditCard) {
-      // CC commitment — just mark paid, no expense
-      setPaying(cm.id)
-      try { await onMarkPaid(cm, false, null) } catch (_) {}
-      setPaying(null)
+      setConfirmPay(cm)
     } else {
-      // Non-CC — show confirmation
       setConfirmAccountId(cm.from_account_id || accounts[0]?.id || '')
       setConfirmPay(cm)
     }
@@ -428,50 +424,65 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
         </div>
       )}
 
-      {/* Confirmation modal for non-CC Mark Paid */}
-      {confirmPay && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setConfirmPay(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Record as expense?</div>
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 16 }}>
-              Mark <strong style={{ color: c.ink }}>{confirmPay.name}</strong> ({fmt(confirmPay.amount)}) as paid this month.
-              Do you want to record this as an expense and deduct from your account?
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Pay from account</label>
-              <select value={confirmAccountId} onChange={e => setConfirmAccountId(e.target.value)}
-                style={{ width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none' }}>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button
-                onClick={async () => {
-                  const cm = confirmPay; setConfirmPay(null)
-                  setPaying(cm.id)
-                  try { await onMarkPaid(cm, true, confirmAccountId) } catch (_) {}
-                  setPaying(null)
-                }}
-                style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
-              >
-                ✓ Yes, record as expense
-              </button>
-              <button
-                onClick={async () => {
-                  const cm = confirmPay; setConfirmPay(null)
-                  setPaying(cm.id)
-                  try { await onMarkPaid(cm, false, null) } catch (_) {}
-                  setPaying(null)
-                }}
-                style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
-              >
-                No, just mark as paid
-              </button>
+      {/* Confirmation modal */}
+      {confirmPay && (() => {
+        const isCreditCard = (state.credit_cards || []).some(c => c.id === confirmPay.from_account_id)
+        const cardName = isCreditCard ? (state.credit_cards || []).find(c => c.id === confirmPay.from_account_id)?.name : null
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={() => setConfirmPay(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+            <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+              <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>
+                {isCreditCard ? 'Add to card outstanding?' : 'Record as expense?'}
+              </div>
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 16 }}>
+                {isCreditCard
+                  ? <>Marking <strong style={{ color: c.ink }}>{confirmPay.name}</strong> ({fmt(confirmPay.amount)}) paid via <strong style={{ color: c.ink }}>{cardName}</strong>.<br /><br />
+                    Tap <strong style={{ color: c.ink }}>Yes</strong> if this amount is <strong style={{ color: c.ink }}>not yet</strong> in your card outstanding (adds it now).<br />
+                    Tap <strong style={{ color: c.ink }}>No</strong> if the bank already added it to your statement.</>
+                  : <>Mark <strong style={{ color: c.ink }}>{confirmPay.name}</strong> ({fmt(confirmPay.amount)}) as paid.
+                    Do you want to record this as an expense and deduct from your account?</>
+                }
+              </div>
+
+              {!isCreditCard && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Pay from account</label>
+                  <select value={confirmAccountId} onChange={e => setConfirmAccountId(e.target.value)}
+                    style={{ width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none' }}>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    const cm = confirmPay; setConfirmPay(null)
+                    setPaying(cm.id)
+                    try { await onMarkPaid(cm, true, isCreditCard ? null : confirmAccountId) } catch (_) {}
+                    setPaying(null)
+                  }}
+                  style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+                >
+                  {isCreditCard ? '✓ Yes, add to outstanding' : '✓ Yes, record as expense'}
+                </button>
+                <button
+                  onClick={async () => {
+                    const cm = confirmPay; setConfirmPay(null)
+                    setPaying(cm.id)
+                    try { await onMarkPaid(cm, false, null) } catch (_) {}
+                    setPaying(null)
+                  }}
+                  style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+                >
+                  {isCreditCard ? 'No, already in statement' : 'No, just mark as paid'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </>
   )
 }
