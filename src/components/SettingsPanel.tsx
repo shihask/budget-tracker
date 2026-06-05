@@ -9,14 +9,16 @@ interface SettingsPanelProps {
   layout: Layout
   emergencyFund: number
   salaryDate: number | null
+  trackCreditCards: boolean
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
   onEmergencyFund: (v: number) => Promise<void>
   onSalaryDate: (v: number | null) => Promise<void>
+  onTrackCreditCards: (v: boolean) => Promise<void>
 }
 
-export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate, onAccent, onDark, onLayout, onEmergencyFund, onSalaryDate }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate, trackCreditCards, onAccent, onDark, onLayout, onEmergencyFund, onSalaryDate, onTrackCreditCards }: SettingsPanelProps) {
   const c = useTheme()
   const [emergencyInput, setEmergencyInput] = useState(String(emergencyFund))
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
@@ -150,6 +152,29 @@ export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate,
           }}
         >
           {savingSalary ? 'Saving...' : 'Save Salary Date'}
+        </button>
+      </div>
+
+      <div style={sectionLabel}>Features</div>
+      <div style={rowStyle}>
+        <div>
+          <div style={labelStyle}>Credit card tracking</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Track billing cycles & due dates</div>
+        </div>
+        <button
+          onClick={() => onTrackCreditCards(!trackCreditCards)}
+          style={{
+            width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer',
+            background: trackCreditCards ? c.accent : c.surface2,
+            position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+          }}
+        >
+          <span style={{
+            position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999,
+            background: '#fff', transition: 'left 0.2s',
+            left: trackCreditCards ? 21 : 3,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+          }} />
         </button>
       </div>
 
