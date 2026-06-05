@@ -90,6 +90,9 @@ function AppContent({ session }: { session: Session }) {
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
+  const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
+  const [emergencyInput, setEmergencyInput] = useState('')
+  const [savingEmergency, setSavingEmergency] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
 
@@ -153,7 +156,7 @@ function AppContent({ session }: { session: Session }) {
               <AffordabilityChecker d={d} />
               <div>
                 <SectionTitle action="Customize" onAction={() => setSettingsOpen(true)}>Your money</SectionTitle>
-                <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => setSettingsOpen(true)} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} />
+                <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} />
               </div>
               <Analytics state={state} />
               <AccountsSection state={state} onAdjustBalance={adjustBalance} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />
@@ -223,8 +226,50 @@ function AppContent({ session }: { session: Session }) {
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-            <SettingsPanel accent={accent} dark={dark} layout={layout} emergencyFund={state.settings.emergency_fund} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onEmergencyFund={v => updateSettings({ emergency_fund: v })} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} />
+            <SettingsPanel accent={accent} dark={dark} layout={layout} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} />
           </>
+        )}
+
+        {emergencyEditOpen && (
+          <div onClick={() => setEmergencyEditOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
+              <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+              <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Emergency Fund</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>Amount reserved and excluded from spendable balance</div>
+              <div style={{ position: 'relative', marginBottom: 14 }}>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
+                <input
+                  type="number" inputMode="numeric" autoFocus
+                  value={emergencyInput}
+                  onChange={e => setEmergencyInput(e.target.value)}
+                  onFocus={e => e.target.select()}
+                  onKeyDown={async e => {
+                    if (e.key === 'Enter') {
+                      const v = parseFloat(emergencyInput)
+                      if (!isNaN(v) && v >= 0) { setSavingEmergency(true); try { await updateSettings({ emergency_fund: v }); setEmergencyEditOpen(false) } catch (_) {} setSavingEmergency(false) }
+                    }
+                  }}
+                  style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 13, padding: '13px 14px 13px 30px', font: '800 18px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setEmergencyEditOpen(false)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+                <button
+                  disabled={savingEmergency}
+                  onClick={async () => {
+                    const v = parseFloat(emergencyInput)
+                    if (isNaN(v) || v < 0) return
+                    setSavingEmergency(true)
+                    try { await updateSettings({ emergency_fund: v }); setEmergencyEditOpen(false) } catch (_) {}
+                    setSavingEmergency(false)
+                  }}
+                  style={{ flex: 2, background: c.warn, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: savingEmergency ? 'not-allowed' : 'pointer', opacity: savingEmergency ? 0.7 : 1 }}
+                >
+                  {savingEmergency ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </ThemeContext.Provider>

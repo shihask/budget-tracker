@@ -7,33 +7,21 @@ interface SettingsPanelProps {
   accent: string
   dark: boolean
   layout: Layout
-  emergencyFund: number
   salaryDate: number | null
   trackCreditCards: boolean
   trackBorrowings: boolean
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
-  onEmergencyFund: (v: number) => Promise<void>
   onSalaryDate: (v: number | null) => Promise<void>
   onTrackCreditCards: (v: boolean) => Promise<void>
   onTrackBorrowings: (v: boolean) => Promise<void>
 }
 
-export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate, trackCreditCards, trackBorrowings, onAccent, onDark, onLayout, onEmergencyFund, onSalaryDate, onTrackCreditCards, onTrackBorrowings }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings }: SettingsPanelProps) {
   const c = useTheme()
-  const [emergencyInput, setEmergencyInput] = useState(String(emergencyFund))
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
-  const [savingEmergency, setSavingEmergency] = useState(false)
   const [savingSalary, setSavingSalary] = useState(false)
-
-  const handleEmergencySave = async () => {
-    const v = parseFloat(emergencyInput)
-    if (isNaN(v) || v < 0) return
-    setSavingEmergency(true)
-    try { await onEmergencyFund(v) } catch (_) {}
-    setSavingEmergency(false)
-  }
 
   const handleSalarySave = async () => {
     const v = parseInt(salaryInput)
@@ -93,38 +81,6 @@ export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate,
 
       <div style={sectionLabel}>Budget</div>
       <div style={{ paddingBottom: 4, borderBottom: `1px solid ${c.faint}` }}>
-        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Emergency fund reserve</div>
-        <div style={{ position: 'relative', marginBottom: 8 }}>
-          <span style={{
-            position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
-            font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none',
-          }}>₹</span>
-          <input
-            type="number"
-            value={emergencyInput}
-            onChange={e => setEmergencyInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleEmergencySave()}
-            style={{
-              width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`,
-              borderRadius: 11, padding: '11px 12px 11px 26px',
-              font: '800 16px Plus Jakarta Sans', color: c.ink,
-              outline: 'none', boxSizing: 'border-box',
-            }}
-          />
-        </div>
-        <button
-          onClick={handleEmergencySave}
-          disabled={savingEmergency}
-          style={{
-            width: '100%', background: c.warn, color: '#fff', border: 'none',
-            borderRadius: 11, padding: '11px', marginBottom: 16,
-            font: '700 13px Plus Jakarta Sans',
-            cursor: savingEmergency ? 'not-allowed' : 'pointer', opacity: savingEmergency ? 0.6 : 1,
-          }}
-        >
-          {savingEmergency ? 'Saving...' : 'Save Emergency Fund'}
-        </button>
-
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Salary credit date</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
           <input
