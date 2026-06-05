@@ -149,8 +149,17 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
           <div onClick={() => setPopup(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink }}>
-                {popup === 'budget' ? '📊 Budget Calculation' : '💸 Spent Calculation'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '800 17px Plus Jakarta Sans', color: c.ink }}>
+                {popup === 'budget' ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h8M8 16h5"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M12 6v6l4 2"/>
+                  </svg>
+                )}
+                {popup === 'budget' ? 'Budget Calculation' : 'Spent Calculation'}
               </div>
               <button onClick={() => setPopup(null)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
             </div>

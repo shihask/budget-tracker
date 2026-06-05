@@ -292,7 +292,12 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
                         boxShadow: '0 8px 28px rgba(0,0,0,0.22)', border: `1px solid ${c.faint}`,
                         zIndex: 200, minWidth: 220, width: '80vw', maxWidth: 300,
                       }}>
-                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>⚡ Quick Save — {label}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                          </svg>
+                          Quick Save — {label}
+                        </div>
                         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Amount</div>

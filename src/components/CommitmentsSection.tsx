@@ -425,7 +425,18 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                         cursor: 'pointer',
                       }}
                     >
-                      {v ? '🔄 Recurring' : '📋 One-time'}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        {v ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15"/>
+                          </svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                          </svg>
+                        )}
+                        {v ? 'Recurring' : 'One-time'}
+                      </span>
                     </button>
                   ))}
                 </div>
