@@ -22,7 +22,7 @@ export function derive(state: AppState): DerivedMetrics {
   const actualBalance = accs.reduce((s, a) => s + a.current_balance, 0)
   const emergencyFund = state.settings.emergency_fund
   const availableBalance = actualBalance - emergencyFund
-  const remainingCommitments = state.commitments.reduce((s, c) => s + c.remaining, 0)
+  const remainingCommitments = state.commitments.filter(c => c.is_active !== false).reduce((s, c) => s + c.remaining, 0)
   const realFreeMoney = availableBalance - remainingCommitments
 
   const weeklyBudget = state.settings.weekly_budget

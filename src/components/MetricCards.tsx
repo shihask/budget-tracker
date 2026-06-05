@@ -19,7 +19,9 @@ type FormulaRow =
   | { label: string; value: number; muted?: boolean }
   | { separator: true }
 
-function buildFormula(key: string, d: DerivedMetrics): FormulaRow[] {
+type CommitmentItem = { name: string; remaining: number }
+
+function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: CommitmentItem[]): FormulaRow[] {
   switch (key) {
     case 'actual': return [
       { label: 'Sum of active accounts', value: d.actualBalance },
@@ -39,9 +41,15 @@ function buildFormula(key: string, d: DerivedMetrics): FormulaRow[] {
     case 'emerg': return [
       { label: 'Reserved, not for daily use', value: d.emergencyFund },
     ]
-    case 'commit': return [
-      { label: 'Unpaid commitments', value: d.remainingCommitments },
-    ]
+    case 'commit': {
+      const items = commitmentItems?.filter(c => c.remaining > 0) ?? []
+      if (items.length === 0) return [{ label: 'Unpaid commitments', value: d.remainingCommitments }]
+      return [
+        ...items.map(c => ({ label: c.name, value: c.remaining })),
+        { separator: true },
+        { label: 'Total remaining', value: d.remainingCommitments },
+      ]
+    }
     case 'wbudget': return [
       { label: 'Set weekly spending limit', value: d.weeklyBudget },
     ]
@@ -75,15 +83,16 @@ interface MetricCardsProps {
   d: DerivedMetrics
   layout: Layout
   onEditBudget?: () => void
+  commitmentItems?: CommitmentItem[]
 }
 
-export function MetricCards({ d, layout, onEditBudget }: MetricCardsProps) {
+export function MetricCards({ d, layout, onEditBudget, commitmentItems }: MetricCardsProps) {
   const c = useTheme()
   const metrics = buildMetrics(d)
   const [activePopup, setActivePopup] = useState<string | null>(null)
 
   const activeMetric = activePopup ? metrics.find(m => m.key === activePopup) : null
-  const formula = activePopup ? buildFormula(activePopup, d) : []
+  const formula = activePopup ? buildFormula(activePopup, d, commitmentItems) : []
   const hasBreakdown = formula.some(r => 'separator' in r)
 
   let content: React.ReactNode
