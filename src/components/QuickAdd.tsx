@@ -80,6 +80,13 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
   const [txType, setTxType] = useState<'expense' | 'income'>('expense')
   const amountRef = useRef<HTMLInputElement | null>(null)
 
+  // Long press quick save
+  const [longPressChip, setLongPressChip] = useState<{ label: string; category_id: string | null } | null>(null)
+  const [quickAmount, setQuickAmount] = useState('')
+  const [quickAccountId, setQuickAccountId] = useState('')
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const quickAmountRef = useRef<HTMLInputElement | null>(null)
+
   const accs = state.accounts.filter(a => a.is_active)
   const cats = state.categories
 
@@ -99,6 +106,41 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       .slice(0, 8)
       .map(([label, { category_id }]) => ({ label, category_id }))
   }, [state.transactions])
+
+  const { register, handleSubmit, setValue, watch, reset, formState: { errors, isValid } } = useForm<FormValues>({
+
+  // Long press handlers
+  const startLongPress = (label: string, category_id: string | null) => {
+    longPressTimer.current = setTimeout(() => {
+      // Find last used amount for this description
+      const lastTx = state.transactions.find(t => t.description.trim() === label && t.transaction_type === 'expense')
+      const lastAcc = state.accounts.find(a => a.is_active)
+      setQuickAmount(lastTx ? String(lastTx.amount) : '')
+      setQuickAccountId(lastTx?.from_account_id || lastAcc?.id || '')
+      setLongPressChip({ label, category_id })
+      setTimeout(() => quickAmountRef.current?.focus(), 80)
+    }, 500)
+  }
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+  }
+
+  const handleQuickSave = () => {
+    const amt = parseFloat(quickAmount)
+    if (isNaN(amt) || amt <= 0 || !longPressChip) return
+    const catId = longPressChip.category_id || guessCategory(longPressChip.label, cats) || null
+    onSave({
+      transaction_date: iso(TODAY),
+      description: longPressChip.label,
+      amount: amt,
+      transaction_type: 'expense',
+      category_id: catId,
+      from_account_id: quickAccountId,
+    })
+    setLongPressChip(null)
+    onClose()
+  }
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors, isValid } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -176,7 +218,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: open ? 'auto' : 'none' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }} />
+      <div onClick={() => { onClose(); setLongPressChip(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }} />
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, background: c.surface,
         borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '8px 18px calc(30px + env(safe-area-inset-bottom, 0px))',
@@ -212,34 +254,93 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
 
         {/* Quick chips — expense only, dynamic from history */}
         {isExpense && (
-          <div style={{
-            display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18,
-            maxHeight: '72px', overflow: 'hidden',
-          }}>
-            {topDescriptions.length === 0 ? (
-              // Fallback when no history yet
-              ['Tea', 'Petrol', 'Groceries', 'Medical', 'Shopping'].map(label => {
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: '72px', overflow: 'hidden' }}>
+              {(topDescriptions.length === 0
+                ? ['Tea', 'Petrol', 'Groceries', 'Medical', 'Shopping'].map(label => ({ label, category_id: null }))
+                : topDescriptions
+              ).map(({ label, category_id }) => {
                 const active = descriptionVal === label
+                const isLongPressed = longPressChip?.label === label
                 return (
-                  <button key={label} type="button" onClick={() => applyQuick(label, null)} style={{
-                    border: `1.5px solid ${active ? c.accent : c.faint}`, cursor: 'pointer',
-                    background: active ? c.accentSoft : c.surface, color: active ? c.accent : c.sub,
-                    borderRadius: 999, padding: '8px 14px', font: '700 13px Plus Jakarta Sans', whiteSpace: 'nowrap',
-                  }}>{label}</button>
+                  <div key={label} style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => !longPressChip && applyQuick(label, category_id)}
+                      onMouseDown={() => startLongPress(label, category_id)}
+                      onMouseUp={cancelLongPress}
+                      onMouseLeave={cancelLongPress}
+                      onTouchStart={() => startLongPress(label, category_id)}
+                      onTouchEnd={cancelLongPress}
+                      style={{
+                        border: `1.5px solid ${active || isLongPressed ? c.accent : c.faint}`,
+                        cursor: 'pointer',
+                        background: active || isLongPressed ? c.accentSoft : c.surface,
+                        color: active || isLongPressed ? c.accent : c.sub,
+                        borderRadius: 999, padding: '8px 14px',
+                        font: '700 13px Plus Jakarta Sans', whiteSpace: 'nowrap',
+                        userSelect: 'none', WebkitUserSelect: 'none',
+                      }}
+                    >
+                      {label}
+                    </button>
+
+                    {/* Mini quick-save popup on long press */}
+                    {isLongPressed && (
+                      <div style={{
+                        position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: c.surface, borderRadius: 16, padding: 12,
+                        boxShadow: '0 8px 28px rgba(0,0,0,0.18)', border: `1px solid ${c.faint}`,
+                        zIndex: 100, minWidth: 200,
+                      }}>
+                        {/* Arrow */}
+                        <div style={{ position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)', width: 12, height: 12, background: c.surface, border: `1px solid ${c.faint}`, borderTop: 'none', borderLeft: 'none', rotate: '45deg' }} />
+                        <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>{label}</div>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                          {/* Amount */}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Amount</div>
+                            <input
+                              ref={quickAmountRef}
+                              type="number"
+                              value={quickAmount}
+                              onChange={e => setQuickAmount(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleQuickSave()}
+                              placeholder="0"
+                              inputMode="decimal"
+                              onFocus={e => e.target.select()}
+                              style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '8px 10px', font: '700 16px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
+                            />
+                          </div>
+                          {/* Account */}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Account</div>
+                            <select value={quickAccountId} onChange={e => setQuickAccountId(e.target.value)}
+                              style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '8px 6px', font: '600 12px Plus Jakarta Sans', color: c.ink, outline: 'none' }}>
+                              {state.accounts.filter(a => a.is_active).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button type="button" onClick={() => setLongPressChip(null)}
+                            style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '8px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>
+                            Cancel
+                          </button>
+                          <button type="button" onClick={handleQuickSave} disabled={!quickAmount || parseFloat(quickAmount) <= 0}
+                            style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '8px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', opacity: !quickAmount ? 0.6 : 1 }}>
+                            Save ₹{quickAmount || '0'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )
-              })
-            ) : (
-              topDescriptions.map(({ label, category_id }) => {
-                const active = descriptionVal === label
-                return (
-                  <button key={label} type="button" onClick={() => applyQuick(label, category_id)} style={{
-                    border: `1.5px solid ${active ? c.accent : c.faint}`, cursor: 'pointer',
-                    background: active ? c.accentSoft : c.surface, color: active ? c.accent : c.sub,
-                    borderRadius: 999, padding: '8px 14px', font: '700 13px Plus Jakarta Sans', whiteSpace: 'nowrap',
-                  }}>{label}</button>
-                )
-              })
-            )}
+              })}
+            </div>
+            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 6 }}>
+              Tap to fill · Hold to quick save
+            </div>
           </div>
         )}
 
