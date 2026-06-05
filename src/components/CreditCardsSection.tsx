@@ -114,7 +114,31 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
     setPaying(false)
   }
 
-  const cardColors = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+  const [tooltip, setTooltip] = useState<string | null>(null)
+
+  const InfoIcon = ({ id, text }: { id: string; text: string }) => (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <button
+        type="button"
+        onClick={() => setTooltip(tooltip === id ? null : id)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 4px', color: c.muted, display: 'flex', alignItems: 'center' }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      </button>
+      {tooltip === id && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+          background: c.ink, color: c.bg, borderRadius: 10, padding: '8px 10px',
+          font: '600 11px Plus Jakarta Sans', lineHeight: 1.5, zIndex: 10,
+          width: 200, whiteSpace: 'normal', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+        }}>
+          {text}
+        </div>
+      )}
+    </span>
+  )
   const colorFor = (name: string) => cardColors[name.charCodeAt(0) % cardColors.length]
 
   return (
@@ -240,26 +264,41 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   <input value={form.last_four} onChange={e => setForm(f => ({ ...f, last_four: e.target.value.slice(0, 4) }))} placeholder="4571" maxLength={4} style={inp} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={lbl}>Credit Limit</label>
+                  <label style={lbl}>
+                    Credit Limit
+                    <InfoIcon id="limit" text="The maximum amount you can spend on this card. Check your card statement or bank app." />
+                  </label>
                   <input type="number" value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
-                  <label style={lbl}>Cycle Start Day</label>
+                  <label style={lbl}>
+                    Cycle Start
+                    <InfoIcon id="cycle" text="The day your billing cycle begins each month. E.g. if your cycle is 16th to 15th, enter 16." />
+                  </label>
                   <input type="number" value={form.cycle_start_day} onChange={e => setForm(f => ({ ...f, cycle_start_day: e.target.value }))} min="1" max="31" style={inp} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={lbl}>Bill Date</label>
+                  <label style={lbl}>
+                    Bill Date
+                    <InfoIcon id="bill" text="The date your statement is generated each month. Your total spend up to this date becomes the bill amount." />
+                  </label>
                   <input type="number" value={form.bill_day} onChange={e => setForm(f => ({ ...f, bill_day: e.target.value }))} min="1" max="31" style={inp} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={lbl}>Due Date</label>
+                  <label style={lbl}>
+                    Due Date
+                    <InfoIcon id="due" text="The last date to pay your bill without penalty. Usually 15-20 days after the bill date." />
+                  </label>
                   <input type="number" value={form.due_day} onChange={e => setForm(f => ({ ...f, due_day: e.target.value }))} min="1" max="31" style={inp} />
                 </div>
               </div>
               <div>
-                <label style={lbl}>Current Outstanding Balance</label>
+                <label style={lbl}>
+                  Current Outstanding
+                  <InfoIcon id="balance" text="How much you currently owe on this card right now. Check your bank app or last statement." />
+                </label>
                 <input type="number" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
               </div>
             </div>
