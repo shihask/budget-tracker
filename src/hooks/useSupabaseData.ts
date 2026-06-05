@@ -62,7 +62,7 @@ export function useSupabaseData(userId: string) {
           supabase.from('borrowings').select('*').eq('user_id', userId).order('person_name'),
           supabase.from('commitments').select('*').eq('user_id', userId).order('name'),
           supabase.from('transactions')
-            .select('*, category:categories(*), from_account:accounts!from_account_id(*)')
+            .select('*, category:categories(*)')
             .eq('user_id', userId)
             .order('transaction_date', { ascending: false })
             .order('created_at', { ascending: false })
@@ -139,7 +139,7 @@ export function useSupabaseData(userId: string) {
           notes: '',
           user_id: userId,
         })
-        .select('*, category:categories(*), from_account:accounts!from_account_id(*)')
+        .select('*, category:categories(*)')
         .single()
       if (txErr) throw txErr
       if (isCreditCard) {
@@ -192,7 +192,7 @@ export function useSupabaseData(userId: string) {
         .from('transactions')
         .update({ transaction_date: form.transaction_date, description: form.description, amount: form.amount, transaction_type: form.transaction_type, category_id: form.category_id, from_account_id: form.from_account_id })
         .eq('id', old.id)
-        .select('*, category:categories(*), from_account:accounts!from_account_id(*)')
+        .select('*, category:categories(*)')
         .single()
       if (error) throw error
       if (old.from_account_id) {
@@ -305,7 +305,7 @@ export function useSupabaseData(userId: string) {
         notes: '',
         user_id: userId,
         borrowing_id: borrowing.id,
-      }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
+      }).select('*, category:categories(*)').single()
 
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
       if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + form.total_amount }).eq('id', accountId)
@@ -370,7 +370,7 @@ export function useSupabaseData(userId: string) {
         notes: '',
         user_id: userId,
         borrowing_id: borrowing.id,
-      }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
+      }).select('*, category:categories(*)').single()
       newTx = data as Transaction
 
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
@@ -413,7 +413,7 @@ export function useSupabaseData(userId: string) {
       from_account_id: isCreditCard ? null : cm.from_account_id,
       credit_card_id: isCreditCard ? cm.from_account_id : null,
       to_account_id: null, notes: '', user_id: userId,
-    }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
+    }).select('*, category:categories(*)').single()
     if (error) throw error
 
     if (isCreditCard && cm.from_account_id) {
@@ -508,7 +508,7 @@ export function useSupabaseData(userId: string) {
       to_account_id: null,
       notes: '',
       user_id: userId,
-    }).select('*, category:categories(*), from_account:accounts!from_account_id(*)').single()
+    }).select('*, category:categories(*)').single()
 
     setState(s => ({
       ...s,
