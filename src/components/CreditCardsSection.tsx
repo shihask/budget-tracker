@@ -177,8 +177,16 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: col, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
-                          <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          {/* Card body */}
+                          <rect x="2" y="5" width="20" height="14" rx="3" fill="rgba(255,255,255,0.2)" stroke="#fff" strokeWidth="1.5"/>
+                          {/* Magnetic stripe */}
+                          <rect x="2" y="9.5" width="20" height="2.5" fill="rgba(255,255,255,0.25)" stroke="none"/>
+                          {/* Chip */}
+                          <rect x="4.5" y="13" width="4" height="3" rx="1" fill="rgba(255,255,255,0.7)" stroke="none"/>
+                          {/* Contactless arcs */}
+                          <path d="M13.5 13.8a1.8 1.8 0 010-3.6" stroke="rgba(255,255,255,0.9)" strokeWidth="1.3" fill="none"/>
+                          <path d="M15 14.6a3.4 3.4 0 000-5.2" stroke="rgba(255,255,255,0.6)" strokeWidth="1.3" fill="none"/>
                         </svg>
                       </div>
                       <div>

@@ -29,9 +29,9 @@ export function AffordabilityChecker({ d }: Props) {
 
   const getStatus = () => {
     if (!result) return null
-    if (result.remaining < 0) return { color: c.bad, bg: '#FEE2E2', emoji: '🔴', label: 'NO — Exceeds your free money', sub: `You'd be short by ${fmt(Math.abs(result.remaining))}` }
-    if (result.pct > 60) return { color: '#D97706', bg: '#FEF3C7', emoji: '🟡', label: 'Possible, but think carefully', sub: `This uses ${result.pct}% of your free money` }
-    return { color: c.good, bg: '#DCFCE7', emoji: '🟢', label: 'Yes, you can afford this!', sub: `You'll still have ${fmt(result.remaining)} left` }
+    if (result.remaining < 0) return { color: c.bad, bg: '#FEE2E2', icon: 'x', label: 'NO — Exceeds your free money', sub: `You'd be short by ${fmt(Math.abs(result.remaining))}` }
+    if (result.pct > 60) return { color: '#D97706', bg: '#FEF3C7', icon: 'warn', label: 'Possible, but think carefully', sub: `This uses ${result.pct}% of your free money` }
+    return { color: c.good, bg: '#DCFCE7', icon: 'check', label: 'Yes, you can afford this!', sub: `You'll still have ${fmt(result.remaining)} left` }
   }
 
   const status = getStatus()
@@ -56,10 +56,18 @@ export function AffordabilityChecker({ d }: Props) {
           boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
         }}
       >
-        <div style={{ textAlign: 'left' }}>
-          <div style={{ font: '800 16px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>💰 Can I Afford This?</div>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
-            Based on real free money · {fmt(freeMoney)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 11, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+              <path d="M12 6v6l4 2"/>
+            </svg>
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ font: '800 16px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>Can I Afford This?</div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
+              Based on real free money · {fmt(freeMoney)}
+            </div>
           </div>
         </div>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2.5" strokeLinecap="round">
@@ -77,7 +85,7 @@ export function AffordabilityChecker({ d }: Props) {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
-                <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>💰 Can I Afford This?</div>
+                <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Can I Afford This?</div>
                 <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Checks against Real Free Money, not bank balance</div>
               </div>
               <button onClick={close} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
@@ -131,8 +139,9 @@ export function AffordabilityChecker({ d }: Props) {
                       const qColor = rem < 0 ? c.bad : pct > 60 ? '#D97706' : c.good
                       return (
                         <button key={amt} onClick={() => { setAmount(String(amt)); setResult({ remaining: rem, pct }) }}
-                          style={{ background: qColor + '18', color: qColor, border: `1px solid ${qColor}30`, borderRadius: 999, padding: '5px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>
-                          {rem < 0 ? '🔴' : pct > 60 ? '🟡' : '🟢'} ₹{amt >= 1000 ? `${amt / 1000}k` : amt}
+                          style={{ background: qColor + '18', color: qColor, border: `1px solid ${qColor}30`, borderRadius: 999, padding: '5px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: 999, background: qColor, display: 'inline-block', flexShrink: 0 }} />
+                          ₹{amt >= 1000 ? `${amt / 1000}k` : amt}
                         </button>
                       )
                     })}
@@ -147,8 +156,26 @@ export function AffordabilityChecker({ d }: Props) {
               <>
                 {/* Result */}
                 <div style={{ background: status!.bg, borderRadius: 16, padding: 16, marginBottom: 16, textAlign: 'center' }}>
-                  <div style={{ font: '700 28px Plus Jakarta Sans' }}>{status!.emoji}</div>
-                  <div style={{ font: '800 17px Plus Jakarta Sans', color: status!.color, marginTop: 6 }}>{status!.label}</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 999, background: status!.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {status!.icon === 'check' && (
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={status!.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/>
+                        </svg>
+                      )}
+                      {status!.icon === 'warn' && (
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={status!.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill={status!.color}/>
+                        </svg>
+                      )}
+                      {status!.icon === 'x' && (
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={status!.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"/><path d="M9 9l6 6M15 9l-6 6"/>
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ font: '800 17px Plus Jakarta Sans', color: status!.color }}>{status!.label}</div>
                   <div style={{ font: '600 13px Plus Jakarta Sans', color: status!.color + 'CC', marginTop: 4 }}>{status!.sub}</div>
                 </div>
 
