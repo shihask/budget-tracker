@@ -122,7 +122,7 @@ export function CategoriesPage({
         </div>
       </div>
 
-      <div style={{ padding: '12px 16px calc(60px + env(safe-area-inset-bottom, 0px))' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '12px 16px calc(60px + env(safe-area-inset-bottom, 0px))' }}>
 
         {/* Add group inline form */}
         {showAddGroup && (
