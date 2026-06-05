@@ -290,7 +290,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                       {fmtDate(t.transaction_date)}
                     </div>
                   )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: c.surface, borderRadius: 16, padding: '12px 14px', border: `1px solid ${c.faint}`, opacity: isDeleting ? 0.5 : 1 }}>
+                  <div
+                    onClick={() => !isDeleting && openEdit(t)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, background: c.surface, borderRadius: 16, padding: '12px 14px', border: `1px solid ${c.faint}`, opacity: isDeleting ? 0.5 : 1, cursor: 'pointer', transition: 'opacity 0.15s' }}
+                  >
                     <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: col + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '800 15px Plus Jakarta Sans', color: col }}>
                       {t.description.slice(0, 1).toUpperCase()}
                     </div>
@@ -301,26 +304,19 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                         {acc && <span style={{ font: '600 10px Plus Jakarta Sans', color: accColor, background: accColor + '18', borderRadius: 999, padding: '2px 7px' }}>{acc.name}</span>}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : c.bad }}>
                         {t.transaction_type === 'income' ? '+' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
                       </div>
-                      <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => openEdit(t)}
-                          disabled={isDeleting}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.accent, padding: '2px 0', font: '600 11px Plus Jakarta Sans' }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(t)}
-                          disabled={isDeleting}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.bad + 'AA', padding: '2px 0', font: '600 11px Plus Jakarta Sans' }}
-                        >
-                          {isDeleting ? '...' : 'Delete'}
-                        </button>
-                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDelete(t) }}
+                        disabled={isDeleting}
+                        style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
