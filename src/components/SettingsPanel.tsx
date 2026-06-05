@@ -10,15 +10,17 @@ interface SettingsPanelProps {
   emergencyFund: number
   salaryDate: number | null
   trackCreditCards: boolean
+  trackBorrowings: boolean
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
   onEmergencyFund: (v: number) => Promise<void>
   onSalaryDate: (v: number | null) => Promise<void>
   onTrackCreditCards: (v: boolean) => Promise<void>
+  onTrackBorrowings: (v: boolean) => Promise<void>
 }
 
-export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate, trackCreditCards, onAccent, onDark, onLayout, onEmergencyFund, onSalaryDate, onTrackCreditCards }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate, trackCreditCards, trackBorrowings, onAccent, onDark, onLayout, onEmergencyFund, onSalaryDate, onTrackCreditCards, onTrackBorrowings }: SettingsPanelProps) {
   const c = useTheme()
   const [emergencyInput, setEmergencyInput] = useState(String(emergencyFund))
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
@@ -163,18 +165,22 @@ export function SettingsPanel({ accent, dark, layout, emergencyFund, salaryDate,
         </div>
         <button
           onClick={() => onTrackCreditCards(!trackCreditCards)}
-          style={{
-            width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer',
-            background: trackCreditCards ? c.accent : c.surface2,
-            position: 'relative', transition: 'background 0.2s', flexShrink: 0,
-          }}
+          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackCreditCards ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
         >
-          <span style={{
-            position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999,
-            background: '#fff', transition: 'left 0.2s',
-            left: trackCreditCards ? 21 : 3,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-          }} />
+          <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackCreditCards ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+        </button>
+      </div>
+
+      <div style={rowStyle}>
+        <div>
+          <div style={labelStyle}>Borrowing tracker</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Track money lent & borrowed</div>
+        </div>
+        <button
+          onClick={() => onTrackBorrowings(!trackBorrowings)}
+          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackBorrowings ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
+        >
+          <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackBorrowings ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </button>
       </div>
 

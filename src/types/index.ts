@@ -55,6 +55,8 @@ export interface Settings {
   weekly_budget: number
   emergency_fund: number
   salary_date: number | null
+  track_credit_cards: boolean
+  track_borrowings: boolean
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
