@@ -20,12 +20,19 @@ type FormulaRow =
   | { separator: true }
 
 type CommitmentItem = { name: string; remaining: number }
+type AccountItem = { name: string; balance: number }
 
-function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: CommitmentItem[]): FormulaRow[] {
+function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: CommitmentItem[], accountItems?: AccountItem[]): FormulaRow[] {
   switch (key) {
-    case 'actual': return [
-      { label: 'Sum of active accounts', value: d.actualBalance },
-    ]
+    case 'actual': {
+      const accs = accountItems?.filter(a => a.balance !== 0) ?? []
+      if (accs.length === 0) return [{ label: 'Sum of active accounts', value: d.actualBalance }]
+      return [
+        ...accs.map(a => ({ label: a.name, value: a.balance })),
+        { separator: true },
+        { label: 'Actual balance', value: d.actualBalance },
+      ]
+    }
     case 'avail': return [
       { label: 'Actual balance', value: d.actualBalance },
       { label: 'Emergency fund', value: -d.emergencyFund, muted: true },
@@ -84,15 +91,16 @@ interface MetricCardsProps {
   layout: Layout
   onEditBudget?: () => void
   commitmentItems?: CommitmentItem[]
+  accountItems?: AccountItem[]
 }
 
-export function MetricCards({ d, layout, onEditBudget, commitmentItems }: MetricCardsProps) {
+export function MetricCards({ d, layout, onEditBudget, commitmentItems, accountItems }: MetricCardsProps) {
   const c = useTheme()
   const metrics = buildMetrics(d)
   const [activePopup, setActivePopup] = useState<string | null>(null)
 
   const activeMetric = activePopup ? metrics.find(m => m.key === activePopup) : null
-  const formula = activePopup ? buildFormula(activePopup, d, commitmentItems) : []
+  const formula = activePopup ? buildFormula(activePopup, d, commitmentItems, accountItems) : []
   const hasBreakdown = formula.some(r => 'separator' in r)
 
   let content: React.ReactNode
