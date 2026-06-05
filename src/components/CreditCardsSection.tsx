@@ -57,6 +57,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   const [paying, setPaying] = useState(false)
 
   const accounts = state.accounts.filter(a => a.is_active)
+  const cards = state.credit_cards || []
 
   const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: c.surface2,
@@ -119,21 +120,21 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   return (
     <>
       <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: state.credit_cards.length ? 16 : 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: cards.length ? 16 : 0 }}>
           <div>
             <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Credit Cards</div>
             <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-              {state.credit_cards.length} card{state.credit_cards.length !== 1 ? 's' : ''} · Total outstanding {fmt(state.credit_cards.reduce((s, cd) => s + cd.current_balance, 0))}
+              {cards.length} card{cards.length !== 1 ? 's' : ''} · Total outstanding {fmt(cards.reduce((s, cd) => s + cd.current_balance, 0))}
             </div>
           </div>
           <button onClick={openAdd} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
         </div>
 
-        {state.credit_cards.length === 0 ? (
+        {cards.length === 0 ? (
           <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>No cards yet. Tap + to add one.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {state.credit_cards.map(card => {
+            {cards.map(card => {
               const col = colorFor(card.name)
               const utilPct = card.credit_limit > 0 ? Math.min(100, Math.round((card.current_balance / card.credit_limit) * 100)) : 0
               const available = card.credit_limit - card.current_balance
