@@ -40,6 +40,19 @@ export interface Transaction {
   from_account?: Account
 }
 
+export interface CreditCard {
+  id: string
+  user_id?: string
+  name: string
+  last_four: string | null
+  credit_limit: number
+  cycle_start_day: number
+  bill_day: number
+  due_day: number
+  current_balance: number
+  is_active: boolean
+}
+
 export interface Borrowing {
   id: string
   person_name: string
@@ -78,6 +91,7 @@ export interface AppState {
   accounts: Account[]
   categories: Category[]
   groups: Group[]
+  credit_cards: CreditCard[]
   settings: Settings
   commitments: Commitment[]
   borrowings: Borrowing[]

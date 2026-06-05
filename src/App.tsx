@@ -23,6 +23,7 @@ import { Glyph } from '@/components/Glyph'
 import { PWAPrompt } from '@/components/PWAPrompt'
 import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
+import { CreditCardsSection } from '@/components/CreditCardsSection'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -91,7 +92,7 @@ function AppContent({ session }: { session: Session }) {
   const [flash, setFlash] = useState<string | null>(null)
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
 
@@ -150,6 +151,7 @@ function AppContent({ session }: { session: Session }) {
               <AccountsSection state={state} onAdjustBalance={adjustBalance} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />
               <CommitmentsSection state={state} d={d} onMarkPaid={markCommitmentPaid} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />
               {(state.settings.track_borrowings ?? true) && <BorrowingSection state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} />}
+              {(state.settings.track_credit_cards ?? false) && <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} />}
               <RenovationSection state={state} d={d} />
               <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>

@@ -1,0 +1,307 @@
+import { useState } from 'react'
+import { useTheme } from '@/lib/theme-context'
+import { fmt } from '@/lib/utils'
+import { Card } from './Card'
+import type { AppState, CreditCard } from '@/types'
+
+interface Props {
+  state: AppState
+  onAdd: (form: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => Promise<void>
+  onUpdate: (id: string, form: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+  onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
+}
+
+type CardForm = {
+  name: string
+  last_four: string
+  credit_limit: string
+  cycle_start_day: string
+  bill_day: string
+  due_day: string
+  current_balance: string
+}
+
+const EMPTY_FORM: CardForm = {
+  name: '', last_four: '', credit_limit: '', cycle_start_day: '1',
+  bill_day: '15', due_day: '30', current_balance: '0',
+}
+
+function getDaysUntil(day: number): number {
+  const today = new Date()
+  const target = new Date(today.getFullYear(), today.getMonth(), day)
+  if (target <= today) target.setMonth(target.getMonth() + 1)
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function getCycleSpend(card: CreditCard, transactions: AppState['transactions']): number {
+  const today = new Date()
+  const startDay = card.cycle_start_day
+  let cycleStart = new Date(today.getFullYear(), today.getMonth(), startDay)
+  if (cycleStart > today) cycleStart.setMonth(cycleStart.getMonth() - 1)
+  const startStr = cycleStart.toISOString().slice(0, 10)
+  return transactions
+    .filter(t => t.from_account_id === card.id && t.transaction_type === 'expense' && t.transaction_date >= startStr)
+    .reduce((sum, t) => sum + t.amount, 0)
+}
+
+export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill }: Props) {
+  const c = useTheme()
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState<CardForm>(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+  const [payTarget, setPayTarget] = useState<CreditCard | null>(null)
+  const [payAmount, setPayAmount] = useState('')
+  const [payAccountId, setPayAccountId] = useState('')
+  const [paying, setPaying] = useState(false)
+
+  const accounts = state.accounts.filter(a => a.is_active)
+
+  const inp: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box', background: c.surface2,
+    border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px',
+    font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none',
+  }
+  const lbl: React.CSSProperties = {
+    font: '600 11px Plus Jakarta Sans', color: c.muted,
+    textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5, display: 'block',
+  }
+
+  const openAdd = () => { setEditingId(null); setForm(EMPTY_FORM); setSheetOpen(true) }
+  const openEdit = (card: CreditCard) => {
+    setEditingId(card.id)
+    setForm({
+      name: card.name, last_four: card.last_four || '',
+      credit_limit: String(card.credit_limit),
+      cycle_start_day: String(card.cycle_start_day),
+      bill_day: String(card.bill_day),
+      due_day: String(card.due_day),
+      current_balance: String(card.current_balance),
+    })
+    setSheetOpen(true)
+  }
+  const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_FORM) }
+
+  const handleSave = async () => {
+    if (!form.name.trim() || !form.credit_limit) return
+    setSaving(true)
+    const payload = {
+      name: form.name.trim(),
+      last_four: form.last_four || null,
+      credit_limit: parseFloat(form.credit_limit),
+      cycle_start_day: parseInt(form.cycle_start_day) || 1,
+      bill_day: parseInt(form.bill_day) || 15,
+      due_day: parseInt(form.due_day) || 30,
+      current_balance: parseFloat(form.current_balance) || 0,
+    }
+    try {
+      if (editingId) await onUpdate(editingId, payload)
+      else await onAdd(payload)
+      closeSheet()
+    } catch (_) {}
+    setSaving(false)
+  }
+
+  const handlePayBill = async () => {
+    if (!payTarget || !payAmount || !payAccountId) return
+    setPaying(true)
+    try {
+      await onPayBill(payTarget, parseFloat(payAmount), payAccountId)
+      setPayTarget(null)
+    } catch (_) {}
+    setPaying(false)
+  }
+
+  const cardColors = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+  const colorFor = (name: string) => cardColors[name.charCodeAt(0) % cardColors.length]
+
+  return (
+    <>
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: state.credit_cards.length ? 16 : 0 }}>
+          <div>
+            <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Credit Cards</div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+              {state.credit_cards.length} card{state.credit_cards.length !== 1 ? 's' : ''} · Total outstanding {fmt(state.credit_cards.reduce((s, cd) => s + cd.current_balance, 0))}
+            </div>
+          </div>
+          <button onClick={openAdd} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+        </div>
+
+        {state.credit_cards.length === 0 ? (
+          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>No cards yet. Tap + to add one.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {state.credit_cards.map(card => {
+              const col = colorFor(card.name)
+              const utilPct = card.credit_limit > 0 ? Math.min(100, Math.round((card.current_balance / card.credit_limit) * 100)) : 0
+              const available = card.credit_limit - card.current_balance
+              const daysUntilBill = getDaysUntil(card.bill_day)
+              const daysUntilDue = getDaysUntil(card.due_day)
+              const isUrgent = daysUntilDue <= 5
+
+              return (
+                <div
+                  key={card.id}
+                  onClick={() => openEdit(card)}
+                  style={{ background: col + '12', borderRadius: 16, padding: 14, border: `1px solid ${col}30`, cursor: 'pointer' }}
+                >
+                  {/* Card header */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: col, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+                          <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{card.name}</div>
+                        {card.last_four && <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>•••• {card.last_four}</div>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); setPayTarget(card); setPayAmount(String(card.current_balance)); setPayAccountId(accounts[0]?.id || '') }}
+                      style={{ background: col, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}
+                    >
+                      Pay Bill
+                    </button>
+                  </div>
+
+                  {/* Balance */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding</div>
+                      <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{fmt(card.current_balance)}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Available</div>
+                      <div style={{ font: '800 20px Plus Jakarta Sans', color: c.good, letterSpacing: '-0.02em' }}>{fmt(available)}</div>
+                    </div>
+                  </div>
+
+                  {/* Utilization bar */}
+                  <div style={{ height: 6, borderRadius: 999, background: c.surface2, overflow: 'hidden', marginBottom: 8 }}>
+                    <div style={{ width: utilPct + '%', height: '100%', borderRadius: 999, background: utilPct > 80 ? c.bad : utilPct > 50 ? c.warn : col, transition: 'width 0.4s' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>{utilPct}% used of {fmt(card.credit_limit)}</span>
+                  </div>
+
+                  {/* Dates */}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1, background: c.surface, borderRadius: 10, padding: '8px 10px' }}>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Bill date</div>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{card.bill_day}th</div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>in {daysUntilBill} days</div>
+                    </div>
+                    <div style={{ flex: 1, background: isUrgent ? c.badSoft : c.surface, borderRadius: 10, padding: '8px 10px', border: isUrgent ? `1px solid ${c.bad}40` : 'none' }}>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: isUrgent ? c.bad : c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Due date</div>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: isUrgent ? c.bad : c.ink, marginTop: 2 }}>{card.due_day}th</div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: isUrgent ? c.bad : c.muted, marginTop: 1 }}>{isUrgent ? '⚠️ ' : ''}in {daysUntilDue} days</div>
+                    </div>
+                    <div style={{ flex: 1, background: c.surface, borderRadius: 10, padding: '8px 10px' }}>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cycle</div>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{card.cycle_start_day}th</div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>start day</div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* Add/Edit sheet */}
+      {sheetOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={closeSheet} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
+          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', maxHeight: '90svh' }}>
+            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{editingId ? 'Edit Card' : 'Add Credit Card'}</div>
+              {editingId && (
+                <button onClick={async () => { if (confirm('Delete this card?')) { await onDelete(editingId); closeSheet() } }}
+                  style={{ background: '#FEE2E2', color: c.bad, border: 'none', borderRadius: 8, padding: '6px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>
+                  Delete
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={lbl}>Card Name</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Axis Visa" style={inp} autoFocus />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Last 4 digits</label>
+                  <input value={form.last_four} onChange={e => setForm(f => ({ ...f, last_four: e.target.value.slice(0, 4) }))} placeholder="4571" maxLength={4} style={inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Credit Limit</label>
+                  <input type="number" value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Cycle Start Day</label>
+                  <input type="number" value={form.cycle_start_day} onChange={e => setForm(f => ({ ...f, cycle_start_day: e.target.value }))} min="1" max="31" style={inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Bill Date</label>
+                  <input type="number" value={form.bill_day} onChange={e => setForm(f => ({ ...f, bill_day: e.target.value }))} min="1" max="31" style={inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Due Date</label>
+                  <input type="number" value={form.due_day} onChange={e => setForm(f => ({ ...f, due_day: e.target.value }))} min="1" max="31" style={inp} />
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Current Outstanding Balance</label>
+                <input type="number" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={closeSheet} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSave} disabled={saving || !form.name || !form.credit_limit} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Card'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pay bill sheet */}
+      {payTarget && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => setPayTarget(null)} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
+          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
+            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Pay Bill</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>{payTarget.name} · Outstanding {fmt(payTarget.current_balance)}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={lbl}>Payment Amount</label>
+                <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" style={inp} autoFocus />
+              </div>
+              <div>
+                <label style={lbl}>Pay from Account</label>
+                <select value={payAccountId} onChange={e => setPayAccountId(e.target.value)} style={inp}>
+                  <option value="">Select account</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={() => setPayTarget(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handlePayBill} disabled={paying || !payAmount || !payAccountId} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: paying ? 0.7 : 1 }}>
+                {paying ? 'Processing...' : `Pay ${fmt(parseFloat(payAmount) || 0)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
