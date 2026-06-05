@@ -107,8 +107,6 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       .map(([label, { category_id }]) => ({ label, category_id }))
   }, [state.transactions])
 
-  const { register, handleSubmit, setValue, watch, reset, formState: { errors, isValid } } = useForm<FormValues>({
-
   // Long press handlers
   const startLongPress = (label: string, category_id: string | null) => {
     longPressTimer.current = setTimeout(() => {
