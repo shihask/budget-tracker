@@ -56,6 +56,26 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
   const [filtersVisible, setFiltersVisible] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const swipeRef = useRef<{ startX: number; startY: number } | null>(null)
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]
+    if (t.clientX <= 24) swipeRef.current = { startX: t.clientX, startY: t.clientY }
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!swipeRef.current) return
+    const t = e.touches[0]
+    if (Math.abs(t.clientY - swipeRef.current.startY) > Math.abs(t.clientX - swipeRef.current.startX))
+      swipeRef.current = null
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!swipeRef.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - swipeRef.current.startX
+    const dy = Math.abs(t.clientY - swipeRef.current.startY)
+    swipeRef.current = null
+    if (dx > 72 && dy < dx) onClose()
+  }
   const initials = userName.split(' ').map((w: string) => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
 
   useEffect(() => {
@@ -160,7 +180,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
 
       {/* Sticky header */}
       <div style={{ position: 'sticky', top: 0, zIndex: 10, background: c.bg, borderBottom: `1px solid ${c.faint}` }}>
