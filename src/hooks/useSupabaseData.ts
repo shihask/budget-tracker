@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category } from '@/types'
+import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard } from '@/types'
 
 const delta = (type: TransactionType, amount: number) =>
   type === 'income' ? amount : -amount
@@ -9,13 +9,14 @@ const EMPTY_STATE: AppState = {
   accounts: [],
   categories: [],
   groups: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 20000, salary_date: null },
+  credit_cards: [],
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 20000, salary_date: null, track_credit_cards: false, track_borrowings: true },
   commitments: [],
   borrowings: [],
   transactions: [],
 }
 
-const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 20000, salary_date: null }
+const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 20000, salary_date: null, track_credit_cards: false }
 
 const DEFAULT_GROUPS = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer']
 
@@ -48,6 +49,7 @@ export function useSupabaseData(userId: string) {
           { data: accounts },
           { data: categories },
           { data: groups },
+          { data: credit_cards },
           { data: borrowings },
           { data: commitments },
           { data: transactions },
@@ -56,6 +58,7 @@ export function useSupabaseData(userId: string) {
           supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
           supabase.from('categories').select('*').eq('user_id', userId).order('group_name'),
           supabase.from('groups').select('*').eq('user_id', userId).order('name'),
+          supabase.from('credit_cards').select('*').eq('user_id', userId).eq('is_active', true).order('name'),
           supabase.from('borrowings').select('*').eq('user_id', userId).order('person_name'),
           supabase.from('commitments').select('*').eq('user_id', userId).order('name'),
           supabase.from('transactions')
@@ -101,6 +104,7 @@ export function useSupabaseData(userId: string) {
           accounts: accounts || [],
           categories: userCategories as Category[],
           groups: userGroups as Group[],
+          credit_cards: (credit_cards as CreditCard[]) || [],
           settings,
           commitments: (commitments as Commitment[]) || [],
           borrowings: borrowings || [],
@@ -435,12 +439,63 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, transactions: s.transactions.filter(tx => tx.id !== t.id) }))
   }, [])
 
+  // ── Credit Cards CRUD ────────────────────────────────────────────────────────
+  const addCreditCard = useCallback(async (form: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => {
+    const { data, error } = await supabase.from('credit_cards').insert({ ...form, user_id: userId, is_active: true }).select('*').single()
+    if (error) throw error
+    setState(s => ({ ...s, credit_cards: [...s.credit_cards, data as CreditCard] }))
+  }, [userId])
+
+  const updateCreditCard = useCallback(async (id: string, form: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => {
+    const { data, error } = await supabase.from('credit_cards').update(form).eq('id', id).select('*').single()
+    if (error) throw error
+    setState(s => ({ ...s, credit_cards: s.credit_cards.map(c => c.id === id ? data as CreditCard : c) }))
+  }, [])
+
+  const deleteCreditCard = useCallback(async (id: string) => {
+    await supabase.from('credit_cards').update({ is_active: false }).eq('id', id)
+    setState(s => ({ ...s, credit_cards: s.credit_cards.filter(c => c.id !== id) }))
+  }, [])
+
+  const payCreditCardBill = useCallback(async (card: CreditCard, amount: number, accountId: string) => {
+    const today = new Date().toISOString().slice(0, 10)
+    // Deduct from bank account
+    const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
+    if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - amount }).eq('id', accountId)
+    // Reset card balance
+    await supabase.from('credit_cards').update({ current_balance: card.current_balance - amount }).eq('id', card.id)
+    // Record as expense transaction
+    await supabase.from('transactions').insert({
+      transaction_date: today,
+      description: `${card.name} bill payment`,
+      amount,
+      transaction_type: 'expense',
+      category_id: null,
+      from_account_id: accountId,
+      to_account_id: null,
+      notes: '',
+      user_id: userId,
+    })
+    setState(s => ({
+      ...s,
+      credit_cards: s.credit_cards.map(c => c.id === card.id ? { ...c, current_balance: c.current_balance - amount } : c),
+      accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - amount } : a),
+    }))
+  }, [userId])
+
+  const updateCreditCardBalance = useCallback(async (card: CreditCard, spentAmount: number) => {
+    const newBalance = card.current_balance + spentAmount
+    await supabase.from('credit_cards').update({ current_balance: newBalance }).eq('id', card.id)
+    setState(s => ({ ...s, credit_cards: s.credit_cards.map(c => c.id === card.id ? { ...c, current_balance: newBalance } : c) }))
+  }, [])
+
   return {
     state, setState, loading, usingSupabase,
     addTransaction, deleteTransaction, updateTransaction, updateSettings,
     addAccount, deleteAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup,
     addCategory, updateCategory, deleteCategory,
+    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, updateCreditCardBalance,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
   }
