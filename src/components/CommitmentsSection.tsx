@@ -19,13 +19,14 @@ type CForm = {
   due_day: string
   from_account_id: string
   total_installments: string
+  current_installment: string
 }
 
 const EMPTY_FORM: CForm = {
   name: '', amount: '', remaining: '',
   category_id: '', is_recurring: false,
   frequency: 'monthly', due_day: '', from_account_id: '',
-  total_installments: '',
+  total_installments: '', current_installment: '0',
 }
 
 const ord = (n: number) => {
@@ -76,6 +77,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
       due_day: cm.due_day ? String(cm.due_day) : '',
       from_account_id: cm.from_account_id || '',
       total_installments: cm.total_installments ? String(cm.total_installments) : '',
+      current_installment: String(cm.current_installment || 0),
     })
     setSheetOpen(true)
   }
@@ -102,7 +104,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
       is_active: true,
       last_paid_date: null,
       total_installments: form.total_installments ? parseInt(form.total_installments) : null,
-      current_installment: 0,
+      current_installment: parseInt(form.current_installment) || 0,
     }
     setSaving(true)
     try {
@@ -392,18 +394,19 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 </div>
               </div>
 
-              {/* Total installments */}
-              <div>
-                <label style={lbl}>Total installments (optional)</label>
-                <input
-                  type="number" value={form.total_installments}
-                  onChange={e => set('total_installments', e.target.value)}
-                  placeholder="e.g. 12 for 1 year EMI"
-                  min="1" style={inp}
-                />
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 4 }}>
-                  Leave empty if unknown. Shows 5/12 progress on the card.
+              {/* Installments */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Total installments</label>
+                  <input type="number" value={form.total_installments} onChange={e => set('total_installments', e.target.value)} placeholder="e.g. 12" min="1" style={inp} />
                 </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Paid so far</label>
+                  <input type="number" value={form.current_installment} onChange={e => set('current_installment', e.target.value)} placeholder="e.g. 8" min="0" style={inp} />
+                </div>
+              </div>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: -4 }}>
+                Shows as 8/12 on the card. Edit "Paid so far" to correct your current count.
               </div>
             </div>
 
