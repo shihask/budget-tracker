@@ -153,7 +153,7 @@ function AppContent({ session }: { session: Session }) {
               <AffordabilityChecker d={d} />
               <div>
                 <SectionTitle action="Customize" onAction={() => setSettingsOpen(true)}>Your money</SectionTitle>
-                <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} />
+                <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => setSettingsOpen(true)} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} />
               </div>
               <Analytics state={state} />
               <AccountsSection state={state} onAdjustBalance={adjustBalance} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />

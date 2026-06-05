@@ -90,11 +90,12 @@ interface MetricCardsProps {
   d: DerivedMetrics
   layout: Layout
   onEditBudget?: () => void
+  onEditEmergencyFund?: () => void
   commitmentItems?: CommitmentItem[]
   accountItems?: AccountItem[]
 }
 
-export function MetricCards({ d, layout, onEditBudget, commitmentItems, accountItems }: MetricCardsProps) {
+export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, commitmentItems, accountItems }: MetricCardsProps) {
   const c = useTheme()
   const metrics = buildMetrics(d)
   const [activePopup, setActivePopup] = useState<string | null>(null)
@@ -174,9 +175,9 @@ export function MetricCards({ d, layout, onEditBudget, commitmentItems, accountI
                 <div style={{ width: 34, height: 34, borderRadius: 11, background: toneSoft(c, m.tone), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Glyph name={m.icon} color={col} />
                 </div>
-                {m.key === 'wbudget' && onEditBudget ? (
+                {(m.key === 'wbudget' && onEditBudget) || (m.key === 'emerg' && onEditEmergencyFund) ? (
                   <button
-                    onClick={e => { e.stopPropagation(); onEditBudget() }}
+                    onClick={e => { e.stopPropagation(); m.key === 'wbudget' ? onEditBudget!() : onEditEmergencyFund!() }}
                     style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: toneSoft(c, m.tone), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
