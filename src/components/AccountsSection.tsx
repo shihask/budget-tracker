@@ -197,7 +197,7 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
               <div>
                 <label style={lbl}>Type</label>
                 <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
-                  {(['bank', 'cash', 'credit_card'] as AccountType[]).map(t => (
+                  {(['bank', 'cash'] as AccountType[]).map(t => (
                     <button key={t} type="button" onClick={() => setForm(f => ({ ...f, type: t }))} style={{
                       flex: 1, border: 'none', borderRadius: 10, padding: '9px 4px',
                       font: '700 11px Plus Jakarta Sans',
@@ -205,7 +205,7 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
                       color: form.type === t ? '#fff' : c.muted,
                       cursor: 'pointer',
                     }}>
-                      {t === 'bank' ? 'Bank' : t === 'cash' ? 'Cash' : 'Credit Card'}
+                      {t === 'bank' ? 'Bank' : 'Cash'}
                     </button>
                   ))}
                 </div>
