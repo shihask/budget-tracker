@@ -1,4 +1,13 @@
 import { useState, useEffect } from 'react'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTheme } from '@/lib/theme-context'
 import type { DashboardSection, DashboardSectionId, Settings } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
@@ -6,18 +15,120 @@ import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 const LOCKED_IDS: DashboardSectionId[] = ['hero', 'affordability']
 
 const SECTION_META: Record<DashboardSectionId, { label: string; desc: string }> = {
-  hero:          { label: 'Weekly Overview',        desc: 'Spending vs budget & week summary' },
-  affordability: { label: 'Affordability Checker',  desc: 'Can I afford this purchase?' },
-  metrics:       { label: 'Your Money',             desc: 'Balance, savings & key metrics' },
-  commitments:   { label: 'Commitments',            desc: 'Bills & recurring payments' },
-  accounts:      { label: 'Accounts',               desc: 'Bank & cash account balances' },
-  borrowing:     { label: 'Borrowing',              desc: 'Money lent & borrowed' },
-  credit_cards:  { label: 'Credit Cards',           desc: 'Card balances & due dates' },
-  analytics:     { label: 'Analytics',              desc: 'Spending trends & charts' },
-  renovation:    { label: 'Renovation',             desc: 'Project budget tracker' },
-  recent_txns:   { label: 'Recent Transactions',    desc: 'Latest activity' },
+  hero:          { label: 'Weekly Overview',       desc: 'Spending vs budget & week summary' },
+  affordability: { label: 'Affordability Checker', desc: 'Can I afford this purchase?' },
+  metrics:       { label: 'Your Money',            desc: 'Balance, savings & key metrics' },
+  commitments:   { label: 'Commitments',           desc: 'Bills & recurring payments' },
+  accounts:      { label: 'Accounts',              desc: 'Bank & cash account balances' },
+  borrowing:     { label: 'Borrowing',             desc: 'Money lent & borrowed' },
+  credit_cards:  { label: 'Credit Cards',          desc: 'Card balances & due dates' },
+  analytics:     { label: 'Analytics',             desc: 'Spending trends & charts' },
+  renovation:    { label: 'Renovation',            desc: 'Project budget tracker' },
+  recent_txns:   { label: 'Recent Transactions',   desc: 'Latest activity' },
 }
 
+// ── Grip icon ─────────────────────────────────────────────────────────────────
+function GripIcon({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 16 16" width={16} height={16} fill={color}>
+      <circle cx="5" cy="4"  r="1.4" />
+      <circle cx="5" cy="8"  r="1.4" />
+      <circle cx="5" cy="12" r="1.4" />
+      <circle cx="11" cy="4"  r="1.4" />
+      <circle cx="11" cy="8"  r="1.4" />
+      <circle cx="11" cy="12" r="1.4" />
+    </svg>
+  )
+}
+
+// ── Lock icon ─────────────────────────────────────────────────────────────────
+function LockIcon({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="11" width="14" height="9" rx="2.5" />
+      <path d="M8 11V8a4 4 0 018 0v3" />
+    </svg>
+  )
+}
+
+// ── Sortable row ──────────────────────────────────────────────────────────────
+interface RowProps {
+  section: DashboardSection
+  featureOff: boolean
+  onToggle: () => void
+}
+
+function SortableRow({ section, featureOff, onToggle }: RowProps) {
+  const c = useTheme()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id })
+
+  const meta = SECTION_META[section.id]
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 0', borderBottom: `1px solid ${c.faint}`,
+        opacity: isDragging ? 0.5 : featureOff ? 0.45 : 1,
+        background: isDragging ? c.surface2 : 'transparent',
+        borderRadius: isDragging ? 12 : 0,
+        zIndex: isDragging ? 999 : 'auto',
+        position: 'relative',
+      }}
+    >
+      {/* Drag handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        style={{
+          padding: '6px 4px', cursor: 'grab', touchAction: 'none',
+          display: 'flex', alignItems: 'center', flexShrink: 0,
+        }}
+      >
+        <GripIcon color={c.muted} />
+      </div>
+
+      {/* Label */}
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{meta.label}</span>
+          {featureOff && (
+            <span style={{
+              font: '600 10px Plus Jakarta Sans', color: c.muted,
+              background: c.surface2, padding: '2px 7px', borderRadius: 5,
+            }}>
+              Feature off
+            </span>
+          )}
+        </div>
+        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{meta.desc}</div>
+      </div>
+
+      {/* Visibility toggle */}
+      <button
+        onClick={() => { if (!featureOff) onToggle() }}
+        style={{
+          width: 44, height: 26, borderRadius: 999, border: 'none',
+          cursor: featureOff ? 'default' : 'pointer',
+          background: (section.visible && !featureOff) ? c.accent : c.surface2,
+          position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+        }}
+      >
+        <span style={{
+          position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999,
+          background: '#fff', transition: 'left 0.2s',
+          left: (section.visible && !featureOff) ? 21 : 3,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+        }} />
+      </button>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 interface Props {
   sections: DashboardSection[]
   settings: Settings
@@ -28,7 +139,6 @@ interface Props {
 export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: Props) {
   const c = useTheme()
 
-  // Merge stored sections with any new defaults (handles future new sections)
   const merged = (() => {
     const ids = sections.map(s => s.id)
     const missing = DEFAULT_DASHBOARD_SECTIONS.filter(s => !ids.includes(s.id))
@@ -37,9 +147,7 @@ export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: P
 
   const [local, setLocal] = useState<DashboardSection[]>(merged)
 
-  useEffect(() => {
-    setLocal(merged)
-  }, [sections])
+  useEffect(() => { setLocal(merged) }, [sections])
 
   const lockedSections = local.filter(s => LOCKED_IDS.includes(s.id))
   const freeSections   = local.filter(s => !LOCKED_IDS.includes(s.id))
@@ -50,22 +158,21 @@ export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: P
     await onUpdate(updated)
   }
 
-  const moveUp = (i: number) => {
-    if (i === 0) return
-    const next = [...freeSections]
-    ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-    commit(next)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 150, tolerance: 5 } }),
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = freeSections.findIndex(s => s.id === active.id)
+    const newIndex = freeSections.findIndex(s => s.id === over.id)
+    commit(arrayMove(freeSections, oldIndex, newIndex))
   }
 
-  const moveDown = (i: number) => {
-    if (i === freeSections.length - 1) return
-    const next = [...freeSections]
-    ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-    commit(next)
-  }
-
-  const toggleVisible = (i: number) => {
-    commit(freeSections.map((s, idx) => idx === i ? { ...s, visible: !s.visible } : s))
+  const toggleVisible = (id: DashboardSectionId) => {
+    commit(freeSections.map(s => s.id === id ? { ...s, visible: !s.visible } : s))
   }
 
   const handleReset = async () => {
@@ -80,25 +187,6 @@ export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: P
     return false
   }
 
-  // ── Shared sub-components ────────────────────────────────────────────────────
-
-  const ChevronUp = () => (
-    <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 15l6-6 6 6" />
-    </svg>
-  )
-  const ChevronDown = () => (
-    <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  )
-  const LockIcon = () => (
-    <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke={c.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="5" y="11" width="14" height="9" rx="2.5" />
-      <path d="M8 11V8a4 4 0 018 0v3" />
-    </svg>
-  )
-
   const sectionLabel: React.CSSProperties = {
     font: '700 11px Plus Jakarta Sans', color: c.muted,
     letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -111,7 +199,7 @@ export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: P
       display: 'flex', flexDirection: 'column',
       fontFamily: 'Plus Jakarta Sans, sans-serif',
     }}>
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div style={{
         padding: `calc(14px + env(safe-area-inset-top, 0px)) 16px 14px`,
         borderBottom: `1px solid ${c.faint}`,
@@ -132,7 +220,7 @@ export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: P
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Dashboard Layout</div>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Reorder & show/hide sections</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Drag to reorder · toggle to show/hide</div>
         </div>
         <button
           onClick={handleReset}
@@ -146,10 +234,10 @@ export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: P
         </button>
       </div>
 
-      {/* ── Scrollable list ────────────────────────────────────────────────── */}
+      {/* List */}
       <div style={{ flex: 1, overflowY: 'auto', padding: `0 16px calc(24px + env(safe-area-inset-bottom, 0px))` }}>
 
-        {/* Locked group */}
+        {/* Locked */}
         <div style={sectionLabel}>Always shown</div>
         {lockedSections.map(s => (
           <div key={s.id} style={{
@@ -160,7 +248,7 @@ export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: P
               width: 32, height: 32, borderRadius: 10, background: c.surface2,
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}>
-              <LockIcon />
+              <LockIcon color={c.muted} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{SECTION_META[s.id].label}</div>
@@ -175,85 +263,21 @@ export function DashboardLayoutPage({ sections, settings, onUpdate, onClose }: P
           </div>
         ))}
 
-        {/* Free sections */}
+        {/* Draggable free sections */}
         <div style={sectionLabel}>Customizable</div>
-        {freeSections.map((s, i) => {
-          const disabled = featureDisabled(s.id)
-          const isFirst  = i === 0
-          const isLast   = i === freeSections.length - 1
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={freeSections.map(s => s.id)} strategy={verticalListSortingStrategy}>
+            {freeSections.map(s => (
+              <SortableRow
+                key={s.id}
+                section={s}
+                featureOff={featureDisabled(s.id)}
+                onToggle={() => toggleVisible(s.id)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
 
-          return (
-            <div key={s.id} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 0', borderBottom: `1px solid ${c.faint}`,
-              opacity: disabled ? 0.45 : 1,
-            }}>
-              {/* Up / Down */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0 }}>
-                <button
-                  onClick={() => moveUp(i)}
-                  disabled={isFirst}
-                  style={{
-                    width: 28, height: 26, border: 'none', borderRadius: 7, cursor: isFirst ? 'default' : 'pointer',
-                    background: isFirst ? 'transparent' : c.surface2, color: c.ink,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    opacity: isFirst ? 0.15 : 1,
-                  }}
-                >
-                  <ChevronUp />
-                </button>
-                <button
-                  onClick={() => moveDown(i)}
-                  disabled={isLast}
-                  style={{
-                    width: 28, height: 26, border: 'none', borderRadius: 7, cursor: isLast ? 'default' : 'pointer',
-                    background: isLast ? 'transparent' : c.surface2, color: c.ink,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    opacity: isLast ? 0.15 : 1,
-                  }}
-                >
-                  <ChevronDown />
-                </button>
-              </div>
-
-              {/* Label */}
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{SECTION_META[s.id].label}</span>
-                  {disabled && (
-                    <span style={{
-                      font: '600 10px Plus Jakarta Sans', color: c.muted,
-                      background: c.surface2, padding: '2px 7px', borderRadius: 5,
-                    }}>
-                      Feature off
-                    </span>
-                  )}
-                </div>
-                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{SECTION_META[s.id].desc}</div>
-              </div>
-
-              {/* Visibility toggle */}
-              <button
-                onClick={() => { if (!disabled) toggleVisible(i) }}
-                style={{
-                  width: 44, height: 26, borderRadius: 999, border: 'none',
-                  cursor: disabled ? 'default' : 'pointer',
-                  background: (s.visible && !disabled) ? c.accent : c.surface2,
-                  position: 'relative', transition: 'background 0.2s', flexShrink: 0,
-                }}
-              >
-                <span style={{
-                  position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999,
-                  background: '#fff', transition: 'left 0.2s',
-                  left: (s.visible && !disabled) ? 21 : 3,
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-                }} />
-              </button>
-            </div>
-          )
-        })}
-
-        {/* Footer hint */}
         <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textAlign: 'center', paddingTop: 20 }}>
           Changes save automatically
         </div>
