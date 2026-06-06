@@ -71,6 +71,7 @@ export interface Settings {
   salary_date: number | null
   track_credit_cards: boolean
   track_borrowings: boolean
+  dashboard_sections?: DashboardSection[] | null
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
@@ -120,3 +121,25 @@ export interface BarPoint   { label: string; value: number }
 export interface CatPoint   { name: string; value: number }
 
 export type Layout = 'grid' | 'carousel' | 'list'
+
+export type DashboardSectionId =
+  | 'hero' | 'affordability' | 'metrics' | 'commitments' | 'accounts'
+  | 'borrowing' | 'credit_cards' | 'analytics' | 'renovation' | 'recent_txns'
+
+export interface DashboardSection {
+  id: DashboardSectionId
+  visible: boolean
+}
+
+export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
+  { id: 'hero',          visible: true },
+  { id: 'affordability', visible: true },
+  { id: 'metrics',       visible: true },
+  { id: 'commitments',   visible: true },
+  { id: 'accounts',      visible: true },
+  { id: 'borrowing',     visible: true },
+  { id: 'credit_cards',  visible: true },
+  { id: 'analytics',     visible: true },
+  { id: 'renovation',    visible: true },
+  { id: 'recent_txns',   visible: true },
+]

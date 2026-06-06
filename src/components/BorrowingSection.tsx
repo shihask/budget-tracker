@@ -3,6 +3,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
 import { CategorySelect } from './CategorySelect'
+import { BottomSheet } from './BottomSheet'
 import type { AppState, Borrowing } from '@/types'
 
 type BForm = {
@@ -265,10 +266,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
       </Card>
 
       {/* ── Add / Edit Sheet ──────────────────────────────────────────────────── */}
-      {sheetOpen && (
-        <div onClick={closeSheet} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', maxHeight: '88svh' }}>
-            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+      <BottomSheet open={sheetOpen} onClose={closeSheet} maxHeight="88svh">
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>
               {editingId ? 'Edit Entry' : 'Add Borrowing'}
             </div>
@@ -331,18 +329,13 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                 {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Entry'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </BottomSheet>
 
       {/* ── Record Payment Sheet ──────────────────────────────────────────────── */}
-      {payTarget && (
-        <div onClick={closePay} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto' }}>
-            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+      <BottomSheet open={!!payTarget} onClose={closePay}>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Record Payment</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, marginBottom: 16 }}>
-              {payTarget.person_name} · Remaining {fmt(payTarget.remaining_amount ?? (payTarget.total_amount - payTarget.paid_amount))}
+              {payTarget?.person_name} · Remaining {payTarget ? fmt(payTarget.remaining_amount ?? (payTarget.total_amount - payTarget.paid_amount)) : ''}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -387,9 +380,7 @@ export function BorrowingSection({ state, onAdd, onUpdate, onDelete, onPayment, 
                 {paying ? 'Saving...' : 'Record Payment'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </BottomSheet>
 
       {/* ── Confirm: new borrowed entry → record as income? ───────────────────── */}
       {addConfirm && pendingAddForm && (

@@ -1,11 +1,12 @@
-import { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import type { Layout } from '@/types'
+import type { Layout, DashboardSectionId } from '@/types'
+import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 
 import { Header } from '@/components/Header'
 import { HeroWeekly } from '@/components/HeroWeekly'
@@ -25,6 +26,8 @@ import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
 import { AffordabilityChecker } from '@/components/AffordabilityChecker'
+import { BottomSheet } from '@/components/BottomSheet'
+import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -90,6 +93,7 @@ function AppContent({ session }: { session: Session }) {
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
+  const [layoutOpen, setLayoutOpen] = useState(false)
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
@@ -152,19 +156,48 @@ function AppContent({ session }: { session: Session }) {
 
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <HeroWeekly d={d} settings={state.settings} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} />
-              <AffordabilityChecker d={d} />
-              <div>
-                <SectionTitle action="Customize" onAction={() => setSettingsOpen(true)}>Your money</SectionTitle>
-                <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} />
-              </div>
-              <Analytics state={state} />
-              <AccountsSection state={state} onAdjustBalance={adjustBalance} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />
-              <CommitmentsSection state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />
-              {(state.settings.track_borrowings ?? true) && <BorrowingSection state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} />}
-              {(state.settings.track_credit_cards ?? false) && <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} />}
-              <RenovationSection state={state} d={d} />
-              <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />
+              {(state.settings.dashboard_sections ?? DEFAULT_DASHBOARD_SECTIONS)
+                .filter(s => s.visible)
+                .map(s => {
+                  let el: React.ReactNode = null
+                  switch (s.id as DashboardSectionId) {
+                    case 'hero':
+                      el = <HeroWeekly d={d} settings={state.settings} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} />
+                      break
+                    case 'affordability':
+                      el = <AffordabilityChecker d={d} settings={state.settings} />
+                      break
+                    case 'metrics':
+                      el = <div>
+                        <SectionTitle action="Customize" onAction={() => setSettingsOpen(true)}>Your money</SectionTitle>
+                        <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} />
+                      </div>
+                      break
+                    case 'analytics':
+                      el = <Analytics state={state} />
+                      break
+                    case 'accounts':
+                      el = <AccountsSection state={state} onAdjustBalance={adjustBalance} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />
+                      break
+                    case 'commitments':
+                      el = <CommitmentsSection state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />
+                      break
+                    case 'borrowing':
+                      el = (state.settings.track_borrowings ?? true) ? <BorrowingSection state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} /> : null
+                      break
+                    case 'credit_cards':
+                      el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} /> : null
+                      break
+                    case 'renovation':
+                      el = <RenovationSection state={state} d={d} />
+                      break
+                    case 'recent_txns':
+                      el = <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />
+                      break
+                  }
+                  return el ? <React.Fragment key={s.id}>{el}</React.Fragment> : null
+                })
+              }
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
                 BudgetTracker · {usingSupabase ? 'synced with Supabase' : 'local session data'}
               </div>
@@ -221,19 +254,25 @@ function AppContent({ session }: { session: Session }) {
               onDeleteCategory={deleteCategory}
             />
           )}
+
+          {layoutOpen && (
+            <DashboardLayoutPage
+              sections={state.settings.dashboard_sections ?? DEFAULT_DASHBOARD_SECTIONS}
+              settings={state.settings}
+              onUpdate={async (sections) => { await updateSettings({ dashboard_sections: sections }) }}
+              onClose={() => setLayoutOpen(false)}
+            />
+          )}
         </div>
 
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-            <SettingsPanel accent={accent} dark={dark} layout={layout} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} />
+            <SettingsPanel accent={accent} dark={dark} layout={layout} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }} />
           </>
         )}
 
-        {emergencyEditOpen && (
-          <div onClick={() => setEmergencyEditOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
-              <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+        <BottomSheet open={emergencyEditOpen} onClose={() => setEmergencyEditOpen(false)} zIndex={300}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Emergency Fund</div>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>Amount reserved and excluded from spendable balance</div>
               <div style={{ position: 'relative', marginBottom: 14 }}>
@@ -268,9 +307,7 @@ function AppContent({ session }: { session: Session }) {
                   {savingEmergency ? 'Saving...' : 'Save'}
                 </button>
               </div>
-            </div>
-          </div>
-        )}
+        </BottomSheet>
       </div>
     </ThemeContext.Provider>
   )

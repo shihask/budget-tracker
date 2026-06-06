@@ -41,7 +41,7 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
     ]
     case 'free': return [
       { label: 'Spendable balance', value: d.availableBalance },
-      { label: 'Remaining commitments', value: -d.remainingCommitments, muted: true },
+      { label: 'Bills & commitments', value: -d.remainingCommitments, muted: true },
       { separator: true },
       { label: 'Real free money', value: d.realFreeMoney },
     ]
@@ -50,11 +50,11 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
     ]
     case 'commit': {
       const items = commitmentItems?.filter(c => c.remaining > 0) ?? []
-      if (items.length === 0) return [{ label: 'Unpaid commitments', value: d.remainingCommitments }]
+      if (items.length === 0) return [{ label: 'Total unpaid bills & EMIs', value: d.remainingCommitments }]
       return [
         ...items.map(c => ({ label: c.name, value: c.remaining })),
         { separator: true },
-        { label: 'Total remaining', value: d.remainingCommitments },
+        { label: 'Total unpaid', value: d.remainingCommitments },
       ]
     }
     case 'wbudget': return [
@@ -79,7 +79,7 @@ function buildMetrics(d: DerivedMetrics): Metric[] {
     { key: 'avail',   label: 'Spendable Balance',         value: d.availableBalance,        hint: 'Emergency fund protected',  tone: 'accent', icon: 'shield' },
     { key: 'free',    label: 'Real Free Money',          value: d.realFreeMoney,           hint: 'After bills & commitments', tone: 'good',   icon: 'spark'  },
     { key: 'emerg',   label: 'Emergency Fund',           value: d.emergencyFund,           hint: 'Reserved',                  tone: 'warn',   icon: 'lock'   },
-    { key: 'commit',  label: 'Remaining Commitments',    value: d.remainingCommitments,    hint: 'Still owed',                tone: 'bad',    icon: 'doc'    },
+    { key: 'commit',  label: 'Bills & Commitments',       value: d.remainingCommitments,    hint: 'Still owed this cycle',     tone: 'bad',    icon: 'doc'    },
     { key: 'wbudget', label: 'Weekly Budget',            value: d.weeklyBudget,            hint: 'Mon–Sun',                   tone: 'ink',    icon: 'cal'    },
     { key: 'wspent',  label: 'Weekly Spent',             value: d.weeklySpent,             hint: Math.round(d.weeklyPct) + '% used', tone: 'warn', icon: 'cart' },
     { key: 'wrem',    label: 'Weekly Remaining',         value: d.weeklyRemaining,         hint: 'Left this week',            tone: 'good',   icon: 'check'  },

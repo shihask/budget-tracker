@@ -5,6 +5,7 @@ import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
 import { catById as buildCatById } from '@/lib/data'
 import { CategorySelect } from './CategorySelect'
+import { BottomSheet } from './BottomSheet'
 import type { AppState, DerivedMetrics, Commitment } from '@/types'
 
 type Freq = 'monthly' | 'weekly' | 'yearly'
@@ -52,6 +53,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
   const accounts = state.accounts.filter(a => a.is_active)
 
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CForm>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -184,7 +186,17 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div>
-            <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Commitments</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Bills & Commitments</div>
+              <button
+                onClick={() => setInfoOpen(true)}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </button>
+            </div>
             <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
               Total: {fmt(d.remainingCommitments)}
             </div>
@@ -345,10 +357,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
       </Card>
 
       {/* Add / Edit Sheet */}
-      {sheetOpen && (
-        <div onClick={closeSheet} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', maxHeight: '90svh' }}>
-            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+      <BottomSheet open={sheetOpen} onClose={closeSheet}>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>
               {editingId ? 'Edit Commitment' : 'Add Commitment'}
             </div>
@@ -508,9 +517,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Commitment'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </BottomSheet>
 
       {/* Confirmation modal */}
       {confirmPay && (() => {
@@ -571,6 +578,62 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
           </div>
         )
       })()}
+
+      {/* Info popup */}
+      {infoOpen && (
+        <div onClick={() => setInfoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 22, width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+              </div>
+              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>Bills & Commitments</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {([
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15"/></svg>,
+                  title: 'Recurring bills',
+                  desc: 'Electricity, internet, rent, subscriptions — anything that repeats monthly, weekly or yearly.',
+                },
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2h-2"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>,
+                  title: 'One-time payments',
+                  desc: 'A single large payment you still owe — insurance, annual fees, upcoming dues.',
+                },
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><rect x="2" y="10" width="20" height="12" rx="1"/><path d="M12 2L2 10h20L12 2z"/><line x1="9" y1="15" x2="9" y2="22"/><line x1="15" y1="15" x2="15" y2="22"/></svg>,
+                  title: 'Loan EMIs & SIPs',
+                  desc: 'Track installments with total amount, tenure and paid count. Auto-calculates remaining.',
+                },
+              ] as const).map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 9, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                    {item.svg}
+                  </div>
+                  <div>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{item.title}</div>
+                    <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 16, padding: '12px', background: c.surface2, borderRadius: 12 }}>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                The total unpaid amount here is deducted from your <strong style={{ color: c.ink }}>Spendable Balance</strong> to give you your <strong style={{ color: c.ink }}>Real Free Money</strong>.
+              </div>
+            </div>
+            <button
+              onClick={() => setInfoOpen(false)}
+              style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }

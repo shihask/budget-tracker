@@ -16,9 +16,10 @@ interface SettingsPanelProps {
   onSalaryDate: (v: number | null) => Promise<void>
   onTrackCreditCards: (v: boolean) => Promise<void>
   onTrackBorrowings: (v: boolean) => Promise<void>
+  onDashboardLayout: () => void
 }
 
-export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onDashboardLayout }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [savingSalary, setSavingSalary] = useState(false)
@@ -58,7 +59,16 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
       <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Settings</div>
       <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Customize your dashboard</div>
 
-      <div style={sectionLabel}>Dashboard cards</div>
+      <div style={sectionLabel}>Dashboard</div>
+      <div style={{ ...rowStyle, cursor: 'pointer' }} onClick={onDashboardLayout}>
+        <div>
+          <div style={labelStyle}>Dashboard Layout</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Reorder & show/hide sections</div>
+        </div>
+        <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke={c.muted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </div>
       <div style={rowStyle}>
         <span style={labelStyle}>Card layout</span>
         <div style={{ display: 'flex', gap: 6 }}>

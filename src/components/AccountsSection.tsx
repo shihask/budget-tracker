@@ -4,6 +4,7 @@ import { fmt } from '@/lib/utils'
 import { ACC_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
 import { Glyph } from './Glyph'
+import { BottomSheet } from './BottomSheet'
 import type { AppState, AccountType } from '@/types'
 import type { GlyphName } from './Glyph'
 
@@ -180,10 +181,7 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
       </Card>
 
       {/* Add Account Sheet */}
-      {sheetOpen && (
-        <div onClick={() => setSheetOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto' }}>
-            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+      <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)}>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>Add Account</div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -228,9 +226,7 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
                 {adding ? 'Adding...' : 'Add Account'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </BottomSheet>
     </>
   )
 }

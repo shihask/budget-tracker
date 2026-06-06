@@ -5,6 +5,7 @@ import { fmt, fmtDate } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
+import { BottomSheet } from './BottomSheet'
 import type { AppState, Transaction, TransactionType } from '@/types'
 
 type EditForm = {
@@ -361,13 +362,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
       </div>
 
       {/* Edit Sheet */}
-      {editingTx && editForm && (
-        <div onClick={closeEdit} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', maxHeight: '88svh' }}>
-            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 20px' }} />
+      <BottomSheet open={!!(editingTx && editForm)} onClose={closeEdit} maxHeight="88svh">
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>Edit Transaction</div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {editForm && <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <Label>Description</Label>
                 <input
@@ -375,7 +374,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                   onChange={e => setEditForm(f => f ? { ...f, description: e.target.value } : f)}
                   style={inp}
                   placeholder="Description"
-                 
+
                 />
               </div>
 
@@ -479,9 +478,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, dark, onT
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+            </>}
+      </BottomSheet>
 
       {/* Borrowing-linked delete confirmation */}
       {borrowingDeleteTarget && (

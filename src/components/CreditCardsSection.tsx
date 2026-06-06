@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
+import { BottomSheet } from './BottomSheet'
 import type { AppState, CreditCard } from '@/types'
 
 interface Props {
@@ -255,10 +256,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       </Card>
 
       {/* Add/Edit sheet */}
-      {sheetOpen && (
-        <div onClick={closeSheet} style={{ position: 'fixed', inset: 0, zIndex: 350, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', maxHeight: '90svh' }}>
-            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+      <BottomSheet open={sheetOpen} onClose={closeSheet} maxHeight="90svh" zIndex={350}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{editingId ? 'Edit Card' : 'Add Credit Card'}</div>
               {editingId && (
@@ -323,17 +321,12 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                 {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Card'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </BottomSheet>
 
       {/* Pay bill sheet */}
-      {payTarget && (
-        <div onClick={() => setPayTarget(null)} style={{ position: 'fixed', inset: 0, zIndex: 350, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '28px 28px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
-            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
+      <BottomSheet open={!!payTarget} onClose={() => setPayTarget(null)} zIndex={350}>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Pay Bill</div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>{payTarget.name} · Outstanding {fmt(payTarget.current_balance)}</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>{payTarget?.name} · Outstanding {payTarget ? fmt(payTarget.current_balance) : ''}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Payment Amount</label>
@@ -353,9 +346,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                 {paying ? 'Processing...' : `Pay ${fmt(parseFloat(payAmount) || 0)}`}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </BottomSheet>
     </>
   )
 }
