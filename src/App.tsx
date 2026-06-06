@@ -145,7 +145,7 @@ function AppContent({ session }: { session: Session }) {
 
           <div style={{
             background: c.bg, minHeight: '100svh',
-            padding: `4px 16px calc(130px + env(safe-area-inset-bottom, 0px))`,
+            padding: `4px 16px calc(88px + env(safe-area-inset-bottom, 0px))`,
           }}>
             {/* Spacer to offset fixed header height */}
             <div style={{ height: 'calc(72px + env(safe-area-inset-top, 0px))' }} />
