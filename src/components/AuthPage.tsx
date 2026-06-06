@@ -129,9 +129,9 @@ export function AuthPage() {
     <Screen>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-        <img src="/pwa-192x192.png" alt="Budget Tracker" style={{ width: 48, height: 48, borderRadius: 14 }} />
+        <img src="/pwa-192x192.png" alt="MoneyPilot" style={{ width: 48, height: 48, borderRadius: 14 }} />
         <div>
-          <div style={{ font: '800 20px Plus Jakarta Sans', color: '#1C1410', letterSpacing: '-0.02em' }}>Budget Tracker</div>
+          <div style={{ font: '800 20px Plus Jakarta Sans', color: '#1C1410', letterSpacing: '-0.02em' }}>MoneyPilot</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: '#9C938A' }}>Personal finance, simplified</div>
         </div>
       </div>

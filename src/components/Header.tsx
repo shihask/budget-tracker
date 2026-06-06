@@ -50,13 +50,13 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px 14px' }}>
-      {/* Greeting + Name */}
+      {/* App name + Greeting + Name */}
       <div>
-        <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.01em' }}>
-          {greeting}
+        <div style={{ font: '800 13px Plus Jakarta Sans', color: c.accent, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          MoneyPilot
         </div>
-        <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 2 }}>
-          {userName}
+        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.01em', marginTop: 1 }}>
+          {greeting}, {userName}
         </div>
       </div>
 

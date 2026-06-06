@@ -12,9 +12,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'pwa.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'Budget Tracker',
-        short_name: 'Budget',
-        description: 'Personal budget and expense tracker',
+        name: 'MoneyPilot',
+        short_name: 'MoneyPilot',
+        description: 'MoneyPilot — pilot your personal finances',
         theme_color: '#10B981',
         background_color: '#EDE7DD',
         display: 'standalone',
