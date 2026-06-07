@@ -48,23 +48,36 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
     }
 
-    const prompt = `You are a personal finance categorizer.
+    const groupDescriptions: Record<string, string> = {
+      'Lifestyle':   'day-to-day discretionary spend: food, personal care, clothing, entertainment, subscriptions',
+      'Commitment':  'fixed recurring obligations: rent, EMI, insurance, loan repayments',
+      'Renovation':  'home improvement and repair costs',
+      'Family':      'family-related expenses: school fees, gifts, household items',
+      'Transfer':    'money moved between accounts, not real spend',
+      'Income':      'money received, not an expense',
+    }
+    const groupLines = (groupNames ?? [])
+      .filter((g: string) => g !== 'Income' && g !== 'Transfer')
+      .map((g: string) => `  ${g}: ${groupDescriptions[g] ?? g}`)
+      .join('\n')
 
-Transaction description: "${description}"
+    const prompt = `You are a strict personal finance categorizer.
 
-CATEGORIES (pick from this list if one fits):
-${categoryNames.join(', ')}
+Transaction: "${description}"
 
-GROUPS (only used when suggesting a new category):
-${(groupNames ?? []).join(', ')}
+EXISTING CATEGORIES: ${categoryNames.join(', ')}
 
-Instructions:
-- Categories are specific (e.g. Fuel, Groceries, Gym). Groups are broad buckets (e.g. Lifestyle, Commitment).
-- If one of the CATEGORIES above fits the transaction, reply with ONLY that exact category name. Nothing else.
-- If NONE of the CATEGORIES fit, reply with: NEW: <new category name> | <one group from the GROUPS list>
-- Do NOT reply with a group name as the answer. Always pick from CATEGORIES or suggest a new one with NEW:.
+GROUPS for new suggestions:
+${groupLines}
 
-Reply with nothing else.`
+Rules:
+1. Match by what the item IS, not where it is bought. Example: facewash → Personal Care (not Groceries); gym → Fitness (not Commitment).
+2. Only pick an existing category if it is a CLEAR, DIRECT match. A loose or approximate match is NOT good enough.
+3. If an existing category is a clear match, reply with just that category name. Nothing else.
+4. If NO existing category is a clear match, reply with exactly 2 lines:
+   NEW: <specific new category name> | <best group from the list above>
+   CLOSEST: <the single most related existing category from EXISTING CATEGORIES>
+5. Never reply with a group name as the category answer.`
 
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -72,7 +85,7 @@ Reply with nothing else.`
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 30,
+        max_tokens: 60,
         temperature: 0,
       }),
     })
@@ -84,22 +97,30 @@ Reply with nothing else.`
     const groqData = await groqRes.json()
     const raw: string = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
 
-    // Parse response
+    // Parse response (may be 1 or 2 lines)
     let result: string | null = null
+    let closest: string | null = null
     let suggestion: { name: string; group: string } | null = null
 
-    if (raw.startsWith('NEW:')) {
-      const parts = raw.slice(4).split('|').map((s: string) => s.trim())
-      suggestion = { name: parts[0] ?? '', group: parts[1] ?? (groupNames?.[0] ?? 'Lifestyle') }
-    } else {
-      // Check if the raw result matches an existing category (case-insensitive)
-      const exactMatch = categoryNames.find((c: string) => c.toLowerCase() === raw.toLowerCase())
-      if (exactMatch) {
-        result = exactMatch
-      } else if (raw.length > 0) {
-        // AI returned a new name without NEW: prefix — treat as suggestion
-        const defaultGroup = (groupNames ?? []).find((g: string) => g !== 'Income' && g !== 'Transfer') ?? (groupNames?.[0] ?? 'Lifestyle')
-        suggestion = { name: raw, group: defaultGroup }
+    const defaultGroup = (groupNames ?? []).find((g: string) => g !== 'Income' && g !== 'Transfer') ?? (groupNames?.[0] ?? 'Lifestyle')
+    const lines = raw.split('\n').map((l: string) => l.trim()).filter(Boolean)
+
+    for (const line of lines) {
+      if (line.startsWith('NEW:')) {
+        const parts = line.slice(4).split('|').map((s: string) => s.trim())
+        suggestion = { name: parts[0] ?? '', group: parts[1] ?? defaultGroup }
+      } else if (line.startsWith('CLOSEST:')) {
+        const name = line.slice(8).trim()
+        const match = categoryNames.find((c: string) => c.toLowerCase() === name.toLowerCase())
+        if (match) closest = match
+      } else {
+        // Single-line: existing category or unformatted new name
+        const exactMatch = categoryNames.find((c: string) => c.toLowerCase() === line.toLowerCase())
+        if (exactMatch) {
+          result = exactMatch
+        } else if (!suggestion && line.length > 0) {
+          suggestion = { name: line, group: defaultGroup }
+        }
       }
     }
 
@@ -110,7 +131,7 @@ Reply with nothing else.`
     }).eq('user_id', user.id)
 
     return new Response(
-      JSON.stringify({ result, suggestion, used: used + 1, limit: MONTHLY_LIMIT }),
+      JSON.stringify({ result, suggestion, closest, used: used + 1, limit: MONTHLY_LIMIT }),
       { headers: { ...cors, 'Content-Type': 'application/json' } }
     )
   } catch {

@@ -256,6 +256,10 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
         if (cat) setValue('category_id', cat.id, { shouldValidate: true })
         setAiSuggestion(null)
       } else if (aiResult?.type === 'suggestion') {
+        if (aiResult.closest) {
+          const cat = catsRef.current.find(c => c.name === aiResult.closest)
+          if (cat) setValue('category_id', cat.id, { shouldValidate: true })
+        }
         setAiSuggestion({ name: aiResult.name, group: aiResult.group })
       }
       setAiCategorizing(false)
