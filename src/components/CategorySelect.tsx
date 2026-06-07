@@ -10,9 +10,10 @@ interface Props {
   style?: React.CSSProperties
   includeEmpty?: boolean
   emptyLabel?: string
+  filterGroup?: string
 }
 
-export function CategorySelect({ value, onChange, state, onAddCategory, style, includeEmpty, emptyLabel = 'No category' }: Props) {
+export function CategorySelect({ value, onChange, state, onAddCategory, style, includeEmpty, emptyLabel = 'No category', filterGroup }: Props) {
   const c = useTheme()
   const [showAddModal, setShowAddModal] = useState(false)
   const [newName, setNewName] = useState('')
@@ -21,8 +22,8 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
   const [pendingId, setPendingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const groups = state.groups
-  const categories = state.categories
+  const groups = filterGroup ? state.groups.filter(g => g.name === filterGroup) : state.groups
+  const categories = filterGroup ? state.categories.filter(c => c.group_name === filterGroup) : state.categories
 
   // Wait for the new category to appear in the options, then select it
   useEffect(() => {
@@ -68,6 +69,13 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
 
   return (
     <>
+      {filterGroup && categories.length === 0 ? (
+        <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+          onClick={() => setShowAddModal(true)}>
+          <span style={{ color: c.muted, font: '500 14px Plus Jakarta Sans' }}>No {filterGroup} categories</span>
+          <span style={{ color: c.accent, font: '700 13px Plus Jakarta Sans' }}>+ Add</span>
+        </div>
+      ) : (
       <select value={value} onChange={handleChange} style={style}>
         {includeEmpty && <option value="">{emptyLabel}</option>}
         {groups.map(g => (
@@ -82,6 +90,7 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
         ))}
         <option value="__add__">+ Add category</option>
       </select>
+      )}
 
       {showAddModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>

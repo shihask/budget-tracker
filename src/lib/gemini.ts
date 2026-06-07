@@ -26,9 +26,14 @@ export async function categorizeWithAI(
     })
 
     if (res.status === 429) { console.warn('AI quota reached (100/month)'); return null }
-    if (!res.ok) return null
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      console.error('[AI] edge function error', res.status, errText)
+      return null
+    }
 
     const data = await res.json()
+    console.log('[AI] raw response:', data)
 
     if (data.suggestion?.name) {
       return { type: 'suggestion', name: data.suggestion.name, group: data.suggestion.group }
@@ -36,9 +41,11 @@ export async function categorizeWithAI(
     if (data.result) {
       const match = categoryNames.find(c => c.toLowerCase() === data.result.toLowerCase())
       if (match) return { type: 'category', name: match }
+      console.warn('[AI] returned unknown category:', data.result)
     }
     return null
-  } catch {
+  } catch (e) {
+    console.error('[AI] fetch failed:', e)
     return null
   }
 }

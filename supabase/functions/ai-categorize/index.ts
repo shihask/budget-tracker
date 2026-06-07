@@ -50,14 +50,19 @@ Deno.serve(async (req) => {
 
     const prompt = `You are a personal finance categorizer.
 
-Existing categories: ${categoryNames.join(', ')}
-Available groups: ${(groupNames ?? []).join(', ')}
+Transaction description: "${description}"
 
-Transaction: "${description}"
+CATEGORIES (pick from this list if one fits):
+${categoryNames.join(', ')}
 
-Rules:
-- If one of the existing categories fits well, reply with ONLY that exact category name.
-- If no existing category fits, reply with: NEW: <suggested category name> | <best group from the available groups list>
+GROUPS (only used when suggesting a new category):
+${(groupNames ?? []).join(', ')}
+
+Instructions:
+- Categories are specific (e.g. Fuel, Groceries, Gym). Groups are broad buckets (e.g. Lifestyle, Commitment).
+- If one of the CATEGORIES above fits the transaction, reply with ONLY that exact category name. Nothing else.
+- If NONE of the CATEGORIES fit, reply with: NEW: <new category name> | <one group from the GROUPS list>
+- Do NOT reply with a group name as the answer. Always pick from CATEGORIES or suggest a new one with NEW:.
 
 Reply with nothing else.`
 
@@ -85,9 +90,17 @@ Reply with nothing else.`
 
     if (raw.startsWith('NEW:')) {
       const parts = raw.slice(4).split('|').map((s: string) => s.trim())
-      suggestion = { name: parts[0] ?? '', group: parts[1] ?? (groupNames?.[0] ?? '') }
+      suggestion = { name: parts[0] ?? '', group: parts[1] ?? (groupNames?.[0] ?? 'Lifestyle') }
     } else {
-      result = raw
+      // Check if the raw result matches an existing category (case-insensitive)
+      const exactMatch = categoryNames.find((c: string) => c.toLowerCase() === raw.toLowerCase())
+      if (exactMatch) {
+        result = exactMatch
+      } else if (raw.length > 0) {
+        // AI returned a new name without NEW: prefix — treat as suggestion
+        const defaultGroup = (groupNames ?? []).find((g: string) => g !== 'Income' && g !== 'Transfer') ?? (groupNames?.[0] ?? 'Lifestyle')
+        suggestion = { name: raw, group: defaultGroup }
+      }
     }
 
     // Increment usage

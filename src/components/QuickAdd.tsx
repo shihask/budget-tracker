@@ -234,6 +234,14 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
   // Uses catsRef so adding a new category doesn't re-trigger this effect
   useEffect(() => {
     if (!descriptionVal.trim()) { setAiSuggestion(null); return }
+    if (txType === 'income') {
+      // For income: only match categories from the Income group, no AI
+      setAiSuggestion(null)
+      const incomeCats = catsRef.current.filter(c => c.group_name === 'Income')
+      const guessed = guessCategory(descriptionVal, incomeCats)
+      if (guessed) setValue('category_id', guessed, { shouldValidate: true })
+      return
+    }
     const guessed = guessCategory(descriptionVal, catsRef.current)
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
     setAiSuggestion(null)
@@ -253,7 +261,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       setAiCategorizing(false)
     }, 500)
     return () => { clearTimeout(timer); setAiCategorizing(false) }
-  }, [descriptionVal, setValue])
+  }, [descriptionVal, setValue, txType])
 
   const handleSmartInput = (text: string) => {
     setSmartInput(text)
@@ -528,6 +536,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
                   style={inputStyle}
                   includeEmpty={txType === 'income'}
                   emptyLabel="No category"
+                  filterGroup={txType === 'income' ? 'Income' : undefined}
                 />
                 {aiSuggestion && (
                   <button

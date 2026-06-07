@@ -18,7 +18,7 @@ const EMPTY_STATE: AppState = {
 
 const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 20000, salary_date: null, track_credit_cards: false }
 
-const DEFAULT_GROUPS = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer']
+const DEFAULT_GROUPS = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer', 'Income']
 
 const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
   { name: 'Food & Tea',        group_name: 'Lifestyle' },
@@ -34,7 +34,14 @@ const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
   { name: 'Renovation',        group_name: 'Renovation' },
   { name: 'Family',            group_name: 'Family' },
   { name: 'Transfer',          group_name: 'Transfer' },
+  { name: 'Salary',            group_name: 'Income' },
+  { name: 'Freelance',         group_name: 'Income' },
+  { name: 'Refund',            group_name: 'Income' },
+  { name: 'Other Income',      group_name: 'Income' },
 ]
+
+const INCOME_GROUP = 'Income'
+const DEFAULT_INCOME_CATEGORIES = ['Salary', 'Freelance', 'Refund', 'Other Income']
 
 export function useSupabaseData(userId: string) {
   const [state, setState] = useState<AppState>(EMPTY_STATE)
@@ -98,6 +105,33 @@ export function useSupabaseData(userId: string) {
             .insert(DEFAULT_CATEGORIES.map(c => ({ ...c, user_id: userId })))
             .select('*')
           userCategories = seededCats || []
+        }
+
+        // Migration: ensure Income group exists (re-query DB to avoid race with StrictMode double-invoke)
+        const { data: dbIncomeGroups } = await supabase
+          .from('groups').select('*').eq('user_id', userId).eq('name', INCOME_GROUP)
+        const incomeGroupRows = dbIncomeGroups || []
+
+        // Dedup: if more than one Income group exists, delete the extras
+        if (incomeGroupRows.length > 1) {
+          const [keep, ...extras] = incomeGroupRows
+          await supabase.from('groups').delete().in('id', extras.map((g: Group) => g.id))
+          userGroups = [...userGroups.filter(g => g.name !== INCOME_GROUP), keep as Group]
+        } else if (incomeGroupRows.length === 0) {
+          const { data: newGroup } = await supabase
+            .from('groups').insert({ name: INCOME_GROUP, user_id: userId }).select('*').single()
+          if (newGroup) userGroups = [...userGroups, newGroup as Group]
+        }
+
+        // Ensure Income categories exist
+        const existingIncomeNames = userCategories.filter(c => c.group_name === INCOME_GROUP).map(c => c.name)
+        const incomeCatsToAdd = DEFAULT_INCOME_CATEGORIES.filter(n => !existingIncomeNames.includes(n))
+        if (incomeCatsToAdd.length > 0) {
+          const { data: newCats } = await supabase
+            .from('categories')
+            .insert(incomeCatsToAdd.map(name => ({ name, group_name: INCOME_GROUP, user_id: userId })))
+            .select('*')
+          if (newCats) userCategories = [...userCategories, ...(newCats as Category[])]
         }
 
         setState({
