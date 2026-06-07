@@ -121,9 +121,10 @@ interface QuickAddSheetProps {
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
   state: AppState
   onAddCategory: (name: string, group_name: string) => Promise<string>
+  autopilotEnabled?: boolean
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income'>('expense')
   const amountRef = useRef<HTMLInputElement | null>(null)
@@ -282,8 +283,8 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
     setAiSuggestion(null)
 
-    // 3. AI for unknown — only after meaningful input + pause
-    if (descriptionVal.trim().length < 4) return
+    // 3. AI for unknown — only after meaningful input + pause, and only when AutoPilot is on
+    if (!autopilotEnabled || descriptionVal.trim().length < 4) return
     setAiCategorizing(true)
     const timer = setTimeout(async () => {
       const catNames = catsRef.current.map(c => c.name)
@@ -304,7 +305,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       setAiCategorizing(false)
     }, 1200)
     return () => { clearTimeout(timer); setAiCategorizing(false) }
-  }, [descriptionVal, setValue, txType])
+  }, [descriptionVal, setValue, txType, autopilotEnabled])
 
   const handleSmartInput = (text: string) => {
     setSmartInput(text)

@@ -71,6 +71,7 @@ export interface Settings {
   salary_date: number | null
   track_credit_cards: boolean
   track_borrowings: boolean
+  autopilot_enabled: boolean
   dashboard_sections?: DashboardSection[] | null
 }
 

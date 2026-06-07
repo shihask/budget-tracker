@@ -10,7 +10,7 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 20000, salary_date: null, track_credit_cards: false, track_borrowings: true },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 20000, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false },
   commitments: [],
   borrowings: [],
   transactions: [],

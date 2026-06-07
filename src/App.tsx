@@ -239,7 +239,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 60 }}>
-            <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} onAddCategory={addCategory} />
+            <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} />
           </div>
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
@@ -285,7 +285,7 @@ function AppContent({ session }: { session: Session }) {
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-            <SettingsPanel accent={accent} dark={dark} layout={layout} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }} />
+            <SettingsPanel accent={accent} dark={dark} layout={layout} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} autopilotEnabled={state.settings.autopilot_enabled ?? false} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} onAutopilot={v => updateSettings({ autopilot_enabled: v })} onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }} />
           </>
         )}
 

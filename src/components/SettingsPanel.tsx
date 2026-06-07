@@ -10,16 +10,18 @@ interface SettingsPanelProps {
   salaryDate: number | null
   trackCreditCards: boolean
   trackBorrowings: boolean
+  autopilotEnabled: boolean
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
   onSalaryDate: (v: number | null) => Promise<void>
   onTrackCreditCards: (v: boolean) => Promise<void>
   onTrackBorrowings: (v: boolean) => Promise<void>
+  onAutopilot: (v: boolean) => Promise<void>
   onDashboardLayout: () => void
 }
 
-export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onDashboardLayout }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, autopilotEnabled, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onAutopilot, onDashboardLayout }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [savingSalary, setSavingSalary] = useState(false)
@@ -147,6 +149,22 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
           style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackBorrowings ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
         >
           <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackBorrowings ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+        </button>
+      </div>
+
+      <div style={rowStyle}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={labelStyle}>AutoPilot</div>
+            <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>AI</span>
+          </div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>AI-powered category suggestions</div>
+        </div>
+        <button
+          onClick={() => onAutopilot(!autopilotEnabled)}
+          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: autopilotEnabled ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
+        >
+          <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: autopilotEnabled ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </button>
       </div>
 
