@@ -322,8 +322,10 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{editingId ? 'Edit Card' : 'Add Credit Card'}</div>
               {editingId && (
                 <button onClick={async () => { if (confirm('Delete this card?')) { await onDelete(editingId); closeSheet() } }}
-                  style={{ background: '#FEE2E2', color: c.bad, border: 'none', borderRadius: 8, padding: '6px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>
-                  Delete
+                  style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                  </svg>
                 </button>
               )}
             </div>
@@ -373,7 +375,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   Current Outstanding
                   <InfoIcon id="balance" text="How much you currently owe on this card right now. Check your bank app or last statement." />
                 </label>
-                <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
+                <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
@@ -391,7 +393,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Payment Amount</label>
-                <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" style={inp} />
+                <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Pay from Account</label>

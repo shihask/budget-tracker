@@ -15,7 +15,7 @@ export default defineConfig({
         name: 'MoneyPilot',
         short_name: 'MoneyPilot',
         description: 'MoneyPilot — pilot your personal finances',
-        theme_color: '#10B981',
+        theme_color: '#16C98A',
         background_color: '#EDE7DD',
         display: 'standalone',
         orientation: 'portrait-primary',

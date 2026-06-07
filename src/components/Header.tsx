@@ -53,15 +53,21 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
       {/* Logo + App name + Greeting */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         {/* Icon */}
-        <div style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: c.accent,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-          boxShadow: `0 2px 8px ${c.accent}55`,
-        }}>
-          <span style={{ font: '800 17px Plus Jakarta Sans', color: '#fff', lineHeight: 1, letterSpacing: '-0.02em' }}>₹</span>
-        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="36" height="36" style={{ flexShrink: 0, borderRadius: 10, boxShadow: `0 2px 8px #16C98A55` }}>
+          <defs>
+            <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#16C98A"/>
+              <stop offset="100%" stopColor="#0A7A56"/>
+            </linearGradient>
+          </defs>
+          <rect width="100" height="100" rx="22.5" fill="url(#hbg)"/>
+          <g fill="none" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M 35 38 L 44 29 L 51 35 L 65 21"/>
+            <path d="M 65 21 L 57 22 M 65 21 L 66 29"/>
+          </g>
+          <text x="50" y="74" textAnchor="middle"
+            fontFamily="Montserrat, system-ui, sans-serif" fontWeight="900" fontSize="52" fill="#FFFFFF">₹</text>
+        </svg>
         <div>
           <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>
             MoneyPilot
