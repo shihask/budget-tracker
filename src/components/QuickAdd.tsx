@@ -46,6 +46,35 @@ function guessCategory(description: string, categories: Category[]): string | nu
   return null
 }
 
+function parseSmartInput(
+  text: string,
+  accounts: { id: string; name: string }[],
+  categories: Category[]
+): { description: string; amount: number | null; accountId: string | null; categoryId: string | null } {
+  const tokens = text.trim().split(/\s+/)
+  let amount: number | null = null
+  let amountIdx = -1
+  for (let i = 0; i < tokens.length; i++) {
+    const n = parseFloat(tokens[i])
+    if (!isNaN(n) && n > 0) { amount = n; amountIdx = i; break }
+  }
+  const remaining = tokens.filter((_, i) => i !== amountIdx)
+  let accountId: string | null = null
+  let accountIdx = -1
+  for (let i = 0; i < remaining.length; i++) {
+    const token = remaining[i].toLowerCase()
+    const match = accounts.find(a =>
+      a.name.toLowerCase().split(/\s+/).some(w => w.startsWith(token)) ||
+      a.name.toLowerCase().includes(token)
+    )
+    if (match) { accountId = match.id; accountIdx = i; break }
+  }
+  const descTokens = remaining.filter((_, i) => i !== accountIdx)
+  const description = descTokens.join(' ')
+  const categoryId = description ? guessCategory(description, categories) : null
+  return { description, amount, accountId, categoryId }
+}
+
 interface FABProps { onClick: () => void }
 
 export function FAB({ onClick }: FABProps) {
@@ -84,9 +113,25 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
   const [longPressChip, setLongPressChip] = useState<{ label: string; category_id: string | null } | null>(null)
   const [quickAmount, setQuickAmount] = useState('')
   const [quickAccountId, setQuickAccountId] = useState('')
+  const [smartInput, setSmartInput] = useState('')
+  const [smartParsed, setSmartParsed] = useState<{ description: string; amount: number | null; accountName: string | null; categoryName: string | null } | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
   const quickAmountRef = useRef<HTMLInputElement | null>(null)
+  const dragStartY = useRef<number | null>(null)
+  const [dragY, setDragY] = useState(0)
+
+  const handleGrabStart = (e: React.TouchEvent) => { dragStartY.current = e.touches[0].clientY }
+  const handleGrabMove = (e: React.TouchEvent) => {
+    if (dragStartY.current === null) return
+    const delta = e.touches[0].clientY - dragStartY.current
+    if (delta > 0) setDragY(delta)
+  }
+  const handleGrabEnd = () => {
+    if (dragY > 100) { onClose(); setLongPressChip(null) }
+    setDragY(0)
+    dragStartY.current = null
+  }
 
   const accs = state.accounts.filter(a => a.is_active)
   const cats = state.categories
@@ -169,6 +214,8 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       const firstCat = cats.find(c => c.group_name === 'Lifestyle')?.id || cats[0]?.id || ''
       reset({ date: iso(TODAY), description: '', amount: 0, category_id: firstCat, from_account_id: firstAccount })
       setTxType('expense')
+      setSmartInput('')
+      setSmartParsed(null)
     }
   }, [open, reset, accs.length, cats.length])
 
@@ -182,6 +229,23 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
     const guessed = guessCategory(descriptionVal, cats)
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
   }, [descriptionVal, cats, setValue])
+
+  const handleSmartInput = (text: string) => {
+    setSmartInput(text)
+    if (!text.trim()) { setSmartParsed(null); return }
+    const allAccs = [
+      ...accs.map(a => ({ id: a.id, name: a.name })),
+      ...(state.credit_cards || []).map(cc => ({ id: cc.id, name: cc.name })),
+    ]
+    const parsed = parseSmartInput(text, allAccs, cats)
+    if (parsed.description) setValue('description', parsed.description, { shouldValidate: true })
+    if (parsed.amount !== null) setValue('amount', parsed.amount, { shouldValidate: true })
+    if (parsed.accountId) setValue('from_account_id', parsed.accountId, { shouldValidate: true })
+    if (parsed.categoryId) setValue('category_id', parsed.categoryId, { shouldValidate: true })
+    const accountName = allAccs.find(a => a.id === parsed.accountId)?.name ?? null
+    const categoryName = cats.find(c => c.id === parsed.categoryId)?.name ?? null
+    setSmartParsed({ description: parsed.description, amount: parsed.amount, accountName, categoryName })
+  }
 
   const applyQuick = (label: string, category_id: string | null) => {
     setValue('description', label, { shouldValidate: true })
@@ -230,11 +294,18 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, background: c.surface,
         borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '8px 18px calc(30px + env(safe-area-inset-bottom, 0px))',
-        transform: open ? 'translateY(0)' : 'translateY(110%)',
-        transition: 'transform 0.34s cubic-bezier(0.32,0.72,0,1)',
+        transform: open ? `translateY(${dragY}px)` : 'translateY(110%)',
+        transition: dragY > 0 ? 'none' : 'transform 0.34s cubic-bezier(0.32,0.72,0,1)',
         boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxHeight: '88svh', overflowY: 'auto',
       }}>
-        <div style={{ width: 40, height: 5, borderRadius: 999, background: c.faint, margin: '6px auto 14px' }} />
+        <div
+          onTouchStart={handleGrabStart}
+          onTouchMove={handleGrabMove}
+          onTouchEnd={handleGrabEnd}
+          style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '4px 0 10px', cursor: 'grab', touchAction: 'none' }}
+        >
+          <div style={{ width: 40, height: 5, borderRadius: 999, background: c.faint }} />
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ font: '800 19px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
@@ -259,6 +330,45 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
             </button>
           ))}
         </div>
+
+        {/* Smart input */}
+        {isExpense && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: 0.5 }}>✦</span>
+              <input
+                value={smartInput}
+                onChange={e => handleSmartInput(e.target.value)}
+                placeholder='Try "petrol 150 axis"'
+                style={{ ...inputStyle, paddingLeft: 36 }}
+              />
+            </div>
+            {smartParsed && (smartParsed.description || smartParsed.amount !== null) && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                {smartParsed.description && (
+                  <span style={{ background: c.accentSoft, color: c.accent, borderRadius: 999, padding: '3px 10px', font: '700 12px Plus Jakarta Sans' }}>
+                    {smartParsed.description}
+                  </span>
+                )}
+                {smartParsed.amount !== null && (
+                  <span style={{ background: c.surface2, color: c.ink, borderRadius: 999, padding: '3px 10px', font: '700 12px Plus Jakarta Sans' }}>
+                    ₹{smartParsed.amount}
+                  </span>
+                )}
+                {smartParsed.categoryName && (
+                  <span style={{ background: c.surface2, color: c.sub, borderRadius: 999, padding: '3px 10px', font: '600 12px Plus Jakarta Sans' }}>
+                    {smartParsed.categoryName}
+                  </span>
+                )}
+                {smartParsed.accountName && (
+                  <span style={{ background: c.surface2, color: c.sub, borderRadius: 999, padding: '3px 10px', font: '600 12px Plus Jakarta Sans' }}>
+                    {smartParsed.accountName}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quick chips — expense only, dynamic from history */}
         {isExpense && (
