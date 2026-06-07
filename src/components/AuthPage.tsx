@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 
 type Mode = 'login' | 'signup' | 'check-email' | 'forgot' | 'forgot-sent'
 
-const accent = '#10B981'
+const accent = '#16C98A'
 
 const inp: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
@@ -129,7 +129,21 @@ export function AuthPage() {
     <Screen>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-        <img src="/pwa-192x192.png" alt="MoneyPilot" style={{ width: 48, height: 48, borderRadius: 14 }} />
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="48" height="48" style={{ borderRadius: 14, flexShrink: 0 }}>
+          <defs>
+            <linearGradient id="abg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#16C98A"/>
+              <stop offset="100%" stopColor="#0A7A56"/>
+            </linearGradient>
+          </defs>
+          <rect width="100" height="100" rx="22.5" fill="url(#abg)"/>
+          <g fill="none" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M 35 38 L 44 29 L 51 35 L 65 21"/>
+            <path d="M 65 21 L 57 22 M 65 21 L 66 29"/>
+          </g>
+          <text x="50" y="74" textAnchor="middle"
+            fontFamily="Montserrat, system-ui, sans-serif" fontWeight="900" fontSize="52" fill="#FFFFFF">₹</text>
+        </svg>
         <div>
           <div style={{ font: '800 20px Plus Jakarta Sans', color: '#1C1410', letterSpacing: '-0.02em' }}>MoneyPilot</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: '#9C938A' }}>Personal finance, simplified</div>
