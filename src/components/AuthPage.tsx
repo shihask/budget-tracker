@@ -137,12 +137,12 @@ export function AuthPage() {
             </linearGradient>
           </defs>
           <rect width="100" height="100" rx="22.5" fill="url(#abg)"/>
-          <g fill="none" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 36 39 L 44 29 L 51 35 L 65 21"/>
-            <path d="M 65 21 L 57 22 M 65 21 L 66 29"/>
+          <g fill="none" stroke="#FFFFFF" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M 34 34 L 43 23 L 52 29 L 66 16"/>
+            <path d="M 66 16 L 58 17 M 66 16 L 67 24"/>
           </g>
-          <text x="50" y="74" textAnchor="middle"
-            fontFamily="Montserrat, system-ui, sans-serif" fontWeight="900" fontSize="52" fill="#FFFFFF">₹</text>
+          <text x="50" y="76" textAnchor="middle"
+            fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="58" fill="#FFFFFF">₹</text>
         </svg>
         <div>
           <div style={{ font: '800 20px Plus Jakarta Sans', color: '#1C1410', letterSpacing: '-0.02em' }}>MoneyPilot</div>
