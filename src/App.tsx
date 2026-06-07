@@ -17,7 +17,7 @@ import { AccountsSection } from '@/components/AccountsSection'
 import { CommitmentsSection } from '@/components/CommitmentsSection'
 import { BorrowingSection } from '@/components/BorrowingSection'
 import { BorrowingPage } from '@/components/BorrowingPage'
-import { RenovationSection, RecentTxns } from '@/components/Sections'
+import { CustomGroupSection, RecentTxns } from '@/components/Sections'
 import { FAB, QuickAddSheet } from '@/components/QuickAdd'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { TransactionsPage } from '@/components/TransactionsPage'
@@ -163,6 +163,10 @@ function AppContent({ session }: { session: Session }) {
                 .filter(s => s.visible)
                 .map(s => {
                   let el: React.ReactNode = null
+                  if (s.id.startsWith('custom__')) {
+                    el = <CustomGroupSection section={s} state={state} />
+                    return el ? <React.Fragment key={s.id}>{el}</React.Fragment> : null
+                  }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
                       el = <HeroWeekly d={d} settings={state.settings} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} />
@@ -190,9 +194,6 @@ function AppContent({ session }: { session: Session }) {
                       break
                     case 'credit_cards':
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} /> : null
-                      break
-                    case 'renovation':
-                      el = <RenovationSection state={state} d={d} settings={state.settings} onUpdateSettings={updateSettings} />
                       break
                     case 'recent_txns':
                       el = <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />
@@ -274,6 +275,7 @@ function AppContent({ session }: { session: Session }) {
             <DashboardLayoutPage
               sections={state.settings.dashboard_sections ?? DEFAULT_DASHBOARD_SECTIONS}
               settings={state.settings}
+              categories={state.categories}
               onUpdate={async (sections) => { await updateSettings({ dashboard_sections: sections }) }}
               onClose={() => setLayoutOpen(false)}
             />

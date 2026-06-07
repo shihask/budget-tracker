@@ -5,61 +5,51 @@ import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
 import { Glyph } from './Glyph'
 import { MONTH_START, catById as buildCatById } from '@/lib/data'
-import type { AppState, DerivedMetrics, Settings, Transaction } from '@/types'
+import type { AppState, DashboardSection, Transaction } from '@/types'
 
-// ── Renovation Tracker ────────────────────────────────────────────────────────
-interface RenovationProps {
-  state: AppState
-  d: DerivedMetrics
-  settings: Settings
-  onUpdateSettings: (s: Partial<Settings>) => Promise<void>
-}
+// ── Custom Group Section ───────────────────────────────────────────────────────
+const SECTION_COLORS = ['#6366F1', '#F97316', '#10B981', '#EC4899', '#3B82F6', '#8B5CF6', '#F59E0B']
+const sectionColor = (name: string) => SECTION_COLORS[name.charCodeAt(0) % SECTION_COLORS.length]
 
-export function RenovationSection({ state, d, settings, onUpdateSettings }: RenovationProps) {
+interface CustomGroupSectionProps { section: DashboardSection; state: AppState }
+
+export function CustomGroupSection({ section, state }: CustomGroupSectionProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
-  const groupName = settings.renovation_group ?? 'Renovation'
-  const items = state.transactions.filter(
-    t => catMap[t.category_id!]?.group_name === groupName
-      && new Date(t.transaction_date) >= MONTH_START
-  )
-  const [infoOpen, setInfoOpen] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const name = section.customName || 'Custom'
+  const color = sectionColor(name)
 
-  const groupNames = Array.from(new Set(state.categories.map(cat => cat.group_name).filter(Boolean))).sort() as string[]
+  const groupCatIds = new Set(
+    state.categories
+      .filter(cat => (section.customGroups ?? []).includes(cat.group_name))
+      .map(cat => cat.id)
+  )
+  const extraCatIds = new Set(section.customCategories ?? [])
+
+  const items = state.transactions.filter(t =>
+    t.category_id &&
+    (groupCatIds.has(t.category_id) || extraCatIds.has(t.category_id)) &&
+    new Date(t.transaction_date) >= MONTH_START
+  )
+  const total = items.reduce((s, t) => s + t.amount, 0)
 
   return (
-    <>
     <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: items.length ? 14 : 0 }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>{groupName}</div>
-            <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-              </svg>
-            </button>
-            <button onClick={() => setPickerOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
-          </div>
+          <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>{name}</div>
           <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>This month</div>
         </div>
-        <div style={{ font: '800 20px Plus Jakarta Sans', color: '#F97316', letterSpacing: '-0.02em' }}>
-          {fmt(d.renovationMonth)}
-        </div>
+        <div style={{ font: '800 20px Plus Jakarta Sans', color, letterSpacing: '-0.02em' }}>{fmt(total)}</div>
       </div>
       {items.length === 0 ? (
-        <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>No {groupName.toLowerCase()} spend yet this month.</div>
+        <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>No {name.toLowerCase()} spend yet this month.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {items.map(t => (
             <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#F9731622', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Glyph name="doc" color="#F97316" size={16} />
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Glyph name="doc" color={color} size={16} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ font: '700 13.5px Plus Jakarta Sans', color: c.ink }}>{t.description}</div>
@@ -71,92 +61,6 @@ export function RenovationSection({ state, d, settings, onUpdateSettings }: Reno
         </div>
       )}
     </Card>
-
-      {infoOpen && (
-        <div onClick={() => setInfoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 22, width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 12, background: '#FED7AA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-                </svg>
-              </div>
-              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>{groupName} Tracker</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {([
-                {
-                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-                  title: `Monthly ${groupName.toLowerCase()} spend`,
-                  desc: `Shows all transactions tagged under the ${groupName} category group for the current month.`,
-                },
-                {
-                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>,
-                  title: 'Track any category group',
-                  desc: 'Tap the pencil icon to switch this card to track any category group you\'ve created.',
-                },
-                {
-                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-                  title: 'Resets monthly',
-                  desc: 'The total resets at the start of each month so you can track spend period by period.',
-                },
-              ] as const).map((item, i) => (
-                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 9, background: '#FED7AA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                    {item.svg}
-                  </div>
-                  <div>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{item.title}</div>
-                    <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 16, padding: '12px', background: c.surface2, borderRadius: 12 }}>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
-                To log expenses here, tap <strong style={{ color: c.ink }}>+</strong> and assign the <strong style={{ color: c.ink }}>{groupName}</strong> category group.
-              </div>
-            </div>
-            <button onClick={() => setInfoOpen(false)} style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
-          </div>
-        </div>
-      )}
-
-      {pickerOpen && (
-        <div onClick={() => setPickerOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: '20px 20px 0 0', padding: '20px 16px calc(28px + env(safe-area-inset-bottom, 0px))', width: '100%', maxWidth: 480, boxShadow: '0 -8px 32px rgba(0,0,0,0.14)' }}>
-            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em', marginBottom: 4 }}>Track a category group</div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>This card will show this month's spend for the chosen group.</div>
-            {groupNames.length === 0 ? (
-              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '12px 0' }}>No category groups yet — create one in Categories first.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {groupNames.map(name => (
-                  <button
-                    key={name}
-                    onClick={async () => { await onUpdateSettings({ renovation_group: name }); setPickerOpen(false) }}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '13px 14px', borderRadius: 14,
-                      background: name === groupName ? c.accentSoft : c.surface2,
-                      border: `1.5px solid ${name === groupName ? c.accent : 'transparent'}`,
-                      cursor: 'pointer', font: '700 14px Plus Jakarta Sans',
-                      color: name === groupName ? c.accent : c.ink,
-                    }}
-                  >
-                    {name}
-                    {name === groupName && (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-            <button onClick={() => setPickerOpen(false)} style={{ marginTop: 12, width: '100%', background: c.surface2, border: 'none', borderRadius: 14, padding: 13, font: '700 14px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Cancel</button>
-          </div>
-        </div>
-      )}
-    </>
   )
 }
 

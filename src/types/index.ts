@@ -72,7 +72,6 @@ export interface Settings {
   track_credit_cards: boolean
   track_borrowings: boolean
   dashboard_sections?: DashboardSection[] | null
-  renovation_group?: string | null
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
@@ -114,7 +113,6 @@ export interface DerivedMetrics {
   weeklySpent: number
   weeklyRemaining: number
   weeklyPct: number
-  renovationMonth: number
 }
 
 export interface TrendPoint { label: string; date: string; value: number }
@@ -125,11 +123,14 @@ export type Layout = 'grid' | 'carousel' | 'list'
 
 export type DashboardSectionId =
   | 'hero' | 'affordability' | 'metrics' | 'commitments' | 'accounts'
-  | 'borrowing' | 'credit_cards' | 'analytics' | 'renovation' | 'recent_txns'
+  | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns'
 
 export interface DashboardSection {
-  id: DashboardSectionId
+  id: string                    // built-ins use DashboardSectionId; custom sections use 'custom__<timestamp>'
   visible: boolean
+  customName?: string
+  customGroups?: string[]       // category group names
+  customCategories?: string[]   // individual category IDs
 }
 
 export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
@@ -141,6 +142,5 @@ export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'borrowing',     visible: true },
   { id: 'credit_cards',  visible: true },
   { id: 'analytics',     visible: true },
-  { id: 'renovation',    visible: true },
   { id: 'recent_txns',   visible: true },
 ]
