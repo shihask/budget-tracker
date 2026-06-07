@@ -16,6 +16,7 @@ import { Analytics } from '@/components/Analytics'
 import { AccountsSection } from '@/components/AccountsSection'
 import { CommitmentsSection } from '@/components/CommitmentsSection'
 import { BorrowingSection } from '@/components/BorrowingSection'
+import { BorrowingPage } from '@/components/BorrowingPage'
 import { RenovationSection, RecentTxns } from '@/components/Sections'
 import { FAB, QuickAddSheet } from '@/components/QuickAdd'
 import { SettingsPanel } from '@/components/SettingsPanel'
@@ -91,6 +92,7 @@ function AppContent({ session }: { session: Session }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
+  const [borrowingOpen, setBorrowingOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
@@ -138,7 +140,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: txnsOpen ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen) ? 'none' : 'block',
           }}>
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} />
           </div>
@@ -183,7 +185,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <CommitmentsSection state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />
                       break
                     case 'borrowing':
-                      el = (state.settings.track_borrowings ?? true) ? <BorrowingSection state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} /> : null
+                      el = (state.settings.track_borrowings ?? true) ? <BorrowingSection state={state} onSeeAll={() => setBorrowingOpen(true)} /> : null
                       break
                     case 'credit_cards':
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} /> : null
@@ -240,6 +242,10 @@ function AppContent({ session }: { session: Session }) {
 
           {txnsOpen && (
             <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onAddCategory={addCategory} onReversePayment={reversePayment} initialEditTx={dashEditTx} />
+          )}
+
+          {borrowingOpen && (
+            <BorrowingPage state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} onClose={() => setBorrowingOpen(false)} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} />
           )}
 
           {catsOpen && (

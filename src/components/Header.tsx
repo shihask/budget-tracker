@@ -50,13 +50,25 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px 14px' }}>
-      {/* App name + Greeting + Name */}
-      <div>
-        <div style={{ font: '800 13px Plus Jakarta Sans', color: c.accent, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-          MoneyPilot
+      {/* Logo + App name + Greeting */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        {/* Icon */}
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: c.accent,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+          boxShadow: `0 2px 8px ${c.accent}55`,
+        }}>
+          <span style={{ font: '800 17px Plus Jakarta Sans', color: '#fff', lineHeight: 1, letterSpacing: '-0.02em' }}>₹</span>
         </div>
-        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.01em', marginTop: 1 }}>
-          {greeting}, {userName}
+        <div>
+          <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>
+            MoneyPilot
+          </div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.01em', marginTop: 1 }}>
+            {greeting}, {userName}
+          </div>
         </div>
       </div>
 

@@ -292,7 +292,6 @@ export function useSupabaseData(userId: string) {
     if (error) throw error
     const borrowing = data as AppState['borrowings'][0]
 
-    // If borrowed and user wants to record as income
     if (addTransaction && accountId && form.direction === 'borrowed') {
       const { data: newTx } = await supabase.from('transactions').insert({
         transaction_date: today,
@@ -315,6 +314,29 @@ export function useSupabaseData(userId: string) {
         borrowings: [...s.borrowings, borrowing],
         transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
         accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance + form.total_amount } : a),
+      }))
+    } else if (addTransaction && accountId && form.direction === 'lent') {
+      const { data: newTx } = await supabase.from('transactions').insert({
+        transaction_date: today,
+        description: `${form.person_name} – lent`,
+        amount: form.total_amount,
+        transaction_type: 'expense',
+        category_id: null,
+        from_account_id: accountId,
+        to_account_id: null,
+        notes: '',
+        user_id: userId,
+        borrowing_id: borrowing.id,
+      }).select('*, category:categories(*)').single()
+
+      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
+      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - form.total_amount }).eq('id', accountId)
+
+      setState(s => ({
+        ...s,
+        borrowings: [...s.borrowings, borrowing],
+        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+        accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - form.total_amount } : a),
       }))
     } else {
       setState(s => ({ ...s, borrowings: [...s.borrowings, borrowing] }))

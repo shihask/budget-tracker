@@ -82,3 +82,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* ── Safe area utility classes ─────────────────────────────────────────────── */
 .safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* ── Page slide animation ──────────────────────────────────────────────────── */
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}

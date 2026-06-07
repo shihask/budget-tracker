@@ -57,6 +57,7 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
   const [budgetInput, setBudgetInput] = useState(String(settings.weekly_budget))
   const [saving, setSaving] = useState(false)
   const [popup, setPopup] = useState<'budget' | 'spent' | null>(null)
+  const [infoOpen, setInfoOpen] = useState(false)
 
   useEffect(() => {
     if (editOpen) {
@@ -112,7 +113,14 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.02em' }}>Weekly Remaining</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.02em' }}>Weekly Remaining</div>
+              <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.65)' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </button>
+            </div>
             <div style={{ font: '800 40px Plus Jakarta Sans', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 6 }}>
               {fmt(d.weeklyRemaining)}
             </div>
@@ -143,6 +151,57 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
           </div>
         </div>
       </div>
+
+      {/* Section info popup */}
+      {infoOpen && (
+        <div onClick={() => setInfoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 22, width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>Weekly Budget Tracker</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {([
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>,
+                  title: 'Weekly spending limit',
+                  desc: 'Your free money is divided by the weeks left in your salary cycle to give a per-week allowance.',
+                },
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+                  title: "This week's spend",
+                  desc: 'Only Lifestyle category expenses from Monday to Sunday count. Bills and commitments are excluded.',
+                },
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22V12M12 12L7 17M12 12l5 5"/><path d="M20 7a4 4 0 00-8 0"/><path d="M4 7a4 4 0 018 0"/></svg>,
+                  title: 'Salary cycle',
+                  desc: 'Set your salary date so the tracker resets each month and calculates the right weekly slice.',
+                },
+              ] as const).map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 9, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                    {item.svg}
+                  </div>
+                  <div>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{item.title}</div>
+                    <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 16, padding: '12px', background: c.surface2, borderRadius: 12 }}>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                Tap <strong style={{ color: c.ink }}>Budget ⓘ</strong> or <strong style={{ color: c.ink }}>Spent ⓘ</strong> tiles below to see the exact numbers behind each figure.
+              </div>
+            </div>
+            <button onClick={() => setInfoOpen(false)} style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
+          </div>
+        </div>
+      )}
 
       {/* Calculation popup */}
       {popup && (

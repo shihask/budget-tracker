@@ -56,6 +56,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   const [payAmount, setPayAmount] = useState('')
   const [payAccountId, setPayAccountId] = useState('')
   const [paying, setPaying] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
 
   const accounts = state.accounts.filter(a => a.is_active)
   const cards = state.credit_cards || []
@@ -148,7 +149,14 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: cards.length ? 16 : 0 }}>
           <div>
-            <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Credit Cards</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Credit Cards</div>
+              <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </button>
+            </div>
             <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
               {cards.length} card{cards.length !== 1 ? 's' : ''} · Total outstanding {fmt(cards.reduce((s, cd) => s + cd.current_balance, 0))}
             </div>
@@ -254,6 +262,59 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
           </div>
         )}
       </Card>
+
+      {/* Section info popup */}
+      {infoOpen && (
+        <div onClick={() => setInfoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 22, width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="5" width="20" height="14" rx="3" fill="none" stroke={c.accent} strokeWidth="2"/>
+                  <line x1="2" y1="10" x2="22" y2="10" stroke={c.accent} strokeWidth="2"/>
+                  <line x1="6" y1="15" x2="10" y2="15" stroke={c.accent} strokeWidth="2"/>
+                </svg>
+              </div>
+              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>Credit Cards</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {([
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
+                  title: 'Track outstanding balance',
+                  desc: 'See how much you currently owe on each card and your available credit at a glance.',
+                },
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+                  title: 'Bill & due date alerts',
+                  desc: 'Set your billing cycle, statement date, and due date to get warned when payment is approaching.',
+                },
+                {
+                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
+                  title: 'Pay bill',
+                  desc: 'Record a payment from any of your accounts — the outstanding balance updates automatically.',
+                },
+              ] as const).map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 9, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                    {item.svg}
+                  </div>
+                  <div>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{item.title}</div>
+                    <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 16, padding: '12px', background: c.surface2, borderRadius: 12 }}>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                Enable credit card tracking in <strong style={{ color: c.ink }}>Settings</strong> to show this section on your dashboard.
+              </div>
+            </div>
+            <button onClick={() => setInfoOpen(false)} style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit sheet */}
       <BottomSheet open={sheetOpen} onClose={closeSheet} maxHeight="90svh" zIndex={350}>
