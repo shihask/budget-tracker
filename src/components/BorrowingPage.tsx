@@ -35,6 +35,7 @@ interface BorrowingPageProps {
   onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean, categoryId: string | null, addTransaction: boolean) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<void>
   onClose: () => void
+  onSwipeProgress?: (pct: number) => void
   dark: boolean
   onToggleTheme: () => void
   userName: string
@@ -46,7 +47,7 @@ interface BorrowingPageProps {
 const avatarColors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899']
 const colorFor = (name: string) => avatarColors[name.charCodeAt(0) % avatarColors.length]
 
-export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onAddCategory, onClose, dark, onToggleTheme, userName, userEmail, synced, onSignOut }: BorrowingPageProps) {
+export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onAddCategory, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut }: BorrowingPageProps) {
   const c = useTheme()
   const accounts = state.accounts.filter(a => a.is_active)
 
@@ -88,24 +89,58 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   }, [menuOpen])
 
   // ── Swipe-back gesture ────────────────────────────────────────────────────────
-  const swipeRef = useRef<{ startX: number; startY: number } | null>(null)
+  const [dragX, setDragX] = useState(0)
+  const [closing, setClosing] = useState(false)
+  const [snapping, setSnapping] = useState(false)
+  const [entryPlayed, setEntryPlayed] = useState(false)
+  const dragXRef = useRef(0)
+  const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
+  const W = typeof window !== 'undefined' ? window.innerWidth : 400
+
+  useEffect(() => {
+    const t = setTimeout(() => setEntryPlayed(true), 360)
+    return () => clearTimeout(t)
+  }, [])
+
+  const triggerClose = () => {
+    setClosing(true)
+    onSwipeProgress?.(1)
+    setTimeout(() => { onSwipeProgress?.(0); onClose() }, 290)
+  }
+
   const onTouchStart = (e: React.TouchEvent) => {
+    if (closing) return
     const t = e.touches[0]
-    if (t.clientX <= 24) swipeRef.current = { startX: t.clientX, startY: t.clientY }
+    if (t.clientX > 28) return
+    gestureRef.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now() }
   }
   const onTouchMove = (e: React.TouchEvent) => {
-    if (!swipeRef.current) return
+    if (!gestureRef.current) return
     const t = e.touches[0]
-    if (Math.abs(t.clientY - swipeRef.current.startY) > Math.abs(t.clientX - swipeRef.current.startX))
-      swipeRef.current = null
+    const dx = t.clientX - gestureRef.current.startX
+    const dy = Math.abs(t.clientY - gestureRef.current.startY)
+    if (dy > Math.abs(dx) + 5 && Math.abs(dx) < 15) {
+      gestureRef.current = null; setDragX(0); onSwipeProgress?.(0); return
+    }
+    gestureRef.current = { ...gestureRef.current, lastX: t.clientX, lastT: Date.now() }
+    const x = Math.max(0, dx)
+    dragXRef.current = x
+    setDragX(x)
+    onSwipeProgress?.(x / W)
   }
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (!swipeRef.current) return
+    if (!gestureRef.current) return
     const t = e.changedTouches[0]
-    const dx = t.clientX - swipeRef.current.startX
-    const dy = Math.abs(t.clientY - swipeRef.current.startY)
-    swipeRef.current = null
-    if (dx > 72 && dy < dx) onClose()
+    const dx = t.clientX - gestureRef.current.startX
+    const dt = Date.now() - gestureRef.current.lastT
+    const vx = dt > 0 ? (t.clientX - gestureRef.current.lastX) / dt : 0
+    gestureRef.current = null
+    if (dx > W * 0.38 || (dx > 50 && vx > 0.5)) {
+      triggerClose()
+    } else {
+      setSnapping(true); setDragX(0); dragXRef.current = 0; onSwipeProgress?.(0)
+      setTimeout(() => setSnapping(false), 300)
+    }
   }
 
   const initials = userName.split(' ').map((w: string) => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
@@ -234,14 +269,28 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   return (
     <div
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-      style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 100, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif', animation: 'slideInFromRight 0.32s cubic-bezier(0.32,0.72,0,1)' }}
+      style={{
+        position: 'fixed', inset: 0, background: c.bg, zIndex: 100,
+        overflowY: dragX > 0 ? 'hidden' : 'auto',
+        fontFamily: 'Plus Jakarta Sans, sans-serif',
+        willChange: 'transform',
+        ...(closing
+          ? { transform: 'translateX(100%)', transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)', animation: 'none' }
+          : dragX > 0
+          ? { transform: `translateX(${dragX}px)`, animation: 'none', boxShadow: '-8px 0 24px rgba(0,0,0,0.18)' }
+          : snapping
+          ? { transform: 'translateX(0)', transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)', animation: 'none' }
+          : entryPlayed
+          ? {}
+          : { animation: 'slideInFromRight 0.32s cubic-bezier(0.32,0.72,0,1)' }),
+      }}
     >
       {/* ── Sticky header ───────────────────────────────────────────────────────── */}
       <div style={{ position: 'sticky', top: 0, zIndex: 10, background: c.bg, borderBottom: `1px solid ${c.faint}` }}>
 
         {/* Title bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 'calc(12px + env(safe-area-inset-top, 0px)) 16px 12px' }}>
-          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <button onClick={triggerClose} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
           </button>
           <div style={{ flex: 1 }}>
