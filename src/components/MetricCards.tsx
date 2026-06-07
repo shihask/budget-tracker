@@ -75,14 +75,11 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
 
 function buildMetrics(d: DerivedMetrics): Metric[] {
   return [
-    { key: 'actual',  label: 'Actual Balance',          value: d.actualBalance,          hint: 'All active accounts',       tone: 'ink',    icon: 'wallet' },
-    { key: 'avail',   label: 'Spendable Balance',         value: d.availableBalance,        hint: 'Emergency fund protected',  tone: 'accent', icon: 'shield' },
-    { key: 'free',    label: 'Real Free Money',          value: d.realFreeMoney,           hint: 'After bills & commitments', tone: 'good',   icon: 'spark'  },
-    { key: 'emerg',   label: 'Emergency Fund',           value: d.emergencyFund,           hint: 'Reserved',                  tone: 'warn',   icon: 'lock'   },
-    { key: 'commit',  label: 'Bills & Commitments',       value: d.remainingCommitments,    hint: 'Still owed this cycle',     tone: 'bad',    icon: 'doc'    },
-    { key: 'wbudget', label: 'Weekly Budget',            value: d.weeklyBudget,            hint: 'Mon–Sun',                   tone: 'ink',    icon: 'cal'    },
-    { key: 'wspent',  label: 'Weekly Spent',             value: d.weeklySpent,             hint: Math.round(d.weeklyPct) + '% used', tone: 'warn', icon: 'cart' },
-    { key: 'wrem',    label: 'Weekly Remaining',         value: d.weeklyRemaining,         hint: 'Left this week',            tone: 'good',   icon: 'check'  },
+    { key: 'actual',  label: 'Actual Balance',      value: d.actualBalance,       hint: 'All active accounts',       tone: 'ink',    icon: 'wallet' },
+    { key: 'avail',   label: 'Spendable Balance',   value: d.availableBalance,    hint: 'Emergency fund protected',  tone: 'accent', icon: 'shield' },
+    { key: 'free',    label: 'Real Free Money',     value: d.realFreeMoney,       hint: 'After bills & commitments', tone: 'good',   icon: 'spark'  },
+    { key: 'emerg',   label: 'Emergency Fund',      value: d.emergencyFund,       hint: 'Reserved',                  tone: 'warn',   icon: 'lock'   },
+    { key: 'commit',  label: 'Bills & Commitments', value: d.remainingCommitments, hint: 'Still owed this cycle',    tone: 'bad',    icon: 'doc'    },
   ]
 }
 

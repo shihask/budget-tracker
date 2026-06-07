@@ -11,6 +11,7 @@ interface HeroWeeklyProps {
   onUpdateSettings: (patch: Partial<AppState['settings']>) => Promise<void>
   editOpen: boolean
   onEditClose: () => void
+  onEditOpen: () => void
 }
 
 function computeCycle(salaryDate: number) {
@@ -44,7 +45,7 @@ function Row({ label, value, muted, accent, bad, bold }: { label: string; value:
   )
 }
 
-export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClose }: HeroWeeklyProps) {
+export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClose, onEditOpen }: HeroWeeklyProps) {
   const c = useTheme()
   const pct = d.weeklyPct
   const status = pct > 100
@@ -118,6 +119,11 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
               <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.65)' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </button>
+              <button onClick={onEditOpen} style={{ background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: 8, padding: '3px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.85)' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
                 </svg>
               </button>
             </div>
