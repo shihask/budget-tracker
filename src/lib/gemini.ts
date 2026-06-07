@@ -2,7 +2,15 @@ import { supabase } from '@/lib/supabase'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
-export async function categorizeWithAI(description: string, categoryNames: string[]): Promise<string | null> {
+export type AICategorizationResult =
+  | { type: 'category'; name: string }
+  | { type: 'suggestion'; name: string; group: string }
+
+export async function categorizeWithAI(
+  description: string,
+  categoryNames: string[],
+  groupNames: string[]
+): Promise<AICategorizationResult | null> {
   if (!description.trim()) return null
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -14,18 +22,22 @@ export async function categorizeWithAI(description: string, categoryNames: strin
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ description, categoryNames }),
+      body: JSON.stringify({ description, categoryNames, groupNames }),
     })
 
-    if (res.status === 429) {
-      console.warn('AI quota reached for this month (100/month)')
-      return null
-    }
+    if (res.status === 429) { console.warn('AI quota reached (100/month)'); return null }
     if (!res.ok) return null
 
     const data = await res.json()
-    if (!data.result) return null
-    return categoryNames.find(c => c.toLowerCase() === data.result.toLowerCase()) ?? null
+
+    if (data.suggestion?.name) {
+      return { type: 'suggestion', name: data.suggestion.name, group: data.suggestion.group }
+    }
+    if (data.result) {
+      const match = categoryNames.find(c => c.toLowerCase() === data.result.toLowerCase())
+      if (match) return { type: 'category', name: match }
+    }
+    return null
   } catch {
     return null
   }

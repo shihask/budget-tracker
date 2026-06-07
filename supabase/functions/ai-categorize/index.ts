@@ -14,7 +14,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    // Verify user
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: cors })
 
@@ -24,17 +23,14 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await anonClient.auth.getUser()
     if (authError || !user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: cors })
 
-    // Service role client for DB ops
     const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    // Get usage
     const { data: settings } = await db
       .from('settings')
       .select('id, ai_requests_used, ai_requests_reset_at')
       .eq('user_id', user.id)
       .single()
 
-    // Reset counter if new month
     const now = new Date()
     const resetAt = settings?.ai_requests_reset_at ? new Date(settings.ai_requests_reset_at) : null
     const needsReset = !resetAt || now.getFullYear() !== resetAt.getFullYear() || now.getMonth() !== resetAt.getMonth()
@@ -47,23 +43,31 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Parse body
-    const { description, categoryNames } = await req.json()
+    const { description, categoryNames, groupNames } = await req.json()
     if (!description || !categoryNames?.length) {
       return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
     }
 
-    // Call Groq
+    const prompt = `You are a personal finance categorizer.
+
+Existing categories: ${categoryNames.join(', ')}
+Available groups: ${(groupNames ?? []).join(', ')}
+
+Transaction: "${description}"
+
+Rules:
+- If one of the existing categories fits well, reply with ONLY that exact category name.
+- If no existing category fits, reply with: NEW: <suggested category name> | <best group from the available groups list>
+
+Reply with nothing else.`
+
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
-        messages: [{
-          role: 'user',
-          content: `You are a personal finance categorizer. Pick the best category for this transaction from the list below. Reply with ONLY the exact category name, nothing else.\n\nCategories: ${categoryNames.join(', ')}\n\nTransaction: "${description}"\n\nCategory:`,
-        }],
-        max_tokens: 20,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 30,
         temperature: 0,
       }),
     })
@@ -73,7 +77,18 @@ Deno.serve(async (req) => {
     }
 
     const groqData = await groqRes.json()
-    const result: string = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
+    const raw: string = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
+
+    // Parse response
+    let result: string | null = null
+    let suggestion: { name: string; group: string } | null = null
+
+    if (raw.startsWith('NEW:')) {
+      const parts = raw.slice(4).split('|').map((s: string) => s.trim())
+      suggestion = { name: parts[0] ?? '', group: parts[1] ?? (groupNames?.[0] ?? '') }
+    } else {
+      result = raw
+    }
 
     // Increment usage
     await db.from('settings').update({
@@ -82,10 +97,10 @@ Deno.serve(async (req) => {
     }).eq('user_id', user.id)
 
     return new Response(
-      JSON.stringify({ result, used: used + 1, limit: MONTHLY_LIMIT }),
+      JSON.stringify({ result, suggestion, used: used + 1, limit: MONTHLY_LIMIT }),
       { headers: { ...cors, 'Content-Type': 'application/json' } }
     )
-  } catch (e) {
+  } catch {
     return new Response(JSON.stringify({ error: 'internal_error' }), { status: 500, headers: cors })
   }
 })

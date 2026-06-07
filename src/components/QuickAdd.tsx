@@ -135,6 +135,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
   }
 
   const [aiCategorizing, setAiCategorizing] = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState<{ name: string; group: string } | null>(null)
 
   const accs = state.accounts.filter(a => a.is_active)
   const cats = state.categories
@@ -221,6 +222,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       setTxType('expense')
       setSmartInput('')
       setSmartParsed(null)
+      setAiSuggestion(null)
     }
   }, [open, reset])
 
@@ -231,17 +233,22 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
   // Auto-categorize: keyword instantly, then AI after 500ms debounce
   // Uses catsRef so adding a new category doesn't re-trigger this effect
   useEffect(() => {
-    if (!descriptionVal.trim()) return
+    if (!descriptionVal.trim()) { setAiSuggestion(null); return }
     const guessed = guessCategory(descriptionVal, catsRef.current)
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
+    setAiSuggestion(null)
 
     setAiCategorizing(true)
     const timer = setTimeout(async () => {
       const catNames = catsRef.current.map(c => c.name)
-      const aiResult = await categorizeWithAI(descriptionVal, catNames)
-      if (aiResult) {
-        const cat = catsRef.current.find(c => c.name === aiResult)
+      const groupNames = state.groups.map(g => g.name)
+      const aiResult = await categorizeWithAI(descriptionVal, catNames, groupNames)
+      if (aiResult?.type === 'category') {
+        const cat = catsRef.current.find(c => c.name === aiResult.name)
         if (cat) setValue('category_id', cat.id, { shouldValidate: true })
+        setAiSuggestion(null)
+      } else if (aiResult?.type === 'suggestion') {
+        setAiSuggestion({ name: aiResult.name, group: aiResult.group })
       }
       setAiCategorizing(false)
     }, 500)
@@ -522,6 +529,24 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
                   includeEmpty={txType === 'income'}
                   emptyLabel="No category"
                 />
+                {aiSuggestion && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const newId = await onAddCategory(aiSuggestion.name, aiSuggestion.group)
+                      setValue('category_id', newId, { shouldValidate: true })
+                      setAiSuggestion(null)
+                    }}
+                    style={{
+                      marginTop: 6, width: '100%', border: `1.5px dashed ${c.accent}`,
+                      background: c.accentSoft, borderRadius: 10, padding: '7px 10px',
+                      font: '600 12px Plus Jakarta Sans', color: c.accent,
+                      cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    ✦ Create "{aiSuggestion.name}" in {aiSuggestion.group}?
+                  </button>
+                )}
               </div>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Account</label>
