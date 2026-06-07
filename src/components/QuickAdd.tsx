@@ -37,6 +37,23 @@ const KEYWORD_CATS: [string[], string][] = [
   [['family', 'home expense', 'domestic'], 'Family'],
 ]
 
+// Match description words against actual category names — returns ranked matches
+function findCategoryMatches(description: string, categories: Category[]): Category[] {
+  const descWords = description.toLowerCase().split(/\s+/).filter(w => w.length >= 3)
+  if (descWords.length === 0) return []
+  const scored = categories
+    .map(cat => {
+      const catLower = cat.name.toLowerCase()
+      const score = descWords.reduce((s, w) => s + (catLower.includes(w) ? 1 : 0), 0)
+      return { cat, score }
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+  if (scored.length === 0) return []
+  const top = scored[0].score
+  return scored.filter(({ score }) => score >= top).map(({ cat }) => cat)
+}
+
 function guessCategory(description: string, categories: Category[]): string | null {
   const lower = description.toLowerCase()
   for (const [keywords, catName] of KEYWORD_CATS) {
@@ -137,6 +154,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
 
   const [aiCategorizing, setAiCategorizing] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<{ name: string; group: string } | null>(null)
+  const [catSuggestions, setCatSuggestions] = useState<Category[]>([])
 
   const accs = state.accounts.filter(a => a.is_active)
   const cats = state.categories
@@ -224,6 +242,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       setSmartInput('')
       setSmartParsed(null)
       setAiSuggestion(null)
+      setCatSuggestions([])
     }
   }, [open, reset])
 
@@ -231,25 +250,40 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
   const amountVal = watch('amount')
   const categoryVal = watch('category_id')
 
-  // Auto-categorize: keyword instantly, then AI after 1200ms debounce (min 4 chars)
+  // Auto-categorize: name match → keyword → AI (1200ms debounce, min 4 chars)
   // Uses catsRef so adding a new category doesn't re-trigger this effect
   useEffect(() => {
-    if (!descriptionVal.trim()) { setAiSuggestion(null); return }
+    if (!descriptionVal.trim()) { setAiSuggestion(null); setCatSuggestions([]); return }
+
     if (txType === 'income') {
-      // For income: only match categories from the Income group, no AI
-      setAiSuggestion(null)
+      setAiSuggestion(null); setCatSuggestions([])
       const incomeCats = catsRef.current.filter(c => c.group_name === 'Income')
       const guessed = guessCategory(descriptionVal, incomeCats)
       if (guessed) setValue('category_id', guessed, { shouldValidate: true })
       return
     }
+
+    // 1. Match against actual category names
+    const nameMatches = findCategoryMatches(descriptionVal, catsRef.current)
+    if (nameMatches.length === 1) {
+      setValue('category_id', nameMatches[0].id, { shouldValidate: true })
+      setCatSuggestions([]); setAiSuggestion(null)
+      return
+    }
+    if (nameMatches.length > 1) {
+      setValue('category_id', nameMatches[0].id, { shouldValidate: true })
+      setCatSuggestions(nameMatches); setAiSuggestion(null)
+      return
+    }
+
+    // 2. Keyword fallback
+    setCatSuggestions([])
     const guessed = guessCategory(descriptionVal, catsRef.current)
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
     setAiSuggestion(null)
 
-    // Don't call AI for very short text — wait for meaningful input
+    // 3. AI for unknown — only after meaningful input + pause
     if (descriptionVal.trim().length < 4) return
-
     setAiCategorizing(true)
     const timer = setTimeout(async () => {
       const catNames = catsRef.current.map(c => c.name)
@@ -260,7 +294,6 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
         if (cat) setValue('category_id', cat.id, { shouldValidate: true })
         setAiSuggestion(null)
       } else if (aiResult?.type === 'suggestion') {
-        // If a category with this name already exists, select it instead of suggesting to create
         const existing = catsRef.current.find(c => c.name.toLowerCase() === aiResult.name.toLowerCase())
         if (existing) {
           setValue('category_id', existing.id, { shouldValidate: true })
@@ -548,6 +581,31 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
                   emptyLabel="No category"
                   filterGroup={txType === 'income' ? 'Income' : undefined}
                 />
+                {catSuggestions.length > 1 && (
+                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {catSuggestions.map(cat => {
+                      const active = categoryVal === cat.id
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => { setValue('category_id', cat.id, { shouldValidate: true }); setCatSuggestions([]) }}
+                          style={{
+                            border: `1.5px solid ${active ? c.accent : c.faint}`,
+                            background: active ? c.accentSoft : c.surface2,
+                            borderRadius: 8, padding: '5px 10px', cursor: 'pointer',
+                            font: '600 12px Plus Jakarta Sans',
+                            color: active ? c.accent : c.ink,
+                            display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1,
+                          }}
+                        >
+                          {cat.name}
+                          <span style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{cat.group_name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
                 {aiSuggestion && (
                   <button
                     type="button"
