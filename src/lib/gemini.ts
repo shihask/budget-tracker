@@ -4,7 +4,7 @@ const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categoriz
 
 export type AICategorizationResult =
   | { type: 'category'; name: string }
-  | { type: 'suggestion'; name: string; group: string; closest?: string }
+  | { type: 'suggestion'; name: string; group: string }
 
 export async function categorizeWithAI(
   description: string,
@@ -36,10 +36,7 @@ export async function categorizeWithAI(
     console.log('[AI] raw response:', data)
 
     if (data.suggestion?.name) {
-      const closest = data.closest
-        ? categoryNames.find((c: string) => c.toLowerCase() === data.closest.toLowerCase())
-        : undefined
-      return { type: 'suggestion', name: data.suggestion.name, group: data.suggestion.group, closest }
+      return { type: 'suggestion', name: data.suggestion.name, group: data.suggestion.group }
     }
     if (data.result) {
       const match = categoryNames.find(c => c.toLowerCase() === data.result.toLowerCase())

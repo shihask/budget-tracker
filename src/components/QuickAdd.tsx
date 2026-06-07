@@ -25,6 +25,7 @@ const KEYWORD_CATS: [string[], string][] = [
   [['grocery', 'groceries', 'vegetable', 'rice', 'dal', 'flour', 'milk', 'bread', 'egg', 'fruit', 'supermarket', 'provision', 'store', 'market', 'sabzi'], 'Groceries'],
   [['medical', 'medicine', 'doctor', 'hospital', 'pharmacy', 'tablet', 'injection', 'clinic', 'health', 'lab', 'prescription'], 'Medical'],
   [['shopping', 'clothes', 'shirt', 'pants', 'dress', 'shoes', 'amazon', 'flipkart', 'mall', 'apparel'], 'Shopping'],
+  [['netflix', 'spotify', 'hotstar', 'prime video', 'youtube premium', 'disney', 'subscription', 'streaming'], 'Shopping'],
   [['electricity', 'electric', 'bill', 'internet', 'wifi', 'broadband', 'mobile recharge', 'recharge', 'bsnl', 'jio', 'airtel', 'kseb', 'utility'], 'Utilities'],
   [['loan', 'emi', 'mortgage', 'installment'], 'Loan EMI'],
   [['gold', 'jewel', 'chit', 'kuri', 'chitty'], 'Gold Scheme'],
@@ -256,10 +257,6 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
         if (cat) setValue('category_id', cat.id, { shouldValidate: true })
         setAiSuggestion(null)
       } else if (aiResult?.type === 'suggestion') {
-        if (aiResult.closest) {
-          const cat = catsRef.current.find(c => c.name === aiResult.closest)
-          if (cat) setValue('category_id', cat.id, { shouldValidate: true })
-        }
         setAiSuggestion({ name: aiResult.name, group: aiResult.group })
       }
       setAiCategorizing(false)
