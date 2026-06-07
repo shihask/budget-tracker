@@ -7,6 +7,7 @@ import { fmt, TODAY, iso } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
+import { categorizeWithAI } from '@/lib/gemini'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -101,7 +102,7 @@ interface QuickAddSheetProps {
   onClose: () => void
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
   state: AppState
-  onAddCategory: (name: string, group_name: string) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
 }
 
 export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: QuickAddSheetProps) {
@@ -133,8 +134,12 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
     dragStartY.current = null
   }
 
+  const [aiCategorizing, setAiCategorizing] = useState(false)
+
   const accs = state.accounts.filter(a => a.is_active)
   const cats = state.categories
+  const catsRef = useRef(cats)
+  catsRef.current = cats
 
   // Compute top 8 most-used expense descriptions from transaction history
   const topDescriptions = useMemo(() => {
@@ -217,18 +222,31 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
       setSmartInput('')
       setSmartParsed(null)
     }
-  }, [open, reset, accs.length, cats.length])
+  }, [open, reset])
 
   const descriptionVal = watch('description')
   const amountVal = watch('amount')
   const categoryVal = watch('category_id')
 
-  // Auto-detect category from description
+  // Auto-categorize: keyword instantly, then AI after 500ms debounce
+  // Uses catsRef so adding a new category doesn't re-trigger this effect
   useEffect(() => {
     if (!descriptionVal.trim()) return
-    const guessed = guessCategory(descriptionVal, cats)
+    const guessed = guessCategory(descriptionVal, catsRef.current)
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
-  }, [descriptionVal, cats, setValue])
+
+    setAiCategorizing(true)
+    const timer = setTimeout(async () => {
+      const catNames = catsRef.current.map(c => c.name)
+      const aiResult = await categorizeWithAI(descriptionVal, catNames)
+      if (aiResult) {
+        const cat = catsRef.current.find(c => c.name === aiResult)
+        if (cat) setValue('category_id', cat.id, { shouldValidate: true })
+      }
+      setAiCategorizing(false)
+    }, 500)
+    return () => { clearTimeout(timer); setAiCategorizing(false) }
+  }, [descriptionVal, setValue])
 
   const handleSmartInput = (text: string) => {
     setSmartInput(text)
@@ -490,7 +508,11 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Category {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  Category
+                  {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}
+                  {aiCategorizing && <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, opacity: 0.7 }}>✦ AI</span>}
+                </label>
                 <CategorySelect
                   value={categoryVal}
                   onChange={v => setValue('category_id', v, { shouldValidate: true })}

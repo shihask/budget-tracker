@@ -29,7 +29,7 @@ interface TransactionsPageProps {
   userEmail: string
   synced: boolean
   onSignOut: () => void
-  onAddCategory: (name: string, group_name: string) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
   onReversePayment: (t: Transaction) => Promise<void>
   initialEditTx?: Transaction | null
 }

@@ -6,7 +6,7 @@ interface Props {
   value: string
   onChange: (value: string) => void
   state: AppState
-  onAddCategory: (name: string, group_name: string) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
   style?: React.CSSProperties
   includeEmpty?: boolean
   emptyLabel?: string
@@ -18,21 +18,21 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
   const [newName, setNewName] = useState('')
   const [newGroup, setNewGroup] = useState('')
   const [saving, setSaving] = useState(false)
-  const [pendingName, setPendingName] = useState<string | null>(null)
+  const [pendingId, setPendingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const groups = state.groups
   const categories = state.categories
 
-  // After category is added, auto-select it
+  // Wait for the new category to appear in the options, then select it
   useEffect(() => {
-    if (!pendingName) return
-    const newCat = categories.find(c => c.name === pendingName)
-    if (newCat) {
-      onChange(newCat.id)
-      setPendingName(null)
+    if (!pendingId) return
+    const exists = categories.some(c => c.id === pendingId)
+    if (exists) {
+      onChange(pendingId)
+      setPendingId(null)
     }
-  }, [categories, pendingName, onChange])
+  }, [categories, pendingId, onChange])
 
   useEffect(() => {
     if (showAddModal) {
@@ -53,8 +53,8 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
   const handleAdd = async () => {
     if (!newName.trim() || !newGroup) return
     setSaving(true)
-    setPendingName(newName.trim())
-    await onAddCategory(newName.trim(), newGroup)
+    const newId = await onAddCategory(newName.trim(), newGroup)
+    setPendingId(newId)
     setShowAddModal(false)
     setSaving(false)
   }

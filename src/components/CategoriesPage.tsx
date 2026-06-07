@@ -8,7 +8,7 @@ interface Props {
   onAddGroup: (name: string) => Promise<void>
   onUpdateGroup: (id: string, name: string) => Promise<void>
   onDeleteGroup: (id: string, groupName: string) => Promise<void>
-  onAddCategory: (name: string, group_name: string) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
   onUpdateCategory: (id: string, name: string, group_name: string) => Promise<void>
   onDeleteCategory: (id: string) => Promise<void>
 }

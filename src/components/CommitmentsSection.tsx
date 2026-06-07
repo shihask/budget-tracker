@@ -44,7 +44,7 @@ interface Props {
   onAdd: (form: Omit<Commitment, 'id'>) => Promise<void>
   onUpdate: (id: string, form: Omit<Commitment, 'id'>) => Promise<void>
   onDelete: (id: string) => Promise<void>
-  onAddCategory: (name: string, group_name: string) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
 }
 
 export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDelete, onAddCategory }: Props) {

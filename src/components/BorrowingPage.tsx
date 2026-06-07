@@ -33,7 +33,7 @@ interface BorrowingPageProps {
   onUpdate: (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => Promise<void>
   onDelete: (id: string, deleteTransactions: boolean) => Promise<void>
   onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean, categoryId: string | null, addTransaction: boolean) => Promise<void>
-  onAddCategory: (name: string, group_name: string) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
   onClose: () => void
   onSwipeProgress?: (pct: number) => void
   dark: boolean

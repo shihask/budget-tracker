@@ -265,10 +265,11 @@ export function useSupabaseData(userId: string) {
   }, [userId])
 
   // ── Categories CRUD ──────────────────────────────────────────────────────────
-  const addCategory = useCallback(async (name: string, group_name: string) => {
+  const addCategory = useCallback(async (name: string, group_name: string): Promise<string> => {
     const { data, error } = await supabase.from('categories').insert({ name, group_name, user_id: userId }).select('*').single()
     if (error) throw error
     setState(s => ({ ...s, categories: [...s.categories, data as Category] }))
+    return (data as Category).id
   }, [userId])
 
   const updateCategory = useCallback(async (id: string, name: string, group_name: string) => {
