@@ -192,7 +192,7 @@ function AppContent({ session }: { session: Session }) {
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} /> : null
                       break
                     case 'renovation':
-                      el = <RenovationSection state={state} d={d} />
+                      el = <RenovationSection state={state} d={d} settings={state.settings} onUpdateSettings={updateSettings} />
                       break
                     case 'recent_txns':
                       el = <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />

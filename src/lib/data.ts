@@ -13,9 +13,6 @@ export const MONTH_START = getMonthStart(TODAY)
 const isLifestyle = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
   catMap[t.category_id!]?.group_name === 'Lifestyle'
 
-const isRenovation = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
-  catMap[t.category_id!]?.group_name === 'Renovation'
-
 export function derive(state: AppState): DerivedMetrics {
   const catMap = catById(state.categories)
   const accs = state.accounts.filter(a => a.is_active)
@@ -43,8 +40,9 @@ const remainingCommitments = state.commitments
   const weeklyRemaining = weeklyBudget - weeklySpent
   const weeklyPct = weeklyBudget ? (weeklySpent / weeklyBudget) * 100 : 0
 
+  const renovationGroupName = state.settings.renovation_group ?? 'Renovation'
   const renovationMonth = state.transactions
-    .filter(t => isRenovation(t, catMap) && new Date(t.transaction_date) >= MONTH_START)
+    .filter(t => catMap[t.category_id!]?.group_name === renovationGroupName && new Date(t.transaction_date) >= MONTH_START)
     .reduce((s, t) => s + t.amount, 0)
 
   return {

@@ -72,6 +72,7 @@ export interface Settings {
   track_credit_cards: boolean
   track_borrowings: boolean
   dashboard_sections?: DashboardSection[] | null
+  renovation_group?: string | null
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
