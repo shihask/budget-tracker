@@ -257,7 +257,13 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
         if (cat) setValue('category_id', cat.id, { shouldValidate: true })
         setAiSuggestion(null)
       } else if (aiResult?.type === 'suggestion') {
-        setAiSuggestion({ name: aiResult.name, group: aiResult.group })
+        // If a category with this name already exists, select it instead of suggesting to create
+        const existing = catsRef.current.find(c => c.name.toLowerCase() === aiResult.name.toLowerCase())
+        if (existing) {
+          setValue('category_id', existing.id, { shouldValidate: true })
+        } else {
+          setAiSuggestion({ name: aiResult.name, group: aiResult.group })
+        }
       }
       setAiCategorizing(false)
     }, 500)

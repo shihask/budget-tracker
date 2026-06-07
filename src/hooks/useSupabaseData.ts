@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard } from '@/types'
 
@@ -299,7 +299,13 @@ export function useSupabaseData(userId: string) {
   }, [userId])
 
   // ── Categories CRUD ──────────────────────────────────────────────────────────
+  const stateRef = useRef(state)
+  stateRef.current = state
+
   const addCategory = useCallback(async (name: string, group_name: string): Promise<string> => {
+    // Return existing category if one with the same name already exists (case-insensitive)
+    const existing = stateRef.current.categories.find(c => c.name.toLowerCase() === name.toLowerCase())
+    if (existing) return existing.id
     const { data, error } = await supabase.from('categories').insert({ name, group_name, user_id: userId }).select('*').single()
     if (error) throw error
     setState(s => ({ ...s, categories: [...s.categories, data as Category] }))
