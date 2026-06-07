@@ -98,11 +98,18 @@ ${groupLines}
     let suggestion: { name: string; group: string } | null = null
 
     const defaultGroup = (groupNames ?? []).find((g: string) => g !== 'Income' && g !== 'Transfer') ?? (groupNames?.[0] ?? 'Lifestyle')
-    const line = raw.split('\n')[0].trim()
+    const resolveGroup = (g: string) =>
+      (groupNames ?? []).find((n: string) => n.toLowerCase() === g.toLowerCase()) ?? defaultGroup
+
+    // Normalise: if AI skipped NEW: but still used "name | group" format, add prefix
+    const rawLine = raw.split('\n')[0].trim()
+    const line = (!rawLine.startsWith('NEW:') && rawLine.includes('|'))
+      ? 'NEW: ' + rawLine
+      : rawLine
 
     if (line.startsWith('NEW:')) {
       const parts = line.slice(4).split('|').map((s: string) => s.trim())
-      suggestion = { name: parts[0] ?? '', group: parts[1] ?? defaultGroup }
+      suggestion = { name: parts[0] ?? '', group: resolveGroup(parts[1] ?? defaultGroup) }
     } else {
       const exactMatch = categoryNames.find((c: string) => c.toLowerCase() === line.toLowerCase())
       if (exactMatch) {
