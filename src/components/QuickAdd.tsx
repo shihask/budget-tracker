@@ -231,7 +231,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
   const amountVal = watch('amount')
   const categoryVal = watch('category_id')
 
-  // Auto-categorize: keyword instantly, then AI after 500ms debounce
+  // Auto-categorize: keyword instantly, then AI after 1200ms debounce (min 4 chars)
   // Uses catsRef so adding a new category doesn't re-trigger this effect
   useEffect(() => {
     if (!descriptionVal.trim()) { setAiSuggestion(null); return }
@@ -246,6 +246,9 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
     const guessed = guessCategory(descriptionVal, catsRef.current)
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
     setAiSuggestion(null)
+
+    // Don't call AI for very short text — wait for meaningful input
+    if (descriptionVal.trim().length < 4) return
 
     setAiCategorizing(true)
     const timer = setTimeout(async () => {
@@ -266,7 +269,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory }: Q
         }
       }
       setAiCategorizing(false)
-    }, 500)
+    }, 1200)
     return () => { clearTimeout(timer); setAiCategorizing(false) }
   }, [descriptionVal, setValue, txType])
 
