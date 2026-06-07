@@ -378,7 +378,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 <div style={{ display: 'flex', gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>EMI Amount</label>
-                    <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
+                    <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
                       value={form.amount} onChange={e => handleAmountChange(e.target.value)}
                       placeholder="₹" min="0" style={inp} />
                   </div>
@@ -390,7 +390,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Total Amount</label>
-                    <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
+                    <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
                       value={form.total_amount} onChange={e => handleTotalChange(e.target.value)}
                       placeholder="₹" min="0" style={inp} />
                   </div>

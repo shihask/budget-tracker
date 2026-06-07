@@ -498,11 +498,11 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <Label>Total amount</Label>
-              <input type="number" value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
+              <input type="number" inputMode="decimal" value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
             </div>
             <div style={{ flex: 1 }}>
               <Label>Already paid</Label>
-              <input type="number" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
+              <input type="number" inputMode="decimal" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
             </div>
           </div>
           {!editingId && (
@@ -536,7 +536,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <Label>Payment amount</Label>
-            <input type="number" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
+            <input type="number" inputMode="decimal" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
           </div>
           <div>
             <Label>Direction</Label>

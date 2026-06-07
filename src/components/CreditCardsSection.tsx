@@ -344,7 +344,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     Credit Limit
                     <InfoIcon id="limit" text="The maximum amount you can spend on this card. Check your card statement or bank app." />
                   </label>
-                  <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
+                  <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>

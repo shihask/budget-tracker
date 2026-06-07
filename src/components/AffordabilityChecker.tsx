@@ -245,7 +245,7 @@ export function AffordabilityChecker({ d, settings }: Props) {
               </div>
               <div>
                 <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Amount (₹)</label>
-                <input type="number" inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value)}
+                <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
                   onFocus={e => e.target.select()} placeholder="0" style={inp} />
               </div>
             </div>

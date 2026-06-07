@@ -147,7 +147,7 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>₹</span>
                       <input
-                        type="number" value={editValue}
+                        type="number" inputMode="decimal" value={editValue}
                         onChange={e => setEditValue(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') confirmEdit(a.id); if (e.key === 'Escape') cancelEdit() }}
                         style={{ width: 100, background: c.surface2, border: `1.5px solid ${c.accent}`, borderRadius: 8, padding: '5px 8px', font: '700 13px Plus Jakarta Sans', color: c.ink, outline: 'none', boxSizing: 'border-box' }}
@@ -271,7 +271,7 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
                 <label style={lbl}>Opening balance</label>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
-                  <input type="number" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))}
+                  <input type="number" inputMode="decimal" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && handleAdd()}
                     placeholder="0" min="0" step="0.01"
                     style={{ ...inp, paddingLeft: 28 }} />

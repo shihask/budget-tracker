@@ -434,7 +434,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                   <Label>Amount</Label>
                   <input
                     type="number"
-                    inputMode="numeric"
+                    inputMode="decimal"
                     value={editForm.amount}
                     onChange={e => setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
                     onFocus={e => e.target.select()}

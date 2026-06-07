@@ -320,7 +320,7 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
                 <label style={lbl}>Weekly budget</label>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
-                  <input type="number" value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
+                  <input type="number" inputMode="decimal" value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSave()} placeholder="0" min="0"
                     style={{ ...inp, paddingLeft: 28 }} />
                 </div>

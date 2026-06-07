@@ -295,7 +295,7 @@ function AppContent({ session }: { session: Session }) {
               <div style={{ position: 'relative', marginBottom: 14 }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                 <input
-                  type="number" inputMode="numeric" autoFocus
+                  type="number" inputMode="decimal" autoFocus
                   value={emergencyInput}
                   onChange={e => setEmergencyInput(e.target.value)}
                   onFocus={e => e.target.select()}
