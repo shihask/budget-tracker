@@ -11,7 +11,7 @@ export const WEEK_START = getWeekStart(TODAY)
 export const MONTH_START = getMonthStart(TODAY)
 
 const isLifestyle = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
-  catMap[t.category_id!]?.group_name === 'Lifestyle'
+  t.transaction_type === 'expense' && catMap[t.category_id!]?.group_name === 'Lifestyle'
 
 export function derive(state: AppState): DerivedMetrics {
   const catMap = catById(state.categories)
