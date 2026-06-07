@@ -7,8 +7,8 @@
   </defs>
   <rect width="100" height="100" rx="22.5" fill="url(#bg)"/>
   <g fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 23 42 L 38 28 L 50 37 L 77 17"/>
-    <path d="M 77 17 L 63 18 M 77 17 L 78 31"/>
+    <path d="M 36 40 L 44 30 L 51 36 L 65 21"/>
+    <path d="M 65 21 L 57 22 M 65 21 L 66 29"/>
   </g>
   <text x="50" y="84"
     text-anchor="middle"
