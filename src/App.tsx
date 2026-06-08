@@ -206,7 +206,7 @@ function AppContent({ session }: { session: Session }) {
                 })
               }
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
-                MoneyPlant · {usingSupabase ? 'synced with Supabase' : 'local session data'}
+                <span style={{ color: c.ink }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span>{' · '}{usingSupabase ? 'synced with Supabase' : 'local session data'}
               </div>
             </div>
           </div>

@@ -154,7 +154,9 @@ export function AIChatSheet({ open, onClose, state }: AIChatSheetProps) {
                   <path d="M12 2L13.8 9.2L21 12L13.8 14.8L12 22L10.2 14.8L3 12L10.2 9.2L12 2Z" fill="white" />
                 </svg>
               </div>
-              <span style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>MoneyPlant AI</span>
+              <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em' }}>
+                <span style={{ color: c.ink }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span><span style={{ color: c.muted, fontWeight: 600 }}> AI</span>
+              </span>
             </div>
             <button
               onClick={onClose}

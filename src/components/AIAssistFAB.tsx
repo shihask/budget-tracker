@@ -74,7 +74,11 @@ export function AIAssistFAB({ onOpen }: AIAssistFABProps) {
 
   useEffect(() => {
     const move = (e: MouseEvent) => onMove(e.clientX, e.clientY)
-    const touchMove = (e: TouchEvent) => { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY) }
+    const touchMove = (e: TouchEvent) => {
+      if (!isDraggingRef.current) return
+      e.preventDefault()
+      onMove(e.touches[0].clientX, e.touches[0].clientY)
+    }
     const up = () => onEnd()
 
     window.addEventListener('mousemove', move)
@@ -114,7 +118,7 @@ export function AIAssistFAB({ onOpen }: AIAssistFABProps) {
         cursor: 'grab',
       }}>
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L13.8 9.2L21 12L13.8 14.8L12 22L10.2 14.8L3 12L10.2 9.2L12 2Z" fill={c.bg} />
+          <path d="M12 2L13.8 9.2L21 12L13.8 14.8L12 22L10.2 14.8L3 12L10.2 9.2L12 2Z" fill={c.good} />
         </svg>
       </div>
     </div>
