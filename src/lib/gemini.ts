@@ -2,6 +2,49 @@ import { supabase } from '@/lib/supabase'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
+export type AIParsedExpense = {
+  description: string | null
+  amount: number | null
+  account: string | null
+  category: string | null
+}
+
+export async function parseExpenseWithAI(
+  text: string,
+  categoryNames: string[],
+  accountNames: string[],
+  groupNames: string[]
+): Promise<AIParsedExpense | null> {
+  if (!text.trim()) return null
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ mode: 'parse', text, categoryNames, accountNames, groupNames }),
+    })
+
+    if (res.status === 429) { console.warn('AI quota reached (100/month)'); return null }
+    if (!res.ok) return null
+
+    const data = await res.json()
+    return {
+      description: data.description ?? null,
+      amount: data.amount ?? null,
+      account: data.account ?? null,
+      category: data.category ?? null,
+    }
+  } catch (e) {
+    console.error('[AI] parse failed:', e)
+    return null
+  }
+}
+
 export type AICategorizationResult =
   | { type: 'category'; name: string }
   | { type: 'suggestion'; name: string; group: string }

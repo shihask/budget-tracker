@@ -29,6 +29,8 @@ import { CreditCardsSection } from '@/components/CreditCardsSection'
 import { AffordabilityChecker } from '@/components/AffordabilityChecker'
 import { BottomSheet } from '@/components/BottomSheet'
 import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
+import { AIAssistFAB } from '@/components/AIAssistFAB'
+import { AIChatSheet } from '@/components/AIChatSheet'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -91,6 +93,7 @@ function AppContent({ session }: { session: Session }) {
   const [layout, setLayout] = useState<Layout>('grid')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
@@ -203,7 +206,7 @@ function AppContent({ session }: { session: Session }) {
                 })
               }
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
-                MoneyPlanet · {usingSupabase ? 'synced with Supabase' : 'local session data'}
+                MoneyPlant · {usingSupabase ? 'synced with Supabase' : 'local session data'}
               </div>
             </div>
           </div>
@@ -241,6 +244,10 @@ function AppContent({ session }: { session: Session }) {
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 60 }}>
             <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} />
           </div>
+
+          {/* AI Assist FAB + Chat */}
+          <AIAssistFAB onOpen={() => setChatOpen(true)} />
+          <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} />
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{

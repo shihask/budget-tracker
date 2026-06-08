@@ -43,7 +43,131 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { description, categoryNames, groupNames } = await req.json()
+    const body = await req.json()
+    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context } = body
+
+    // ── Chat mode: conversational finance assistant ──
+    if (mode === 'chat') {
+      if (!message) {
+        return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
+      }
+
+      const historyLines = (history ?? []).slice(-6).map((m: { role: string; text: string }) =>
+        `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`
+      ).join('\n')
+
+      const prompt = `You are MoneyPlant, a friendly personal finance assistant. Answer concisely in 1-3 sentences. Use ₹ for amounts. Be specific with numbers when relevant.
+
+User's current financial data:
+${context ?? ''}
+
+${historyLines ? `Conversation so far:\n${historyLines}\n` : ''}User: ${message}
+Assistant:`
+
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 150,
+          temperature: 0.4,
+        }),
+      })
+
+      if (!groqRes.ok) {
+        return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+
+      const groqData = await groqRes.json()
+      const reply = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
+
+      await db.from('settings').update({
+        ai_requests_used: used + 1,
+        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
+      }).eq('user_id', user.id)
+
+      return new Response(
+        JSON.stringify({ reply, used: used + 1, limit: MONTHLY_LIMIT }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ── Parse mode: extract description, amount, account, category from free text ──
+    if (mode === 'parse') {
+      if (!text) {
+        return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
+      }
+
+      const expenseCats = (categoryNames ?? []).filter((c: string) => {
+        // exclude Income/Transfer categories from parse suggestions
+        return true
+      })
+
+      const prompt = `Parse this expense entry and return JSON only. No markdown, no explanation.
+
+Input: "${text}"
+
+Accounts: ${(accountNames ?? []).join(', ') || 'none'}
+Categories: ${expenseCats.join(', ') || 'none'}
+
+Return exactly this JSON shape:
+{"description":"cleaned item name","amount":null,"account":null,"category":null}
+
+Rules:
+- description: the item/purpose only, cleaned up, fix obvious typos, remove amount/account/prepositions
+- amount: number without currency symbol, null if not mentioned
+- account: exact name from Accounts list, null if not mentioned or not in list
+- category: exact name from Categories list that best matches, null if unsure`
+
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 100,
+          temperature: 0,
+        }),
+      })
+
+      if (!groqRes.ok) {
+        return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+
+      const groqData = await groqRes.json()
+      const raw = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
+
+      let parsed: { description?: string; amount?: number | null; account?: string | null; category?: string | null } = {}
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/)
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0])
+      } catch {
+        parsed = { description: text }
+      }
+
+      const validAccount = (accountNames ?? []).find((a: string) => a.toLowerCase() === (parsed.account ?? '').toLowerCase()) ?? null
+      const validCategory = (categoryNames ?? []).find((c: string) => c.toLowerCase() === (parsed.category ?? '').toLowerCase()) ?? null
+
+      await db.from('settings').update({
+        ai_requests_used: used + 1,
+        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
+      }).eq('user_id', user.id)
+
+      return new Response(
+        JSON.stringify({
+          description: parsed.description ?? null,
+          amount: typeof parsed.amount === 'number' ? parsed.amount : null,
+          account: validAccount,
+          category: validCategory,
+          used: used + 1,
+          limit: MONTHLY_LIMIT,
+        }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ── Categorize mode (default) ──
     if (!description || !categoryNames?.length) {
       return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
     }

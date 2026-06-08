@@ -7,7 +7,7 @@ import { fmt, TODAY, iso } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
-import { categorizeWithAI } from '@/lib/gemini'
+import { categorizeWithAI, parseExpenseWithAI } from '@/lib/gemini'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -65,6 +65,12 @@ function guessCategory(description: string, categories: Category[]): string | nu
   return null
 }
 
+const STRIP_WORDS = new Set([
+  'from', 'for', 'at', 'in', 'on', 'to', 'the', 'a', 'an', 'by', 'via', 'with', 'using', 'through', 'of',
+  'bought', 'purchased', 'paid', 'spent', 'got', 'buy', 'get', 'paying',
+  'rs', 'inr', 'rupees', 'rupee',
+])
+
 function parseSmartInput(
   text: string,
   accounts: { id: string; name: string }[],
@@ -74,7 +80,8 @@ function parseSmartInput(
   let amount: number | null = null
   let amountIdx = -1
   for (let i = 0; i < tokens.length; i++) {
-    const n = parseFloat(tokens[i])
+    const t = tokens[i].replace(/^₹/, '')
+    const n = parseFloat(t)
     if (!isNaN(n) && n > 0) { amount = n; amountIdx = i; break }
   }
   const remaining = tokens.filter((_, i) => i !== amountIdx)
@@ -88,7 +95,9 @@ function parseSmartInput(
     )
     if (match) { accountId = match.id; accountIdx = i; break }
   }
-  const descTokens = remaining.filter((_, i) => i !== accountIdx)
+  const descTokens = remaining
+    .filter((_, i) => i !== accountIdx)
+    .filter(t => !STRIP_WORDS.has(t.toLowerCase()))
   const description = descTokens.join(' ')
   const categoryId = description ? guessCategory(description, categories) : null
   return { description, amount, accountId, categoryId }
@@ -154,8 +163,10 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   }
 
   const [aiCategorizing, setAiCategorizing] = useState(false)
+  const [aiParsing, setAiParsing] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<{ name: string; group: string } | null>(null)
   const [catSuggestions, setCatSuggestions] = useState<Category[]>([])
+  const aiJustParsed = useRef(false)
 
   const accs = state.accounts.filter(a => a.is_active)
   const cats = state.categories
@@ -244,6 +255,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       setSmartParsed(null)
       setAiSuggestion(null)
       setCatSuggestions([])
+      setAiParsing(false)
     }
   }, [open, reset])
 
@@ -254,6 +266,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   // Auto-categorize: name match → keyword → AI (1200ms debounce, min 4 chars)
   // Uses catsRef so adding a new category doesn't re-trigger this effect
   useEffect(() => {
+    if (aiJustParsed.current) { aiJustParsed.current = false; return }
     if (!descriptionVal.trim()) { setAiSuggestion(null); setCatSuggestions([]); return }
 
     if (txType === 'income') {
@@ -309,19 +322,58 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
   const handleSmartInput = (text: string) => {
     setSmartInput(text)
-    if (!text.trim()) { setSmartParsed(null); return }
+    if (!text.trim()) { setSmartParsed(null); setAiParsing(false) }
+  }
+
+  const handleSmartSubmit = async () => {
+    const text = smartInput.trim()
+    if (text.length < 2) return
+
     const allAccs = [
       ...accs.map(a => ({ id: a.id, name: a.name })),
       ...(state.credit_cards || []).map(cc => ({ id: cc.id, name: cc.name })),
     ]
-    const parsed = parseSmartInput(text, allAccs, cats)
-    if (parsed.description) setValue('description', parsed.description, { shouldValidate: true })
-    if (parsed.amount !== null) setValue('amount', parsed.amount, { shouldValidate: true })
-    if (parsed.accountId) setValue('from_account_id', parsed.accountId, { shouldValidate: true })
-    if (parsed.categoryId) setValue('category_id', parsed.categoryId, { shouldValidate: true })
-    const accountName = allAccs.find(a => a.id === parsed.accountId)?.name ?? null
-    const categoryName = cats.find(c => c.id === parsed.categoryId)?.name ?? null
-    setSmartParsed({ description: parsed.description, amount: parsed.amount, accountName, categoryName })
+
+    if (autopilotEnabled) {
+      setAiParsing(true)
+      const catNames = catsRef.current.filter(c => c.group_name !== 'Income').map(c => c.name)
+      const accNames = allAccs.map(a => a.name)
+      const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name))
+      setAiParsing(false)
+      if (!result) return
+
+      aiJustParsed.current = true
+      setCatSuggestions([])
+      setAiSuggestion(null)
+      if (result.description) setValue('description', result.description, { shouldValidate: true })
+      if (result.amount !== null) setValue('amount', result.amount, { shouldValidate: true })
+      if (result.account) {
+        const acc = allAccs.find(a => a.name === result.account)
+        if (acc) setValue('from_account_id', acc.id, { shouldValidate: true })
+      }
+      if (result.category) {
+        const cat = catsRef.current.find(c => c.name === result.category)
+        if (cat) setValue('category_id', cat.id, { shouldValidate: true })
+      }
+      setSmartParsed({
+        description: result.description ?? '',
+        amount: result.amount ?? null,
+        accountName: result.account ?? null,
+        categoryName: result.category ?? null,
+      })
+    } else {
+      const parsed = parseSmartInput(text, allAccs, cats)
+      if (parsed.description) setValue('description', parsed.description, { shouldValidate: true })
+      if (parsed.amount !== null) setValue('amount', parsed.amount, { shouldValidate: true })
+      if (parsed.accountId) setValue('from_account_id', parsed.accountId, { shouldValidate: true })
+      if (parsed.categoryId) setValue('category_id', parsed.categoryId, { shouldValidate: true })
+      setSmartParsed({
+        description: parsed.description,
+        amount: parsed.amount,
+        accountName: allAccs.find(a => a.id === parsed.accountId)?.name ?? null,
+        categoryName: cats.find(c => c.id === parsed.categoryId)?.name ?? null,
+      })
+    }
   }
 
   const applyQuick = (label: string, category_id: string | null) => {
@@ -412,11 +464,13 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         {isExpense && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: 0.5 }}>✦</span>
+              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: aiParsing ? 1 : 0.5, color: aiParsing ? c.accent : undefined, transition: 'color 0.2s' }}>✦</span>
               <input
                 value={smartInput}
                 onChange={e => handleSmartInput(e.target.value)}
-                placeholder='Try "petrol 150 axis"'
+                onKeyDown={e => e.key === 'Enter' && handleSmartSubmit()}
+                placeholder={autopilotEnabled ? 'e.g. "paid electricity bill 1200 via HDFC"' : 'e.g. "petrol 500 axis"'}
+                enterKeyHint="done"
                 style={{ ...inputStyle, paddingLeft: 36 }}
               />
             </div>
