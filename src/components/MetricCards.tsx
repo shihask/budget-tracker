@@ -73,6 +73,22 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
   }
 }
 
+const LEAF_METRIC_KEYS = new Set(['free', 'emerg'])
+
+function LeafHint({ text, color, metricKey }: { text: string; color: string; metricKey: string }) {
+  if (!LEAF_METRIC_KEYS.has(metricKey)) return <>{text}</>
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        style={{ width: 10, height: 10, flexShrink: 0 }}>
+        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+      </svg>
+      {text}
+    </span>
+  )
+}
+
 function buildMetrics(d: DerivedMetrics): Metric[] {
   return [
     { key: 'actual',  label: 'Actual Balance',      value: d.actualBalance,       hint: 'All active accounts',       tone: 'ink',    icon: 'wallet' },
@@ -126,7 +142,7 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
               </div>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 14 }}>{m.label}</div>
               <div style={{ font: '800 21px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 3 }}>{fmt(m.value)}</div>
-              <div style={{ font: '600 11px Plus Jakarta Sans', color: col, marginTop: 5 }}>{m.hint}</div>
+              <div style={{ font: '600 11px Plus Jakarta Sans', color: col, marginTop: 5 }}><LeafHint text={m.hint} color={col} metricKey={m.key} /></div>
             </div>
           )
         })}
@@ -149,7 +165,7 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ font: '600 14px Plus Jakarta Sans', color: c.ink }}>{m.label}</div>
-                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>{m.hint}</div>
+                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}><LeafHint text={m.hint} color={col} metricKey={m.key} /></div>
               </div>
               <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>{fmt(m.value)}</div>
             </div>
@@ -189,7 +205,7 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
               </div>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 12 }}>{m.label}</div>
               <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 2 }}>{fmt(m.value)}</div>
-              <div style={{ font: '600 11px Plus Jakarta Sans', color: col, marginTop: 4 }}>{m.hint}</div>
+              <div style={{ font: '600 11px Plus Jakarta Sans', color: col, marginTop: 4 }}><LeafHint text={m.hint} color={col} metricKey={m.key} /></div>
             </div>
           )
         })}

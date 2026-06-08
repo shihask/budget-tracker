@@ -111,6 +111,11 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
         boxShadow: c.heroShadow,
       }}>
         <div style={{ position: 'absolute', right: -40, top: -50, width: 180, height: 180, borderRadius: 999, background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
+        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"
+          style={{ position: 'absolute', left: -18, bottom: -22, width: 140, height: 140, transform: 'rotate(-25deg)', pointerEvents: 'none' }}>
+          <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+          <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+        </svg>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
           <div style={{ flex: 1 }}>

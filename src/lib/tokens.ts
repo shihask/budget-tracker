@@ -88,11 +88,16 @@ export const CAT_COLORS: Record<string, string> = {
   'Family': '#EC4899',
 }
 
-// Account colors
-export const ACC_COLORS: Record<string, string> = {
-  'Axis Bank': '#7C3AED',
-  'Federal Bank': '#0EA5E9',
-  'Cash': '#10B981',
-}
+// Account palette — assigned by index, not name
+export const ACCOUNT_PALETTE = [
+  '#3B82F6', // blue
+  '#10B981', // emerald
+  '#8B5CF6', // violet
+  '#F59E0B', // amber
+  '#06B6D4', // cyan
+  '#F97316', // orange
+  '#EC4899', // pink
+  '#6366F1', // indigo
+]
 
 export const ACCENT_OPTIONS = ['#10B981', '#0EA5E9', '#6366F1', '#F59E0B', '#EC4899']

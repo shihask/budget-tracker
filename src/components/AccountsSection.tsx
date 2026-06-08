@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { ACC_COLORS } from '@/lib/tokens'
+import { ACCOUNT_PALETTE } from '@/lib/tokens'
 import { Card } from './Card'
 import { Glyph } from './Glyph'
 import { BottomSheet } from './BottomSheet'
@@ -110,8 +110,8 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
         {/* Distribution bar */}
         {accs.length > 0 && (
           <div style={{ display: 'flex', height: 12, borderRadius: 999, overflow: 'hidden', gap: 2, marginBottom: 16 }}>
-            {accs.map(a => {
-              const color = ACC_COLORS[a.name] || c.accent
+            {accs.map((a, i) => {
+              const color = ACCOUNT_PALETTE[i % ACCOUNT_PALETTE.length]
               const w = Math.max(0, a.current_balance) / totalPos * 100
               return <div key={a.id} style={{ width: w + '%', background: color }} />
             })}
@@ -124,8 +124,8 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {accs.map(a => {
-              const color = ACC_COLORS[a.name] || c.accent
+            {accs.map((a, i) => {
+              const color = ACCOUNT_PALETTE[i % ACCOUNT_PALETTE.length]
               const share = Math.round(Math.max(0, a.current_balance) / totalPos * 100)
               const isEditing = editingId === a.id
               const isDeleting = deleting === a.id

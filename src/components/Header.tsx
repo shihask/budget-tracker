@@ -74,8 +74,8 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
           </g>
         </svg>
         <div>
-          <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>
-            MoneyPlanet
+          <div style={{ font: '800 15px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>
+            <span style={{ color: c.ink }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span>
           </div>
           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.01em', marginTop: 1 }}>
             {greeting}, {userName}

@@ -1,4 +1,4 @@
-# MoneyPlanet — Claude Code Reference
+# MoneyPlant — Claude Code Reference
 
 ## Stack
 React + TypeScript + Vite · Supabase (Postgres + Edge Functions) · deployed on Vercel  

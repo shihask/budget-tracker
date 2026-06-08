@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { CAT_COLORS, ACC_COLORS } from '@/lib/tokens'
+import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { Glyph } from './Glyph'
@@ -379,7 +379,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               const acc = state.accounts.find(a => a.id === t.from_account_id)
               const creditCard = !acc ? (state.credit_cards || []).find(cc => cc.id === t.from_account_id || cc.id === (t as any).credit_card_id) : null
               const accLabel = acc ? acc.name : creditCard ? creditCard.name : ''
-              const accColor = acc ? (ACC_COLORS[acc.name] || c.accent) : creditCard ? '#6366F1' : c.muted
+              const accIdx = acc ? state.accounts.findIndex(a => a.id === acc.id) : -1
+              const accColor = acc ? ACCOUNT_PALETTE[Math.max(0, accIdx) % ACCOUNT_PALETTE.length] : creditCard ? '#6366F1' : c.muted
               const isDeleting = deleting === t.id
               const prevDate = i > 0 ? filtered[i - 1].transaction_date : null
               const showDateHeader = t.transaction_date !== prevDate

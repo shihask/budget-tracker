@@ -141,7 +141,28 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
 
       <div style={rowStyle}>
         <div>
-          <div style={labelStyle}>Borrowing tracker</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={labelStyle}>Lend & Borrow tracker</div>
+            <div style={{ position: 'relative', display: 'inline-flex' }} className="info-tooltip-wrap">
+              <svg viewBox="0 0 20 20" width={14} height={14} fill="none" stroke={c.muted} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'default', flexShrink: 0 }}>
+                <circle cx="10" cy="10" r="8" />
+                <line x1="10" y1="9" x2="10" y2="14" />
+                <circle cx="10" cy="6.5" r="0.8" fill={c.muted} stroke="none" />
+              </svg>
+              <span style={{
+                position: 'absolute', left: '50%', bottom: '120%',
+                transform: 'translateX(-50%)',
+                background: c.ink, color: c.surface,
+                font: '600 10px Plus Jakarta Sans',
+                borderRadius: 7, padding: '5px 9px',
+                whiteSpace: 'nowrap', pointerEvents: 'none',
+                opacity: 0, transition: 'opacity 0.15s',
+                zIndex: 999,
+              }} className="info-tooltip">
+                Track money you lent to others or borrowed from them
+              </span>
+            </div>
+          </div>
           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Track money lent & borrowed</div>
         </div>
         <button

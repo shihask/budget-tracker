@@ -20,7 +20,7 @@ const SECTION_META: Record<DashboardSectionId, { label: string; desc: string }> 
   metrics:       { label: 'Your Money',            desc: 'Balance, savings & key metrics' },
   commitments:   { label: 'Commitments',           desc: 'Bills & recurring payments' },
   accounts:      { label: 'Accounts',              desc: 'Bank & cash account balances' },
-  borrowing:     { label: 'Borrowing',             desc: 'Money lent & borrowed' },
+  borrowing:     { label: 'Lend & Borrow',          desc: 'Money lent & borrowed' },
   credit_cards:  { label: 'Credit Cards',          desc: 'Card balances & due dates' },
   analytics:     { label: 'Analytics',             desc: 'Spending trends & charts' },
   recent_txns:   { label: 'Recent Transactions',   desc: 'Latest activity' },

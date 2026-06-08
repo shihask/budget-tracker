@@ -83,6 +83,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
+/* ── Info tooltip hover ────────────────────────────────────────────────────── */
+.info-tooltip-wrap:hover .info-tooltip { opacity: 1 !important; }
+
 /* ── Page slide animation ──────────────────────────────────────────────────── */
 @keyframes slideInFromRight {
   from { transform: translateX(100%); }
