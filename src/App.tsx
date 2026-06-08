@@ -203,7 +203,7 @@ function AppContent({ session }: { session: Session }) {
                 })
               }
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
-                MoneyPilot · {usingSupabase ? 'synced with Supabase' : 'local session data'}
+                MoneyPlanet · {usingSupabase ? 'synced with Supabase' : 'local session data'}
               </div>
             </div>
           </div>

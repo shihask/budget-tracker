@@ -100,7 +100,7 @@ export function PWAPrompt() {
         display: 'flex', alignItems: 'center', gap: 12,
         boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
       }}>
-        <img src="/pwa-64x64.png" alt="MoneyPilot" style={{ width: 44, height: 44, borderRadius: 11, flexShrink: 0 }} />
+        <img src="/pwa-64x64.png" alt="MoneyPlanet" style={{ width: 44, height: 44, borderRadius: 11, flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
           <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Install App</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Add to home screen for quick access</div>

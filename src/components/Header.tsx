@@ -61,16 +61,21 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
             </linearGradient>
           </defs>
           <rect width="100" height="100" rx="22.5" fill="url(#hbg)"/>
-          <g fill="none" stroke="#FFFFFF" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 34 34 L 43 23 L 52 29 L 66 16"/>
-            <path d="M 66 16 L 58 17 M 66 16 L 67 24"/>
+          <circle cx="50" cy="64" r="25.5" fill="none" stroke="#FFFFFF" strokeWidth="5.2"/>
+          <circle cx="50" cy="64" r="19.5" fill="none" stroke="#FFFFFF" strokeWidth="1.6" opacity="0.45"/>
+          <text x="50" y="65.5" textAnchor="middle" dominantBaseline="central"
+            fontFamily="'Plus Jakarta Sans', 'Montserrat', Arial, sans-serif" fontWeight="800" fontSize="30" fill="#FFFFFF">₹</text>
+          <path d="M50 42 V 26" fill="none" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round"/>
+          <path d="M49.4 33.5 C 41.6 33.5 36.2 29.1 34.3 21 C 42.1 21 47.5 25.4 49.4 33.5 Z" fill="#FFFFFF"/>
+          <path d="M50.6 33.5 C 58.4 33.5 63.8 29.1 65.7 21 C 57.9 21 52.5 25.4 50.6 33.5 Z" fill="#FFFFFF"/>
+          <g fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" opacity="0.42">
+            <path d="M46.5 30.5 C 43.5 28 40.5 25.8 37.5 24.5"/>
+            <path d="M53.5 30.5 C 56.5 28 59.5 25.8 62.5 24.5"/>
           </g>
-          <text x="50" y="76" textAnchor="middle"
-            fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="58" fill="#FFFFFF">₹</text>
         </svg>
         <div>
           <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>
-            MoneyPilot
+            MoneyPlanet
           </div>
           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.01em', marginTop: 1 }}>
             {greeting}, {userName}
