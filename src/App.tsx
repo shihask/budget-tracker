@@ -246,7 +246,7 @@ function AppContent({ session }: { session: Session }) {
           </div>
 
           {/* AI Assist FAB + Chat */}
-          <AIAssistFAB onOpen={() => setChatOpen(true)} />
+          <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} />
           <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} onSave={handleSave} />
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}

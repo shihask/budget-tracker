@@ -6,17 +6,33 @@ const EDGE_PAD = 14
 
 interface AIAssistFABProps {
   onOpen: () => void
+  containerWidth: number
 }
 
-export function AIAssistFAB({ onOpen }: AIAssistFABProps) {
+export function AIAssistFAB({ onOpen, containerWidth }: AIAssistFABProps) {
   const c = useTheme()
+
+  const getBounds = () => {
+    const margin = (window.innerWidth - containerWidth) / 2
+    return {
+      left: margin + EDGE_PAD,
+      right: margin + containerWidth - SIZE - EDGE_PAD,
+      mid: window.innerWidth / 2,
+    }
+  }
 
   const getInitialPos = () => {
     try {
       const saved = localStorage.getItem('ai-fab-pos')
-      if (saved) return JSON.parse(saved)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        const b = getBounds()
+        // Re-clamp saved position in case container width changed (e.g. mobile→desktop)
+        return { x: Math.min(Math.max(parsed.x, b.left), b.right), y: parsed.y }
+      }
     } catch {}
-    return { x: window.innerWidth - SIZE - EDGE_PAD, y: window.innerHeight * 0.62 }
+    const b = getBounds()
+    return { x: b.right, y: window.innerHeight * 0.62 }
   }
 
   const [pos, setPos] = useState(getInitialPos)
@@ -27,10 +43,9 @@ export function AIAssistFAB({ onOpen }: AIAssistFABProps) {
   const dragOffsetRef = useRef({ x: 0, y: 0 })
 
   const snapToEdge = (x: number, y: number) => {
+    const b = getBounds()
     const clampedY = Math.max(80, Math.min(y, window.innerHeight - SIZE - 60))
-    const snapX = x + SIZE / 2 < window.innerWidth / 2
-      ? EDGE_PAD
-      : window.innerWidth - SIZE - EDGE_PAD
+    const snapX = x + SIZE / 2 < b.mid ? b.left : b.right
     return { x: snapX, y: clampedY }
   }
 
@@ -71,6 +86,13 @@ export function AIAssistFAB({ onOpen }: AIAssistFABProps) {
     setIsSnapping(true)
     try { localStorage.setItem('ai-fab-pos', JSON.stringify(snapped)) } catch {}
   }, [onOpen])
+
+  useEffect(() => {
+    if (isDraggingRef.current) return
+    const snapped = snapToEdge(posRef.current.x, posRef.current.y)
+    posRef.current = snapped
+    setPos(snapped)
+  }, [containerWidth])
 
   useEffect(() => {
     const move = (e: MouseEvent) => onMove(e.clientX, e.clientY)
