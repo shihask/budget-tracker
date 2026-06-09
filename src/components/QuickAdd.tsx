@@ -397,14 +397,15 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const valid = isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal)
 
   return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: open ? 'auto' : 'none' }}>
-      <div onClick={() => { onClose(); setLongPressChip(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }} />
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: open ? 'auto' : 'none', touchAction: open ? 'none' : 'auto' }}>
+      <div onClick={() => { onClose(); setLongPressChip(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }} />
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, background: c.surface,
         borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '8px 18px calc(30px + env(safe-area-inset-bottom, 0px))',
         transform: open ? `translateY(${dragY}px)` : 'translateY(110%)',
         transition: dragY > 0 ? 'none' : 'transform 0.34s cubic-bezier(0.32,0.72,0,1)',
         boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', maxHeight: '88svh', overflowY: 'auto',
+        overscrollBehavior: 'contain', touchAction: 'pan-y',
       }}>
         <div
           onTouchStart={handleGrabStart}

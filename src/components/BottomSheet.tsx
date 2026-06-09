@@ -98,6 +98,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
         background: visible ? 'rgba(0,0,0,0.6)' : 'transparent',
         display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
         transition: 'background 0.3s ease',
+        touchAction: 'none',
       }}
     >
       <div
@@ -112,6 +113,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
           margin: '0 auto',
           overflowY: 'auto',
           overscrollBehavior: 'contain',
+          touchAction: 'pan-y',
           maxHeight,
           transform: visible ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)',
