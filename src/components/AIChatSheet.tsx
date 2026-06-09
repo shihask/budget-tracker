@@ -135,8 +135,8 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
       const parsed = await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name))
 
       if (parsed && parsed.amount && parsed.amount > 0) {
-        const account = allAccObjs.find(a => a.name.toLowerCase() === (parsed.account ?? '').toLowerCase())
-          ?? allAccObjs[0]
+        const matchedAccount = allAccObjs.find(a => a.name.toLowerCase() === (parsed.account ?? '').toLowerCase())
+        const account = matchedAccount ?? allAccObjs[0]
         const category = state.categories.find(c => c.name.toLowerCase() === (parsed.category ?? '').toLowerCase())
         const today = new Date().toISOString().split('T')[0]
 
@@ -157,9 +157,12 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
           date: today,
         }
         const verb = intent === 'income' ? 'income' : 'expense'
+        const accountNote = !matchedAccount && parsed.account
+          ? ` (couldn't find "${parsed.account}", used ${account.name})`
+          : ''
         setMessages(m => [...m, {
           role: 'ai',
-          text: `Done! Recorded ${verb} "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}.`,
+          text: `Done! Recorded ${verb} "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}${accountNote}.`,
           savedExpense,
         }])
       } else {
