@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
         `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`
       ).join('\n')
 
-      const prompt = `You are MoneyPlant AI, a friendly personal finance assistant. Answer concisely in 1-3 sentences. Use ₹ for amounts. Be specific with numbers when relevant.
+      const prompt = `You are MoneyPlant AI, a friendly personal finance assistant. Answer concisely in 1-3 sentences. Use ₹ for amounts. Be specific with numbers when relevant. The user may write in broken English, Hinglish, or Manglish — understand their intent and always reply in simple English.
 
 User's financial data:
 ${context ?? ''}
@@ -104,7 +104,8 @@ Assistant:`
         return true
       })
 
-      const prompt = `Parse this expense entry and return JSON only. No markdown, no explanation.
+      const prompt = `Parse this transaction entry and return JSON only. No markdown, no explanation.
+The user may write in broken English, Hinglish, Manglish (Malayalam+English), or short informal phrases — understand the intent.
 
 Input: "${text}"
 
@@ -115,10 +116,10 @@ Return exactly this JSON shape:
 {"description":"cleaned item name","amount":null,"account":null,"category":null}
 
 Rules:
-- description: the item/purpose only, cleaned up, fix obvious typos, remove amount/account/prepositions
+- description: the item/purpose only, cleaned up, fix typos, remove amount/account/filler words
 - amount: number without currency symbol, null if not mentioned
-- account: exact name from Accounts list, null if not mentioned or not in list
-- category: exact name from Categories list that best matches, null if unsure`
+- account: fuzzy-match to closest name in Accounts list (e.g. "aksis"→"Axis", "fedral"→"Federal"), null if no reasonable match
+- category: exact name from Categories list that best matches the item, null if unsure`
 
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',

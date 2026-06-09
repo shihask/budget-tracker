@@ -9,12 +9,11 @@ const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categoriz
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
 type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense }
 
-function detectTransactionIntent(text: string): 'expense' | 'income' | null {
+function guessTransactionType(text: string): 'income' | 'expense' {
   const lower = text.toLowerCase()
-  if (!/\d/.test(lower)) return null
-  if (/\b(received|receive|salary|income|earned|earn|credited|got paid|deposited|deposit)\b/.test(lower)) return 'income'
-  if (/\b(record|add|save|log|paid|pay|bought|buy|spent|spend|purchase|expense)\b/.test(lower)) return 'expense'
-  return null
+  return /\b(received|receive|salary|income|earned|earn|credited|got paid|deposited|deposit)\b/.test(lower)
+    ? 'income'
+    : 'expense'
 }
 
 function buildContext(state: AppState): string {
@@ -125,55 +124,60 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
       ...(state.credit_cards ?? []),
     ]
     const allAccNames = allAccObjs.map(a => a.name)
-    const intent = detectTransactionIntent(text)
-    const catNames = intent === 'income'
+    const txType = guessTransactionType(text)
+    const catNames = txType === 'income'
       ? state.categories.filter(c => c.group_name === 'Income').map(c => c.name)
       : state.categories.filter(c => c.group_name !== 'Income').map(c => c.name)
 
-    if (intent) {
-      // Use parse API — reliable structured extraction
-      const parsed = await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name))
+    // Always ask AI to parse — if it returns an amount it understood it as a transaction
+    const parsed = await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name))
 
-      if (parsed && parsed.amount && parsed.amount > 0) {
-        const matchedAccount = allAccObjs.find(a => a.name.toLowerCase() === (parsed.account ?? '').toLowerCase())
-        const account = matchedAccount ?? allAccObjs[0]
-        const category = state.categories.find(c => c.name.toLowerCase() === (parsed.category ?? '').toLowerCase())
-        const today = new Date().toISOString().split('T')[0]
+    if (parsed && parsed.amount && parsed.amount > 0) {
+      const matchedAccount = parsed.account
+        ? allAccObjs.find(a => a.name.toLowerCase() === parsed.account!.toLowerCase())
+        : null
 
-        onSave({
-          transaction_date: today,
-          description: parsed.description ?? text,
-          amount: parsed.amount,
-          transaction_type: intent,
-          category_id: category?.id ?? null,
-          from_account_id: account.id,
-        })
-
-        const savedExpense: SavedExpense = {
-          description: parsed.description ?? text,
-          amount: parsed.amount,
-          account: account.name,
-          category: category?.name ?? (intent === 'income' ? 'Income' : 'Uncategorized'),
-          date: today,
-        }
-        const verb = intent === 'income' ? 'income' : 'expense'
-        const accountNote = !matchedAccount && parsed.account
-          ? ` (couldn't find "${parsed.account}", used ${account.name})`
-          : ''
+      // If account couldn't be identified and there are multiple accounts, ask user
+      if (!matchedAccount && allAccObjs.length > 1) {
         setMessages(m => [...m, {
           role: 'ai',
-          text: `Done! Recorded ${verb} "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}${accountNote}.`,
-          savedExpense,
+          text: `Which account should I use? Your accounts: ${allAccObjs.map(a => a.name).join(', ')}.`,
         }])
-      } else {
-        const hint = intent === 'income' ? '"received salary 50000 axis"' : '"paid coffee 50 from cash"'
-        setMessages(m => [...m, { role: 'ai', text: `I couldn't parse that. Try: ${hint}.` }])
+        setLoading(false)
+        return
       }
+
+      const account = matchedAccount ?? allAccObjs[0]
+      const category = state.categories.find(c => c.name.toLowerCase() === (parsed.category ?? '').toLowerCase())
+      const today = new Date().toISOString().split('T')[0]
+
+      onSave({
+        transaction_date: today,
+        description: parsed.description ?? text,
+        amount: parsed.amount,
+        transaction_type: txType,
+        category_id: category?.id ?? null,
+        from_account_id: account.id,
+      })
+
+      const savedExpense: SavedExpense = {
+        description: parsed.description ?? text,
+        amount: parsed.amount,
+        account: account.name,
+        category: category?.name ?? (txType === 'income' ? 'Income' : 'Uncategorized'),
+        date: today,
+      }
+      const verb = txType === 'income' ? 'income' : 'expense'
+      setMessages(m => [...m, {
+        role: 'ai',
+        text: `Done! Recorded ${verb} "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}.`,
+        savedExpense,
+      }])
       setLoading(false)
       return
     }
 
-    // Regular Q&A
+    // No amount found — treat as Q&A
     const context = buildContext(state)
     const result = await chatWithAI(text, next.slice(-6), context, catNames, allAccNames)
     setMessages(m => [...m, { role: 'ai', text: result?.reply ?? 'Sorry, something went wrong.' }])
