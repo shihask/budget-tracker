@@ -88,7 +88,9 @@ export function AIChatSheet({ open, onClose, state }: AIChatSheetProps) {
 
   useEffect(() => {
     if (open) {
-      setMessages([{ role: 'ai', text: 'Hey! Ask me anything about your finances.' }])
+      if (messages.length === 0) {
+        setMessages([{ role: 'ai', text: 'Hey! Ask me anything about your finances.' }])
+      }
       setTimeout(() => inputRef.current?.focus(), 300)
     }
   }, [open])
@@ -157,14 +159,24 @@ export function AIChatSheet({ open, onClose, state }: AIChatSheetProps) {
                 <span style={{ color: c.ink }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span><span style={{ color: c.muted, fontWeight: 600 }}> AI</span>
               </span>
             </div>
-            <button
-              onClick={onClose}
-              style={{ width: 32, height: 32, borderRadius: 999, background: c.surface2, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.sub} strokeWidth="2.5" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {messages.length > 1 && (
+                <button
+                  onClick={() => setMessages([{ role: 'ai', text: 'Hey! Ask me anything about your finances.' }])}
+                  style={{ height: 32, borderRadius: 999, background: c.surface2, border: 'none', padding: '0 12px', font: '600 11px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                style={{ width: 32, height: 32, borderRadius: 999, background: c.surface2, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.sub} strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -199,6 +211,32 @@ export function AIChatSheet({ open, onClose, state }: AIChatSheetProps) {
           )}
           <div ref={bottomRef} style={{ height: 8 }} />
         </div>
+
+        {/* Suggestion chips */}
+        {messages.length <= 1 && (
+          <div style={{ padding: '8px 14px 4px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              'How much did I spend this week?',
+              "What's my top expense category?",
+              'Am I on budget?',
+              "What's my total balance?",
+              'How much have I spent on food?',
+            ].map(q => (
+              <button
+                key={q}
+                onClick={() => { setInput(q); setTimeout(() => inputRef.current?.focus(), 50) }}
+                style={{
+                  border: `1.5px solid ${c.faint}`, background: c.surface2,
+                  borderRadius: 999, padding: '7px 13px',
+                  font: '500 12px Plus Jakarta Sans', color: c.sub,
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Input */}
         <div style={{
