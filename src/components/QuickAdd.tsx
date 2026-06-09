@@ -7,7 +7,7 @@ import { fmt, TODAY, iso } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
-import { categorizeWithAI, parseExpenseWithAI } from '@/lib/gemini'
+import { parseExpenseWithAI } from '@/lib/gemini'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -144,6 +144,8 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const [quickAccountId, setQuickAccountId] = useState('')
   const [smartInput, setSmartInput] = useState('')
   const [smartParsed, setSmartParsed] = useState<{ description: string; amount: number | null; accountName: string | null; categoryName: string | null } | null>(null)
+  const smartInputRef = useRef<HTMLInputElement | null>(null)
+  const enterSubmittedRef = useRef(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
   const quickAmountRef = useRef<HTMLInputElement | null>(null)
@@ -162,7 +164,6 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
     dragStartY.current = null
   }
 
-  const [aiCategorizing, setAiCategorizing] = useState(false)
   const [aiParsing, setAiParsing] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<{ name: string; group: string } | null>(null)
   const [catSuggestions, setCatSuggestions] = useState<Category[]>([])
@@ -263,7 +264,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const amountVal = watch('amount')
   const categoryVal = watch('category_id')
 
-  // Auto-categorize: name match → keyword → AI (1200ms debounce, min 4 chars)
+  // Auto-categorize: name match → keyword fallback only
   // Uses catsRef so adding a new category doesn't re-trigger this effect
   useEffect(() => {
     if (aiJustParsed.current) { aiJustParsed.current = false; return }
@@ -295,30 +296,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
     const guessed = guessCategory(descriptionVal, catsRef.current)
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
     setAiSuggestion(null)
-
-    // 3. AI for unknown — only after meaningful input + pause, and only when AutoPilot is on
-    if (!autopilotEnabled || descriptionVal.trim().length < 4) return
-    setAiCategorizing(true)
-    const timer = setTimeout(async () => {
-      const catNames = catsRef.current.map(c => c.name)
-      const groupNames = state.groups.map(g => g.name)
-      const aiResult = await categorizeWithAI(descriptionVal, catNames, groupNames)
-      if (aiResult?.type === 'category') {
-        const cat = catsRef.current.find(c => c.name === aiResult.name)
-        if (cat) setValue('category_id', cat.id, { shouldValidate: true })
-        setAiSuggestion(null)
-      } else if (aiResult?.type === 'suggestion') {
-        const existing = catsRef.current.find(c => c.name.toLowerCase() === aiResult.name.toLowerCase())
-        if (existing) {
-          setValue('category_id', existing.id, { shouldValidate: true })
-        } else {
-          setAiSuggestion({ name: aiResult.name, group: aiResult.group })
-        }
-      }
-      setAiCategorizing(false)
-    }, 1200)
-    return () => { clearTimeout(timer); setAiCategorizing(false) }
-  }, [descriptionVal, setValue, txType, autopilotEnabled])
+  }, [descriptionVal, setValue, txType])
 
   const handleSmartInput = (text: string) => {
     setSmartInput(text)
@@ -328,6 +306,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const handleSmartSubmit = async () => {
     const text = smartInput.trim()
     if (text.length < 2) return
+    smartInputRef.current?.blur()
 
     const allAccs = [
       ...accs.map(a => ({ id: a.id, name: a.name })),
@@ -466,9 +445,19 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: aiParsing ? 1 : 0.5, color: aiParsing ? c.accent : undefined, transition: 'color 0.2s' }}>✦</span>
               <input
+                ref={smartInputRef}
                 value={smartInput}
                 onChange={e => handleSmartInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSmartSubmit()}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    enterSubmittedRef.current = true
+                    handleSmartSubmit()
+                  }
+                }}
+                onBlur={() => {
+                  if (enterSubmittedRef.current) { enterSubmittedRef.current = false; return }
+                  if (smartInput.trim().length >= 2) handleSmartSubmit()
+                }}
                 placeholder={autopilotEnabled ? 'e.g. "paid electricity bill 1200 via HDFC"' : 'e.g. "petrol 500 axis"'}
                 enterKeyHint="done"
                 style={{ ...inputStyle, paddingLeft: 36 }}
@@ -624,7 +613,6 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                 <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 5 }}>
                   Category
                   {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}
-                  {aiCategorizing && <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, opacity: 0.7 }}>✦ AI</span>}
                 </label>
                 <CategorySelect
                   value={categoryVal}
