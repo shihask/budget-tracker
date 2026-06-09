@@ -175,7 +175,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} />
                       break
                     case 'affordability':
-                      el = <AffordabilityChecker d={d} settings={state.settings} />
+                      el = <AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} />
                       break
                     case 'metrics':
                       el = <div>

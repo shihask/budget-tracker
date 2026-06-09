@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
-import type { DerivedMetrics, Settings } from '@/types'
+import { affordabilityInsightWithAI } from '@/lib/gemini'
+import type { DerivedMetrics, Settings, Transaction } from '@/types'
 
 interface Props {
   d: DerivedMetrics
   settings: Settings
+  transactions: Transaction[]
 }
 
 function daysUntil(dayOfMonth: number): number {
@@ -45,7 +47,7 @@ function StatusIcon({ tier, color }: { tier: 'safe' | 'risky' | 'no'; color: str
   )
 }
 
-export function AffordabilityChecker({ d, settings }: Props) {
+export function AffordabilityChecker({ d, settings, transactions }: Props) {
   const c = useTheme()
   const [open, setOpen] = useState(false)
   const [item, setItem] = useState('')
@@ -53,6 +55,22 @@ export function AffordabilityChecker({ d, settings }: Props) {
   const [checked, setChecked] = useState(false)
   const [showWhy, setShowWhy] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [aiInsight, setAiInsight] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+
+  const spendingData = useMemo(() => {
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 30)
+    const recent = transactions.filter(t =>
+      t.transaction_type === 'expense' && new Date(t.transaction_date) >= cutoff
+    )
+    const byGroup: Record<string, number> = {}
+    for (const t of recent) {
+      const g = t.category?.group_name ?? 'Other'
+      byGroup[g] = (byGroup[g] ?? 0) + t.amount
+    }
+    return { spendingByGroup: byGroup, totalSpent30d: recent.reduce((s, t) => s + t.amount, 0) }
+  }, [transactions])
 
   const freeMoney = d.realFreeMoney
   const weeklyBudget = d.weeklyBudget
@@ -69,8 +87,27 @@ export function AffordabilityChecker({ d, settings }: Props) {
     setChecked(true)
   }
 
-  const reset = () => { setItem(''); setAmount(''); setChecked(false); setShowWhy(false) }
+  const reset = () => { setItem(''); setAmount(''); setChecked(false); setShowWhy(false); setAiInsight(null); setAiLoading(false) }
   const close = () => { setOpen(false); reset() }
+
+  const getAIInsight = async () => {
+    const a = parseFloat(amount)
+    if (isNaN(a)) return
+    setAiLoading(true)
+    setAiInsight(null)
+    const daysLeft = settings.salary_date ? daysUntil(settings.salary_date) : null
+    const insight = await affordabilityInsightWithAI(item, a, {
+      freeMoney,
+      safePurchasingPower,
+      daysUntilSalary: daysLeft,
+      weeklyBudget,
+      weeklySpent: d.weeklySpent,
+      spendingByGroup: spendingData.spendingByGroup,
+      totalSpent30d: spendingData.totalSpent30d,
+    })
+    setAiInsight(insight ?? 'Could not get AI insight right now.')
+    setAiLoading(false)
+  }
 
   const amt = parseFloat(amount)
 
@@ -139,25 +176,54 @@ export function AffordabilityChecker({ d, settings }: Props) {
           background: `linear-gradient(135deg, #6366F1, #8B5CF6)`,
           color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
+          position: 'relative', overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Watermark sparkles */}
+        <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.09)" stroke="none"
+          style={{ position: 'absolute', right: -14, bottom: -18, width: 100, height: 100, pointerEvents: 'none', transform: 'rotate(15deg)' }}>
+          <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+        </svg>
+        <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.07)" stroke="none"
+          style={{ position: 'absolute', right: 100, top: -22, width: 64, height: 64, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
+          <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+        </svg>
+        <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.06)" stroke="none"
+          style={{ position: 'absolute', right: 52, bottom: -10, width: 40, height: 40, pointerEvents: 'none', transform: 'rotate(30deg)' }}>
+          <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+        </svg>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
           <div style={{ width: 36, height: 36, borderRadius: 11, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
-              <path d="M12 6v6l4 2"/>
+              <path d="M19 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2z"/>
+              <path d="M3 10h18"/>
+              <path d="M8 7V5a1 1 0 011-1h6a1 1 0 011 1v2"/>
+              <circle cx="16" cy="15" r="1" fill="#fff" stroke="none"/>
             </svg>
           </div>
           <div style={{ textAlign: 'left' }}>
-            <div style={{ font: '800 16px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>Can I Afford This?</div>
-            <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ font: '800 16px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>Can I Afford This?</span>
+              {settings.autopilot_enabled && (
+                <span style={{
+                  font: '700 10px Plus Jakarta Sans', letterSpacing: '0.04em',
+                  background: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.92)',
+                  borderRadius: 6, padding: '2px 7px', border: '1px solid rgba(255,255,255,0.25)',
+                }}>
+                  ✦ AI
+                </span>
+              )}
+            </div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>
               {hasWeeklyContext
                 ? `Safe to spend · ${fmt(Math.max(0, safePurchasingPower))}`
                 : `Based on real free money · ${fmt(freeMoney)}`}
             </div>
           </div>
         </div>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2.5" strokeLinecap="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2.5" strokeLinecap="round"
+          style={{ position: 'relative', flexShrink: 0 }}>
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       </button>
@@ -367,6 +433,66 @@ export function AffordabilityChecker({ d, settings }: Props) {
                 )}
               </div>
             </div>
+
+            {/* AI Insight */}
+            {!aiInsight && !aiLoading && (
+              <button
+                onClick={getAIInsight}
+                style={{
+                  width: '100%', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: 7, background: 'linear-gradient(135deg,#6366F114,#8B5CF614)',
+                  border: '1px solid #6366F130', borderRadius: 14, padding: '12px',
+                  font: '700 13px Plus Jakarta Sans', color: '#6366F1', cursor: 'pointer',
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                Get AI Insight
+              </button>
+            )}
+
+            {aiLoading && (
+              <div style={{
+                marginBottom: 14, borderRadius: 14, padding: '14px 16px',
+                background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)',
+                border: '1px solid #6366F122',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 7, background: '#6366F122', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  </div>
+                  <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>AI is thinking…</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {[100, 80, 60].map(w => (
+                    <div key={w} style={{ height: 10, borderRadius: 999, background: '#6366F118', width: `${w}%`, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {aiInsight && (
+              <div style={{
+                marginBottom: 14, borderRadius: 14, padding: '14px 16px',
+                background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)',
+                border: '1px solid #6366F130',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 7, background: '#6366F122', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  </div>
+                  <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>AI Insight</span>
+                </div>
+                <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6 }}>
+                  {aiInsight}
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={reset} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Check Another</button>
