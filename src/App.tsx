@@ -292,7 +292,7 @@ function AppContent({ session }: { session: Session }) {
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-            <SettingsPanel accent={accent} dark={dark} layout={layout} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} autopilotEnabled={state.settings.autopilot_enabled ?? false} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} onAutopilot={v => updateSettings({ autopilot_enabled: v })} onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }} />
+            <SettingsPanel accent={accent} dark={dark} layout={layout} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} autopilotEnabled={state.settings.autopilot_enabled ?? false} aiRequestsUsed={state.settings.ai_requests_used ?? 0} aiRequestsResetAt={state.settings.ai_requests_reset_at ?? null} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} onAutopilot={v => updateSettings({ autopilot_enabled: v })} onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }} />
           </>
         )}
 
