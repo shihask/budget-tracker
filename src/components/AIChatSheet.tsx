@@ -2,7 +2,6 @@ import { useRef, useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import type { AppState } from '@/types'
-import { fmt } from '@/lib/utils'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
