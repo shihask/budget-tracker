@@ -1,13 +1,17 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, iso } from '@/lib/utils'
+import { WEEK_START } from '@/lib/data'
 import { ProgressRing } from './ProgressRing'
 import { BottomSheet } from './BottomSheet'
-import type { DerivedMetrics, AppState } from '@/types'
+import type { DerivedMetrics, AppState, WeeklyBudgetScope } from '@/types'
 
 interface HeroWeeklyProps {
   d: DerivedMetrics
   settings: AppState['settings']
+  categories: AppState['categories']
+  groups: AppState['groups']
+  transactions: AppState['transactions']
   onUpdateSettings: (patch: Partial<AppState['settings']>) => Promise<void>
   editOpen: boolean
   onEditClose: () => void
@@ -45,7 +49,22 @@ function Row({ label, value, muted, accent, bad, bold }: { label: string; value:
   )
 }
 
-export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClose, onEditOpen }: HeroWeeklyProps) {
+const DEFAULT_SCOPE_GROUPS = ['Lifestyle']
+
+function scopeLabel(scope: WeeklyBudgetScope | null | undefined, categories: AppState['categories']): string {
+  if (!scope || (scope.groups.length === 0 && scope.categoryIds.length === 0)) return 'Lifestyle'
+  const parts: string[] = []
+  if (scope.groups.length > 0) parts.push(...scope.groups)
+  if (scope.categoryIds.length > 0) {
+    const catNames = scope.categoryIds.map(id => categories.find(c => c.id === id)?.name).filter(Boolean)
+    parts.push(...(catNames as string[]))
+  }
+  if (parts.length === 0) return 'Lifestyle'
+  if (parts.length <= 2) return parts.join(', ')
+  return `${parts.slice(0, 2).join(', ')} +${parts.length - 2}`
+}
+
+export function HeroWeekly({ d, settings, categories, groups, transactions, onUpdateSettings, editOpen, onEditClose, onEditOpen }: HeroWeeklyProps) {
   const c = useTheme()
   const pct = d.weeklyPct
   const status = pct > 100
@@ -60,12 +79,45 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
   const [popup, setPopup] = useState<'budget' | 'spent' | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
 
+  const initScopeGroups = () => {
+    const s = settings.weekly_budget_scope
+    if (!s || (s.groups.length === 0 && s.categoryIds.length === 0 && (!s.transactionIds || s.transactionIds.length === 0))) return DEFAULT_SCOPE_GROUPS
+    return s.groups
+  }
+  const [scopeGroups, setScopeGroups] = useState<string[]>(initScopeGroups)
+  const [scopeCategoryIds, setScopeCategoryIds] = useState<string[]>(settings.weekly_budget_scope?.categoryIds ?? [])
+  const [scopeTransactionIds, setScopeTransactionIds] = useState<string[]>(settings.weekly_budget_scope?.transactionIds ?? [])
+  const [showCatPicker, setShowCatPicker] = useState(false)
+  const [showTxnPicker, setShowTxnPicker] = useState(false)
+
   useEffect(() => {
     if (editOpen) {
       setSalaryDateInput(String(settings.salary_date || ''))
       setBudgetInput(String(settings.weekly_budget))
+      const s = settings.weekly_budget_scope
+      const isEmpty = !s || (s.groups.length === 0 && s.categoryIds.length === 0 && (!s.transactionIds || s.transactionIds.length === 0))
+      setScopeGroups(isEmpty ? DEFAULT_SCOPE_GROUPS : s!.groups)
+      setScopeCategoryIds(s?.categoryIds ?? [])
+      setScopeTransactionIds(s?.transactionIds ?? [])
+      setShowCatPicker(false)
+      setShowTxnPicker(false)
     }
-  }, [editOpen, settings.salary_date, settings.weekly_budget])
+  }, [editOpen, settings.salary_date, settings.weekly_budget, settings.weekly_budget_scope])
+
+  // This week's expense transactions (Mon–Sun)
+  const thisWeekTxns = useMemo(() =>
+    transactions.filter(t =>
+      t.transaction_type === 'expense' && new Date(t.transaction_date) >= WEEK_START
+    ).sort((a, b) => b.transaction_date.localeCompare(a.transaction_date)),
+    [transactions]
+  )
+
+  // Returns true if a transaction is already covered by the current group/category scope
+  const isCoveredByScope = (t: AppState['transactions'][0]) => {
+    const cat = categories.find(cat => cat.id === t.category_id)
+    if (!cat) return false
+    return scopeGroups.includes(cat.group_name) || scopeCategoryIds.includes(t.category_id ?? '')
+  }
 
   const cycle = useMemo(() => {
     const sd = parseInt(salaryDateInput)
@@ -87,11 +139,49 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
     if (isNaN(budget) || budget <= 0) return
     setSaving(true)
     try {
-      await onUpdateSettings({ weekly_budget: budget, salary_date: sd })
+      const scope: WeeklyBudgetScope = { groups: scopeGroups, categoryIds: scopeCategoryIds, transactionIds: scopeTransactionIds }
+      await onUpdateSettings({ weekly_budget: budget, salary_date: sd, weekly_budget_scope: scope })
       onEditClose()
     } catch (_) {}
     setSaving(false)
   }
+
+  const toggleGroup = (name: string) => {
+    setScopeGroups(prev => {
+      const next = prev.includes(name) ? prev.filter(g => g !== name) : [...prev, name]
+      // When adding a group, drop any hand-picked transactions now covered by it
+      if (!prev.includes(name)) {
+        setScopeTransactionIds(ids => ids.filter(id => {
+          const t = transactions.find(tx => tx.id === id)
+          const cat = categories.find(cat => cat.id === t?.category_id)
+          return cat?.group_name !== name
+        }))
+      }
+      return next
+    })
+  }
+
+  const toggleCategory = (id: string) => {
+    setScopeCategoryIds(prev => {
+      const next = prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+      // When adding a category, drop any hand-picked transactions now covered by it
+      if (!prev.includes(id)) {
+        setScopeTransactionIds(ids => ids.filter(txId => {
+          const t = transactions.find(tx => tx.id === txId)
+          return t?.category_id !== id
+        }))
+      }
+      return next
+    })
+  }
+
+  const toggleTransaction = (id: string) => {
+    setScopeTransactionIds(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    )
+  }
+
+  const expenseGroups = groups.filter(g => g.name !== 'Income' && g.name !== 'Transfer')
 
   const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: c.surface2,
@@ -159,6 +249,7 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
           <div onClick={() => setPopup('spent')} style={{ flex: 1, background: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 12px', cursor: 'pointer' }}>
             <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)' }}>Spent ⓘ</div>
             <div style={{ font: '800 16px Plus Jakarta Sans', color: '#fff', marginTop: 2 }}>{fmt(d.weeklySpent)}</div>
+            <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{scopeLabel(settings.weekly_budget_scope, categories)}</div>
           </div>
         </div>
       </div>
@@ -185,7 +276,7 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
                   title: "This week's spend",
-                  desc: 'Only Lifestyle category expenses from Monday to Sunday count. Bills and commitments are excluded.',
+                  desc: `Expenses from Monday to Sunday under: ${scopeLabel(settings.weekly_budget_scope, categories)}. Configure in budget settings.`,
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22V12M12 12L7 17M12 12l5 5"/><path d="M20 7a4 4 0 00-8 0"/><path d="M4 7a4 4 0 018 0"/></svg>,
@@ -260,7 +351,7 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '10px 12px', marginBottom: 4 }}>
-                  Sum of expense transactions this week tagged under Lifestyle categories.
+                  Expenses this week from: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong>
                 </div>
                 <Row label="Weekly spent" value={fmt(d.weeklySpent)} bold />
                 <Row label="Weekly budget" value={fmt(d.weeklyBudget)} muted />
@@ -326,6 +417,158 @@ export function HeroWeekly({ d, settings, onUpdateSettings, editOpen, onEditClos
                   )}
                 </div>
               )}
+
+              {/* Scope selector */}
+              <div>
+                <label style={lbl}>Track spending from</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {expenseGroups.map(g => {
+                    const active = scopeGroups.includes(g.name)
+                    return (
+                      <button key={g.id} onClick={() => toggleGroup(g.name)} style={{
+                        background: active ? c.accent : c.surface2,
+                        color: active ? '#fff' : c.ink,
+                        border: `1.5px solid ${active ? c.accent : c.faint}`,
+                        borderRadius: 999, padding: '6px 14px',
+                        font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}>
+                        {g.name}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Specific categories expander */}
+                <button onClick={() => setShowCatPicker(p => !p)} style={{
+                  marginTop: 10, background: 'none', border: 'none', padding: 0,
+                  font: '600 12px Plus Jakarta Sans', color: c.accent, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transform: showCatPicker ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                  {scopeCategoryIds.length > 0 ? `${scopeCategoryIds.length} specific categor${scopeCategoryIds.length === 1 ? 'y' : 'ies'} selected` : 'Pick specific categories'}
+                </button>
+
+                {showCatPicker && (
+                  <div style={{ marginTop: 10, background: c.surface2, borderRadius: 14, padding: '10px 12px', maxHeight: 220, overflowY: 'auto' }}>
+                    {expenseGroups.map(g => {
+                      const groupCats = categories.filter(cat => cat.group_name === g.name)
+                      if (groupCats.length === 0) return null
+                      return (
+                        <div key={g.id} style={{ marginBottom: 10 }}>
+                          <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{g.name}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {groupCats.map(cat => {
+                              const active = scopeCategoryIds.includes(cat.id)
+                              return (
+                                <button key={cat.id} onClick={() => toggleCategory(cat.id)} style={{
+                                  background: active ? c.accentSoft : c.surface,
+                                  color: active ? c.accent : c.ink,
+                                  border: `1.5px solid ${active ? c.accent : c.faint}`,
+                                  borderRadius: 8, padding: '4px 10px',
+                                  font: '600 12px Plus Jakarta Sans', cursor: 'pointer',
+                                }}>
+                                  {cat.name}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {scopeCategoryIds.length > 0 && (
+                      <button onClick={() => setScopeCategoryIds([])} style={{
+                        marginTop: 4, background: 'none', border: 'none', padding: 0,
+                        font: '600 11px Plus Jakarta Sans', color: c.bad, cursor: 'pointer',
+                      }}>
+                        Clear category selection
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Transaction picker */}
+              <div>
+                <button onClick={() => setShowTxnPicker(p => !p)} style={{
+                  background: 'none', border: 'none', padding: 0,
+                  font: '600 12px Plus Jakarta Sans', color: c.accent, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transform: showTxnPicker ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                  {scopeTransactionIds.length > 0
+                    ? `${scopeTransactionIds.length} specific transaction${scopeTransactionIds.length === 1 ? '' : 's'} added`
+                    : 'Add specific transactions this week'}
+                </button>
+
+                {showTxnPicker && (
+                  <div style={{ marginTop: 10, background: c.surface2, borderRadius: 14, padding: '10px 12px', maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {thisWeekTxns.length === 0 && (
+                      <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, textAlign: 'center', padding: '12px 0' }}>No expense transactions this week</div>
+                    )}
+                    {thisWeekTxns.map(t => {
+                      const cat = categories.find(cat => cat.id === t.category_id)
+                      const covered = isCoveredByScope(t)
+                      const selected = scopeTransactionIds.includes(t.id)
+                      const disabled = covered
+
+                      return (
+                        <button
+                          key={t.id}
+                          disabled={disabled}
+                          onClick={() => !disabled && toggleTransaction(t.id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                            background: selected ? c.accentSoft : c.surface,
+                            border: `1.5px solid ${selected ? c.accent : covered ? c.faint : c.faint}`,
+                            borderRadius: 10, padding: '8px 10px', cursor: disabled ? 'default' : 'pointer',
+                            opacity: covered ? 0.5 : 1, textAlign: 'left',
+                          }}
+                        >
+                          {/* Checkbox indicator */}
+                          <div style={{
+                            width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                            border: `2px solid ${selected ? c.accent : covered ? c.muted : c.faint}`,
+                            background: selected ? c.accent : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {selected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 6 5 9 10 3"/></svg>}
+                          </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ font: '600 13px Plus Jakarta Sans', color: covered ? c.muted : c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {t.description || '—'}
+                            </div>
+                            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1, display: 'flex', gap: 6 }}>
+                              <span>{iso(new Date(t.transaction_date)).slice(5).replace('-', '/')}</span>
+                              {cat && <span style={{ background: covered ? c.surface2 : c.accentSoft, color: covered ? c.muted : c.accent, borderRadius: 4, padding: '0 5px' }}>{cat.name}</span>}
+                              {covered && <span style={{ color: c.muted }}>· via {cat?.group_name ?? 'scope'}</span>}
+                            </div>
+                          </div>
+
+                          <div style={{ font: '700 13px Plus Jakarta Sans', color: selected ? c.accent : covered ? c.muted : c.ink, flexShrink: 0 }}>
+                            {fmt(t.amount)}
+                          </div>
+                        </button>
+                      )
+                    })}
+                    {scopeTransactionIds.length > 0 && (
+                      <button onClick={() => setScopeTransactionIds([])} style={{
+                        marginTop: 2, background: 'none', border: 'none', padding: 0,
+                        font: '600 11px Plus Jakarta Sans', color: c.bad, cursor: 'pointer', alignSelf: 'flex-start',
+                      }}>
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label style={lbl}>Weekly budget</label>

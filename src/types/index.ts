@@ -64,6 +64,12 @@ export interface Borrowing {
   direction: 'lent' | 'borrowed'
 }
 
+export interface WeeklyBudgetScope {
+  groups: string[]
+  categoryIds: string[]
+  transactionIds: string[]
+}
+
 export interface Settings {
   id: string
   weekly_budget: number
@@ -73,6 +79,7 @@ export interface Settings {
   track_borrowings: boolean
   autopilot_enabled: boolean
   dashboard_sections?: DashboardSection[] | null
+  weekly_budget_scope?: WeeklyBudgetScope | null
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)

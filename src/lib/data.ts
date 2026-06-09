@@ -13,6 +13,23 @@ export const MONTH_START = getMonthStart(TODAY)
 const isLifestyle = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
   t.transaction_type === 'expense' && catMap[t.category_id!]?.group_name === 'Lifestyle'
 
+function makeScopeFilter(state: AppState) {
+  const scope = state.settings.weekly_budget_scope
+  const hasGroupOrCat = scope && (scope.groups.length > 0 || scope.categoryIds.length > 0)
+  const hasTxn = scope && scope.transactionIds && scope.transactionIds.length > 0
+
+  if (!hasGroupOrCat && !hasTxn) return isLifestyle
+
+  return (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) => {
+    if (t.transaction_type !== 'expense') return false
+    if (hasTxn && scope!.transactionIds.includes(t.id)) return true
+    if (!hasGroupOrCat) return false
+    const cat = catMap[t.category_id ?? '']
+    return (scope!.groups.length > 0 && scope!.groups.includes(cat?.group_name ?? '')) ||
+           (scope!.categoryIds.length > 0 && scope!.categoryIds.includes(t.category_id ?? ''))
+  }
+}
+
 export function derive(state: AppState): DerivedMetrics {
   const catMap = catById(state.categories)
   const accs = state.accounts.filter(a => a.is_active)
@@ -34,8 +51,9 @@ const remainingCommitments = state.commitments
   const realFreeMoney = availableBalance - remainingCommitments
 
   const weeklyBudget = state.settings.weekly_budget
+  const matchesScope = makeScopeFilter(state)
   const weeklySpent = state.transactions
-    .filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= WEEK_START)
+    .filter(t => matchesScope(t, catMap) && new Date(t.transaction_date) >= WEEK_START)
     .reduce((s, t) => s + t.amount, 0)
   const weeklyRemaining = weeklyBudget - weeklySpent
   const weeklyPct = weeklyBudget ? (weeklySpent / weeklyBudget) * 100 : 0
