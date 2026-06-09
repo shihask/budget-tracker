@@ -104,6 +104,15 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
         setMessages([{ role: 'ai', text: 'Hey! Ask me anything about your finances.' }])
       }
       setTimeout(() => inputRef.current?.focus(), 300)
+      document.body.style.overflow = 'hidden'
+      document.body.style.touchAction = 'none'
+    } else {
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
     }
   }, [open])
 
@@ -200,7 +209,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
     <div style={{ position: 'fixed', inset: 0, zIndex: 95, pointerEvents: open ? 'auto' : 'none' }}>
       <div
         onClick={onClose}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }}
       />
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0,
@@ -253,7 +262,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {messages.map((m, i) => (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
               <div style={{

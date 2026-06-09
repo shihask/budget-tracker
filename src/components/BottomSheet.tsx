@@ -21,9 +21,13 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
     if (open) {
       setMounted(true)
       const id = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
+      document.body.style.overflow = 'hidden'
+      document.body.style.touchAction = 'none'
       return () => cancelAnimationFrame(id)
     } else {
       setVisible(false)
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
       const t = setTimeout(() => setMounted(false), 340)
       return () => clearTimeout(t)
     }
@@ -91,7 +95,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex,
-        background: visible ? 'rgba(0,0,0,0.45)' : 'transparent',
+        background: visible ? 'rgba(0,0,0,0.6)' : 'transparent',
         display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
         transition: 'background 0.3s ease',
       }}
@@ -107,6 +111,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
           width: '100%',
           margin: '0 auto',
           overflowY: 'auto',
+          overscrollBehavior: 'contain',
           maxHeight,
           transform: visible ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)',
