@@ -9,10 +9,12 @@ const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categoriz
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
 type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense }
 
-function isExpenseIntent(text: string): boolean {
+function detectTransactionIntent(text: string): 'expense' | 'income' | null {
   const lower = text.toLowerCase()
-  return /\d/.test(lower) &&
-    /\b(record|add|save|log|paid|pay|bought|buy|spent|spend|purchase|expense)\b/.test(lower)
+  if (!/\d/.test(lower)) return null
+  if (/\b(received|receive|salary|income|earned|earn|credited|got paid|deposited|deposit)\b/.test(lower)) return 'income'
+  if (/\b(record|add|save|log|paid|pay|bought|buy|spent|spend|purchase|expense)\b/.test(lower)) return 'expense'
+  return null
 }
 
 function buildContext(state: AppState): string {
@@ -123,9 +125,12 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
       ...(state.credit_cards ?? []),
     ]
     const allAccNames = allAccObjs.map(a => a.name)
-    const catNames = state.categories.filter(c => c.group_name !== 'Income').map(c => c.name)
+    const intent = detectTransactionIntent(text)
+    const catNames = intent === 'income'
+      ? state.categories.filter(c => c.group_name === 'Income').map(c => c.name)
+      : state.categories.filter(c => c.group_name !== 'Income').map(c => c.name)
 
-    if (isExpenseIntent(text)) {
+    if (intent) {
       // Use parse API — reliable structured extraction
       const parsed = await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name))
 
@@ -139,7 +144,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
           transaction_date: today,
           description: parsed.description ?? text,
           amount: parsed.amount,
-          transaction_type: 'expense',
+          transaction_type: intent,
           category_id: category?.id ?? null,
           from_account_id: account.id,
         })
@@ -148,16 +153,18 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
           description: parsed.description ?? text,
           amount: parsed.amount,
           account: account.name,
-          category: category?.name ?? 'Uncategorized',
+          category: category?.name ?? (intent === 'income' ? 'Income' : 'Uncategorized'),
           date: today,
         }
+        const verb = intent === 'income' ? 'income' : 'expense'
         setMessages(m => [...m, {
           role: 'ai',
-          text: `Done! Recorded "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}.`,
+          text: `Done! Recorded ${verb} "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}.`,
           savedExpense,
         }])
       } else {
-        setMessages(m => [...m, { role: 'ai', text: "I couldn't parse that expense. Try: \"paid coffee 50 from cash\"." }])
+        const hint = intent === 'income' ? '"received salary 50000 axis"' : '"paid coffee 50 from cash"'
+        setMessages(m => [...m, { role: 'ai', text: `I couldn't parse that. Try: ${hint}.` }])
       }
       setLoading(false)
       return
