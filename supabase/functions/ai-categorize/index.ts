@@ -52,29 +52,17 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
       }
 
-      const today = new Date().toISOString().split('T')[0]
       const historyLines = (history ?? []).slice(-6).map((m: { role: string; text: string }) =>
         `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`
       ).join('\n')
 
-      const expenseCatNames = (categoryNames ?? []).filter((c: string) => c !== 'Income' && c !== 'Transfer')
-
-      const prompt = `You are MoneyPlant AI, a friendly personal finance assistant. Always respond with valid JSON only — no markdown, no extra text.
+      const prompt = `You are MoneyPlant AI, a friendly personal finance assistant. Answer concisely in 1-3 sentences. Use ₹ for amounts. Be specific with numbers when relevant.
 
 User's financial data:
 ${context ?? ''}
 
-Available accounts: ${(accountNames ?? []).join(', ')}
-Available expense categories: ${expenseCatNames.join(', ')}
-Today: ${today}
-
-${historyLines ? `Conversation:\n${historyLines}\n` : ''}User: ${message}
-
-If the user wants to record/add/save/log an expense, respond:
-{"reply":"Done! I've recorded [description] ₹[amount] under [category] from [account].","expense":{"description":"cleaned item name","amount":0,"account":"exact account name from list","category":"exact category name from list","date":"${today}"}}
-
-For all other messages, respond:
-{"reply":"Your concise answer in 1-3 sentences using ₹ for amounts.","expense":null}`
+${historyLines ? `Conversation so far:\n${historyLines}\n` : ''}User: ${message}
+Assistant:`
 
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -82,8 +70,8 @@ For all other messages, respond:
         body: JSON.stringify({
           model: 'llama-3.1-8b-instant',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 200,
-          temperature: 0.3,
+          max_tokens: 150,
+          temperature: 0.4,
         }),
       })
 
@@ -92,22 +80,7 @@ For all other messages, respond:
       }
 
       const groqData = await groqRes.json()
-      const raw = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
-
-      let reply = ''
-      let expense: { description: string; amount: number; account: string; category: string; date: string } | null = null
-      try {
-        const jsonMatch = raw.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0])
-          reply = parsed.reply ?? raw
-          expense = parsed.expense ?? null
-        } else {
-          reply = raw
-        }
-      } catch {
-        reply = raw
-      }
+      const reply = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
 
       await db.from('settings').update({
         ai_requests_used: used + 1,
@@ -115,7 +88,7 @@ For all other messages, respond:
       }).eq('user_id', user.id)
 
       return new Response(
-        JSON.stringify({ reply, expense, used: used + 1, limit: MONTHLY_LIMIT }),
+        JSON.stringify({ reply, expense: null, used: used + 1, limit: MONTHLY_LIMIT }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }

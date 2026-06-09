@@ -1,12 +1,19 @@
 import { useRef, useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
+import { parseExpenseWithAI } from '@/lib/gemini'
 import type { AppState, Transaction } from '@/types'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
 type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense }
+
+function isExpenseIntent(text: string): boolean {
+  const lower = text.toLowerCase()
+  return /\d/.test(lower) &&
+    /\b(record|add|save|log|paid|pay|bought|buy|spent|spend|purchase|expense)\b/.test(lower)
+}
 
 function buildContext(state: AppState): string {
   const activeAccs = state.accounts.filter(a => a.is_active)
@@ -111,43 +118,55 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
     setMessages(next)
     setLoading(true)
 
-    const context = buildContext(state)
-    const allAccs = [
-      ...state.accounts.filter(a => a.is_active).map(a => a.name),
-      ...(state.credit_cards ?? []).map(cc => cc.name),
+    const allAccObjs = [
+      ...state.accounts.filter(a => a.is_active),
+      ...(state.credit_cards ?? []),
     ]
+    const allAccNames = allAccObjs.map(a => a.name)
     const catNames = state.categories.filter(c => c.group_name !== 'Income').map(c => c.name)
-    const result = await chatWithAI(text, next.slice(-6), context, catNames, allAccs)
 
-    if (!result) {
-      setMessages(m => [...m, { role: 'ai', text: 'Sorry, something went wrong.' }])
-      setLoading(false)
-      return
-    }
+    if (isExpenseIntent(text)) {
+      // Use parse API — reliable structured extraction
+      const parsed = await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name))
 
-    let savedExpense: SavedExpense | undefined
-    if (result.expense) {
-      const exp = result.expense
-      const account = [
-        ...state.accounts.filter(a => a.is_active),
-        ...(state.credit_cards ?? []),
-      ].find(a => a.name.toLowerCase() === exp.account.toLowerCase())
-      const category = state.categories.find(c => c.name.toLowerCase() === exp.category.toLowerCase())
+      if (parsed && parsed.amount && parsed.amount > 0) {
+        const account = allAccObjs.find(a => a.name.toLowerCase() === (parsed.account ?? '').toLowerCase())
+          ?? allAccObjs[0]
+        const category = state.categories.find(c => c.name.toLowerCase() === (parsed.category ?? '').toLowerCase())
+        const today = new Date().toISOString().split('T')[0]
 
-      if (account && exp.amount > 0) {
         onSave({
-          transaction_date: exp.date,
-          description: exp.description,
-          amount: exp.amount,
+          transaction_date: today,
+          description: parsed.description ?? text,
+          amount: parsed.amount,
           transaction_type: 'expense',
           category_id: category?.id ?? null,
           from_account_id: account.id,
         })
-        savedExpense = exp
+
+        const savedExpense: SavedExpense = {
+          description: parsed.description ?? text,
+          amount: parsed.amount,
+          account: account.name,
+          category: category?.name ?? 'Uncategorized',
+          date: today,
+        }
+        setMessages(m => [...m, {
+          role: 'ai',
+          text: `Done! Recorded "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}.`,
+          savedExpense,
+        }])
+      } else {
+        setMessages(m => [...m, { role: 'ai', text: "I couldn't parse that expense. Try: \"paid coffee 50 from cash\"." }])
       }
+      setLoading(false)
+      return
     }
 
-    setMessages(m => [...m, { role: 'ai', text: result.reply, savedExpense }])
+    // Regular Q&A
+    const context = buildContext(state)
+    const result = await chatWithAI(text, next.slice(-6), context, catNames, allAccNames)
+    setMessages(m => [...m, { role: 'ai', text: result?.reply ?? 'Sorry, something went wrong.' }])
     setLoading(false)
   }
 
