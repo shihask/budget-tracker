@@ -127,7 +127,7 @@ export function FAB({ onClick }: FABProps) {
 interface QuickAddSheetProps {
   open: boolean
   onClose: () => void
-  onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
+  onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => void
   state: AppState
   onAddCategory: (name: string, group_name: string) => Promise<string>
   autopilotEnabled?: boolean
@@ -135,7 +135,8 @@ interface QuickAddSheetProps {
 
 export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false }: QuickAddSheetProps) {
   const c = useTheme()
-  const [txType, setTxType] = useState<'expense' | 'income'>('expense')
+  const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>('expense')
+  const [transferToAccountId, setTransferToAccountId] = useState('')
   const amountRef = useRef<HTMLInputElement | null>(null)
 
   // Long press quick save
@@ -249,9 +250,11 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   useEffect(() => {
     if (open) {
       const firstAccount = accs[0]?.id || ''
+      const secondAccount = accs[1]?.id || ''
       const firstCat = cats.find(c => c.group_name === 'Lifestyle')?.id || cats[0]?.id || ''
       reset({ date: iso(TODAY), description: '', amount: 0, category_id: firstCat, from_account_id: firstAccount })
       setTxType('expense')
+      setTransferToAccountId(secondAccount)
       setSmartInput('')
       setSmartParsed(null)
       setAiSuggestion(null)
@@ -371,14 +374,27 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   }
 
   const onSubmit = (data: FormValues) => {
-    onSave({
-      transaction_date: data.date,
-      description: data.description,
-      amount: data.amount,
-      transaction_type: txType as TransactionType,
-      category_id: data.category_id || null,
-      from_account_id: data.from_account_id,
-    })
+    if (txType === 'transfer') {
+      onSave({
+        transaction_date: data.date,
+        description: data.description.trim() || 'Transfer',
+        amount: data.amount,
+        transaction_type: 'transfer',
+        category_id: null,
+        from_account_id: data.from_account_id,
+        to_account_id: transferToAccountId || null,
+      })
+    } else {
+      onSave({
+        transaction_date: data.date,
+        description: data.description,
+        amount: data.amount,
+        transaction_type: txType as TransactionType,
+        category_id: data.category_id || null,
+        from_account_id: data.from_account_id,
+        to_account_id: null,
+      })
+    }
     onClose()
   }
 
@@ -393,8 +409,11 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   }
 
   const isExpense = txType === 'expense'
-  const typeColor = isExpense ? c.bad : c.good
-  const valid = isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal)
+  const isTransfer = txType === 'transfer'
+  const fromAccountId = watch('from_account_id')
+  const typeColor = isTransfer ? c.accent : isExpense ? c.bad : c.good
+  const transferValid = isTransfer && amountVal > 0 && !!fromAccountId && !!transferToAccountId && transferToAccountId !== fromAccountId
+  const valid = isTransfer ? transferValid : (isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal))
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: open ? 'auto' : 'none', touchAction: open ? 'none' : 'auto' }}>
@@ -418,30 +437,37 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ font: '800 19px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
-            {isExpense ? 'Add Expense' : 'Add Income'}
+            {isTransfer ? 'Transfer' : isExpense ? 'Add Expense' : 'Add Income'}
           </div>
           <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 999, background: c.surface2, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <Glyph name="close" color={c.sub} size={16} />
           </button>
         </div>
 
-        {/* Expense / Income toggle */}
+        {/* Expense / Income / Transfer toggle */}
         <div style={{ display: 'flex', background: c.surface2, borderRadius: 14, padding: 4, marginBottom: 16, gap: 4 }}>
-          {(['expense', 'income'] as const).map(t => (
-            <button key={t} type="button" onClick={() => setTxType(t)} style={{
-              flex: 1, border: 'none', borderRadius: 11, padding: '9px 0',
-              font: '700 13px Plus Jakarta Sans',
-              background: txType === t ? (t === 'income' ? c.good : c.accent) : 'transparent',
-              color: txType === t ? '#fff' : c.muted,
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}>
-              {t === 'expense' ? '↑ Expense' : '↓ Income'}
-            </button>
-          ))}
+          {(['expense', 'income', 'transfer'] as const).map(t => {
+            const active = txType === t
+            const bg = active ? (t === 'income' ? c.good : t === 'transfer' ? c.accent : c.bad) : 'transparent'
+            return (
+              <button key={t} type="button" onClick={() => {
+                setTxType(t)
+                if (t === 'transfer') setValue('description', 'Transfer', { shouldValidate: true })
+                else if (descriptionVal === 'Transfer') setValue('description', '', { shouldValidate: false })
+              }} style={{
+                flex: 1, border: 'none', borderRadius: 11, padding: '9px 0',
+                font: '700 13px Plus Jakarta Sans',
+                background: bg, color: active ? '#fff' : c.muted,
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}>
+                {t === 'expense' ? '↑ Out' : t === 'income' ? '↓ In' : '⇄ Move'}
+              </button>
+            )
+          })}
         </div>
 
         {/* Smart input */}
-        {isExpense && (
+        {isExpense && !isTransfer && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: aiParsing ? 1 : 0.5, color: aiParsing ? c.accent : undefined, transition: 'color 0.2s' }}>✦</span>
@@ -492,7 +518,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         )}
 
         {/* Quick chips — expense only, dynamic from history */}
-        {isExpense && (
+        {isExpense && !isTransfer && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: '72px', overflow: 'hidden' }}>
               {(topDescriptions.length === 0
@@ -591,7 +617,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         <form onSubmit={handleSubmit(onSubmit)}>
           <div style={{ textAlign: 'center', marginBottom: 18 }}>
             <span style={{ font: '700 22px Plus Jakarta Sans', color: typeColor, verticalAlign: 'middle', marginRight: 4 }}>
-              {isExpense ? '−₹' : '+₹'}
+              {isTransfer ? '⇄₹' : isExpense ? '−₹' : '+₹'}
             </span>
             <input
               {...register('amount', { valueAsNumber: true })}
@@ -604,89 +630,122 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label style={labelStyle}>Description</label>
-              <input {...register('description')} placeholder={isExpense ? 'e.g. Evening Tea' : 'e.g. Salary'}
-                style={{ ...inputStyle, borderColor: errors.description ? c.bad : c.faint }} />
-            </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  Category
-                  {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}
-                </label>
-                <CategorySelect
-                  value={categoryVal}
-                  onChange={v => setValue('category_id', v, { shouldValidate: true })}
-                  state={state}
-                  onAddCategory={onAddCategory}
-                  style={inputStyle}
-                  includeEmpty={txType === 'income'}
-                  emptyLabel="No category"
-                  filterGroup={txType === 'income' ? 'Income' : undefined}
-                />
-                {catSuggestions.length > 1 && (
-                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {catSuggestions.map(cat => {
-                      const active = categoryVal === cat.id
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => { setValue('category_id', cat.id, { shouldValidate: true }); setCatSuggestions([]) }}
-                          style={{
-                            border: `1.5px solid ${active ? c.accent : c.faint}`,
-                            background: active ? c.accentSoft : c.surface2,
-                            borderRadius: 8, padding: '5px 10px', cursor: 'pointer',
-                            font: '600 12px Plus Jakarta Sans',
-                            color: active ? c.accent : c.ink,
-                            display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1,
-                          }}
-                        >
-                          {cat.name}
-                          <span style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{cat.group_name}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-                {aiSuggestion && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const newId = await onAddCategory(aiSuggestion.name, aiSuggestion.group)
-                      setValue('category_id', newId, { shouldValidate: true })
-                      setAiSuggestion(null)
-                    }}
-                    style={{
-                      marginTop: 6, width: '100%', border: `1.5px dashed ${c.accent}`,
-                      background: c.accentSoft, borderRadius: 10, padding: '7px 10px',
-                      font: '600 12px Plus Jakarta Sans', color: c.accent,
-                      cursor: 'pointer', textAlign: 'left',
-                    }}
-                  >
-                    ✦ Create "{aiSuggestion.name}" in {aiSuggestion.group}?
-                  </button>
-                )}
+            {!isTransfer && (
+              <div>
+                <label style={labelStyle}>Description</label>
+                <input {...register('description')} placeholder={isExpense ? 'e.g. Evening Tea' : 'e.g. Salary'}
+                  style={{ ...inputStyle, borderColor: errors.description ? c.bad : c.faint }} />
               </div>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Account</label>
-                <select {...register('from_account_id')} style={inputStyle}>
-                  <optgroup label="Bank / Cash">
+            )}
+
+            {isTransfer ? (
+              /* Transfer: From → To accounts */
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>From</label>
+                  <select {...register('from_account_id')} style={inputStyle}>
                     {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </optgroup>
-                  {isExpense && (state.credit_cards || []).length > 0 && (
-                    <optgroup label="Credit Cards">
-                      {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
-                    </optgroup>
-                  )}
-                </select>
+                  </select>
+                </div>
+                <div style={{ color: c.accent, font: '700 18px Plus Jakarta Sans', marginTop: 18, flexShrink: 0 }}>→</div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>To</label>
+                  <select
+                    value={transferToAccountId}
+                    onChange={e => setTransferToAccountId(e.target.value)}
+                    style={{ ...inputStyle, borderColor: transferToAccountId === fromAccountId && fromAccountId ? c.bad : c.faint }}
+                  >
+                    {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    Category
+                    {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}
+                  </label>
+                  <CategorySelect
+                    value={categoryVal}
+                    onChange={v => setValue('category_id', v, { shouldValidate: true })}
+                    state={state}
+                    onAddCategory={onAddCategory}
+                    style={inputStyle}
+                    includeEmpty={txType === 'income'}
+                    emptyLabel="No category"
+                    filterGroup={txType === 'income' ? 'Income' : undefined}
+                  />
+                  {catSuggestions.length > 1 && (
+                    <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {catSuggestions.map(cat => {
+                        const active = categoryVal === cat.id
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => { setValue('category_id', cat.id, { shouldValidate: true }); setCatSuggestions([]) }}
+                            style={{
+                              border: `1.5px solid ${active ? c.accent : c.faint}`,
+                              background: active ? c.accentSoft : c.surface2,
+                              borderRadius: 8, padding: '5px 10px', cursor: 'pointer',
+                              font: '600 12px Plus Jakarta Sans',
+                              color: active ? c.accent : c.ink,
+                              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1,
+                            }}
+                          >
+                            {cat.name}
+                            <span style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{cat.group_name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {aiSuggestion && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const newId = await onAddCategory(aiSuggestion.name, aiSuggestion.group)
+                        setValue('category_id', newId, { shouldValidate: true })
+                        setAiSuggestion(null)
+                      }}
+                      style={{
+                        marginTop: 6, width: '100%', border: `1.5px dashed ${c.accent}`,
+                        background: c.accentSoft, borderRadius: 10, padding: '7px 10px',
+                        font: '600 12px Plus Jakarta Sans', color: c.accent,
+                        cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      ✦ Create "{aiSuggestion.name}" in {aiSuggestion.group}?
+                    </button>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Account</label>
+                  <select {...register('from_account_id')} style={inputStyle}>
+                    <optgroup label="Bank / Cash">
+                      {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </optgroup>
+                    {isExpense && (state.credit_cards || []).length > 0 && (
+                      <optgroup label="Credit Cards">
+                        {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              </div>
+            )}
+
             <div>
               <label style={labelStyle}>Date</label>
               <input type="date" {...register('date')} style={inputStyle} />
             </div>
+
+            {isTransfer && transferToAccountId === fromAccountId && fromAccountId && (
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.bad, textAlign: 'center' }}>
+                From and To accounts must be different
+              </div>
+            )}
           </div>
 
           <button type="submit" disabled={!valid} style={{
@@ -695,7 +754,13 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
             background: valid ? typeColor : c.faint, color: valid ? '#fff' : c.muted,
             boxShadow: valid ? `0 6px 16px ${typeColor}55` : 'none', transition: 'all 0.2s',
           }}>
-            {valid ? `${isExpense ? 'Save Expense' : 'Add Income'}  ·  ${fmt(amountVal)}` : 'Enter amount & description'}
+            {valid
+              ? isTransfer
+                ? `Transfer  ·  ${fmt(amountVal)}`
+                : `${isExpense ? 'Save Expense' : 'Add Income'}  ·  ${fmt(amountVal)}`
+              : isTransfer
+                ? 'Enter amount & select accounts'
+                : 'Enter amount & description'}
           </button>
         </form>
       </div>

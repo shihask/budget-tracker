@@ -16,12 +16,13 @@ type EditForm = {
   transaction_type: TransactionType
   category_id: string
   from_account_id: string
+  to_account_id: string
 }
 
 interface TransactionsPageProps {
   state: AppState
   onDelete: (t: Transaction) => Promise<void>
-  onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<void>
+  onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => Promise<void>
   onClose: () => void
   onSwipeProgress?: (pct: number) => void
   dark: boolean
@@ -188,6 +189,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       transaction_type: t.transaction_type,
       category_id: t.category_id || '',
       from_account_id: t.from_account_id || (t as any).credit_card_id || '',
+      to_account_id: t.to_account_id || '',
     })
   }
 
@@ -206,6 +208,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         transaction_type: editForm.transaction_type,
         category_id: editForm.category_id || null,
         from_account_id: editForm.from_account_id || null,
+        to_account_id: editForm.transaction_type === 'transfer' ? (editForm.to_account_id || null) : null,
       })
       closeEdit()
     } catch (_) {}
@@ -387,7 +390,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               const col = (cat && CAT_COLORS[cat.name]) || c.muted
               const acc = state.accounts.find(a => a.id === t.from_account_id)
               const creditCard = !acc ? (state.credit_cards || []).find(cc => cc.id === t.from_account_id || cc.id === (t as any).credit_card_id) : null
-              const accLabel = acc ? acc.name : creditCard ? creditCard.name : ''
+              const toAcc = t.transaction_type === 'transfer' && t.to_account_id ? state.accounts.find(a => a.id === t.to_account_id) : null
+              const accLabel = toAcc
+                ? `${acc?.name || '?'} → ${toAcc.name}`
+                : acc ? acc.name : creditCard ? creditCard.name : ''
               const accIdx = acc ? state.accounts.findIndex(a => a.id === acc.id) : -1
               const accColor = acc ? ACCOUNT_PALETTE[Math.max(0, accIdx) % ACCOUNT_PALETTE.length] : creditCard ? '#6366F1' : c.muted
               const isDeleting = deleting === t.id
@@ -416,8 +422,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : c.bad }}>
-                        {t.transaction_type === 'income' ? '+' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                      <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : t.transaction_type === 'transfer' ? c.accent : c.bad }}>
+                        {t.transaction_type === 'income' ? '+' : t.transaction_type === 'transfer' ? '⇄' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
                       </div>
                       <button
                         onClick={e => { e.stopPropagation(); handleDelete(t) }}
@@ -482,20 +488,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
               <div>
                 <Label>Type</Label>
-                <select
-                  value={editForm.transaction_type}
-                  onChange={e => {
-                    const newType = e.target.value as TransactionType
-                    const noCardTypes = ['income', 'borrowing']
-                    const isCreditCard = (state.credit_cards || []).some(cc => cc.id === editForm.from_account_id)
-                    setEditForm(f => f ? {
-                      ...f,
-                      transaction_type: newType,
-                      from_account_id: noCardTypes.includes(newType) && isCreditCard ? (accounts[0]?.id || '') : f.from_account_id,
-                    } : f)
-                  }}
-                  style={inp}
-                >
+                <select value={editForm.transaction_type} disabled style={{ ...inp, opacity: 0.5, cursor: 'not-allowed' }}>
                   <option value="expense">Expense</option>
                   <option value="income">Income</option>
                   <option value="transfer">Transfer</option>
@@ -506,20 +499,22 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
+                {editForm.transaction_type !== 'transfer' && (
+                  <div style={{ flex: 1 }}>
+                    <Label>Category</Label>
+                    <CategorySelect
+                      value={editForm.category_id}
+                      onChange={v => setEditForm(f => f ? { ...f, category_id: v } : f)}
+                      state={state}
+                      onAddCategory={onAddCategory}
+                      style={inp}
+                      includeEmpty
+                      emptyLabel="No category"
+                    />
+                  </div>
+                )}
                 <div style={{ flex: 1 }}>
-                  <Label>Category</Label>
-                  <CategorySelect
-                    value={editForm.category_id}
-                    onChange={v => setEditForm(f => f ? { ...f, category_id: v } : f)}
-                    state={state}
-                    onAddCategory={onAddCategory}
-                    style={inp}
-                    includeEmpty
-                    emptyLabel="No category"
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <Label>Account</Label>
+                  <Label>{editForm.transaction_type === 'transfer' ? 'From' : 'Account'}</Label>
                   <select
                     value={editForm.from_account_id}
                     onChange={e => setEditForm(f => f ? { ...f, from_account_id: e.target.value } : f)}
@@ -529,13 +524,28 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     <optgroup label="Bank / Cash">
                       {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </optgroup>
-                    {(state.credit_cards || []).length > 0 && !['income', 'borrowing'].includes(editForm.transaction_type) && (
+                    {(state.credit_cards || []).length > 0 && !['income', 'borrowing', 'transfer'].includes(editForm.transaction_type) && (
                       <optgroup label="Credit Cards">
                         {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                       </optgroup>
                     )}
                   </select>
                 </div>
+                {editForm.transaction_type === 'transfer' && (
+                  <div style={{ flex: 1 }}>
+                    <Label>To</Label>
+                    <select
+                      value={editForm.to_account_id}
+                      onChange={e => setEditForm(f => f ? { ...f, to_account_id: e.target.value } : f)}
+                      style={inp}
+                    >
+                      <option value="">No account</option>
+                      <optgroup label="Bank / Cash">
+                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </optgroup>
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 

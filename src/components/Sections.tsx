@@ -110,7 +110,11 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
         const cat = catMap[t.category_id!]
         const col = (cat && CAT_COLORS[cat.name]) || c.muted
         const acc = acctById[t.from_account_id!]
+        const toAcc = t.transaction_type === 'transfer' && t.to_account_id ? acctById[t.to_account_id] : null
         const isDeleting = deleting === t.id
+        const subLabel = toAcc
+          ? `${acc?.name || '?'} → ${toAcc.name}`
+          : `${cat ? cat.name : 'Other'} · ${acc ? acc.name : ''}`
         return (
           <div
             key={t.id}
@@ -122,12 +126,12 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
-              <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted }}>{cat ? cat.name : 'Other'} · {acc ? acc.name : ''}</div>
+              <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted }}>{subLabel}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : c.bad }}>
-                  {t.transaction_type === 'income' ? '+' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : t.transaction_type === 'transfer' ? c.accent : c.bad }}>
+                  {t.transaction_type === 'income' ? '+' : t.transaction_type === 'transfer' ? '⇄' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
                 </div>
                 <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted }}>{fmtDate(t.transaction_date)}</div>
               </div>

@@ -155,10 +155,11 @@ export function useSupabaseData(userId: string) {
   }, [userId])
 
   const addTransaction = useCallback(async (
-    form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>
+    form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }
   ) => {
     try {
       const isCreditCard = state.credit_cards.some(c => c.id === form.from_account_id)
+      const toAccountId = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
       const { data: newTx, error: txErr } = await supabase
         .from('transactions')
         .insert({
@@ -169,7 +170,7 @@ export function useSupabaseData(userId: string) {
           category_id: form.category_id,
           from_account_id: isCreditCard ? null : form.from_account_id,
           credit_card_id: isCreditCard ? form.from_account_id : null,
-          to_account_id: null,
+          to_account_id: toAccountId,
           notes: '',
           user_id: userId,
         })
@@ -193,10 +194,19 @@ export function useSupabaseData(userId: string) {
           const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', form.from_account_id).single()
           if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + delta(form.transaction_type, form.amount) }).eq('id', form.from_account_id)
         }
+        if (toAccountId) {
+          const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', toAccountId).single()
+          if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance + form.amount }).eq('id', toAccountId)
+        }
         setState(s => ({
           ...s,
           transactions: [newTx as Transaction, ...s.transactions],
-          accounts: s.accounts.map(a => a.id === form.from_account_id ? { ...a, current_balance: a.current_balance + delta(form.transaction_type, form.amount) } : a),
+          accounts: s.accounts.map(a => {
+            let bal = a.current_balance
+            if (a.id === form.from_account_id) bal += delta(form.transaction_type, form.amount)
+            if (toAccountId && a.id === toAccountId) bal += form.amount
+            return bal !== a.current_balance ? { ...a, current_balance: bal } : a
+          }),
         }))
       }
     } catch (err) { console.error('Failed to save transaction:', err); throw err }
@@ -209,33 +219,53 @@ export function useSupabaseData(userId: string) {
         const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
         if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - delta(t.transaction_type, t.amount) }).eq('id', t.from_account_id)
       }
+      if (t.transaction_type === 'transfer' && t.to_account_id) {
+        const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', t.to_account_id).single()
+        if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance - t.amount }).eq('id', t.to_account_id)
+      }
       setState(s => ({
         ...s,
         transactions: s.transactions.filter(tx => tx.id !== t.id),
-        accounts: s.accounts.map(a => a.id === t.from_account_id ? { ...a, current_balance: a.current_balance - delta(t.transaction_type, t.amount) } : a),
+        accounts: s.accounts.map(a => {
+          let bal = a.current_balance
+          if (a.id === t.from_account_id) bal -= delta(t.transaction_type, t.amount)
+          if (t.transaction_type === 'transfer' && a.id === t.to_account_id) bal -= t.amount
+          return bal !== a.current_balance ? { ...a, current_balance: bal } : a
+        }),
       }))
     } catch (err) { console.error('Failed to delete transaction:', err); throw err }
   }, [])
 
   const updateTransaction = useCallback(async (
     old: Transaction,
-    form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>
+    form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }
   ) => {
     try {
+      const toAccountId = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
       const { data: updated, error } = await supabase
         .from('transactions')
-        .update({ transaction_date: form.transaction_date, description: form.description, amount: form.amount, transaction_type: form.transaction_type, category_id: form.category_id, from_account_id: form.from_account_id })
+        .update({ transaction_date: form.transaction_date, description: form.description, amount: form.amount, transaction_type: form.transaction_type, category_id: form.category_id, from_account_id: form.from_account_id, to_account_id: toAccountId })
         .eq('id', old.id)
         .select('*, category:categories(*)')
         .single()
       if (error) throw error
+      // Reverse old transaction's balance effects
       if (old.from_account_id) {
         const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', old.from_account_id).single()
         if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - delta(old.transaction_type, old.amount) }).eq('id', old.from_account_id)
       }
+      if (old.transaction_type === 'transfer' && old.to_account_id) {
+        const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', old.to_account_id).single()
+        if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance - old.amount }).eq('id', old.to_account_id)
+      }
+      // Apply new transaction's balance effects
       if (form.from_account_id) {
         const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', form.from_account_id).single()
         if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + delta(form.transaction_type, form.amount) }).eq('id', form.from_account_id)
+      }
+      if (toAccountId) {
+        const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', toAccountId).single()
+        if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance + form.amount }).eq('id', toAccountId)
       }
       setState(s => ({
         ...s,
@@ -243,7 +273,9 @@ export function useSupabaseData(userId: string) {
         accounts: s.accounts.map(a => {
           let bal = a.current_balance
           if (a.id === old.from_account_id) bal -= delta(old.transaction_type, old.amount)
+          if (old.transaction_type === 'transfer' && a.id === old.to_account_id) bal -= old.amount
           if (a.id === form.from_account_id) bal += delta(form.transaction_type, form.amount)
+          if (toAccountId && a.id === toAccountId) bal += form.amount
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
       }))
