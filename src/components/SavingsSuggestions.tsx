@@ -23,16 +23,18 @@ function analyzeSavings(state: AppState, d: DerivedMetrics): Suggestion[] {
   const last30 = new Date(now)
   last30.setDate(now.getDate() - 30)
 
-  // Category totals last 30 days
-  const catTotals: Record<string, { total: number; count: number; name: string }> = {}
+  // Category totals last 30 days (keyed by category id to avoid name collisions)
+  const catTotals: Record<string, { total: number; count: number; name: string; group: string }> = {}
   state.transactions
     .filter(t => new Date(t.transaction_date) >= last30 && t.transaction_type === 'expense')
     .forEach(t => {
       const cat = state.categories.find(c => c.id === t.category_id)
+      const key = cat?.id ?? 'uncategorized'
       const name = cat?.name ?? 'Uncategorized'
-      if (!catTotals[name]) catTotals[name] = { total: 0, count: 0, name }
-      catTotals[name].total += t.amount
-      catTotals[name].count++
+      const group = cat?.group_name ?? ''
+      if (!catTotals[key]) catTotals[key] = { total: 0, count: 0, name, group }
+      catTotals[key].total += t.amount
+      catTotals[key].count++
     })
 
   const sorted = Object.values(catTotals).sort((a, b) => b.total - a.total)
@@ -50,15 +52,14 @@ function analyzeSavings(state: AppState, d: DerivedMetrics): Suggestion[] {
     })
   }
 
-  // 2. Food/Tea/Coffee — daily habit cost
-  const foodCats = ['Food & Tea', 'Tea', 'Coffee', 'Food', 'Snacks', 'Eating out']
-  const foodTotal = sorted.filter(c => foodCats.some(f => c.name.toLowerCase().includes(f.toLowerCase()))).reduce((s, c) => s + c.total, 0)
-  if (foodTotal > 2000) {
+  // 2. Lifestyle group daily habit cost (matches regardless of category names)
+  const lifestyleTotal = sorted.filter(c => c.group === 'Lifestyle').reduce((s, c) => s + c.total, 0)
+  if (lifestyleTotal > 2000) {
     suggestions.push({
       type: 'reduce',
-      title: 'Daily food & drinks habit',
-      detail: `You spend about ${fmt(Math.round(foodTotal / 30))}/day on food & drinks. That's ${fmt(foodTotal)}/month. Small changes add up quickly.`,
-      saving: Math.round(foodTotal * 0.25),
+      title: 'Daily lifestyle spending habit',
+      detail: `You spend about ${fmt(Math.round(lifestyleTotal / 30))}/day on lifestyle expenses. That's ${fmt(lifestyleTotal)}/month. Small changes add up quickly.`,
+      saving: Math.round(lifestyleTotal * 0.25),
     })
   }
 

@@ -412,7 +412,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const isTransfer = txType === 'transfer'
   const fromAccountId = watch('from_account_id')
   const typeColor = isTransfer ? c.accent : isExpense ? c.bad : c.good
-  const transferValid = isTransfer && amountVal > 0 && !!fromAccountId && !!transferToAccountId && transferToAccountId !== fromAccountId
+  const transferValid = isTransfer && accs.length >= 2 && amountVal > 0 && !!fromAccountId && !!transferToAccountId && transferToAccountId !== fromAccountId
   const valid = isTransfer ? transferValid : (isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal))
 
   return (
@@ -641,7 +641,14 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
               </div>
             )}
 
-            {isTransfer ? (
+            {isTransfer && accs.length < 2 ? (
+              <div style={{ background: c.surface2, borderRadius: 14, padding: '18px 16px', textAlign: 'center' }}>
+                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>Need at least 2 accounts</div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                  Add another account (e.g. Cash, Savings) from the Accounts section to enable transfers.
+                </div>
+              </div>
+            ) : isTransfer ? (
               /* Transfer: From → To accounts */
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <div style={{ flex: 1 }}>
