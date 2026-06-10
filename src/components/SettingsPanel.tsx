@@ -198,26 +198,27 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
       {(() => {
         const now = new Date()
         const resetAt = aiRequestsResetAt ? new Date(aiRequestsResetAt) : null
-        const isCurrent = resetAt != null && resetAt.getFullYear() === now.getFullYear() && resetAt.getMonth() === now.getMonth()
-        const used = isCurrent ? (aiRequestsUsed ?? 0) : 0
+        const isToday = resetAt != null &&
+          resetAt.getFullYear() === now.getFullYear() &&
+          resetAt.getMonth() === now.getMonth() &&
+          resetAt.getDate() === now.getDate()
+        const used = isToday ? (aiRequestsUsed ?? 0) : 0
         const LIMIT = 100
         const pct = Math.min(100, (used / LIMIT) * 100)
         const barColor = pct >= 85 ? '#EF4444' : pct >= 60 ? '#F59E0B' : c.accent
-        const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-        const resetLabel = nextReset.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
         return (
           <div style={{ marginBottom: 16, padding: '10px 14px', background: c.surface2, borderRadius: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
               <span style={{ font: '700 11px Plus Jakarta Sans', color: c.ink }}>
                 {used} <span style={{ fontWeight: 600, color: c.muted }}>/ {LIMIT} calls today</span>
               </span>
-              <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>Resets {resetLabel}</span>
+              <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>Resets tomorrow</span>
             </div>
             <div style={{ height: 6, borderRadius: 999, background: c.surface, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${pct}%`, borderRadius: 999, background: barColor, transition: 'width 0.5s ease' }} />
             </div>
             <div style={{ font: '600 10px Plus Jakarta Sans', color: pct >= 85 ? '#EF4444' : c.muted, marginTop: 5 }}>
-              {pct >= 85 ? `⚠ Only ${LIMIT - used} calls remaining` : `${LIMIT - used} calls remaining`}
+              {pct >= 100 ? 'Limit reached. Resets tomorrow.' : pct >= 85 ? `Only ${LIMIT - used} calls remaining today` : `${LIMIT - used} calls remaining today`}
             </div>
           </div>
         )
