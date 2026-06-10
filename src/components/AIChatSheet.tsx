@@ -23,32 +23,72 @@ function buildContext(state: AppState): string {
   const now = new Date()
   const weekStart = new Date(now)
   weekStart.setDate(now.getDate() - now.getDay())
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
   const thisWeekTxns = state.transactions.filter(t =>
     new Date(t.transaction_date) >= weekStart && t.transaction_type === 'expense'
   )
+  const thisMonthTxns = state.transactions.filter(t =>
+    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense'
+  )
+  const lastMonthTxns = state.transactions.filter(t => {
+    const d = new Date(t.transaction_date)
+    return d >= lastMonthStart && d <= lastMonthEnd && t.transaction_type === 'expense'
+  })
+
   const weeklySpend = thisWeekTxns.reduce((s, t) => s + t.amount, 0)
+  const monthlySpend = thisMonthTxns.reduce((s, t) => s + t.amount, 0)
+  const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + t.amount, 0)
   const budget = state.settings.weekly_budget ?? 5000
+
+  // Category breakdown this month
+  const catTotalsMonth: Record<string, number> = {}
+  thisMonthTxns.forEach(t => {
+    const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
+    catTotalsMonth[name] = (catTotalsMonth[name] ?? 0) + t.amount
+  })
+  const topCats = Object.entries(catTotalsMonth)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([n, v]) => `${n}: ₹${v.toLocaleString()}`)
+    .join(', ')
+
+  // Recurring pattern detection — descriptions appearing 3+ times in last 90 days
+  const ninetyDaysAgo = new Date(now)
+  ninetyDaysAgo.setDate(now.getDate() - 90)
+  const descCount: Record<string, { count: number; total: number }> = {}
+  state.transactions
+    .filter(t => new Date(t.transaction_date) >= ninetyDaysAgo && t.transaction_type === 'expense')
+    .forEach(t => {
+      const key = t.description.toLowerCase().trim()
+      if (!descCount[key]) descCount[key] = { count: 0, total: 0 }
+      descCount[key].count++
+      descCount[key].total += t.amount
+    })
+  const recurring = Object.entries(descCount)
+    .filter(([, v]) => v.count >= 3)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 5)
+    .map(([name, v]) => `${name} (${v.count}x, avg ₹${Math.round(v.total / v.count).toLocaleString()})`)
+    .join(', ')
 
   const recent = state.transactions.slice(0, 8).map(t =>
     `${t.transaction_date} | ${t.description} | ₹${t.amount} | ${t.transaction_type}`
   ).join('\n')
 
-  const catTotals: Record<string, number> = {}
-  state.transactions.filter(t => t.transaction_type === 'expense').forEach(t => {
-    const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
-    catTotals[name] = (catTotals[name] ?? 0) + t.amount
-  })
-  const topCats = Object.entries(catTotals)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([n, v]) => `${n}: ₹${v.toLocaleString()}`)
-    .join(', ')
-
-  return `Total balance: ₹${totalBalance.toLocaleString()}
+  return `Today: ${now.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+Total balance: ₹${totalBalance.toLocaleString()}
 Weekly spend: ₹${weeklySpend.toLocaleString()} / ₹${budget.toLocaleString()} budget (${Math.round(weeklySpend / budget * 100)}% used)
-Emergency fund goal: ₹${(state.settings.emergency_fund ?? 20000).toLocaleString()}
+This month spend: ₹${monthlySpend.toLocaleString()}
+Last month spend: ₹${lastMonthSpend.toLocaleString()}
+Emergency fund: ₹${(state.settings.emergency_fund ?? 20000).toLocaleString()}
+Real free money: ₹${(totalBalance - (state.settings.emergency_fund ?? 20000) - state.commitments.filter(c => c.is_active).reduce((s, c) => s + (c.is_recurring ? c.amount : c.remaining), 0)).toLocaleString()}
 Accounts: ${activeAccs.map(a => `${a.name} ₹${a.current_balance.toLocaleString()}`).join(', ')}
-Top spending categories: ${topCats}
+This month by category: ${topCats || 'no data'}
+Recurring expenses (last 90 days): ${recurring || 'none detected'}
 Recent transactions:
 ${recent}`
 }
@@ -111,7 +151,22 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
   useEffect(() => {
     if (open) {
       if (messages.length === 0) {
-        setMessages([{ role: 'ai', text: 'Hey! Ask me anything about your finances.' }])
+        const weeklyBudget = state.settings.weekly_budget ?? 5000
+        const now = new Date()
+        const weekStart = new Date(now)
+        weekStart.setDate(now.getDate() - now.getDay())
+        const weeklySpent = state.transactions
+          .filter(t => new Date(t.transaction_date) >= weekStart && t.transaction_type === 'expense')
+          .reduce((s, t) => s + t.amount, 0)
+        const pct = weeklyBudget > 0 ? Math.round((weeklySpent / weeklyBudget) * 100) : 0
+
+        let greeting = 'Hey! Ask me anything about your finances.'
+        if (pct >= 100) {
+          greeting = `⚠️ You've exceeded your weekly budget! Spent ₹${weeklySpent.toLocaleString()} of ₹${weeklyBudget.toLocaleString()} (${pct}%). Ask me how to manage the rest of the week.`
+        } else if (pct >= 80) {
+          greeting = `🟡 Heads up! You've used ${pct}% of your weekly budget (₹${weeklySpent.toLocaleString()} of ₹${weeklyBudget.toLocaleString()}). Spend carefully this week.`
+        }
+        setMessages([{ role: 'ai', text: greeting }])
       }
       setTimeout(() => inputRef.current?.focus(), 300)
       document.body.style.overflow = 'hidden'
@@ -322,15 +377,16 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
         {messages.length <= 1 && (
           <div style={{ padding: '8px 14px 4px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
-              'How much did I spend this week?',
-              "What's my top expense category?",
-              'Am I on budget?',
-              "What's my total balance?",
-              'How much have I spent on food?',
-            ].map(q => (
+              { label: '📊 Monthly summary', q: 'Give me a summary of my spending this month' },
+              { label: '🔄 Recurring expenses', q: 'What are my recurring expenses and how much do they cost monthly?' },
+              { label: '📈 Am I on budget?', q: 'Am I on budget this week?' },
+              { label: '🏆 Top category', q: "What's my top expense category this month?" },
+              { label: '💡 Save money', q: 'Where can I cut expenses to save money?' },
+              { label: '💰 Free money', q: "What's my real free money right now?" },
+            ].map(({ label, q }) => (
               <button
                 key={q}
-                onClick={() => { setInput(q); setTimeout(() => inputRef.current?.focus(), 50) }}
+                onClick={() => { setInput(q); setTimeout(() => { inputRef.current?.focus(); }, 50) }}
                 style={{
                   border: `1.5px solid ${c.faint}`, background: c.surface2,
                   borderRadius: 999, padding: '7px 13px',
@@ -338,7 +394,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
                   cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
               >
-                {q}
+                {label}
               </button>
             ))}
           </div>
