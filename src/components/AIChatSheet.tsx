@@ -254,7 +254,11 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
     // No amount found — treat as Q&A
     const context = buildContext(state)
     const result = await chatWithAI(text, next.slice(-6), context, catNames, allAccNames)
-    setMessages(m => [...m, { role: 'ai', text: result?.reply ?? 'Sorry, something went wrong.' }])
+    if (result?.reply) {
+      setMessages(m => [...m, { role: 'ai', text: result.reply }])
+    } else {
+      setMessages(m => [...m, { role: 'ai', text: "PlantMind has reached its daily limit (100 requests/day). Please try again tomorrow." }])
+    }
     setLoading(false)
   }
 

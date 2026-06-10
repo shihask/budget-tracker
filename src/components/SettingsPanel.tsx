@@ -209,7 +209,7 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
           <div style={{ marginBottom: 16, padding: '10px 14px', background: c.surface2, borderRadius: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
               <span style={{ font: '700 11px Plus Jakarta Sans', color: c.ink }}>
-                {used} <span style={{ fontWeight: 600, color: c.muted }}>/ {LIMIT} calls this month</span>
+                {used} <span style={{ fontWeight: 600, color: c.muted }}>/ {LIMIT} calls today</span>
               </span>
               <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>Resets {resetLabel}</span>
             </div>
