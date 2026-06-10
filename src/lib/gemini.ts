@@ -29,7 +29,7 @@ export async function parseExpenseWithAI(
       body: JSON.stringify({ mode: 'parse', text, categoryNames, accountNames, groupNames }),
     })
 
-    if (res.status === 429) { console.warn('PlantMind daily limit reached (100/day)'); return null }
+    if (res.status === 429) { console.warn('Mint daily limit reached (100/day)'); return null }
     if (!res.ok) return null
 
     const data = await res.json()
@@ -94,7 +94,7 @@ export async function affordabilityInsightWithAI(
       body: JSON.stringify({ mode: 'chat', message, context, history: [] }),
     })
 
-    if (res.status === 429) return 'PlantMind daily limit reached (100/day). Try again next month.'
+    if (res.status === 429) return 'Mint daily limit reached (100/day). Try again next month.'
     if (!res.ok) return null
 
     const data = await res.json()
@@ -124,7 +124,7 @@ export async function categorizeWithAI(
       body: JSON.stringify({ description, categoryNames, groupNames }),
     })
 
-    if (res.status === 429) { console.warn('PlantMind daily limit reached (100/day)'); return null }
+    if (res.status === 429) { console.warn('Mint daily limit reached (100/day)'); return null }
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
       console.error('[AI] edge function error', res.status, errText)

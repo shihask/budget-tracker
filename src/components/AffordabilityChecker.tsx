@@ -105,7 +105,7 @@ export function AffordabilityChecker({ d, settings, transactions }: Props) {
       spendingByGroup: spendingData.spendingByGroup,
       totalSpent30d: spendingData.totalSpent30d,
     })
-    setAiInsight(insight ?? "PlantMind couldn't respond right now. Try again.")
+    setAiInsight(insight ?? "Mint couldn't respond right now. Try again.")
     setAiLoading(false)
   }
 
@@ -211,7 +211,7 @@ export function AffordabilityChecker({ d, settings, transactions }: Props) {
                   background: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.92)',
                   borderRadius: 6, padding: '2px 7px', border: '1px solid rgba(255,255,255,0.25)',
                 }}>
-                  ✦ PlantMind
+                  ✦ Mint
                 </span>
               )}
             </div>
@@ -448,7 +448,7 @@ export function AffordabilityChecker({ d, settings, transactions }: Props) {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
-                Ask PlantMind
+                Ask Mint
               </button>
             )}
 
@@ -464,7 +464,7 @@ export function AffordabilityChecker({ d, settings, transactions }: Props) {
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                     </svg>
                   </div>
-                  <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>PlantMind is thinking…</span>
+                  <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint is thinking…</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                   {[100, 80, 60].map(w => (
@@ -486,7 +486,7 @@ export function AffordabilityChecker({ d, settings, transactions }: Props) {
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                     </svg>
                   </div>
-                  <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>PlantMind Insight</span>
+                  <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint Insight</span>
                 </div>
                 <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6 }}>
                   {aiInsight}

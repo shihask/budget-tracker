@@ -175,7 +175,7 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         </button>
       </div>
 
-      {/* PlantMind card — all-in-one */}
+      {/* Mint card — all-in-one */}
       {(() => {
         const now = new Date()
         const resetAt = aiRequestsResetAt ? new Date(aiRequestsResetAt) : null
@@ -201,7 +201,7 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>PlantMind</span>
+                    <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Mint</span>
                     <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>AI</span>
                   </div>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Your AI-powered financial assistant</div>

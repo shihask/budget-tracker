@@ -260,7 +260,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
     if (result?.reply) {
       setMessages(m => [...m, { role: 'ai', text: result.reply }])
     } else {
-      setMessages(m => [...m, { role: 'ai', text: "PlantMind has reached its daily limit (100 requests/day). Please try again tomorrow." }])
+      setMessages(m => [...m, { role: 'ai', text: "Mint has reached its daily limit (100 requests/day). Please try again tomorrow." }])
     }
     setLoading(false)
   }
@@ -304,10 +304,10 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
           <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 30, height: 30, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src="/plantmind-logo.svg" width="30" height="30" alt="PlantMind" />
+                <img src="/plantmind-logo.svg" width="30" height="30" alt="Mint" />
               </div>
               <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em' }}>
-                <span style={{ color: c.ink }}>Plant</span><span style={{ color: '#16C98A' }}>Mind</span>
+                <span style={{ color: '#16C98A' }}>Mint</span>
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
