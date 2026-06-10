@@ -429,7 +429,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       </div>
 
       {/* Edit Sheet */}
-      <BottomSheet open={!!(editingTx && editForm)} onClose={closeEdit} maxHeight="88svh">
+      <BottomSheet open={!!(editingTx && editForm)} onClose={closeEdit} maxHeight="88svh" zIndex={300}>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>Edit Transaction</div>
 
             {editForm && <>
