@@ -231,10 +231,8 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
           <div style={{ width: 40, height: 5, borderRadius: 999, background: c.faint, marginBottom: 14 }} />
           <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 999, background: c.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L13.8 9.2L21 12L13.8 14.8L12 22L10.2 14.8L3 12L10.2 9.2L12 2Z" fill="white" />
-                </svg>
+              <div style={{ width: 30, height: 30, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/plantmind-logo.svg" width="30" height="30" alt="PlantMind" />
               </div>
               <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em' }}>
                 <span style={{ color: c.ink }}>Plant</span><span style={{ color: '#16C98A' }}>Mind</span>

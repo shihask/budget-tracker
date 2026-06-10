@@ -176,12 +176,15 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
       </div>
 
       <div style={rowStyle}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={labelStyle}>PlantMind</div>
-            <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>✦ AI</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/plantmind-logo.svg" width="36" height="36" alt="PlantMind" style={{ borderRadius: 10 }} />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={labelStyle}>PlantMind</div>
+              <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>✦ AI</span>
+            </div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Your AI-powered financial assistant</div>
           </div>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Your AI-powered financial assistant</div>
         </div>
         <button
           onClick={() => onAutopilot(!autopilotEnabled)}

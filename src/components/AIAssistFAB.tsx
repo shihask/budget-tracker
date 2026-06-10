@@ -134,14 +134,11 @@ export function AIAssistFAB({ onOpen, containerWidth }: AIAssistFABProps) {
     >
       <div style={{
         width: SIZE, height: SIZE, borderRadius: 999,
-        background: c.ink,
         boxShadow: '0 4px 18px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.15)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'grab',
+        cursor: 'grab', overflow: 'hidden',
       }}>
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L13.8 9.2L21 12L13.8 14.8L12 22L10.2 14.8L3 12L10.2 9.2L12 2Z" fill={c.good} />
-        </svg>
+        <img src="/plantmind-logo.svg" width={SIZE} height={SIZE} alt="PlantMind" style={{ borderRadius: 999 }} />
       </div>
     </div>
   )
