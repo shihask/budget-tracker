@@ -7,7 +7,7 @@ import type { AppState, Transaction } from '@/types'
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense }
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean }
 
 function guessTransactionType(text: string): 'income' | 'expense' {
   const lower = text.toLowerCase()
@@ -161,12 +161,15 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
         const pct = weeklyBudget > 0 ? Math.round((weeklySpent / weeklyBudget) * 100) : 0
 
         let greeting = 'Hey! Ask me anything about your finances.'
+        let isWarning = false
         if (pct >= 100) {
-          greeting = `⚠️ You've exceeded your weekly budget! Spent ₹${weeklySpent.toLocaleString()} of ₹${weeklyBudget.toLocaleString()} (${pct}%). Ask me how to manage the rest of the week.`
+          greeting = `You've exceeded your weekly budget! Spent ₹${weeklySpent.toLocaleString()} of ₹${weeklyBudget.toLocaleString()} (${pct}%). Ask me how to manage the rest of the week.`
+          isWarning = true
         } else if (pct >= 80) {
-          greeting = `🟡 Heads up! You've used ${pct}% of your weekly budget (₹${weeklySpent.toLocaleString()} of ₹${weeklyBudget.toLocaleString()}). Spend carefully this week.`
+          greeting = `Heads up! You've used ${pct}% of your weekly budget (₹${weeklySpent.toLocaleString()} of ₹${weeklyBudget.toLocaleString()}). Spend carefully this week.`
+          isWarning = true
         }
-        setMessages([{ role: 'ai', text: greeting }])
+        setMessages([{ role: 'ai', text: greeting, warning: isWarning }])
       }
       setTimeout(() => inputRef.current?.focus(), 300)
       document.body.style.overflow = 'hidden'
@@ -332,6 +335,19 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
         <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {messages.map((m, i) => (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
+              {m.warning ? (
+                <div style={{
+                  maxWidth: '82%', display: 'flex', alignItems: 'flex-start', gap: 10,
+                  background: '#FEF3C7', border: '1px solid #FCD34D',
+                  borderRadius: '18px 18px 18px 4px', padding: '10px 14px',
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  <span style={{ font: '500 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.5 }}>{m.text}</span>
+                </div>
+              ) : (
               <div style={{
                 maxWidth: '82%',
                 background: m.role === 'user' ? c.accent : c.surface2,
@@ -343,6 +359,8 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
               }}>
                 {m.text}
               </div>
+              )}
+              )}
               {m.savedExpense && (
                 <div style={{
                   background: c.goodSoft, border: `1.5px solid ${c.good}33`,
