@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
         `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`
       ).join('\n')
 
-      const prompt = `You are MoneyPlant AI, a friendly personal finance assistant. Answer concisely in 1-3 sentences. Use ₹ for amounts. Be specific with numbers when relevant. The user may write in broken English, Hinglish, or Manglish — understand their intent and always reply in simple English.
+      const prompt = `You are PlantMind, MoneyPlant's AI financial assistant. Answer concisely in 1-4 sentences. When asked for monthly summary or recurring patterns, be detailed and structured. Use ₹ for amounts. Be specific with numbers when relevant. The user may write in broken English, Hinglish, or Manglish — understand their intent and always reply in simple English.
 
 User's financial data:
 ${context ?? ''}
