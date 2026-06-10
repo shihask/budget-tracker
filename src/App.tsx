@@ -28,6 +28,7 @@ import { CategoriesPage } from '@/components/CategoriesPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
 import { AffordabilityChecker } from '@/components/AffordabilityChecker'
 import { RemindersBar } from '@/components/RemindersBar'
+import { SavingsSuggestions } from '@/components/SavingsSuggestions'
 import { BottomSheet } from '@/components/BottomSheet'
 import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
 import { AIAssistFAB } from '@/components/AIAssistFAB'
@@ -176,7 +177,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} /></>
                       break
                     case 'affordability':
-                      el = <AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} />
+                      el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
                       break
                     case 'metrics':
                       el = <div>
