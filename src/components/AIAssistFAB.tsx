@@ -115,8 +115,22 @@ export function AIAssistFAB({ onOpen, containerWidth }: AIAssistFABProps) {
     }
   }, [onMove, onEnd])
 
+  const fabRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const el = fabRef.current
+    if (!el) return
+    const handler = (e: TouchEvent) => {
+      e.preventDefault()
+      onStart(e.touches[0].clientX, e.touches[0].clientY)
+    }
+    el.addEventListener('touchstart', handler, { passive: false })
+    return () => el.removeEventListener('touchstart', handler)
+  }, [onStart])
+
   return (
     <div
+      ref={fabRef}
       style={{
         position: 'fixed',
         left: pos.x,
@@ -130,7 +144,6 @@ export function AIAssistFAB({ onOpen, containerWidth }: AIAssistFABProps) {
         transition: isSnapping ? 'left 0.38s cubic-bezier(0.34,1.56,0.64,1), top 0.18s ease' : 'none',
       }}
       onMouseDown={e => { e.preventDefault(); onStart(e.clientX, e.clientY) }}
-      onTouchStart={e => { e.preventDefault(); onStart(e.touches[0].clientX, e.touches[0].clientY) }}
     >
       <div style={{
         width: SIZE, height: SIZE, borderRadius: 999,
