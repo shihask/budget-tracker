@@ -622,7 +622,10 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
             <input
               {...register('amount', { valueAsNumber: true })}
               ref={e => { register('amount').ref(e); amountRef.current = e }}
+              type="number"
               inputMode="decimal"
+              min="0"
+              step="0.01"
               placeholder="0"
               onFocus={e => e.target.select()}
               style={{ border: 'none', background: 'transparent', outline: 'none', width: 160, textAlign: 'center', font: '800 44px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em' }}
