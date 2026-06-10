@@ -181,7 +181,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /></>
                       break
                     case 'affordability':
-                      el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
+                      el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
                       break
                     case 'metrics':
                       el = <div>
@@ -253,7 +253,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* AI Assist FAB + Chat */}
           <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} />
-          <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} onSave={handleSave} />
+          <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} onSave={handleSave} onUpdateSettings={updateSettings} />
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
@@ -285,7 +285,7 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {analyticsOpen && (
-            <AnalyticsPage state={state} d={d} onClose={() => setAnalyticsOpen(false)} />
+            <AnalyticsPage state={state} d={d} onClose={() => setAnalyticsOpen(false)} onUpdateSettings={updateSettings} />
           )}
 
           {layoutOpen && (

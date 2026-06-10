@@ -9,6 +9,7 @@ interface Props {
   d: DerivedMetrics
   settings: Settings
   transactions: Transaction[]
+  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
 }
 
 function daysUntil(dayOfMonth: number): number {
@@ -47,7 +48,7 @@ function StatusIcon({ tier, color }: { tier: 'safe' | 'risky' | 'no'; color: str
   )
 }
 
-export function AffordabilityChecker({ d, settings, transactions }: Props) {
+export function AffordabilityChecker({ d, settings, transactions, onUpdateSettings }: Props) {
   const c = useTheme()
   const [open, setOpen] = useState(false)
   const [item, setItem] = useState('')
@@ -104,7 +105,7 @@ export function AffordabilityChecker({ d, settings, transactions }: Props) {
       weeklySpent: d.weeklySpent,
       spendingByGroup: spendingData.spendingByGroup,
       totalSpent30d: spendingData.totalSpent30d,
-    })
+    }, (n) => onUpdateSettings?.({ ai_requests_used: n }))
     setAiInsight(insight ?? "Mint couldn't respond right now. Try again.")
     setAiLoading(false)
   }
@@ -179,17 +180,19 @@ export function AffordabilityChecker({ d, settings, transactions }: Props) {
           position: 'relative', overflow: 'hidden',
         }}
       >
-        {/* Watermark sparkles */}
-        <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.09)" stroke="none"
-          style={{ position: 'absolute', right: -14, bottom: -18, width: 100, height: 100, pointerEvents: 'none', transform: 'rotate(15deg)' }}>
-          <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+        {/* Watermark: Mint logo */}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
+          style={{ position: 'absolute', right: -10, bottom: -20, width: 130, height: 130, pointerEvents: 'none', transform: 'rotate(10deg)', opacity: 0.1 }}>
+          <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="#fff"/>
+          <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="#fff" fillOpacity="0.6"/>
         </svg>
-        <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.07)" stroke="none"
-          style={{ position: 'absolute', right: 100, top: -22, width: 64, height: 64, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
+        {/* Watermark: sparkles */}
+        <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.09)" stroke="none"
+          style={{ position: 'absolute', right: 90, top: -16, width: 64, height: 64, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
           <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
         </svg>
         <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.06)" stroke="none"
-          style={{ position: 'absolute', right: 52, bottom: -10, width: 40, height: 40, pointerEvents: 'none', transform: 'rotate(30deg)' }}>
+          style={{ position: 'absolute', right: 48, bottom: -8, width: 38, height: 38, pointerEvents: 'none', transform: 'rotate(30deg)' }}>
           <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
         </svg>
 

@@ -62,7 +62,8 @@ export interface AffordabilityContext {
 export async function affordabilityInsightWithAI(
   item: string,
   amount: number,
-  ctx: AffordabilityContext
+  ctx: AffordabilityContext,
+  onUsed?: (n: number) => void
 ): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -98,6 +99,7 @@ export async function affordabilityInsightWithAI(
     if (!res.ok) return null
 
     const data = await res.json()
+    if (data.used != null) onUsed?.(data.used)
     return data.reply ?? null
   } catch (e) {
     console.error('[AI] affordability insight failed:', e)
@@ -115,7 +117,7 @@ export interface AnalyticsInsightContext {
   weeklySpent: number
 }
 
-export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext): Promise<string | null> {
+export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext, onUsed?: (n: number) => void): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return null
@@ -149,6 +151,7 @@ export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext): Prom
     if (!res.ok) return null
 
     const data = await res.json()
+    if (data.used != null) onUsed?.(data.used)
     return data.reply ?? null
   } catch {
     return null

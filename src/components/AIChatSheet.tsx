@@ -99,7 +99,7 @@ async function chatWithAI(
   context: string,
   categoryNames: string[],
   accountNames: string[]
-): Promise<{ reply: string; expense: SavedExpense | null } | null> {
+): Promise<{ reply: string; expense: SavedExpense | null; used: number | null } | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return null
@@ -115,7 +115,7 @@ async function chatWithAI(
 
     if (!res.ok) return null
     const data = await res.json()
-    return { reply: data.reply ?? '', expense: data.expense ?? null }
+    return { reply: data.reply ?? '', expense: data.expense ?? null, used: data.used ?? null }
   } catch {
     return null
   }
@@ -126,9 +126,10 @@ interface AIChatSheetProps {
   onClose: () => void
   state: AppState
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
+  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
 }
 
-export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -259,6 +260,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
     const result = await chatWithAI(text, next.slice(-6), context, catNames, allAccNames)
     if (result?.reply) {
       setMessages(m => [...m, { role: 'ai', text: result.reply }])
+      if (result.used != null) onUpdateSettings?.({ ai_requests_used: result.used })
     } else {
       setMessages(m => [...m, { role: 'ai', text: "Mint has reached its daily limit (100 requests/day). Please try again tomorrow." }])
     }

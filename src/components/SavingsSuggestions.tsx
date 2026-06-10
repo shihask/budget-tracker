@@ -170,10 +170,21 @@ export function SavingsSuggestions({ state, d, autopilotEnabled }: Props) {
           width: '100%', border: `1px solid ${c.faint}`, borderRadius: 18,
           padding: '14px 20px', background: c.surface, cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          boxShadow: c.cardShadow,
+          boxShadow: c.cardShadow, position: 'relative', overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Watermark: Mint logo */}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
+          style={{ position: 'absolute', right: -8, bottom: -16, width: 110, height: 110, pointerEvents: 'none', transform: 'rotate(10deg)', opacity: 0.6 }}>
+          <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="rgba(22,163,74,0.08)"/>
+          <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="rgba(22,163,74,0.05)"/>
+        </svg>
+        {/* Watermark: sparkle */}
+        <svg viewBox="0 0 24 24" fill="rgba(22,163,74,0.1)" stroke="none"
+          style={{ position: 'absolute', right: 80, top: -14, width: 60, height: 60, pointerEvents: 'none', transform: 'rotate(-12deg)' }}>
+          <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+        </svg>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
           <div style={{ width: 38, height: 38, borderRadius: 12, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.2" strokeLinecap="round">
               <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
@@ -187,7 +198,7 @@ export function SavingsSuggestions({ state, d, autopilotEnabled }: Props) {
             </div>
           </div>
         </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" style={{ position: 'relative', flexShrink: 0 }}>
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       </button>

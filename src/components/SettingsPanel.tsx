@@ -188,7 +188,18 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         const pct = Math.min(100, (used / LIMIT) * 100)
         const barColor = pct >= 85 ? '#EF4444' : pct >= 60 ? '#F59E0B' : c.accent
         return (
-          <div style={{ background: c.surface, borderRadius: 18, padding: '14px 16px', marginBottom: 16, border: `1px solid ${c.faint}` }}>
+          <div style={{ background: c.surface, borderRadius: 18, padding: '14px 16px', marginBottom: 16, border: `1px solid ${c.faint}`, position: 'relative', overflow: 'hidden' }}>
+            {/* Watermark: Mint logo */}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
+              style={{ position: 'absolute', right: -6, bottom: -18, width: 110, height: 110, pointerEvents: 'none', transform: 'rotate(10deg)', opacity: 0.5 }}>
+              <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="rgba(22,201,138,0.1)"/>
+              <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="rgba(22,201,138,0.06)"/>
+            </svg>
+            {/* Watermark: sparkle */}
+            <svg viewBox="0 0 24 24" fill="rgba(22,201,138,0.12)" stroke="none"
+              style={{ position: 'absolute', right: 78, top: -12, width: 56, height: 56, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
+              <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+            </svg>
             {/* Header row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -201,10 +212,10 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Mint Categorization</span>
+                    <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Mint AI</span>
                     <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>AI</span>
                   </div>
-                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Auto-categorize transactions as you type</div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Enable all AI features (chat, insights, categorization)</div>
                 </div>
               </div>
               <button

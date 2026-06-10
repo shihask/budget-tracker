@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
@@ -19,22 +19,69 @@ interface Props {
   state: AppState
   d: DerivedMetrics
   onClose: () => void
+  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
 }
 
-const MintLogo = ({ size = 18 }: { size?: number }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width={size} height={size}>
-    <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="#16C98A"/>
-    <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="#16C98A" fillOpacity="0.5"/>
-    <path d="M 50 30 L 50 73" fill="none" stroke="#111111" strokeWidth="3" strokeLinecap="round"/>
-  </svg>
-)
 
-export function AnalyticsPage({ state, d, onClose }: Props) {
+export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>('trend')
   const [insight, setInsight] = useState<string | null>(null)
   const [loadingInsight, setLoadingInsight] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
+
+  // Swipe-back gesture
+  const [dragX, setDragX] = useState(0)
+  const [closing, setClosing] = useState(false)
+  const [snapping, setSnapping] = useState(false)
+  const dragXRef = useRef(0)
+  const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
+  const W = typeof window !== 'undefined' ? window.innerWidth : 400
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  const triggerClose = () => {
+    setClosing(true)
+    setTimeout(onClose, 290)
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (closing) return
+    const t = e.touches[0]
+    if (t.clientX > 28) return
+    gestureRef.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now() }
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!gestureRef.current) return
+    const t = e.touches[0]
+    const dx = t.clientX - gestureRef.current.startX
+    const dy = Math.abs(t.clientY - gestureRef.current.startY)
+    if (dy > Math.abs(dx) + 5 && Math.abs(dx) < 15) {
+      gestureRef.current = null; setDragX(0); return
+    }
+    gestureRef.current = { ...gestureRef.current, lastX: t.clientX, lastT: Date.now() }
+    const x = Math.max(0, dx)
+    dragXRef.current = x
+    setDragX(x)
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!gestureRef.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - gestureRef.current.startX
+    const dt = Date.now() - gestureRef.current.lastT
+    const vx = dt > 0 ? (t.clientX - gestureRef.current.lastX) / dt : 0
+    gestureRef.current = null
+    if (dx > W * 0.38 || (dx > 50 && vx > 0.5)) {
+      triggerClose()
+    } else {
+      setSnapping(true); setDragX(0); dragXRef.current = 0
+      setTimeout(() => setSnapping(false), 300)
+    }
+  }
 
   const trend = useMemo(() => weeklyTrend(state), [state])
   const bars  = useMemo(() => weeklyBars(state), [state])
@@ -70,7 +117,7 @@ export function AnalyticsPage({ state, d, onClose }: Props) {
         totalThisMonth: catTotal,
         weeklyBudget: d.weeklyBudget,
         weeklySpent: d.weeklySpent,
-      })
+      }, (n) => onUpdateSettings?.({ ai_requests_used: n }))
       if (result) setInsight(result)
       else setInsightError('Could not generate insight. Try again.')
     } catch {
@@ -88,11 +135,25 @@ export function AnalyticsPage({ state, d, onClose }: Props) {
   })
 
   return createPortal(
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 150,
-      background: c.bg, display: 'flex', flexDirection: 'column',
-      fontFamily: 'Plus Jakarta Sans, sans-serif',
-    }}>
+    <div
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 150,
+        background: c.bg, display: 'flex', flexDirection: 'column',
+        fontFamily: 'Plus Jakarta Sans, sans-serif',
+        willChange: 'transform',
+        ...(closing
+          ? { transform: 'translateX(100%)', transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)' }
+          : dragX > 0
+          ? { transform: `translateX(${dragX}px)`, boxShadow: '-8px 0 24px rgba(0,0,0,0.18)' }
+          : snapping
+          ? { transform: 'translateX(0)', transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)' }
+          : { transform: 'translateX(0)' }
+        ),
+      }}
+    >
       {/* Header */}
       <div style={{
         padding: `calc(env(safe-area-inset-top, 0px) + 12px) 16px 12px`,
@@ -236,46 +297,93 @@ export function AnalyticsPage({ state, d, onClose }: Props) {
 
         {/* ── Mint Analytics AI ─────────────────────────────── */}
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: `1px solid ${c.faint}` }}>
+
           {!insight && !loadingInsight && (
-            <button onClick={handleInsight} style={{
-              width: '100%', background: '#111111', border: 'none', borderRadius: 14,
-              padding: '14px 16px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{ width: 32, height: 32, borderRadius: 9, background: '#1c1c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <MintLogo size={18} />
+            <button
+              onClick={handleInsight}
+              style={{
+                width: '100%', border: 'none', borderRadius: 18, padding: '14px 20px',
+                background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                color: '#fff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
+                position: 'relative', overflow: 'hidden',
+              }}
+            >
+              {/* Watermark: Mint logo */}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
+                style={{ position: 'absolute', right: -10, bottom: -18, width: 120, height: 120, pointerEvents: 'none', transform: 'rotate(10deg)', opacity: 0.1 }}>
+                <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="#fff"/>
+                <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="#fff" fillOpacity="0.6"/>
+              </svg>
+              {/* Watermark: sparkles */}
+              <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.09)" stroke="none"
+                style={{ position: 'absolute', right: 90, top: -18, width: 70, height: 70, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
+                <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+              </svg>
+              <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.06)" stroke="none"
+                style={{ position: 'absolute', right: 50, bottom: -10, width: 40, height: 40, pointerEvents: 'none', transform: 'rotate(30deg)' }}>
+                <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+              </svg>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
+                <div style={{ width: 42, height: 42, borderRadius: 13, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ font: '800 16px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>Mint Analytics</span>
+                    <span style={{ font: '700 10px Plus Jakarta Sans', letterSpacing: '0.04em', background: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.92)', borderRadius: 6, padding: '2px 7px', border: '1px solid rgba(255,255,255,0.25)' }}>
+                      ✦ AI Insights
+                    </span>
+                  </div>
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>AI insight on your spending patterns</div>
+                </div>
               </div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div style={{ font: '700 13px Plus Jakarta Sans', color: '#fff' }}>Generate Mint Analytics</div>
-                <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.5)', marginTop: 1 }}>AI insight on your spending patterns</div>
-              </div>
-              <span style={{ font: '700 9px Plus Jakarta Sans', color: '#16C98A', background: 'rgba(22,201,138,0.15)', borderRadius: 6, padding: '3px 7px', letterSpacing: '0.04em' }}>AI</span>
+
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, position: 'relative' }}>
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
             </button>
           )}
 
           {loadingInsight && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px', background: c.surface2, borderRadius: 14 }}>
-              <div style={{ width: 16, height: 16, borderRadius: 999, border: `2.5px solid ${c.accent}`, borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-              <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Mint is analysing your spending…</span>
+            <div style={{ borderRadius: 16, padding: '16px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F122' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#6366F1,#8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </div>
+                <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint Analytics is thinking…</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {[100, 80, 60].map(w => (
+                  <div key={w} style={{ height: 10, width: `${w}%`, background: '#6366F118', borderRadius: 999, animation: 'pulse 1.4s ease-in-out infinite' }} />
+                ))}
+              </div>
             </div>
           )}
 
           {insight && (
-            <div style={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '16px' }}>
+            <div style={{ borderRadius: 16, padding: '16px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F130' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <div style={{ width: 26, height: 26, borderRadius: 7, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <MintLogo size={14} />
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#6366F1,#8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
                 </div>
-                <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Mint Analytics</span>
-                <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', marginLeft: 2 }}>AI</span>
+                <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>✦ Mint Analytics</span>
                 <button
                   onClick={() => { setInsight(null); setInsightError(null) }}
-                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: c.muted, font: '600 11px Plus Jakarta Sans', padding: 0 }}
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#6366F1', font: '600 11px Plus Jakarta Sans', padding: 0, opacity: 0.7 }}
                 >
                   Regenerate ↺
                 </button>
               </div>
-              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.sub, lineHeight: 1.7 }}>{insight}</div>
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.7 }}>{insight}</div>
             </div>
           )}
 
@@ -285,7 +393,7 @@ export function AnalyticsPage({ state, d, onClose }: Props) {
         </div>
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
     </div>,
     document.body
   )
