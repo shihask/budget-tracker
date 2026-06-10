@@ -188,11 +188,17 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         const pct = Math.min(100, (used / LIMIT) * 100)
         const barColor = pct >= 85 ? '#EF4444' : pct >= 60 ? '#F59E0B' : c.accent
         return (
-          <div style={{ background: c.surface2, borderRadius: 18, padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ background: c.surface, borderRadius: 18, padding: '14px 16px', marginBottom: 16, border: `1px solid ${c.faint}` }}>
             {/* Header row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <img src="/plantmind-logo.svg" width="34" height="34" alt="PlantMind" style={{ borderRadius: 9 }} />
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="22" height="22">
+                    <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="#16C98A"/>
+                    <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="#16C98A" fillOpacity="0.5"/>
+                    <path d="M 50 30 L 50 73" fill="none" stroke="#111111" strokeWidth="3" strokeLinecap="round"/>
+                  </svg>
+                </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>PlantMind</span>
