@@ -237,7 +237,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
                 </svg>
               </div>
               <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em' }}>
-                <span style={{ color: c.ink }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span><span style={{ color: c.muted, fontWeight: 600 }}> AI</span>
+                <span style={{ color: c.ink }}>Plant</span><span style={{ color: '#16C98A' }}>Mind</span>
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

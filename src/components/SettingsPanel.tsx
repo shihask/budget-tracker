@@ -178,10 +178,10 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
       <div style={rowStyle}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={labelStyle}>MoneyPlant AI</div>
+            <div style={labelStyle}>PlantMind</div>
             <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>✦ AI</span>
           </div>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Smart categorization &amp; spending insights</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Your AI-powered financial assistant</div>
         </div>
         <button
           onClick={() => onAutopilot(!autopilotEnabled)}
