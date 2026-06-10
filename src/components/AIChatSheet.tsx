@@ -360,7 +360,6 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
                 {m.text}
               </div>
               )}
-              )}
               {m.savedExpense && (
                 <div style={{
                   background: c.goodSoft, border: `1.5px solid ${c.good}33`,
