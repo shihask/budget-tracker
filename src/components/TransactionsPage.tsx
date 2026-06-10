@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate } from '@/lib/utils'
@@ -44,6 +45,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
   useEffect(() => {
     if (initialEditTx) openEdit(initialEditTx)
+  }, [])
+
+  // Lock the page behind this full-screen overlay so the dashboard doesn't
+  // show a second scrollbar / scroll underneath. Restore on close.
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prevOverflow }
   }, [])
 
   const [search, setSearch] = useState('')
@@ -549,7 +558,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       </BottomSheet>
 
       {/* Borrowing-linked delete confirmation */}
-      {borrowingDeleteTarget && (
+      {borrowingDeleteTarget && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={() => setBorrowingDeleteTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
@@ -578,7 +587,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

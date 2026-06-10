@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 
 interface BottomSheetProps {
@@ -21,13 +22,17 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
     if (open) {
       setMounted(true)
       const id = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
+      const prevOverflow = document.body.style.overflow
+      const prevTouch = document.body.style.touchAction
       document.body.style.overflow = 'hidden'
       document.body.style.touchAction = 'none'
-      return () => cancelAnimationFrame(id)
+      return () => {
+        cancelAnimationFrame(id)
+        document.body.style.overflow = prevOverflow
+        document.body.style.touchAction = prevTouch
+      }
     } else {
       setVisible(false)
-      document.body.style.overflow = ''
-      document.body.style.touchAction = ''
       const t = setTimeout(() => setMounted(false), 340)
       return () => clearTimeout(t)
     }
@@ -90,7 +95,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
 
   if (!mounted) return null
 
-  return (
+  return createPortal(
     <div
       onClick={onClose}
       style={{
@@ -133,6 +138,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
