@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
+
+const APP_VERSION = '1.4.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
@@ -208,7 +210,7 @@ function AppContent({ session }: { session: Session }) {
                 })
               }
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
-                <span style={{ color: c.ink }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span>{' · '}{usingSupabase ? 'synced with Supabase' : 'local session data'}
+                <span style={{ color: c.ink }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span>{' · v'}{APP_VERSION}{' · '}{usingSupabase ? 'synced with Supabase' : 'local session data'}
               </div>
             </div>
           </div>
