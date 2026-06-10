@@ -20,20 +20,17 @@ const EMPTY: AForm = { name: '', type: 'bank', current_balance: '' }
 
 interface AccountsSectionProps {
   state: AppState
-  onAdjustBalance: (id: string, n: number) => Promise<void>
+  onUpdateAccount: (id: string, form: { name: string; type: string; current_balance: number }) => Promise<void>
   onAddAccount: (form: { name: string; type: string; current_balance: number }) => Promise<void>
   onDeleteAccount: (id: string) => Promise<void>
 }
 
-export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDeleteAccount }: AccountsSectionProps) {
+export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDeleteAccount }: AccountsSectionProps) {
   const c = useTheme()
   const accs = state.accounts.filter(a => a.is_active)
   const totalPos = accs.reduce((s, a) => s + Math.max(0, a.current_balance), 0) || 1
   const total = accs.reduce((s, a) => s + a.current_balance, 0)
 
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
-  const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -41,16 +38,28 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
   const [adding, setAdding] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
 
-  const startEdit = (id: string, current: number) => { setEditingId(id); setEditValue(String(current)) }
-  const cancelEdit = () => { setEditingId(null); setEditValue('') }
+  const [editSheetOpen, setEditSheetOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<AForm>(EMPTY)
+  const [saving, setSaving] = useState(false)
 
-  const confirmEdit = async (id: string) => {
-    const n = parseFloat(editValue)
-    if (isNaN(n)) return
+  const openEditSheet = (a: { id: string; name: string; type: AccountType; current_balance: number }) => {
+    setEditingId(a.id)
+    setEditForm({ name: a.name, type: a.type, current_balance: String(a.current_balance) })
+    setEditSheetOpen(true)
+  }
+  const closeEditSheet = () => { setEditSheetOpen(false); setEditingId(null) }
+
+  const handleEditSave = async () => {
+    if (!editingId) return
+    const bal = parseFloat(editForm.current_balance)
+    if (!editForm.name.trim() || isNaN(bal)) return
     setSaving(true)
-    try { await onAdjustBalance(id, n) } catch (_) {}
+    try {
+      await onUpdateAccount(editingId, { name: editForm.name.trim(), type: editForm.type, current_balance: bal })
+      closeEditSheet()
+    } catch (_) {}
     setSaving(false)
-    setEditingId(null); setEditValue('')
   }
 
   const handleDelete = async (id: string, name: string) => {
@@ -127,7 +136,6 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
             {accs.map((a, i) => {
               const color = ACCOUNT_PALETTE[i % ACCOUNT_PALETTE.length]
               const share = Math.round(Math.max(0, a.current_balance) / totalPos * 100)
-              const isEditing = editingId === a.id
               const isDeleting = deleting === a.id
 
               return (
@@ -143,44 +151,24 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
                     </div>
                   </div>
 
-                  {isEditing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>₹</span>
-                      <input
-                        type="number" inputMode="decimal" value={editValue}
-                        onChange={e => setEditValue(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') confirmEdit(a.id); if (e.key === 'Escape') cancelEdit() }}
-                        style={{ width: 100, background: c.surface2, border: `1.5px solid ${c.accent}`, borderRadius: 8, padding: '5px 8px', font: '700 13px Plus Jakarta Sans', color: c.ink, outline: 'none', boxSizing: 'border-box' }}
-                      />
-                      <button onClick={() => confirmEdit(a.id)} disabled={saving} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: c.good, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: saving ? 0.6 : 1 }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                      </button>
-                      <button onClick={cancelEdit} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                      </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>
+                      {fmt(a.current_balance, { decimals: a.current_balance % 1 ? 2 : 0 })}
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>
-                        {fmt(a.current_balance, { decimals: a.current_balance % 1 ? 2 : 0 })}
-                      </div>
-                      {/* Edit balance */}
-                      <button onClick={() => startEdit(a.id, a.current_balance)} title="Adjust balance"
-                        style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                      {/* Delete */}
-                      <button onClick={() => handleDelete(a.id, a.name)} disabled={isDeleting} title="Remove account"
-                        style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.bad + 'BB'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                  )}
+                    <button onClick={() => openEditSheet(a)} title="Edit account"
+                      style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                    <button onClick={() => handleDelete(a.id, a.name)} disabled={isDeleting} title="Remove account"
+                      style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.bad + 'BB'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -238,6 +226,55 @@ export function AccountsSection({ state, onAdjustBalance, onAddAccount, onDelete
           </div>
         </div>
       )}
+
+      {/* Edit Account Sheet */}
+      <BottomSheet open={editSheetOpen} onClose={closeEditSheet}>
+            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>Edit Account</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={lbl}>Account name</label>
+                <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Axis Bank" style={inp} />
+              </div>
+
+              <div>
+                <label style={lbl}>Type</label>
+                <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
+                  {(['bank', 'cash'] as AccountType[]).map(t => (
+                    <button key={t} type="button" onClick={() => setEditForm(f => ({ ...f, type: t }))} style={{
+                      flex: 1, border: 'none', borderRadius: 10, padding: '9px 4px',
+                      font: '700 11px Plus Jakarta Sans',
+                      background: editForm.type === t ? c.accent : 'transparent',
+                      color: editForm.type === t ? '#fff' : c.muted,
+                      cursor: 'pointer',
+                    }}>
+                      {t === 'bank' ? 'Bank' : 'Cash'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={lbl}>Balance</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
+                  <input type="number" inputMode="decimal" value={editForm.current_balance}
+                    onChange={e => setEditForm(f => ({ ...f, current_balance: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && handleEditSave()}
+                    placeholder="0" min="0" step="0.01"
+                    style={{ ...inp, paddingLeft: 28 }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={closeEditSheet} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleEditSave} disabled={saving || !editForm.name.trim()} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+      </BottomSheet>
 
       {/* Add Account Sheet */}
       <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)}>

@@ -110,7 +110,7 @@ function AppContent({ session }: { session: Session }) {
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, adjustBalance, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
 
@@ -191,7 +191,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <Analytics state={state} />
                       break
                     case 'accounts':
-                      el = <AccountsSection state={state} onAdjustBalance={adjustBalance} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />
+                      el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />
                       break
                     case 'commitments':
                       el = <CommitmentsSection state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />

@@ -293,11 +293,11 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, accounts: s.accounts.filter(a => a.id !== accountId) }))
   }, [])
 
-  const adjustBalance = useCallback(async (accountId: string, newBalance: number) => {
+  const updateAccount = useCallback(async (id: string, form: { name: string; type: string; current_balance: number }) => {
     try {
-      await supabase.from('accounts').update({ current_balance: newBalance }).eq('id', accountId)
-      setState(s => ({ ...s, accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: newBalance } : a) }))
-    } catch (err) { console.error('Failed to adjust balance:', err); throw err }
+      await supabase.from('accounts').update(form).eq('id', id)
+      setState(s => ({ ...s, accounts: s.accounts.map(a => a.id === id ? { ...a, name: form.name, type: form.type as import('@/types').AccountType, current_balance: form.current_balance } : a) }))
+    } catch (err) { console.error('Failed to update account:', err); throw err }
   }, [])
 
   // ── Groups CRUD ──────────────────────────────────────────────────────────────
@@ -655,7 +655,7 @@ export function useSupabaseData(userId: string) {
   return {
     state, setState, loading, usingSupabase,
     addTransaction, deleteTransaction, updateTransaction, updateSettings,
-    addAccount, deleteAccount, adjustBalance,
+    addAccount, deleteAccount, updateAccount,
     addGroup, updateGroup, deleteGroup,
     addCategory, updateCategory, deleteCategory,
     addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, updateCreditCardBalance,

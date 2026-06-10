@@ -215,16 +215,22 @@ export function RemindersBar({ state, onMarkPaid }: Props) {
                 <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 14 }}>
                   Log <strong style={{ color: c.ink }}>{fmt(payTarget.amount)}</strong> as an expense, or just mark it paid without recording a transaction.
                 </div>
-                <div style={{ marginBottom: 18 }}>
-                  <label style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Pay from</label>
-                  <select value={payAccountId} onChange={e => setPayAccountId(e.target.value)}
-                    style={{ width: '100%', background: c.surface2, border: `1px solid ${c.faint}`, borderRadius: 12, padding: '11px 12px', font: '700 14px Plus Jakarta Sans', color: c.ink, outline: 'none', boxSizing: 'border-box' }}>
-                    {(state.accounts || []).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
+                {(state.accounts || []).length > 0 ? (
+                  <div style={{ marginBottom: 18 }}>
+                    <label style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Pay from</label>
+                    <select value={payAccountId} onChange={e => setPayAccountId(e.target.value)}
+                      style={{ width: '100%', background: c.surface2, border: `1px solid ${c.faint}`, borderRadius: 12, padding: '11px 12px', font: '700 14px Plus Jakarta Sans', color: c.ink, outline: 'none', boxSizing: 'border-box' }}>
+                      {(state.accounts || []).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: 18, background: c.surface2, borderRadius: 12, padding: '10px 12px', font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                    Add an account to log this as an expense.
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <button disabled={paying} onClick={() => doPay(true)}
-                    style={{ width: '100%', background: c.good, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: paying ? 'default' : 'pointer', opacity: paying ? 0.6 : 1 }}>
+                  <button disabled={paying || (state.accounts || []).length === 0} onClick={() => doPay(true)}
+                    style={{ width: '100%', background: c.good, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: (paying || (state.accounts || []).length === 0) ? 'not-allowed' : 'pointer', opacity: (paying || (state.accounts || []).length === 0) ? 0.5 : 1 }}>
                     {paying ? 'Marking…' : 'Mark paid + log expense'}
                   </button>
                   <button disabled={paying} onClick={() => doPay(false)}
