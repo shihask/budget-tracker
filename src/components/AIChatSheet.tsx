@@ -307,7 +307,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
                 <img src="/plantmind-logo.svg" width="30" height="30" alt="Mint" />
               </div>
               <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em' }}>
-                <span style={{ color: '#16C98A' }}>Mint</span>
+                <span style={{ color: '#16C98A' }}>Mint</span><span style={{ color: 'inherit' }}> Chat</span>
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
