@@ -377,12 +377,12 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
         {messages.length <= 1 && (
           <div style={{ padding: '8px 14px 4px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
-              { label: '📊 Monthly summary', q: 'Give me a summary of my spending this month' },
-              { label: '🔄 Recurring expenses', q: 'What are my recurring expenses and how much do they cost monthly?' },
-              { label: '📈 Am I on budget?', q: 'Am I on budget this week?' },
-              { label: '🏆 Top category', q: "What's my top expense category this month?" },
-              { label: '💡 Save money', q: 'Where can I cut expenses to save money?' },
-              { label: '💰 Free money', q: "What's my real free money right now?" },
+              { label: 'Monthly summary', q: 'Give me a summary of my spending this month' },
+              { label: 'Recurring expenses', q: 'What are my recurring expenses and how much do they cost monthly?' },
+              { label: 'Am I on budget?', q: 'Am I on budget this week?' },
+              { label: 'Top category', q: "What's my top expense category this month?" },
+              { label: 'Save money', q: 'Where can I cut expenses to save money?' },
+              { label: 'Free money', q: "What's my real free money right now?" },
             ].map(({ label, q }) => (
               <button
                 key={q}
