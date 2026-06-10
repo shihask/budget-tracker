@@ -175,26 +175,7 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         </button>
       </div>
 
-      <div style={rowStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="/plantmind-logo.svg" width="36" height="36" alt="PlantMind" style={{ borderRadius: 10 }} />
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={labelStyle}>PlantMind</div>
-              <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>✦ AI</span>
-            </div>
-            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Your AI-powered financial assistant</div>
-          </div>
-        </div>
-        <button
-          onClick={() => onAutopilot(!autopilotEnabled)}
-          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: autopilotEnabled ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
-        >
-          <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: autopilotEnabled ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-        </button>
-      </div>
-
-      {/* AI Quota bar */}
+      {/* PlantMind card — all-in-one */}
       {(() => {
         const now = new Date()
         const resetAt = aiRequestsResetAt ? new Date(aiRequestsResetAt) : null
@@ -207,18 +188,43 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         const pct = Math.min(100, (used / LIMIT) * 100)
         const barColor = pct >= 85 ? '#EF4444' : pct >= 60 ? '#F59E0B' : c.accent
         return (
-          <div style={{ marginBottom: 16, padding: '10px 14px', background: c.surface2, borderRadius: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-              <span style={{ font: '700 11px Plus Jakarta Sans', color: c.ink }}>
-                {used} <span style={{ fontWeight: 600, color: c.muted }}>/ {LIMIT} calls today</span>
+          <div style={{ background: c.surface2, borderRadius: 18, padding: '14px 16px', marginBottom: 16 }}>
+            {/* Header row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img src="/plantmind-logo.svg" width="34" height="34" alt="PlantMind" style={{ borderRadius: 9 }} />
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>PlantMind</span>
+                    <span style={{ font: '700 9px Plus Jakarta Sans', color: c.accent, background: `${c.accent}22`, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>AI</span>
+                  </div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Your AI-powered financial assistant</div>
+                </div>
+              </div>
+              <button
+                onClick={() => onAutopilot(!autopilotEnabled)}
+                style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: autopilotEnabled ? c.accent : c.faint, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
+              >
+                <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: autopilotEnabled ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: c.faint, marginBottom: 12 }} />
+
+            {/* Quota */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ font: '600 11px Plus Jakarta Sans', color: c.ink }}>
+                <span style={{ font: '700 13px Plus Jakarta Sans' }}>{used}</span>
+                <span style={{ color: c.muted }}> / {LIMIT} today</span>
               </span>
               <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>Resets tomorrow</span>
             </div>
-            <div style={{ height: 6, borderRadius: 999, background: c.surface, overflow: 'hidden' }}>
+            <div style={{ height: 5, borderRadius: 999, background: c.surface, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${pct}%`, borderRadius: 999, background: barColor, transition: 'width 0.5s ease' }} />
             </div>
-            <div style={{ font: '600 10px Plus Jakarta Sans', color: pct >= 85 ? '#EF4444' : c.muted, marginTop: 5 }}>
-              {pct >= 100 ? 'Limit reached. Resets tomorrow.' : pct >= 85 ? `Only ${LIMIT - used} calls remaining today` : `${LIMIT - used} calls remaining today`}
+            <div style={{ font: '600 10px Plus Jakarta Sans', color: pct >= 85 ? barColor : c.muted, marginTop: 5 }}>
+              {pct >= 100 ? 'Daily limit reached. Try again tomorrow.' : `${LIMIT - used} requests remaining`}
             </div>
           </div>
         )
