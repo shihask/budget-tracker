@@ -97,6 +97,16 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dragStartY = useRef<number | null>(null)
   const [dragY, setDragY] = useState(0)
+  const [keyboardH, setKeyboardH] = useState(0)
+
+  useEffect(() => {
+    const onResize = () => {
+      const kh = window.screen.height - window.innerHeight
+      setKeyboardH(kh > 100 ? kh : 0)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     if (open) {
@@ -212,7 +222,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
         style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }}
       />
       <div style={{
-        position: 'absolute', left: 0, right: 0, bottom: 0,
+        position: 'absolute', left: 0, right: 0, bottom: keyboardH,
         background: c.surface,
         borderTopLeftRadius: 28, borderTopRightRadius: 28,
         display: 'flex', flexDirection: 'column',
@@ -336,7 +346,7 @@ export function AIChatSheet({ open, onClose, state, onSave }: AIChatSheetProps) 
 
         {/* Input */}
         <div style={{
-          padding: '12px 14px calc(18px + env(safe-area-inset-bottom, 0px))',
+          padding: `12px 14px ${keyboardH > 0 ? '12px' : 'calc(18px + env(safe-area-inset-bottom, 0px))'}`,
           borderTop: `1px solid ${c.faint}`,
           display: 'flex', gap: 10, alignItems: 'center', background: c.surface,
         }}>
