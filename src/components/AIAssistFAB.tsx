@@ -134,11 +134,18 @@ export function AIAssistFAB({ onOpen, containerWidth }: AIAssistFABProps) {
     >
       <div style={{
         width: SIZE, height: SIZE, borderRadius: 999,
-        boxShadow: '0 4px 18px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.15)',
+        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08), 0 0 20px rgba(22,201,138,0.3)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'grab', overflow: 'hidden',
+        cursor: 'grab', overflow: 'hidden', position: 'relative',
       }}>
-        <img src="/plantmind-logo.svg" width={SIZE} height={SIZE} alt="PlantMind" style={{ borderRadius: 999 }} />
+        {/* Glow ring */}
+        <div style={{
+          position: 'absolute', inset: 0, borderRadius: 999,
+          border: '1.5px solid rgba(22,201,138,0.4)',
+          pointerEvents: 'none',
+        }} />
+        <img src="/plantmind-logo.svg" width={32} height={32} alt="PlantMind" style={{ borderRadius: 8, position: 'relative', zIndex: 1 }} />
       </div>
     </div>
   )
