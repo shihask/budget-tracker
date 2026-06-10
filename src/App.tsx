@@ -35,6 +35,7 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
 import { AIAssistFAB } from '@/components/AIAssistFAB'
 import { AIChatSheet } from '@/components/AIChatSheet'
+import { AnalyticsPage } from '@/components/AnalyticsPage'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -103,6 +104,7 @@ function AppContent({ session }: { session: Session }) {
   const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
@@ -188,7 +190,7 @@ function AppContent({ session }: { session: Session }) {
                       </div>
                       break
                     case 'analytics':
-                      el = <Analytics state={state} />
+                      el = <Analytics state={state} onSeeAll={() => setAnalyticsOpen(true)} />
                       break
                     case 'accounts':
                       el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} />
@@ -280,6 +282,10 @@ function AppContent({ session }: { session: Session }) {
               onUpdateCategory={updateCategory}
               onDeleteCategory={deleteCategory}
             />
+          )}
+
+          {analyticsOpen && (
+            <AnalyticsPage state={state} d={d} onClose={() => setAnalyticsOpen(false)} />
           )}
 
           {layoutOpen && (

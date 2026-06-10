@@ -105,6 +105,56 @@ export async function affordabilityInsightWithAI(
   }
 }
 
+export interface AnalyticsInsightContext {
+  totalLast7Days: number
+  peakDay: { label: string; value: number }
+  weekBars: { label: string; value: number }[]
+  topCategories: { name: string; value: number }[]
+  totalThisMonth: number
+  weeklyBudget: number
+  weeklySpent: number
+}
+
+export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const prev = ctx.weekBars[ctx.weekBars.length - 2]?.value ?? 0
+    const curr = ctx.weekBars[ctx.weekBars.length - 1]?.value ?? 0
+    const weekChange = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null
+
+    const catLines = ctx.topCategories
+      .map(c => `${c.name}: ₹${Math.round(c.value).toLocaleString('en-IN')} (${ctx.totalThisMonth > 0 ? Math.round((c.value / ctx.totalThisMonth) * 100) : 0}%)`)
+      .join(', ')
+
+    const context = [
+      `Last 7 days total: ₹${Math.round(ctx.totalLast7Days).toLocaleString('en-IN')}`,
+      `Peak day: ${ctx.peakDay.label} at ₹${Math.round(ctx.peakDay.value).toLocaleString('en-IN')}`,
+      weekChange != null ? `Week-over-week: ${weekChange > 0 ? '+' : ''}${weekChange}%` : null,
+      `This week — budget: ₹${Math.round(ctx.weeklyBudget).toLocaleString('en-IN')}, spent: ₹${Math.round(ctx.weeklySpent).toLocaleString('en-IN')}`,
+      `Top categories this month: ${catLines}`,
+      `Total this month: ₹${Math.round(ctx.totalThisMonth).toLocaleString('en-IN')}`,
+    ].filter(Boolean).join('\n')
+
+    const message = `Analyse my spending and give me a concise, actionable insight. Highlight what's notable — peaks, trends, where my money is going. 2-3 sentences only.`
+
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ mode: 'chat', message, context, history: [] }),
+    })
+
+    if (res.status === 429) return 'Mint daily limit reached (100/day). Try again next month.'
+    if (!res.ok) return null
+
+    const data = await res.json()
+    return data.reply ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function categorizeWithAI(
   description: string,
   categoryNames: string[],

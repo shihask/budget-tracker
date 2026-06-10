@@ -9,9 +9,9 @@ import { weeklyTrend, weeklyBars, categorySplit } from '@/lib/data'
 type Tab = 'trend' | 'weeks' | 'category'
 const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category']]
 
-interface AnalyticsProps { state: AppState }
+interface AnalyticsProps { state: AppState; onSeeAll?: () => void }
 
-export function Analytics({ state }: AnalyticsProps) {
+export function Analytics({ state, onSeeAll }: AnalyticsProps) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>('trend')
   const [infoOpen, setInfoOpen] = useState(false)
@@ -31,6 +31,14 @@ export function Analytics({ state }: AnalyticsProps) {
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
           </svg>
         </button>
+        {onSeeAll && (
+          <button onClick={onSeeAll} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, color: c.accent, font: '700 12px Plus Jakarta Sans', padding: 0 }}>
+            See all
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 4, background: c.surface2, borderRadius: 12, padding: 4, marginTop: 12 }}>
         {TABS.map(([k, l]) => (
