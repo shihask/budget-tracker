@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
+import { BottomSheet } from './BottomSheet'
 import type { AppState, DerivedMetrics } from '@/types'
 
 interface Props {
@@ -192,55 +193,48 @@ export function SavingsSuggestions({ state, d, autopilotEnabled }: Props) {
       </button>
 
       {/* Sheet */}
-      {open && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 350, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={() => setOpen(false)} style={{ flex: 1, background: 'rgba(0,0,0,0.45)' }} />
-          <div style={{ background: c.bg, borderRadius: '22px 22px 0 0', maxWidth: 600, width: '100%', margin: '0 auto', padding: '8px 16px calc(40px + env(safe-area-inset-bottom,0px))', maxHeight: '88svh', overflowY: 'auto' }}>
-            <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999, margin: '12px auto 18px' }} />
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <div>
-                <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Savings Suggestions</div>
-                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Based on your last 30 days</div>
-              </div>
-              <button onClick={() => setOpen(false)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', font: '700 14px', color: c.muted }}>✕</button>
-            </div>
-
-            {suggestions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', font: '600 14px Plus Jakarta Sans', color: c.muted }}>
-                Not enough data yet. Keep tracking your expenses!
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {suggestions.map((s, i) => {
-                  const col = typeColor(s.type)
-                  return (
-                    <div key={i} style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: 16, padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 10, background: col.icon + '20', color: col.icon, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {typeIcon(s.type)}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ font: '700 13px Plus Jakarta Sans', color: col.text }}>{s.title}</div>
-                          <div style={{ font: '500 12px Plus Jakarta Sans', color: col.text + 'CC', marginTop: 4, lineHeight: 1.6 }}>{s.detail}</div>
-                          {s.saving && (
-                            <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: col.icon + '18', borderRadius: 8, padding: '4px 10px' }}>
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={col.icon} strokeWidth="2.5" strokeLinecap="round">
-                                <polyline points="20 6 9 17 4 12"/>
-                              </svg>
-                              <span style={{ font: '700 11px Plus Jakarta Sans', color: col.icon }}>Potential saving: {fmt(s.saving)}/month</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+      <BottomSheet open={open} onClose={() => setOpen(false)} maxHeight="88svh" zIndex={350}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <div>
+            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Savings Suggestions</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Based on your last 30 days</div>
           </div>
+          <button onClick={() => setOpen(false)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', font: '700 14px', color: c.muted }}>✕</button>
         </div>
-      )}
+
+        {suggestions.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', font: '600 14px Plus Jakarta Sans', color: c.muted }}>
+            Not enough data yet. Keep tracking your expenses!
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {suggestions.map((s, i) => {
+              const col = typeColor(s.type)
+              return (
+                <div key={i} style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: 16, padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: col.icon + '20', color: col.icon, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {typeIcon(s.type)}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: col.text }}>{s.title}</div>
+                      <div style={{ font: '500 12px Plus Jakarta Sans', color: col.text + 'CC', marginTop: 4, lineHeight: 1.6 }}>{s.detail}</div>
+                      {s.saving && (
+                        <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: col.icon + '18', borderRadius: 8, padding: '4px 10px' }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={col.icon} strokeWidth="2.5" strokeLinecap="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          <span style={{ font: '700 11px Plus Jakarta Sans', color: col.icon }}>Potential saving: {fmt(s.saving)}/month</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </BottomSheet>
     </>
   )
 }
