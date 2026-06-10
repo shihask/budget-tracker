@@ -138,7 +138,14 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     return computeCycle(sd)
   }, [settings.salary_date])
 
-  const suggested = cycle ? Math.round(d.realFreeMoney / cycle.weeksRemaining) : null
+  const suggested = cycle
+    ? budgetPeriod === 'daily'
+      ? Math.round(d.realFreeMoney / cycle.daysRemaining)
+      : budgetPeriod === 'monthly'
+      ? Math.round(d.realFreeMoney)
+      : Math.round(d.realFreeMoney / cycle.weeksRemaining)
+    : null
+  const suggestedUnit = budgetPeriod === 'daily' ? 'day' : budgetPeriod === 'monthly' ? 'month' : 'week'
 
   const handleSave = async () => {
     const budget = parseFloat(budgetInput)
@@ -342,7 +349,11 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 <Row label="Free money" value={fmt(d.realFreeMoney)} accent />
                 {cycleForDisplay ? (
                   <>
-                    <Row label="Weeks left in cycle" value={`÷ ${cycleForDisplay.weeksRemaining.toFixed(1)} weeks`} muted />
+                    <Row
+                      label={activePeriod === 'daily' ? 'Days left in cycle' : activePeriod === 'monthly' ? 'Months left in cycle' : 'Weeks left in cycle'}
+                      value={activePeriod === 'daily' ? `÷ ${cycleForDisplay.daysRemaining} days` : activePeriod === 'monthly' ? '÷ 1 month' : `÷ ${cycleForDisplay.weeksRemaining.toFixed(1)} weeks`}
+                      muted
+                    />
                     <div style={{ height: 1, background: c.faint }} />
                     <Row label={`${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget`} value={fmt(d.weeklyBudget)} accent bold />
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '8px 10px', marginTop: 4 }}>
@@ -427,12 +438,12 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   {suggested !== null && suggested > 0 && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.faint}` }}>
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 6 }}>
-                        {fmt(d.realFreeMoney)} ÷ {cycle.weeksRemaining.toFixed(1)} weeks
+                        {fmt(d.realFreeMoney)} ÷ {budgetPeriod === 'daily' ? `${cycle.daysRemaining} days` : budgetPeriod === 'monthly' ? '1 month' : `${cycle.weeksRemaining.toFixed(1)} weeks`}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
                           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Suggested budget</div>
-                          <div style={{ font: '800 22px Plus Jakarta Sans', color: c.good, letterSpacing: '-0.02em' }}>{fmt(suggested)}<span style={{ font: '600 12px Plus Jakarta Sans' }}>/week</span></div>
+                          <div style={{ font: '800 22px Plus Jakarta Sans', color: c.good, letterSpacing: '-0.02em' }}>{fmt(suggested)}<span style={{ font: '600 12px Plus Jakarta Sans' }}>/{suggestedUnit}</span></div>
                         </div>
                         <button onClick={() => setBudgetInput(String(suggested))}
                           style={{ background: c.goodSoft, color: c.good, border: 'none', borderRadius: 10, padding: '8px 14px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>
