@@ -82,6 +82,7 @@ export interface Settings {
   weekly_budget_scope?: WeeklyBudgetScope | null
   ai_requests_used?: number
   ai_requests_reset_at?: string | null
+  budget_period?: 'daily' | 'weekly' | 'monthly'
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)

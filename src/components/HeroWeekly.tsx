@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, iso } from '@/lib/utils'
-import { WEEK_START } from '@/lib/data'
+import { fmt, iso, TODAY } from '@/lib/utils'
+import { WEEK_START, MONTH_START } from '@/lib/data'
 import { ProgressRing } from './ProgressRing'
 import { BottomSheet } from './BottomSheet'
 import type { DerivedMetrics, AppState, WeeklyBudgetScope } from '@/types'
@@ -75,6 +75,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
 
   const [salaryDateInput, setSalaryDateInput] = useState(String(settings.salary_date || ''))
   const [budgetInput, setBudgetInput] = useState(String(settings.weekly_budget))
+  const [budgetPeriod, setBudgetPeriod] = useState<'daily' | 'weekly' | 'monthly'>(settings.budget_period ?? 'weekly')
   const [saving, setSaving] = useState(false)
   const [popup, setPopup] = useState<'budget' | 'spent' | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
@@ -94,6 +95,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     if (editOpen) {
       setSalaryDateInput(String(settings.salary_date || ''))
       setBudgetInput(String(settings.weekly_budget))
+      setBudgetPeriod(settings.budget_period ?? 'weekly')
       const s = settings.weekly_budget_scope
       const isEmpty = !s || (s.groups.length === 0 && s.categoryIds.length === 0 && (!s.transactionIds || s.transactionIds.length === 0))
       setScopeGroups(isEmpty ? DEFAULT_SCOPE_GROUPS : s!.groups)
@@ -102,15 +104,20 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
       setShowCatPicker(false)
       setShowTxnPicker(false)
     }
-  }, [editOpen, settings.salary_date, settings.weekly_budget, settings.weekly_budget_scope])
+  }, [editOpen, settings.salary_date, settings.weekly_budget, settings.weekly_budget_scope, settings.budget_period])
 
-  // This week's expense transactions (Mon–Sun)
-  const thisWeekTxns = useMemo(() =>
-    transactions.filter(t =>
-      t.transaction_type === 'expense' && new Date(t.transaction_date) >= WEEK_START
-    ).sort((a, b) => b.transaction_date.localeCompare(a.transaction_date)),
-    [transactions]
-  )
+  // Expense transactions within the current budget period
+  const activePeriod = settings.budget_period ?? 'weekly'
+  const thisWeekTxns = useMemo(() => {
+    const start = activePeriod === 'daily'
+      ? new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate())
+      : activePeriod === 'monthly'
+      ? MONTH_START
+      : WEEK_START
+    return transactions
+      .filter(t => t.transaction_type === 'expense' && new Date(t.transaction_date) >= start)
+      .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+  }, [transactions, activePeriod])
 
   // Returns true if a transaction is already covered by the current group/category scope
   const isCoveredByScope = (t: AppState['transactions'][0]) => {
@@ -140,7 +147,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     setSaving(true)
     try {
       const scope: WeeklyBudgetScope = { groups: scopeGroups, categoryIds: scopeCategoryIds, transactionIds: scopeTransactionIds }
-      await onUpdateSettings({ weekly_budget: budget, salary_date: sd, weekly_budget_scope: scope })
+      await onUpdateSettings({ weekly_budget: budget, salary_date: sd, weekly_budget_scope: scope, budget_period: budgetPeriod })
       onEditClose()
     } catch (_) {}
     setSaving(false)
@@ -210,7 +217,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ font: '600 13px Plus Jakarta Sans', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.02em' }}>Weekly Remaining</div>
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.02em' }}>{activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} Remaining</div>
               <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.65)' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
@@ -240,14 +247,14 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
         {/* Budget / Spent tiles */}
         <div style={{ display: 'flex', gap: 10, marginTop: 16, position: 'relative' }}>
           <div onClick={() => setPopup('budget')} style={{ flex: 1, background: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 12px', cursor: 'pointer' }}>
-            <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)' }}>Budget ⓘ</div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)' }}>{activePeriod === 'daily' ? 'Today' : activePeriod === 'monthly' ? 'Month' : 'Week'} Budget ⓘ</div>
             <div style={{ font: '800 16px Plus Jakarta Sans', color: '#fff', marginTop: 2 }}>{fmt(d.weeklyBudget)}</div>
             {settings.salary_date && (
               <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>Salary: {settings.salary_date}th</div>
             )}
           </div>
           <div onClick={() => setPopup('spent')} style={{ flex: 1, background: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 12px', cursor: 'pointer' }}>
-            <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)' }}>Spent ⓘ</div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)' }}>{activePeriod === 'daily' ? 'Today' : activePeriod === 'monthly' ? 'Month' : 'Week'} Spent ⓘ</div>
             <div style={{ font: '800 16px Plus Jakarta Sans', color: '#fff', marginTop: 2 }}>{fmt(d.weeklySpent)}</div>
             <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{scopeLabel(settings.weekly_budget_scope, categories)}</div>
           </div>
@@ -264,19 +271,19 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                 </svg>
               </div>
-              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>Weekly Budget Tracker</div>
+              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>{activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} Budget Tracker</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {([
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>,
-                  title: 'Weekly spending limit',
-                  desc: 'Your free money is divided by the weeks left in your salary cycle to give a per-week allowance.',
+                  title: `${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} spending limit`,
+                  desc: activePeriod === 'daily' ? 'Your budget for today. Resets at midnight.' : activePeriod === 'monthly' ? 'Your spending budget for the current month.' : 'Your free money is divided by the weeks left in your salary cycle to give a per-week allowance.',
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-                  title: "This week's spend",
-                  desc: `Expenses from Monday to Sunday under: ${scopeLabel(settings.weekly_budget_scope, categories)}. Configure in budget settings.`,
+                  title: `This ${activePeriod === 'daily' ? 'day' : activePeriod === 'monthly' ? 'month' : 'week'}'s spend`,
+                  desc: `${activePeriod === 'daily' ? 'Expenses today' : activePeriod === 'monthly' ? 'Expenses this month' : 'Expenses from Monday to Sunday'} under: ${scopeLabel(settings.weekly_budget_scope, categories)}. Configure in budget settings.`,
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22V12M12 12L7 17M12 12l5 5"/><path d="M20 7a4 4 0 00-8 0"/><path d="M4 7a4 4 0 018 0"/></svg>,
@@ -321,7 +328,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                     <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M12 6v6l4 2"/>
                   </svg>
                 )}
-                {popup === 'budget' ? 'Budget Calculation' : 'Spent Calculation'}
+                {popup === 'budget' ? `${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} Budget` : `${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} Spent`}
               </div>
               <button onClick={() => setPopup(null)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
             </div>
@@ -337,7 +344,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   <>
                     <Row label="Weeks left in cycle" value={`÷ ${cycleForDisplay.weeksRemaining.toFixed(1)} weeks`} muted />
                     <div style={{ height: 1, background: c.faint }} />
-                    <Row label="Weekly budget" value={fmt(d.weeklyBudget)} accent bold />
+                    <Row label={`${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget`} value={fmt(d.weeklyBudget)} accent bold />
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '8px 10px', marginTop: 4 }}>
                       Cycle: {cycleForDisplay.startLabel} → {cycleForDisplay.endLabel} · {cycleForDisplay.daysRemaining} days left
                     </div>
@@ -351,12 +358,12 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '10px 12px', marginBottom: 4 }}>
-                  Expenses this week from: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong>
+                  Expenses {activePeriod === 'daily' ? 'today' : activePeriod === 'monthly' ? 'this month' : 'this week'} from: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong>
                 </div>
-                <Row label="Weekly spent" value={fmt(d.weeklySpent)} bold />
-                <Row label="Weekly budget" value={fmt(d.weeklyBudget)} muted />
+                <Row label={`${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} spent`} value={fmt(d.weeklySpent)} bold />
+                <Row label={`${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget`} value={fmt(d.weeklyBudget)} muted />
                 <div style={{ height: 1, background: c.faint }} />
-                <Row label="Weekly remaining" value={fmt(d.weeklyRemaining)} accent={d.weeklyRemaining >= 0} bad={d.weeklyRemaining < 0} bold />
+                <Row label={`${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} remaining`} value={fmt(d.weeklyRemaining)} accent={d.weeklyRemaining >= 0} bad={d.weeklyRemaining < 0} bold />
                 <Row label="Usage" value={`${Math.round(d.weeklyPct)}%`} muted />
               </div>
             )}
@@ -366,10 +373,29 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
 
       {/* Budget Edit Sheet */}
       <BottomSheet open={editOpen} onClose={onEditClose} maxHeight="90svh">
-            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Weekly Budget</div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>Set your salary cycle to auto-calculate</div>
+            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Budget Settings</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>Set period, scope, and salary cycle</div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Period selector */}
+              <div>
+                <label style={lbl}>Budget period</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(['daily', 'weekly', 'monthly'] as const).map(p => (
+                    <button key={p} onClick={() => setBudgetPeriod(p)} style={{
+                      flex: 1, background: budgetPeriod === p ? c.accent : c.surface2,
+                      color: budgetPeriod === p ? '#fff' : c.ink,
+                      border: `1.5px solid ${budgetPeriod === p ? c.accent : c.faint}`,
+                      borderRadius: 10, padding: '8px 0',
+                      font: '700 13px Plus Jakarta Sans', cursor: 'pointer',
+                      textTransform: 'capitalize',
+                    }}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label style={lbl}>Salary credit date (day of month)</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -504,13 +530,13 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   </svg>
                   {scopeTransactionIds.length > 0
                     ? `${scopeTransactionIds.length} specific transaction${scopeTransactionIds.length === 1 ? '' : 's'} added`
-                    : 'Add specific transactions this week'}
+                    : `Add specific transactions this ${budgetPeriod === 'daily' ? 'day' : budgetPeriod === 'monthly' ? 'month' : 'week'}`}
                 </button>
 
                 {showTxnPicker && (
                   <div style={{ marginTop: 10, background: c.surface2, borderRadius: 14, padding: '10px 12px', maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {thisWeekTxns.length === 0 && (
-                      <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, textAlign: 'center', padding: '12px 0' }}>No expense transactions this week</div>
+                      <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, textAlign: 'center', padding: '12px 0' }}>No expense transactions this {budgetPeriod === 'daily' ? 'day' : budgetPeriod === 'monthly' ? 'month' : 'week'}</div>
                     )}
                     {thisWeekTxns.map(t => {
                       const cat = categories.find(cat => cat.id === t.category_id)
@@ -571,7 +597,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               </div>
 
               <div>
-                <label style={lbl}>Weekly budget</label>
+                <label style={lbl}>{budgetPeriod === 'daily' ? 'Daily' : budgetPeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget</label>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input type="number" inputMode="decimal" value={budgetInput} onChange={e => setBudgetInput(e.target.value)}

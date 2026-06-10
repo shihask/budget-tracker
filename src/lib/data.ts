@@ -52,8 +52,14 @@ const remainingCommitments = state.commitments
 
   const weeklyBudget = state.settings.weekly_budget
   const matchesScope = makeScopeFilter(state)
+  const period = state.settings.budget_period ?? 'weekly'
+  const periodStart = period === 'daily'
+    ? new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate())
+    : period === 'monthly'
+    ? MONTH_START
+    : WEEK_START
   const weeklySpent = state.transactions
-    .filter(t => matchesScope(t, catMap) && new Date(t.transaction_date) >= WEEK_START)
+    .filter(t => matchesScope(t, catMap) && new Date(t.transaction_date) >= periodStart)
     .reduce((s, t) => s + t.amount, 0)
   const weeklyRemaining = weeklyBudget - weeklySpent
   const weeklyPct = weeklyBudget ? (weeklySpent / weeklyBudget) * 100 : 0
