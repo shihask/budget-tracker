@@ -134,18 +134,16 @@ export function AIAssistFAB({ onOpen, containerWidth }: AIAssistFABProps) {
     >
       <div style={{
         width: SIZE, height: SIZE, borderRadius: 999,
-        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08), 0 0 20px rgba(22,201,138,0.3)',
+        background: '#111111',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.5), 0 0 0 1.5px rgba(255,255,255,0.1)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'grab', overflow: 'hidden', position: 'relative',
+        cursor: 'grab',
       }}>
-        {/* Glow ring */}
-        <div style={{
-          position: 'absolute', inset: 0, borderRadius: 999,
-          border: '1.5px solid rgba(22,201,138,0.4)',
-          pointerEvents: 'none',
-        }} />
-        <img src="/plantmind-logo.svg" width={32} height={32} alt="PlantMind" style={{ borderRadius: 8, position: 'relative', zIndex: 1 }} />
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="28" height="28">
+          <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="#16C98A"/>
+          <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="#16C98A" fillOpacity="0.5"/>
+          <path d="M 50 30 L 50 73" fill="none" stroke="#111111" strokeWidth="3" strokeLinecap="round"/>
+        </svg>
       </div>
     </div>
   )
