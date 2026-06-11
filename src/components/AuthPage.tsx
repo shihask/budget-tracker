@@ -32,7 +32,7 @@ export function AuthPage() {
 
   const clearError = () => setError(null)
 
-  const handleOAuth = async (provider: 'google' | 'apple') => {
+  const handleOAuth = async (provider: 'google') => {
     clearError(); setLoading(true)
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
@@ -277,13 +277,6 @@ export function AuthPage() {
           <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
         </svg>
         Continue with Google
-      </button>
-
-      <button onClick={() => handleOAuth('apple')} disabled={loading} style={{ ...oauthBtn, background: '#000', color: '#fff', border: 'none', marginTop: 10 }}>
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
-          <path d="M17.05 12.04c-.03-2.6 2.13-3.85 2.22-3.91-1.21-1.77-3.1-2.01-3.77-2.04-1.6-.16-3.13.94-3.94.94-.81 0-2.07-.92-3.4-.9-1.75.03-3.36 1.02-4.26 2.58-1.82 3.16-.47 7.83 1.3 10.39.86 1.25 1.89 2.66 3.24 2.61 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.03 2.29-1.28 3.15-2.54.99-1.46 1.4-2.87 1.42-2.94-.03-.01-2.72-1.04-2.75-4.13zM14.47 4.5c.72-.87 1.2-2.08 1.07-3.28-1.03.04-2.28.69-3.02 1.56-.66.77-1.24 2-1.08 3.18 1.15.09 2.32-.59 3.03-1.46z"/>
-        </svg>
-        Continue with Apple
       </button>
 
       {isSignup && (
