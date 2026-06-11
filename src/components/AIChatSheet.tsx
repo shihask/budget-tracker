@@ -142,11 +142,16 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
 
   useEffect(() => {
     const onResize = () => {
-      const kh = window.screen.height - window.innerHeight
-      setKeyboardH(kh > 100 ? kh : 0)
+      if (window.visualViewport) {
+        const kh = window.innerHeight - window.visualViewport.height
+        setKeyboardH(kh > 150 ? kh : 0)
+      }
     }
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    const vv = window.visualViewport
+    if (vv) {
+      vv.addEventListener('resize', onResize)
+      return () => vv.removeEventListener('resize', onResize)
+    }
   }, [])
 
   useEffect(() => {
@@ -305,7 +310,7 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
         borderTopLeftRadius: 28, borderTopRightRadius: 28,
         display: 'flex', flexDirection: 'column',
         height: '82svh',
-        transform: open ? `translateY(${dragY}px)` : 'translateY(110%)',
+        transform: open ? `translateY(${dragY}px)` : 'translateY(115%)',
         transition: dragY > 0 ? 'none' : 'transform 0.34s cubic-bezier(0.32,0.72,0,1)',
         boxShadow: '0 -10px 40px rgba(0,0,0,0.18)',
       }}>
