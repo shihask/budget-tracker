@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY')!
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const MONTHLY_LIMIT = 100
+const DAILY_LIMIT = 100
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -33,12 +33,15 @@ Deno.serve(async (req) => {
 
     const now = new Date()
     const resetAt = settings?.ai_requests_reset_at ? new Date(settings.ai_requests_reset_at) : null
-    const needsReset = !resetAt || now.getFullYear() !== resetAt.getFullYear() || now.getMonth() !== resetAt.getMonth()
+    const needsReset = !resetAt
+      || now.getFullYear() !== resetAt.getFullYear()
+      || now.getMonth() !== resetAt.getMonth()
+      || now.getDate() !== resetAt.getDate()
     const used = needsReset ? 0 : (settings?.ai_requests_used ?? 0)
 
-    if (used >= MONTHLY_LIMIT) {
+    if (used >= DAILY_LIMIT) {
       return new Response(
-        JSON.stringify({ error: 'quota_exceeded', used, limit: MONTHLY_LIMIT }),
+        JSON.stringify({ error: 'quota_exceeded', used, limit: DAILY_LIMIT }),
         { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
@@ -94,7 +97,7 @@ Assistant:`
       }).eq('user_id', user.id)
 
       return new Response(
-        JSON.stringify({ reply, expense: null, used: used + 1, limit: MONTHLY_LIMIT }),
+        JSON.stringify({ reply, expense: null, used: used + 1, limit: DAILY_LIMIT }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
@@ -168,7 +171,7 @@ Rules:
           account: validAccount,
           category: validCategory,
           used: used + 1,
-          limit: MONTHLY_LIMIT,
+          limit: DAILY_LIMIT,
         }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
       )
@@ -257,7 +260,7 @@ ${groupLines}
     }).eq('user_id', user.id)
 
     return new Response(
-      JSON.stringify({ result, suggestion, used: used + 1, limit: MONTHLY_LIMIT }),
+      JSON.stringify({ result, suggestion, used: used + 1, limit: DAILY_LIMIT }),
       { headers: { ...cors, 'Content-Type': 'application/json' } }
     )
   } catch {
