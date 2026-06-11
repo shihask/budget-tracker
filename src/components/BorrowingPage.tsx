@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CategorySelect } from './CategorySelect'
@@ -252,8 +253,8 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   const ConfirmModal = ({ title, message, yesLabel, noLabel, onYes, onNo, yesColor }: {
     title: string; message: React.ReactNode; yesLabel: string; noLabel: string
     onYes: () => void; onNo: () => void; yesColor?: string
-  }) => (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+  }) => createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={onNo} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
       <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
         <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>{title}</div>
@@ -263,7 +264,8 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           <button onClick={onNo} style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>{noLabel}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 
   return (
