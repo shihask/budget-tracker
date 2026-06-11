@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import type { AppState, Group, Category } from '@/types'
 
@@ -26,6 +26,13 @@ export function CategoriesPage({
   const [showAddCategory, setShowAddCategory] = useState<string | null>(null) // group_name
   const [inputVal, setInputVal] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Lock the dashboard behind this full-screen overlay (no ghost scrollbar / background scroll).
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prevOverflow }
+  }, [])
 
   const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box',

@@ -173,15 +173,14 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
         setMessages([{ role: 'ai', text: greeting, warning: isWarning }])
       }
       setTimeout(() => inputRef.current?.focus(), 300)
+      const prevOverflow = document.body.style.overflow
+      const prevTouch = document.body.style.touchAction
       document.body.style.overflow = 'hidden'
       document.body.style.touchAction = 'none'
-    } else {
-      document.body.style.overflow = ''
-      document.body.style.touchAction = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-      document.body.style.touchAction = ''
+      return () => {
+        document.body.style.overflow = prevOverflow
+        document.body.style.touchAction = prevTouch
+      }
     }
   }, [open])
 

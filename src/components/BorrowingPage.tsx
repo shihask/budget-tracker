@@ -104,6 +104,13 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
     return () => clearTimeout(t)
   }, [])
 
+  // Lock the dashboard behind this full-screen overlay (no ghost scrollbar / background scroll).
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prevOverflow }
+  }, [])
+
   const triggerClose = () => {
     setClosing(true)
     onSwipeProgress?.(1)
