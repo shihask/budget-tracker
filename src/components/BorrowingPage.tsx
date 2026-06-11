@@ -106,9 +106,14 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
 
   // Lock the dashboard behind this full-screen overlay (no ghost scrollbar / background scroll).
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prevOverflow }
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
   }, [])
 
   const triggerClose = () => {
@@ -288,6 +293,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
       style={{
         position: 'fixed', inset: 0, background: c.bg, zIndex: 100,
         overflowY: dragX > 0 ? 'hidden' : 'auto',
+        overscrollBehavior: 'contain',
         fontFamily: 'Plus Jakarta Sans, sans-serif',
         willChange: 'transform',
         ...(closing

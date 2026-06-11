@@ -29,9 +29,14 @@ export function CategoriesPage({
 
   // Lock the dashboard behind this full-screen overlay (no ghost scrollbar / background scroll).
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prevOverflow }
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
   }, [])
 
   const inp: React.CSSProperties = {
@@ -108,7 +113,7 @@ export function CategoriesPage({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 300, overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 300, overflowY: 'auto', overscrollBehavior: 'contain', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
 
       {/* Header */}
       <div style={{ position: 'sticky', top: 0, zIndex: 10, background: c.bg, borderBottom: `1px solid ${c.faint}`, padding: 'calc(12px + env(safe-area-inset-top, 0px)) 16px 12px' }}>
