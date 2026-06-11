@@ -301,6 +301,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         )}
 
         {/* ── Mint Analytics AI ─────────────────────────────── */}
+        {(state.settings.autopilot_enabled ?? false) && (
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: `1px solid ${c.faint}` }}>
 
           {!insight && !loadingInsight && (
@@ -396,6 +397,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.bad, padding: '8px 0' }}>{insightError}</div>
           )}
         </div>
+        )}
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>

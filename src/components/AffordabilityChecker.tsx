@@ -438,7 +438,7 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
             </div>
 
             {/* AI Insight */}
-            {!aiInsight && !aiLoading && (
+            {(settings.autopilot_enabled ?? false) && !aiInsight && !aiLoading && (
               <button
                 onClick={getAIInsight}
                 style={{
