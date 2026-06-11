@@ -417,7 +417,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: open ? 'auto' : 'none', touchAction: open ? 'none' : 'auto' }}>
-      <div onClick={() => { onClose(); setLongPressChip(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }} />
+      <div data-testid="sheet-backdrop" onClick={() => { onClose(); setLongPressChip(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }} />
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, background: c.surface,
         borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: '8px 18px calc(30px + env(safe-area-inset-bottom, 0px))',
@@ -439,7 +439,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
           <div style={{ font: '800 19px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
             {isTransfer ? 'Transfer' : isExpense ? 'Add Expense' : 'Add Income'}
           </div>
-          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 999, background: c.surface2, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button aria-label="Close" onClick={onClose} style={{ width: 34, height: 34, borderRadius: 999, background: c.surface2, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <Glyph name="close" color={c.sub} size={16} />
           </button>
         </div>

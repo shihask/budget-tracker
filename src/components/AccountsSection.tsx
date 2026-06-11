@@ -128,8 +128,16 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
         )}
 
         {accs.length === 0 ? (
-          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '8px 0' }}>
-            No accounts yet. Tap + to add one.
+          <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🏦</div>
+            <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>No accounts yet</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Add a bank account or cash wallet to track where your money lives.</div>
+            <button
+              onClick={() => setSheetOpen(true)}
+              style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}
+            >
+              Add Account
+            </button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

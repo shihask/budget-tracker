@@ -105,7 +105,11 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
         <span onClick={onSeeAll} style={{ font: '600 13px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>See all</span>
       </div>
       {txns.length === 0 ? (
-        <div style={{ padding: '16px 12px', font: '600 13px Plus Jakarta Sans', color: c.muted }}>No transactions yet.</div>
+        <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>💸</div>
+          <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>No transactions yet</div>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>Tap the <strong style={{ color: c.accent }}>+</strong> button to log your first expense or income.</div>
+        </div>
       ) : txns.map((t) => {
         const cat = catMap[t.category_id!]
         const col = (cat && CAT_COLORS[cat.name]) || c.muted

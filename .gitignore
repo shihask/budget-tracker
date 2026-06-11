@@ -23,4 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.test
 tsconfig.tsbuildinfo
+
+# Playwright
+tests/.auth/
+playwright-report/
+test-results/
