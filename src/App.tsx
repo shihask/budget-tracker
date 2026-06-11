@@ -35,6 +35,7 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
 import { AIAssistFAB } from '@/components/AIAssistFAB'
 import { AIChatSheet } from '@/components/AIChatSheet'
+import { OnboardingWizard } from '@/components/OnboardingWizard'
 import { AnalyticsPage } from '@/components/AnalyticsPage'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
@@ -99,6 +100,7 @@ function AppContent({ session }: { session: Session }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
   const [borrowingAddOnOpen, setBorrowingAddOnOpen] = useState(false)
@@ -114,6 +116,12 @@ function AppContent({ session }: { session: Session }) {
   const [swipePct, setSwipePct] = useState(0)
 
   const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
+
+  useEffect(() => {
+    if (!loading && state.accounts.length === 0) {
+      try { if (!localStorage.getItem('mp_onboarded')) setShowOnboarding(true) } catch (_) {}
+    }
+  }, [loading, state.accounts.length])
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
 
@@ -257,6 +265,15 @@ function AppContent({ session }: { session: Session }) {
             <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} />
             <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} onSave={handleSave} onUpdateSettings={updateSettings} />
           </>)}
+
+          {showOnboarding && (
+            <OnboardingWizard
+              containerWidth={W}
+              onAddAccount={addAccount}
+              onUpdateSettings={updateSettings}
+              onClose={() => setShowOnboarding(false)}
+            />
+          )}
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
