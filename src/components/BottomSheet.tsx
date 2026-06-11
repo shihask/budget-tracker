@@ -24,12 +24,15 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
       const id = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
       const prevOverflow = document.body.style.overflow
       const prevTouch = document.body.style.touchAction
+      const prevHtml = document.documentElement.style.overflow
       document.body.style.overflow = 'hidden'
       document.body.style.touchAction = 'none'
+      document.documentElement.style.overflow = 'hidden'
       return () => {
         cancelAnimationFrame(id)
         document.body.style.overflow = prevOverflow
         document.body.style.touchAction = prevTouch
+        document.documentElement.style.overflow = prevHtml
       }
     } else {
       setVisible(false)

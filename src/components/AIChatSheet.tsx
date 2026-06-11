@@ -175,11 +175,14 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
       setTimeout(() => inputRef.current?.focus(), 300)
       const prevOverflow = document.body.style.overflow
       const prevTouch = document.body.style.touchAction
+      const prevHtml = document.documentElement.style.overflow
       document.body.style.overflow = 'hidden'
       document.body.style.touchAction = 'none'
+      document.documentElement.style.overflow = 'hidden'
       return () => {
         document.body.style.overflow = prevOverflow
         document.body.style.touchAction = prevTouch
+        document.documentElement.style.overflow = prevHtml
       }
     }
   }, [open])
