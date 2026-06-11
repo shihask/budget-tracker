@@ -263,7 +263,7 @@ function AppContent({ session }: { session: Session }) {
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
             <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} />
-            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} onSave={handleSave} onUpdateSettings={updateSettings} />
+            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdateSettings={updateSettings} />
           </>)}
 
           {showOnboarding && (

@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { parseExpenseWithAI } from '@/lib/gemini'
-import type { AppState, Transaction } from '@/types'
+import type { AppState, DerivedMetrics, Transaction } from '@/types'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -16,33 +16,26 @@ function guessTransactionType(text: string): 'income' | 'expense' {
     : 'expense'
 }
 
-function buildContext(state: AppState): string {
+function buildContext(state: AppState, d: DerivedMetrics): string {
   const activeAccs = state.accounts.filter(a => a.is_active)
   const totalBalance = activeAccs.reduce((s, a) => s + a.current_balance, 0)
 
   const now = new Date()
-  const weekStart = new Date(now)
-  weekStart.setDate(now.getDate() - now.getDay())
-
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
 
-  const thisWeekTxns = state.transactions.filter(t =>
-    new Date(t.transaction_date) >= weekStart && t.transaction_type === 'expense'
-  )
   const thisMonthTxns = state.transactions.filter(t =>
     new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense'
   )
   const lastMonthTxns = state.transactions.filter(t => {
-    const d = new Date(t.transaction_date)
-    return d >= lastMonthStart && d <= lastMonthEnd && t.transaction_type === 'expense'
+    const dt = new Date(t.transaction_date)
+    return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense'
   })
 
-  const weeklySpend = thisWeekTxns.reduce((s, t) => s + t.amount, 0)
   const monthlySpend = thisMonthTxns.reduce((s, t) => s + t.amount, 0)
   const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + t.amount, 0)
-  const budget = state.settings.weekly_budget ?? 5000
+  const budget = d.weeklyBudget
 
   // Category breakdown this month
   const catTotalsMonth: Record<string, number> = {}
@@ -81,11 +74,11 @@ function buildContext(state: AppState): string {
 
   return `Today: ${now.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
 Total balance: ₹${totalBalance.toLocaleString()}
-Weekly spend: ₹${weeklySpend.toLocaleString()} / ₹${budget.toLocaleString()} budget (${Math.round(weeklySpend / budget * 100)}% used)
+Weekly spend: ₹${d.weeklySpent.toLocaleString()} / ₹${budget.toLocaleString()} budget (${Math.round(d.weeklySpent / budget * 100)}% used)
 This month spend: ₹${monthlySpend.toLocaleString()}
 Last month spend: ₹${lastMonthSpend.toLocaleString()}
-Emergency fund: ₹${(state.settings.emergency_fund ?? 20000).toLocaleString()}
-Real free money: ₹${(totalBalance - (state.settings.emergency_fund ?? 20000) - state.commitments.filter(c => c.is_active).reduce((s, c) => s + (c.is_recurring ? c.amount : c.remaining), 0)).toLocaleString()}
+Emergency fund: ₹${d.emergencyFund.toLocaleString()}
+Real free money: ₹${d.realFreeMoney.toLocaleString()}
 Accounts: ${activeAccs.map(a => `${a.name} ₹${a.current_balance.toLocaleString()}`).join(', ')}
 This month by category: ${topCats || 'no data'}
 Recurring expenses (last 90 days): ${recurring || 'none detected'}
@@ -125,11 +118,12 @@ interface AIChatSheetProps {
   open: boolean
   onClose: () => void
   state: AppState
+  d: DerivedMetrics
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
 }
 
-export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -157,13 +151,8 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
   useEffect(() => {
     if (open) {
       if (messages.length === 0) {
-        const weeklyBudget = state.settings.weekly_budget ?? 5000
-        const now = new Date()
-        const weekStart = new Date(now)
-        weekStart.setDate(now.getDate() - now.getDay())
-        const weeklySpent = state.transactions
-          .filter(t => new Date(t.transaction_date) >= weekStart && t.transaction_type === 'expense')
-          .reduce((s, t) => s + t.amount, 0)
+        const weeklyBudget = d.weeklyBudget
+        const weeklySpent = d.weeklySpent
         const pct = weeklyBudget > 0 ? Math.round((weeklySpent / weeklyBudget) * 100) : 0
 
         let greeting = 'Hey! Ask me anything about your finances.'
@@ -275,7 +264,7 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
     }
 
     // No amount found — treat as Q&A
-    const context = buildContext(state)
+    const context = buildContext(state, d)
     const result = await chatWithAI(text, next.slice(-6), context, catNames, allAccNames)
     if (result?.reply) {
       setMessages(m => [...m, { role: 'ai', text: result.reply }])
