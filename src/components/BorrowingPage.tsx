@@ -37,6 +37,7 @@ interface BorrowingPageProps {
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onClose: () => void
   onSwipeProgress?: (pct: number) => void
+  initialAddOpen?: boolean
   dark: boolean
   onToggleTheme: () => void
   userName: string
@@ -48,7 +49,7 @@ interface BorrowingPageProps {
 const avatarColors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899']
 const colorFor = (name: string) => avatarColors[name.charCodeAt(0) % avatarColors.length]
 
-export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onAddCategory, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut }: BorrowingPageProps) {
+export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onAddCategory, onClose, onSwipeProgress, initialAddOpen, dark, onToggleTheme, userName, userEmail, synced, onSignOut }: BorrowingPageProps) {
   const c = useTheme()
   const accounts = state.accounts.filter(a => a.is_active)
 
@@ -188,6 +189,12 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
     setSheetOpen(true)
   }
   const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_BFORM) }
+
+  // Auto-open the Add sheet when arriving via the dashboard "+" shortcut.
+  useEffect(() => {
+    if (initialAddOpen) openAdd()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSave = async () => {
     const total = parseFloat(form.total_amount)
