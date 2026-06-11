@@ -320,7 +320,7 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
           <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 30, height: 30, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src="/plantmind-logo.svg" width="30" height="30" alt="Mint" />
+                <img src="/mint-ai-logo.svg" width="30" height="30" alt="Mint" />
               </div>
               <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em' }}>
                 <span style={{ color: '#16C98A' }}>Mint</span><span style={{ color: 'inherit' }}> Chat</span>

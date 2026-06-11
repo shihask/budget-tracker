@@ -173,16 +173,28 @@ export function SavingsSuggestions({ state, d, autopilotEnabled }: Props) {
           boxShadow: c.cardShadow, position: 'relative', overflow: 'hidden',
         }}
       >
-        {/* Watermark: Mint logo */}
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
-          style={{ position: 'absolute', right: -8, bottom: -16, width: 110, height: 110, pointerEvents: 'none', transform: 'rotate(10deg)', opacity: 0.6 }}>
-          <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="rgba(22,163,74,0.08)"/>
-          <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="rgba(22,163,74,0.05)"/>
+        {/* Watermark: Mint leaf */}
+        <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
+          style={{ position: 'absolute', right: -8, bottom: -14, width: 110, height: 110, pointerEvents: 'none', transform: 'rotate(10deg)' }}>
+          <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(22,163,74,0.12)"/>
+          <path opacity="0.6" d="M119.93 377.33C187.33 296.93 259.29 245.87 354.43 186.33" stroke="rgba(22,163,74,0.1)" strokeWidth="12.288" strokeLinecap="round"/>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z" fill="rgba(22,163,74,0.1)"/>
         </svg>
-        {/* Watermark: sparkle */}
-        <svg viewBox="0 0 24 24" fill="rgba(22,163,74,0.1)" stroke="none"
-          style={{ position: 'absolute', right: 80, top: -14, width: 60, height: 60, pointerEvents: 'none', transform: 'rotate(-12deg)' }}>
-          <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+        {/* Sparkles */}
+        <svg viewBox="0 0 512 512" fill="rgba(22,163,74,0.22)" stroke="none" style={{ position: 'absolute', right: 80, top: 6, width: 52, height: 52, pointerEvents: 'none', transform: 'rotate(-12deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+        </svg>
+        <svg viewBox="0 0 512 512" fill="rgba(22,163,74,0.15)" stroke="none" style={{ position: 'absolute', right: 36, bottom: 6, width: 36, height: 36, pointerEvents: 'none', transform: 'rotate(20deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+        </svg>
+        <svg viewBox="0 0 512 512" fill="rgba(22,163,74,0.12)" stroke="none" style={{ position: 'absolute', right: 148, top: 8, width: 26, height: 26, pointerEvents: 'none', transform: 'rotate(45deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+        </svg>
+        <svg viewBox="0 0 512 512" fill="rgba(22,163,74,0.09)" stroke="none" style={{ position: 'absolute', left: '40%', bottom: 8, width: 20, height: 20, pointerEvents: 'none', transform: 'rotate(-22deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+        </svg>
+        <svg viewBox="0 0 512 512" fill="rgba(22,163,74,0.07)" stroke="none" style={{ position: 'absolute', right: 190, bottom: 5, width: 16, height: 16, pointerEvents: 'none', transform: 'rotate(60deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
         </svg>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
           <div style={{ width: 38, height: 38, borderRadius: 12, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

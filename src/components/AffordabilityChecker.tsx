@@ -180,23 +180,36 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
           position: 'relative', overflow: 'hidden',
         }}
       >
-        {/* Watermark: Mint logo */}
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
-          style={{ position: 'absolute', right: -10, bottom: -20, width: 130, height: 130, pointerEvents: 'none', transform: 'rotate(10deg)', opacity: 0.1 }}>
-          <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="#fff"/>
-          <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="#fff" fillOpacity="0.6"/>
+        {/* Watermark: Mint leaf — echo (behind) */}
+        <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
+          style={{ position: 'absolute', right: -36, bottom: -40, width: 200, height: 200, pointerEvents: 'none', transform: 'rotate(18deg)' }}>
+          <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(255,255,255,0.07)"/>
         </svg>
-        {/* Watermark: sparkles */}
-        <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.09)" stroke="none"
-          style={{ position: 'absolute', right: 90, top: -16, width: 64, height: 64, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
-          <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+        {/* Watermark: Mint leaf — primary */}
+        <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
+          style={{ position: 'absolute', right: -16, bottom: -24, width: 165, height: 165, pointerEvents: 'none', transform: 'rotate(10deg)' }}>
+          <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(255,255,255,0.22)"/>
+          <path opacity="0.7" d="M119.93 377.33C187.33 296.93 259.29 245.87 354.43 186.33" stroke="rgba(255,255,255,0.18)" strokeWidth="12.288" strokeLinecap="round"/>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z" fill="rgba(255,255,255,0.18)"/>
         </svg>
-        <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.06)" stroke="none"
-          style={{ position: 'absolute', right: 48, bottom: -8, width: 38, height: 38, pointerEvents: 'none', transform: 'rotate(30deg)' }}>
-          <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+        {/* Sparkles */}
+        <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.28)" stroke="none" style={{ position: 'absolute', right: 88, top: 6, width: 52, height: 52, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+        </svg>
+        <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.18)" stroke="none" style={{ position: 'absolute', right: 44, bottom: 6, width: 36, height: 36, pointerEvents: 'none', transform: 'rotate(22deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+        </svg>
+        <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.14)" stroke="none" style={{ position: 'absolute', right: 150, top: 8, width: 26, height: 26, pointerEvents: 'none', transform: 'rotate(45deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+        </svg>
+        <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.10)" stroke="none" style={{ position: 'absolute', left: '42%', bottom: 8, width: 20, height: 20, pointerEvents: 'none', transform: 'rotate(-18deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+        </svg>
+        <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.08)" stroke="none" style={{ position: 'absolute', right: 195, bottom: 5, width: 16, height: 16, pointerEvents: 'none', transform: 'rotate(60deg)' }}>
+          <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
         </svg>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+<div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
           <div style={{ width: 36, height: 36, borderRadius: 11, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2z"/>

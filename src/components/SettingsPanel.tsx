@@ -189,26 +189,34 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         const barColor = pct >= 85 ? '#EF4444' : pct >= 60 ? '#F59E0B' : c.accent
         return (
           <div style={{ background: c.surface, borderRadius: 18, padding: '14px 16px', marginBottom: 16, border: `1px solid ${c.faint}`, position: 'relative', overflow: 'hidden' }}>
-            {/* Watermark: Mint logo */}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
-              style={{ position: 'absolute', right: -6, bottom: -18, width: 110, height: 110, pointerEvents: 'none', transform: 'rotate(10deg)', opacity: 0.5 }}>
-              <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="rgba(22,201,138,0.1)"/>
-              <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="rgba(22,201,138,0.06)"/>
+            {/* Watermark: Mint leaf */}
+            <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
+              style={{ position: 'absolute', right: -6, bottom: -18, width: 110, height: 110, pointerEvents: 'none', transform: 'rotate(10deg)' }}>
+              <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(22,201,138,0.14)"/>
+              <path opacity="0.6" d="M119.93 377.33C187.33 296.93 259.29 245.87 354.43 186.33" stroke="rgba(22,201,138,0.1)" strokeWidth="12.288" strokeLinecap="round"/>
+              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z" fill="rgba(22,201,138,0.1)"/>
             </svg>
-            {/* Watermark: sparkle */}
-            <svg viewBox="0 0 24 24" fill="rgba(22,201,138,0.12)" stroke="none"
-              style={{ position: 'absolute', right: 78, top: -12, width: 56, height: 56, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
-              <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+            {/* Sparkles */}
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.22)" stroke="none" style={{ position: 'absolute', right: 78, top: 6, width: 48, height: 48, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
+              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+            </svg>
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.15)" stroke="none" style={{ position: 'absolute', right: 32, bottom: 6, width: 32, height: 32, pointerEvents: 'none', transform: 'rotate(22deg)' }}>
+              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+            </svg>
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.12)" stroke="none" style={{ position: 'absolute', right: 140, top: 8, width: 22, height: 22, pointerEvents: 'none', transform: 'rotate(45deg)' }}>
+              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+            </svg>
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.09)" stroke="none" style={{ position: 'absolute', left: '38%', bottom: 8, width: 18, height: 18, pointerEvents: 'none', transform: 'rotate(-18deg)' }}>
+              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+            </svg>
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.07)" stroke="none" style={{ position: 'absolute', right: 185, bottom: 5, width: 14, height: 14, pointerEvents: 'none', transform: 'rotate(60deg)' }}>
+              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
             </svg>
             {/* Header row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 9, background: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="22" height="22">
-                    <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="#16C98A"/>
-                    <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="#16C98A" fillOpacity="0.5"/>
-                    <path d="M 50 30 L 50 73" fill="none" stroke="#111111" strokeWidth="3" strokeLinecap="round"/>
-                  </svg>
+                <div style={{ width: 34, height: 34, borderRadius: 9, overflow: 'hidden', flexShrink: 0 }}>
+                  <img src="/mint-ai-logo.svg" width="34" height="34" alt="Mint AI" style={{ display: 'block' }} />
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

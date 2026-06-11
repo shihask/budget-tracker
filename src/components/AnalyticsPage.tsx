@@ -316,27 +316,38 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 position: 'relative', overflow: 'hidden',
               }}
             >
-              {/* Watermark: Mint logo */}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
-                style={{ position: 'absolute', right: -10, bottom: -18, width: 120, height: 120, pointerEvents: 'none', transform: 'rotate(10deg)', opacity: 0.1 }}>
-                <path d="M 50 24 C 36 24 27 34 27 47 C 27 61 38 70 50 76 L 50 24 Z" fill="#fff"/>
-                <path d="M 50 24 C 64 24 73 34 73 47 C 73 61 62 70 50 76 L 50 24 Z" fill="#fff" fillOpacity="0.6"/>
+              {/* Watermark: Mint leaf — echo (behind) */}
+              <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
+                style={{ position: 'absolute', right: -36, bottom: -40, width: 200, height: 200, pointerEvents: 'none', transform: 'rotate(18deg)' }}>
+                <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(255,255,255,0.07)"/>
               </svg>
-              {/* Watermark: sparkles */}
-              <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.09)" stroke="none"
-                style={{ position: 'absolute', right: 90, top: -18, width: 70, height: 70, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
-                <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+              {/* Watermark: Mint leaf — primary */}
+              <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
+                style={{ position: 'absolute', right: -16, bottom: -24, width: 165, height: 165, pointerEvents: 'none', transform: 'rotate(10deg)' }}>
+                <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(255,255,255,0.22)"/>
+                <path opacity="0.7" d="M119.93 377.33C187.33 296.93 259.29 245.87 354.43 186.33" stroke="rgba(255,255,255,0.18)" strokeWidth="12.288" strokeLinecap="round"/>
+                <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z" fill="rgba(255,255,255,0.18)"/>
               </svg>
-              <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.06)" stroke="none"
-                style={{ position: 'absolute', right: 50, bottom: -10, width: 40, height: 40, pointerEvents: 'none', transform: 'rotate(30deg)' }}>
-                <path d="M12 2c0 0 2.2 7.8 10 10-7.8 2.2-10 10-10 10s-2.2-7.8-10-10c7.8-2.2 10-10 10-10z"/>
+              {/* Sparkles */}
+              <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.28)" stroke="none" style={{ position: 'absolute', right: 88, top: 6, width: 52, height: 52, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
+                <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+              </svg>
+              <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.18)" stroke="none" style={{ position: 'absolute', right: 44, bottom: 6, width: 36, height: 36, pointerEvents: 'none', transform: 'rotate(22deg)' }}>
+                <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+              </svg>
+              <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.14)" stroke="none" style={{ position: 'absolute', right: 148, top: 8, width: 26, height: 26, pointerEvents: 'none', transform: 'rotate(45deg)' }}>
+                <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+              </svg>
+              <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.10)" stroke="none" style={{ position: 'absolute', left: '44%', bottom: 8, width: 20, height: 20, pointerEvents: 'none', transform: 'rotate(-20deg)' }}>
+                <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
+              </svg>
+              <svg viewBox="0 0 512 512" fill="rgba(255,255,255,0.08)" stroke="none" style={{ position: 'absolute', right: 200, bottom: 5, width: 16, height: 16, pointerEvents: 'none', transform: 'rotate(60deg)' }}>
+                <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
               </svg>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
-                <div style={{ width: 42, height: 42, borderRadius: 13, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
+                <div style={{ width: 42, height: 42, borderRadius: 13, overflow: 'hidden', flexShrink: 0 }}>
+                  <img src="/mint-ai-logo.svg" width="42" height="42" alt="Mint AI" style={{ display: 'block' }} />
                 </div>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -358,10 +369,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
           {loadingInsight && (
             <div style={{ borderRadius: 16, padding: '16px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F122' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#6366F1,#8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
+                <div style={{ width: 28, height: 28, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+                  <img src="/mint-ai-logo.svg" width="28" height="28" alt="Mint AI" style={{ display: 'block' }} />
                 </div>
                 <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint Analytics is thinking…</span>
               </div>
@@ -376,10 +385,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
           {insight && (
             <div style={{ borderRadius: 16, padding: '16px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F130' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#6366F1,#8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
+                <div style={{ width: 28, height: 28, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+                  <img src="/mint-ai-logo.svg" width="28" height="28" alt="Mint AI" style={{ display: 'block' }} />
                 </div>
                 <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: -1, marginRight: 4 }}><path d="M12 2l2.2 6.3L21 11l-6.8 2.7L12 20l-2.2-6.3L3 11l6.8-2.7z"/></svg>Mint Analytics</span>
                 <button
