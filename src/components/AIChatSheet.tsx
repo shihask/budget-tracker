@@ -173,15 +173,29 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
         setMessages([{ role: 'ai', text: greeting, warning: isWarning }])
       }
       setTimeout(() => inputRef.current?.focus(), 300)
-      document.body.style.overflow = 'hidden'
-      document.body.style.touchAction = 'none'
-    } else {
-      document.body.style.overflow = ''
-      document.body.style.touchAction = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-      document.body.style.touchAction = ''
+      // iOS-safe scroll lock: pinning the body with position:fixed actually stops
+      // the page scrolling behind the sheet (overflow:hidden alone doesn't on iOS).
+      const scrollY = window.scrollY
+      const body = document.body
+      const prev = {
+        position: body.style.position, top: body.style.top, left: body.style.left,
+        right: body.style.right, width: body.style.width, overflow: body.style.overflow,
+      }
+      body.style.position = 'fixed'
+      body.style.top = `-${scrollY}px`
+      body.style.left = '0'
+      body.style.right = '0'
+      body.style.width = '100%'
+      body.style.overflow = 'hidden'
+      return () => {
+        body.style.position = prev.position
+        body.style.top = prev.top
+        body.style.left = prev.left
+        body.style.right = prev.right
+        body.style.width = prev.width
+        body.style.overflow = prev.overflow
+        window.scrollTo(0, scrollY)
+      }
     }
   }, [open])
 

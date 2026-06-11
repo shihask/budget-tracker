@@ -51,9 +51,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   // Lock the page behind this full-screen overlay so the dashboard doesn't
   // show a second scrollbar / scroll underneath. Restore on close.
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prevOverflow }
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
   }, [])
 
   const [search, setSearch] = useState('')
@@ -234,6 +239,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       style={{
         position: 'fixed', inset: 0, background: c.bg, zIndex: 100,
         overflowY: dragX > 0 ? 'hidden' : 'auto',
+        overscrollBehavior: 'contain',
         fontFamily: 'Plus Jakarta Sans, sans-serif',
         willChange: 'transform',
         ...(closing

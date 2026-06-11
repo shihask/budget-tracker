@@ -470,7 +470,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         {isExpense && !isTransfer && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: aiParsing ? 1 : 0.5, color: aiParsing ? c.accent : undefined, transition: 'color 0.2s' }}>✦</span>
+              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: aiParsing ? 1 : 0.5, color: aiParsing ? c.accent : undefined, transition: 'color 0.2s' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L21 11l-6.8 2.7L12 20l-2.2-6.3L3 11l6.8-2.7z"/></svg></span>
               <input
                 ref={smartInputRef}
                 value={smartInput}
@@ -726,7 +726,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                         cursor: 'pointer', textAlign: 'left',
                       }}
                     >
-                      ✦ Create "{aiSuggestion.name}" in {aiSuggestion.group}?
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: -1, marginRight: 4 }}><path d="M12 2l2.2 6.3L21 11l-6.8 2.7L12 20l-2.2-6.3L3 11l6.8-2.7z"/></svg>Create "{aiSuggestion.name}" in {aiSuggestion.group}?
                     </button>
                   )}
                 </div>

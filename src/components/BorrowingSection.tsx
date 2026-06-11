@@ -7,9 +7,10 @@ import type { AppState } from '@/types'
 interface Props {
   state: AppState
   onSeeAll: () => void
+  onAdd: () => void
 }
 
-export function BorrowingSection({ state, onSeeAll }: Props) {
+export function BorrowingSection({ state, onSeeAll, onAdd }: Props) {
   const c = useTheme()
   const [infoOpen, setInfoOpen] = useState(false)
 
@@ -30,7 +31,10 @@ export function BorrowingSection({ state, onSeeAll }: Props) {
             </svg>
           </button>
         </div>
-        <span onClick={onSeeAll} style={{ font: '600 13px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>See all</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span onClick={onSeeAll} style={{ font: '600 13px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>See all</span>
+          <button onClick={onAdd} aria-label="Add entry" style={{ width: 28, height: 28, borderRadius: 9, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 18px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: 0 }}>+</button>
+        </div>
       </div>
 
       {state.borrowings.length === 0 ? (

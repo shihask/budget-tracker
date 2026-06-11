@@ -39,9 +39,14 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
 
   useEffect(() => {
-    const prev = document.body.style.overflow
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
   }, [])
 
   const triggerClose = () => {
@@ -177,7 +182,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px calc(32px + env(safe-area-inset-bottom, 0px))' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 16px calc(32px + env(safe-area-inset-bottom, 0px))' }}>
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, background: c.surface2, borderRadius: 12, padding: 4, marginBottom: 20 }}>
@@ -296,6 +301,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         )}
 
         {/* ── Mint Analytics AI ─────────────────────────────── */}
+        {(state.settings.autopilot_enabled ?? false) && (
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: `1px solid ${c.faint}` }}>
 
           {!insight && !loadingInsight && (
@@ -336,7 +342,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ font: '800 16px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>Mint Analytics</span>
                     <span style={{ font: '700 10px Plus Jakarta Sans', letterSpacing: '0.04em', background: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.92)', borderRadius: 6, padding: '2px 7px', border: '1px solid rgba(255,255,255,0.25)' }}>
-                      ✦ AI Insights
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: -1, marginRight: 4 }}><path d="M12 2l2.2 6.3L21 11l-6.8 2.7L12 20l-2.2-6.3L3 11l6.8-2.7z"/></svg>AI Insights
                     </span>
                   </div>
                   <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>AI insight on your spending patterns</div>
@@ -375,7 +381,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                   </svg>
                 </div>
-                <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>✦ Mint Analytics</span>
+                <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: -1, marginRight: 4 }}><path d="M12 2l2.2 6.3L21 11l-6.8 2.7L12 20l-2.2-6.3L3 11l6.8-2.7z"/></svg>Mint Analytics</span>
                 <button
                   onClick={() => { setInsight(null); setInsightError(null) }}
                   style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#6366F1', font: '600 11px Plus Jakarta Sans', padding: 0, opacity: 0.7 }}
@@ -391,6 +397,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.bad, padding: '8px 0' }}>{insightError}</div>
           )}
         </div>
+        )}
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
