@@ -188,28 +188,30 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         const pct = Math.min(100, (used / LIMIT) * 100)
         const barColor = pct >= 85 ? '#EF4444' : pct >= 60 ? '#F59E0B' : c.accent
         return (
-          <div style={{ background: c.surface, borderRadius: 18, padding: '14px 16px', marginBottom: 16, border: `1px solid ${c.faint}`, position: 'relative', overflow: 'hidden' }}>
-            {/* Watermark: Mint leaf */}
+          <div style={{ background: `linear-gradient(145deg, ${c.surface} 55%, rgba(22,201,138,0.06))`, borderRadius: 18, padding: '14px 16px', marginBottom: 16, border: `1px solid rgba(22,201,138,0.18)`, position: 'relative', overflow: 'hidden' }}>
+            {/* Watermark: Mint leaf — echo */}
             <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
-              style={{ position: 'absolute', right: -6, bottom: -18, width: 110, height: 110, pointerEvents: 'none', transform: 'rotate(10deg)' }}>
-              <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(22,201,138,0.14)"/>
-              <path opacity="0.6" d="M119.93 377.33C187.33 296.93 259.29 245.87 354.43 186.33" stroke="rgba(22,201,138,0.1)" strokeWidth="12.288" strokeLinecap="round"/>
-              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z" fill="rgba(22,201,138,0.1)"/>
+              style={{ position: 'absolute', right: -44, bottom: -48, width: 200, height: 200, pointerEvents: 'none', transform: 'rotate(18deg)' }}>
+              <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(22,201,138,0.06)"/>
+            </svg>
+            {/* Watermark: Mint leaf — primary */}
+            <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
+              style={{ position: 'absolute', right: -14, bottom: -22, width: 155, height: 155, pointerEvents: 'none', transform: 'rotate(8deg)' }}>
+              <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill="rgba(22,201,138,0.16)"/>
+              <path opacity="0.7" d="M119.93 377.33C187.33 296.93 259.29 245.87 354.43 186.33" stroke="rgba(22,201,138,0.12)" strokeWidth="12.288" strokeLinecap="round"/>
+              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z" fill="rgba(22,201,138,0.12)"/>
             </svg>
             {/* Sparkles */}
-            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.22)" stroke="none" style={{ position: 'absolute', right: 78, top: 6, width: 48, height: 48, pointerEvents: 'none', transform: 'rotate(-10deg)' }}>
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.28)" stroke="none" style={{ position: 'absolute', right: 100, top: 8, width: 44, height: 44, pointerEvents: 'none', transform: 'rotate(-12deg)' }}>
               <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
             </svg>
-            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.15)" stroke="none" style={{ position: 'absolute', right: 32, bottom: 6, width: 32, height: 32, pointerEvents: 'none', transform: 'rotate(22deg)' }}>
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.18)" stroke="none" style={{ position: 'absolute', right: 62, bottom: 8, width: 28, height: 28, pointerEvents: 'none', transform: 'rotate(25deg)' }}>
               <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
             </svg>
-            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.12)" stroke="none" style={{ position: 'absolute', right: 140, top: 8, width: 22, height: 22, pointerEvents: 'none', transform: 'rotate(45deg)' }}>
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.13)" stroke="none" style={{ position: 'absolute', right: 160, top: 10, width: 20, height: 20, pointerEvents: 'none', transform: 'rotate(45deg)' }}>
               <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
             </svg>
-            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.09)" stroke="none" style={{ position: 'absolute', left: '38%', bottom: 8, width: 18, height: 18, pointerEvents: 'none', transform: 'rotate(-18deg)' }}>
-              <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
-            </svg>
-            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.07)" stroke="none" style={{ position: 'absolute', right: 185, bottom: 5, width: 14, height: 14, pointerEvents: 'none', transform: 'rotate(60deg)' }}>
+            <svg viewBox="0 0 512 512" fill="rgba(22,201,138,0.09)" stroke="none" style={{ position: 'absolute', right: 200, bottom: 10, width: 15, height: 15, pointerEvents: 'none', transform: 'rotate(-20deg)' }}>
               <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z"/>
             </svg>
             {/* Header row */}
