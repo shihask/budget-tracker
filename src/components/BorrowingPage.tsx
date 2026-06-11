@@ -62,6 +62,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
 
   // ── Add / Edit form ───────────────────────────────────────────────────────────
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [addInfoOpen, setAddInfoOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<BForm>(EMPTY_BFORM)
   const [saving, setSaving] = useState(false)
@@ -200,7 +201,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
     setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent', account_id: accounts[0]?.id || '' })
     setSheetOpen(true)
   }
-  const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_BFORM) }
+  const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_BFORM); setAddInfoOpen(false) }
 
   // Auto-open the Add sheet when arriving via the dashboard "+" shortcut.
   useEffect(() => {
@@ -492,9 +493,44 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
 
       {/* ── Add / Edit Sheet ─────────────────────────────────────────────────────── */}
       <BottomSheet open={sheetOpen} onClose={closeSheet} maxHeight="88svh">
-        <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>
-          {editingId ? 'Edit Entry' : 'Add Borrowing'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 16 }}>
+          <span style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
+            {editingId ? 'Edit Entry' : 'Add Borrowing'}
+          </span>
+          <button onClick={() => setAddInfoOpen(true)} aria-label="What do these fields mean?"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+          </button>
         </div>
+
+        {addInfoOpen && createPortal(
+          <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={() => setAddInfoOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+            <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 22, width: '100%', maxWidth: 420, maxHeight: '80svh', overflowY: 'auto', overscrollBehavior: 'contain', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+              <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 14 }}>What each field means</div>
+              {[
+                ['Type', '"I gave money" = you lent it, so they owe you. "I received money" = you borrowed it, so you owe them. This can\u2019t be changed after the entry is created.'],
+                ['Person name', 'Who you lent money to, or borrowed it from.'],
+                ['Total amount', 'The full amount of the loan.'],
+                ['Repaid by them / Repaid by you', 'How much has already been paid back so far. Leave it 0 for a brand-new entry.'],
+                ['Account', 'If you choose to record a transaction, the money is deducted from this account (when you lent) or added to it (when you received).'],
+                ['Notes', 'Optional reminder for yourself \u2014 e.g. "repaying monthly" or what it was for.'],
+              ].map(([label, desc]) => (
+                <div key={label} style={{ marginBottom: 12 }}>
+                  <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 2 }}>{label}</div>
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.55 }}>{desc}</div>
+                </div>
+              ))}
+              <button onClick={() => setAddInfoOpen(false)}
+                style={{ width: '100%', marginTop: 6, background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '12px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>
+                Got it
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <Label>Type</Label>
