@@ -553,12 +553,12 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           </div>
           <div>
             <Label>Direction</Label>
-            <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
+            <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3, opacity: 0.7 }}>
               {([true, false] as const).map(v => (
-                <button key={String(v)} type="button" onClick={() => setPayForm(f => ({ ...f, incoming: v }))} style={{
+                <button key={String(v)} type="button" disabled style={{
                   flex: 1, border: 'none', borderRadius: 10, padding: '9px', font: '700 12px Plus Jakarta Sans',
                   background: payForm.incoming === v ? (v ? c.good : c.bad) : 'transparent',
-                  color: payForm.incoming === v ? '#fff' : c.muted, cursor: 'pointer',
+                  color: payForm.incoming === v ? '#fff' : c.muted, cursor: 'not-allowed',
                 }}>
                   {v ? '↓ Receiving' : '↑ Paying out'}
                 </button>
