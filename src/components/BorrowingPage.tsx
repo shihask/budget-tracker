@@ -485,19 +485,23 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <Label>Type</Label>
-            <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
+            <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3, opacity: editingId ? 0.7 : 1 }}>
               {(['lent', 'borrowed'] as const).map(d => (
-                <button key={d} type="button" onClick={() => setForm(f => ({ ...f, direction: d }))} style={{
+                <button key={d} type="button" disabled={!!editingId}
+                  onClick={() => { if (!editingId) setForm(f => ({ ...f, direction: d })) }}
+                  style={{
                   flex: 1, border: 'none', borderRadius: 10, padding: '9px', font: '700 12px Plus Jakarta Sans',
                   background: form.direction === d ? (d === 'lent' ? c.good : c.bad) : 'transparent',
-                  color: form.direction === d ? '#fff' : c.muted, cursor: 'pointer',
+                  color: form.direction === d ? '#fff' : c.muted, cursor: editingId ? 'not-allowed' : 'pointer',
                 }}>
                   {d === 'lent' ? '↑ I gave money' : '↓ I received money'}
                 </button>
               ))}
             </div>
             <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 5 }}>
-              {form.direction === 'lent' ? 'You gave money — they owe you' : 'You received money — you owe them'}
+              {editingId
+                ? "Type can't be changed after an entry is created"
+                : (form.direction === 'lent' ? 'You gave money — they owe you' : 'You received money — you owe them')}
             </div>
           </div>
           <div>
