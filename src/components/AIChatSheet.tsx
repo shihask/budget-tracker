@@ -215,8 +215,11 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings 
       ? state.categories.filter(c => c.group_name === 'Income').map(c => c.name)
       : state.categories.filter(c => c.group_name !== 'Income').map(c => c.name)
 
-    // Always ask AI to parse — if it returns an amount it understood it as a transaction
-    const parsed = await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name))
+    // Only try to parse as transaction if the message contains a number (amount)
+    const hasNumber = /\d/.test(text)
+    const parsed = hasNumber
+      ? await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name))
+      : null
 
     if (parsed && parsed.amount && parsed.amount > 0) {
       const matchedAccount = parsed.account

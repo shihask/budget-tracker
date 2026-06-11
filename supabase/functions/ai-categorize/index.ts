@@ -56,7 +56,13 @@ Deno.serve(async (req) => {
         `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`
       ).join('\n')
 
-      const prompt = `You are PlantMind, MoneyPlant's AI financial assistant. Answer concisely in 1-4 sentences. When asked for monthly summary or recurring patterns, be detailed and structured. Use ₹ for amounts. Be specific with numbers when relevant. The user may write in broken English, Hinglish, or Manglish — understand their intent and always reply in simple English.
+      const prompt = `You are Mint, MoneyPlant's AI financial assistant. Answer concisely in 1-4 sentences. When asked for monthly summary or recurring patterns, be detailed and structured. Use ₹ for amounts. Be specific with numbers when relevant. The user may write in broken English, Hinglish, or Manglish — understand their intent and always reply in simple English.
+
+IMPORTANT RULES:
+- You are a READ-ONLY assistant. You CANNOT record, save, modify, or delete any transactions or data.
+- Transaction recording is handled automatically by the app — the user types something like "500 coffee" and the app detects and saves it. You have no role in that process.
+- Never say "I've recorded", "I've saved", "I've added", or imply you performed any action on the user's data.
+- If the user seems to be asking you to record a transaction, clarify: "To record a transaction, just type the amount and item (e.g. '500 coffee') and the app will save it automatically."
 
 User's financial data:
 ${context ?? ''}
@@ -116,8 +122,8 @@ Return exactly this JSON shape:
 {"description":"cleaned item name","amount":null,"account":null,"category":null}
 
 Rules:
-- description: the item/purpose only, cleaned up, fix typos, remove amount/account/filler words
-- amount: number without currency symbol, null if not mentioned
+- amount: ANY standalone number at the start or end is the price/amount (e.g. "266 Z5 subscription" → amount=266, "coffee 80" → amount=80). null only if truly no number present.
+- description: the item/purpose only, cleaned up, fix typos, remove the amount number and account/filler words
 - account: fuzzy-match to closest name in Accounts list (e.g. "aksis"→"Axis", "fedral"→"Federal"), null if no reasonable match
 - category: exact name from Categories list that best matches the item, null if unsure`
 
