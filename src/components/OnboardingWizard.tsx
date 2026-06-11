@@ -43,15 +43,11 @@ export function OnboardingWizard({ containerWidth, onAddAccount, onUpdateSetting
           if (Object.keys(patch).length) await onUpdateSettings(patch)
         }
       } catch (_) { /* non-fatal — let them into the app regardless */ }
-      try { localStorage.setItem('mp_onboarded', '1') } catch (_) {}
       onClose()
     })()
   }
 
-  const skipAll = () => {
-    try { localStorage.setItem('mp_onboarded', '1') } catch (_) {}
-    onClose()
-  }
+  const skipAll = () => { onClose() }
 
   const W = Math.min(containerWidth, 440)
 

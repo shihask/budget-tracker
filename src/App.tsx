@@ -119,7 +119,7 @@ function AppContent({ session }: { session: Session }) {
 
   useEffect(() => {
     if (!loading && state.accounts.length === 0) {
-      try { if (!localStorage.getItem('mp_onboarded')) setShowOnboarding(true) } catch (_) {}
+      try { if (!localStorage.getItem('mp_onboarded_' + session.user.id)) setShowOnboarding(true) } catch (_) {}
     }
   }, [loading, state.accounts.length])
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
@@ -271,7 +271,10 @@ function AppContent({ session }: { session: Session }) {
               containerWidth={W}
               onAddAccount={addAccount}
               onUpdateSettings={updateSettings}
-              onClose={() => setShowOnboarding(false)}
+              onClose={() => {
+                try { localStorage.setItem('mp_onboarded_' + session.user.id, '1') } catch (_) {}
+                setShowOnboarding(false)
+              }}
             />
           )}
 
