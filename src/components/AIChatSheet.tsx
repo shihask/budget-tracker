@@ -349,6 +349,7 @@ export function AIChatSheet({ open, onClose, state, onSave, onUpdateSettings }: 
 
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ flex: 1 }} />
           {messages.map((m, i) => (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
               {m.warning ? (
