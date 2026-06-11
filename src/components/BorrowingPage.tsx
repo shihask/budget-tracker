@@ -510,7 +510,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <input type="number" inputMode="decimal" value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
             </div>
             <div style={{ flex: 1 }}>
-              <Label>Already paid</Label>
+              <Label>{form.direction === 'lent' ? 'Repaid by them' : 'Repaid by you'}</Label>
               <input type="number" inputMode="decimal" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
             </div>
           </div>
