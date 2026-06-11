@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTheme } from '@/lib/theme-context'
+import { BottomSheet } from '@/components/BottomSheet'
 import type { Category, DashboardSection, DashboardSectionId, Settings } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 
@@ -152,6 +153,53 @@ interface Props {
 
 export function DashboardLayoutPage({ sections, settings, categories, onUpdate, onClose }: Props) {
   const c = useTheme()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Swipe-back from left edge
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let startX = 0, startY = 0, tracking = false
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches[0].clientX < 40) {
+        startX = e.touches[0].clientX
+        startY = e.touches[0].clientY
+        tracking = true
+      }
+    }
+    const onMove = (e: TouchEvent) => {
+      if (!tracking) return
+      const dx = e.touches[0].clientX - startX
+      const dy = Math.abs(e.touches[0].clientY - startY)
+      if (dy > dx * 1.5) { tracking = false; return }
+      if (dx > 0) {
+        e.preventDefault()
+        el.style.transform = `translateX(${dx}px)`
+      }
+    }
+    const onEnd = (e: TouchEvent) => {
+      if (!tracking) return
+      tracking = false
+      const dx = e.changedTouches[0].clientX - startX
+      if (dx > 100) {
+        el.style.transition = 'transform 0.25s ease-in'
+        el.style.transform = 'translateX(100%)'
+        setTimeout(onClose, 240)
+      } else {
+        el.style.transition = 'transform 0.3s ease-out'
+        el.style.transform = 'translateX(0)'
+      }
+    }
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+    }
+  }, [onClose])
 
   const validBuiltinIds = new Set(DEFAULT_DASHBOARD_SECTIONS.map(s => s.id))
 
@@ -266,7 +314,7 @@ export function DashboardLayoutPage({ sections, settings, categories, onUpdate, 
   }
 
   return (
-    <div style={{
+    <div ref={containerRef} style={{
       position: 'fixed', inset: 0, background: c.bg, zIndex: 300,
       display: 'flex', flexDirection: 'column',
       fontFamily: 'Plus Jakarta Sans, sans-serif',
@@ -371,20 +419,8 @@ export function DashboardLayoutPage({ sections, settings, categories, onUpdate, 
       </div>
 
       {/* Add custom section sheet */}
-      {addOpen && (
-        <div
-          onClick={closeAdd}
-          style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: c.surface, borderRadius: '20px 20px 0 0',
-              padding: '20px 16px calc(28px + env(safe-area-inset-bottom,0px))',
-              width: '100%', maxHeight: '85vh', overflowY: 'auto',
-              boxShadow: '0 -8px 32px rgba(0,0,0,0.14)',
-            }}
-          >
+      <BottomSheet open={addOpen} onClose={closeAdd} zIndex={500}>
+          <div>
             <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em', marginBottom: 4 }}>Add custom section</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 20 }}>
               Pick groups or categories to track, then give the section a name.
@@ -515,8 +551,7 @@ export function DashboardLayoutPage({ sections, settings, categories, onUpdate, 
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </BottomSheet>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import type { AppState, Group, Category } from '@/types'
 
@@ -19,6 +19,54 @@ export function CategoriesPage({
   onAddCategory, onUpdateCategory, onDeleteCategory,
 }: Props) {
   const c = useTheme()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Swipe-back from left edge
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let startX = 0, startY = 0, tracking = false
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches[0].clientX < 40) {
+        startX = e.touches[0].clientX
+        startY = e.touches[0].clientY
+        tracking = true
+      }
+    }
+    const onMove = (e: TouchEvent) => {
+      if (!tracking) return
+      const dx = e.touches[0].clientX - startX
+      const dy = Math.abs(e.touches[0].clientY - startY)
+      if (dy > dx * 1.5) { tracking = false; return }
+      if (dx > 0) {
+        e.preventDefault()
+        el.style.transform = `translateX(${dx}px)`
+      }
+    }
+    const onEnd = (e: TouchEvent) => {
+      if (!tracking) return
+      tracking = false
+      const dx = e.changedTouches[0].clientX - startX
+      if (dx > 100) {
+        el.style.transition = 'transform 0.25s ease-in'
+        el.style.transform = 'translateX(100%)'
+        setTimeout(onClose, 240)
+      } else {
+        el.style.transition = 'transform 0.3s ease-out'
+        el.style.transform = 'translateX(0)'
+      }
+    }
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+    }
+  }, [onClose])
+
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
@@ -113,7 +161,7 @@ export function CategoriesPage({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 300, overflowY: 'auto', overscrollBehavior: 'contain', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div ref={containerRef} style={{ position: 'fixed', inset: 0, background: c.bg, zIndex: 300, overflowY: 'auto', overscrollBehavior: 'contain', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
 
       {/* Header */}
       <div style={{ position: 'sticky', top: 0, zIndex: 10, background: c.bg, borderBottom: `1px solid ${c.faint}`, padding: 'calc(12px + env(safe-area-inset-top, 0px)) 16px 12px' }}>
