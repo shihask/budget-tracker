@@ -214,7 +214,7 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
                   background: 'rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.92)',
                   borderRadius: 6, padding: '2px 7px', border: '1px solid rgba(255,255,255,0.25)',
                 }}>
-                  ✦ Mint Insights
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: -1, marginRight: 4 }}><path d="M12 2l2.2 6.3L21 11l-6.8 2.7L12 20l-2.2-6.3L3 11l6.8-2.7z"/></svg>Mint Insights
                 </span>
               )}
             </div>

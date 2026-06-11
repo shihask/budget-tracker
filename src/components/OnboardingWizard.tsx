@@ -96,7 +96,7 @@ export function OnboardingWizard({ containerWidth, onAddAccount, onUpdateSetting
           <div style={{ margin: 'auto 0', textAlign: 'center' }}>
             <img src="/favicon.svg" width="64" height="64" alt="MoneyPlant" style={{ borderRadius: 16, marginBottom: 20 }} />
             <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginBottom: 10 }}>
-              Welcome to MoneyPlant 🌱
+              Welcome to MoneyPlant
             </div>
             <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 28 }}>
               MoneyPlant tracks your real free money across your accounts, cards, and commitments. Let's set up the basics — takes about 30 seconds.
