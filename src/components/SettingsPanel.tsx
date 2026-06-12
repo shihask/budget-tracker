@@ -223,7 +223,7 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Mint AI</span>
-                    <span style={{ font: '700 9px Plus Jakarta Sans', color: '#F97316', background: '#F9731622', borderRadius: 6, padding: '2px 6px', letterSpacing: '0.04em' }}>BETA</span>
+                    <span style={{ font: '700 7px Plus Jakarta Sans', color: '#F97316', background: '#F9731622', borderRadius: 4, padding: '1px 4px', letterSpacing: '0.05em' }}>BETA</span>
                   </div>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Enable all AI features (chat, insights, categorization)</div>
                 </div>
