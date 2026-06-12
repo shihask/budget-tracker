@@ -322,8 +322,10 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
               <div style={{ width: 30, height: 30, borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src="/mint-ai-logo.svg" width="30" height="30" alt="Mint" />
               </div>
-              <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em' }}>
-                <span style={{ color: '#16C98A' }}>Mint</span><span style={{ color: 'inherit' }}> Chat</span>
+              <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: '#16C98A' }}>Mint</span>
+                <span style={{ font: '700 8px Plus Jakarta Sans', color: '#16C98A', background: '#16C98A22', borderRadius: 5, padding: '2px 5px', letterSpacing: '0.06em' }}>BETA</span>
+                <span style={{ color: 'inherit' }}>Chat</span>
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
