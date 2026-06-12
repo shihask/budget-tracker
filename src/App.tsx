@@ -37,6 +37,7 @@ import { AIAssistFAB } from '@/components/AIAssistFAB'
 import { AIChatSheet } from '@/components/AIChatSheet'
 import { OnboardingWizard } from '@/components/OnboardingWizard'
 import { AnalyticsPage } from '@/components/AnalyticsPage'
+import { SplashScreen } from '@/components/SplashScreen'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -102,6 +103,7 @@ function AppContent({ session }: { session: Session }) {
   const [chatOpen, setChatOpen] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showSplash, setShowSplash] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
   const [borrowingAddOnOpen, setBorrowingAddOnOpen] = useState(false)
@@ -277,9 +279,12 @@ function AppContent({ session }: { session: Session }) {
               onClose={() => {
                 try { localStorage.setItem('mp_onboarded_' + session.user.id, '1') } catch (_) {}
                 setShowOnboarding(false)
+                setShowSplash(true)
               }}
             />
           )}
+
+          {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{

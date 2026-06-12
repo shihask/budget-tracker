@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { MintAnimation } from './MintAnimation'
 
 const SIZE = 50
 const EDGE_PAD = 14
@@ -154,7 +155,7 @@ export function AIAssistFAB({ onOpen, containerWidth, busy = false }: AIAssistFA
         cursor: 'grab',
       }}>
         {busy
-          ? <img src="/mint-thinking-loop.svg" width="34" height="34" alt="" style={{ borderRadius: 8, display: 'block' }} />
+          ? <MintAnimation variant="thinking" size={38} style={{ borderRadius: 10 }} />
           : <img src="/mint-ai-logo.svg" width="32" height="32" alt="Mint AI" style={{ borderRadius: 8, display: 'block' }} />
         }
       </div>

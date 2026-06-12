@@ -172,7 +172,7 @@ export function AuthPage() {
           <div style={{ font: '800 20px Plus Jakarta Sans', letterSpacing: '-0.02em' }}>
             <span style={{ color: '#1C1410' }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span>
           </div>
-          <div style={{ font: '600 12px Plus Jakarta Sans', color: '#9C938A' }}>Personal finance, simplified</div>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: '#9C938A' }}>Plan Smart. Grow Better.</div>
         </div>
       </div>
 

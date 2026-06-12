@@ -171,21 +171,20 @@ function buildThink(container: HTMLElement): Inst {
   const u = 't' + (UID++)
   container.innerHTML = `
   <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"
-       style="display:block;border-radius:22.5%;box-shadow:0 10px 30px rgba(16,50,38,.20);overflow:visible;">
+       style="display:block;border-radius:22.5%;overflow:visible;">
     <defs>
-      <linearGradient id="${u}bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#16C98A"/><stop offset="100%" stop-color="#0A7A56"/></linearGradient>
-      <radialGradient id="${u}orb" cx="38%" cy="34%" r="68%"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="38%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#FFFFFF"/></radialGradient>
-      <radialGradient id="${u}glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/><stop offset="55%" stop-color="#FFFFFF" stop-opacity="0.3"/><stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
-      <linearGradient id="${u}spk" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#FFFFFF"/></linearGradient>
+      <radialGradient id="${u}orb" cx="38%" cy="34%" r="68%"><stop offset="0%" stop-color="#16C98A"/><stop offset="38%" stop-color="#16C98A"/><stop offset="100%" stop-color="#16C98A"/></radialGradient>
+      <radialGradient id="${u}glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#16C98A" stop-opacity="0.9"/><stop offset="55%" stop-color="#16C98A" stop-opacity="0.3"/><stop offset="100%" stop-color="#16C98A" stop-opacity="0"/></radialGradient>
+      <linearGradient id="${u}spk" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#16C98A"/><stop offset="100%" stop-color="#9DE5CC"/></linearGradient>
       <clipPath id="${u}clip"><rect width="100" height="100" rx="22.5"/></clipPath>
     </defs>
     <g clip-path="url(#${u}clip)">
-      <rect width="100" height="100" fill="url(#${u}bg)"/>
+      <rect width="100" height="100" fill="#111111"/>
       <g class="js-breathe">
-        <g transform="translate(-147.71,-39.65) scale(3.4)"><path d="${RIGHT_LEAF_D}" fill="#FFFFFF"/></g>
-        <path class="js-rib" d="${RIB_D}" fill="none" stroke="#0E9268" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/>
-        <path class="js-orbpath" d="M30 70 C 44 56 58 44 72 33 C 76 29.4 80 25.6 84 22" fill="none" stroke="none"/>
-        <g class="js-orb" opacity="0"><circle r="6" fill="url(#${u}glow)"/><circle r="2.7" fill="url(#${u}orb)"/><circle cx="-0.8" cy="-0.9" r="0.9" fill="#FFFFFF" opacity="0.85"/></g>
+        <g transform="translate(-147.71,-39.65) scale(3.4)"><path d="${RIGHT_LEAF_D}" fill="#16C98A"/></g>
+        <path class="js-rib" d="${RIB_D}" fill="none" stroke="#16C98A" stroke-width="2.2" stroke-linecap="round" opacity="0.35"/>
+        <path class="js-orbpath" d="M30 70 C 44 56 58 44 72 33 C 75 30 78 27 79 27" fill="none" stroke="none"/>
+        <g class="js-orb" opacity="0"><circle r="6" fill="url(#${u}glow)"/><circle r="2.7" fill="url(#${u}orb)"/><circle cx="-0.8" cy="-0.9" r="0.9" fill="#9DE5CC" opacity="0.85"/></g>
         <g class="js-spark" opacity="0"><path d="${SPARKLE_D}" fill="url(#${u}glow)" transform="scale(1.9)" opacity="0.7"/><path d="${SPARKLE_D}" fill="url(#${u}spk)"/></g>
       </g>
     </g>
@@ -197,7 +196,7 @@ function buildThink(container: HTMLElement): Inst {
 }
 
 const T_BASE = { x: 24.3, y: 74.3 }
-const T_SPARK = { x: 84, y: 22 }
+const T_SPARK = { x: 79, y: 27 }
 function setThink(I: Inst, p: number) {
   const br = 1 + 0.018 * Math.sin(p * Math.PI * 2 - Math.PI / 2)
   I.breathe.setAttribute('transform', `translate(${T_BASE.x},${T_BASE.y}) scale(${br.toFixed(4)}) translate(${-T_BASE.x},${-T_BASE.y})`)
@@ -227,7 +226,7 @@ function boomerangM(loopT: number, F: number, H: number) {
 }
 
 interface Props {
-  variant: 'transform' | 'thinking'
+  variant: 'transform' | 'thinking' | 'hybrid'
   size?: number
   style?: React.CSSProperties
 }
@@ -252,17 +251,60 @@ export function MintAnimation({ variant, size = 64, style }: Props) {
           raf = requestAnimationFrame(loop)
         }
         raf = requestAnimationFrame(loop)
-      } else {
+
+      } else if (variant === 'thinking') {
         const I = buildThink(container)
         const loop = (now: number) => {
           setThink(I, ((now / 1000) / thinkSeconds) % 1)
           raf = requestAnimationFrame(loop)
         }
         raf = requestAnimationFrame(loop)
-      }
-    } catch (_) { /* if SVG path measuring fails, just show nothing rather than crash */ }
 
-    return () => { cancelAnimationFrame(raf); container.innerHTML = '' }
+      } else {
+        // hybrid: formation → morph-to-Mint once → cross-fade into thinking loop
+        const morphEnd = formSeconds + forwardSeconds
+        const FADE = 0.28
+
+        container.style.position = 'relative'
+        const d1 = document.createElement('div')
+        const d2 = document.createElement('div')
+        d1.style.cssText = 'position:absolute;inset:0'
+        d2.style.cssText = 'position:absolute;inset:0;opacity:0'
+        container.appendChild(d1)
+        container.appendChild(d2)
+
+        const XI = buildXform(d1)
+        let TI: Inst | null = null
+        let crossfaded = false
+
+        const loop = (now: number) => {
+          const elapsed = (now - start) / 1000
+
+          if (!crossfaded) {
+            if (elapsed < formSeconds) {
+              setFormation(XI, clamp01(elapsed / formSeconds))
+            } else if (elapsed < morphEnd) {
+              setMorph(XI, clamp01((elapsed - formSeconds) / forwardSeconds))
+            } else {
+              // Lock xform at m=1 (pure Mint leaf), then cross-fade to thinking tile
+              setMorph(XI, 1)
+              crossfaded = true
+              TI = buildThink(d2)
+              d2.style.transition = `opacity ${FADE}s ease`
+              d2.style.opacity = '1'
+              // Fade out xform tile slightly after thinking tile starts rendering
+              setTimeout(() => { d1.style.transition = `opacity ${FADE}s ease`; d1.style.opacity = '0' }, 80)
+            }
+          }
+
+          if (TI) setThink(TI, ((now / 1000) / thinkSeconds) % 1)
+          raf = requestAnimationFrame(loop)
+        }
+        raf = requestAnimationFrame(loop)
+      }
+    } catch (_) { /* SVG path measuring may fail in SSR/test — degrade gracefully */ }
+
+    return () => { cancelAnimationFrame(raf); container.innerHTML = ''; container.style.position = '' }
   }, [variant])
 
   return <div ref={ref} style={{ width: size, height: size, ...style }} aria-hidden="true" />

@@ -92,8 +92,11 @@ export function OnboardingWizard({ containerWidth, onAddAccount, onUpdateSetting
         {step === 0 && (
           <div style={{ margin: 'auto 0', textAlign: 'center' }}>
             <div style={{ display: 'inline-block', marginBottom: 20 }}><MintAnimation variant="transform" size={84} /></div>
-            <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginBottom: 10 }}>
-              Welcome to MoneyPlant
+            <div style={{ font: '800 26px Plus Jakarta Sans', letterSpacing: '-0.02em', marginBottom: 6 }}>
+              <span style={{ color: c.ink }}>Welcome to Money</span><span style={{ color: '#16C98A' }}>Plant</span>
+            </div>
+            <div style={{ font: '500 13px Plus Jakarta Sans', color: '#16C98A', marginBottom: 16 }}>
+              Plan Smart. Grow Better.
             </div>
             <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 28 }}>
               MoneyPlant tracks your real free money across your accounts, cards, and commitments. Let's set up the basics — takes about 30 seconds.
