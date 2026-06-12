@@ -218,7 +218,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings 
     // Only try to parse as transaction if the message contains a number (amount)
     const hasNumber = /\d/.test(text)
     const parsed = hasNumber
-      ? await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name))
+      ? await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.({ ai_requests_used: n }))
       : null
 
     if (parsed && parsed.amount && parsed.amount > 0) {

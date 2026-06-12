@@ -131,9 +131,10 @@ interface QuickAddSheetProps {
   state: AppState
   onAddCategory: (name: string, group_name: string) => Promise<string>
   autopilotEnabled?: boolean
+  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, onUpdateSettings }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>('expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -320,7 +321,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       setAiParsing(true)
       const catNames = catsRef.current.filter(c => c.group_name !== 'Income').map(c => c.name)
       const accNames = allAccs.map(a => a.name)
-      const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name))
+      const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.({ ai_requests_used: n }))
       setAiParsing(false)
       if (!result) return
 

@@ -13,7 +13,8 @@ export async function parseExpenseWithAI(
   text: string,
   categoryNames: string[],
   accountNames: string[],
-  groupNames: string[]
+  groupNames: string[],
+  onUsed?: (n: number) => void
 ): Promise<AIParsedExpense | null> {
   if (!text.trim()) return null
   try {
@@ -33,6 +34,7 @@ export async function parseExpenseWithAI(
     if (!res.ok) return null
 
     const data = await res.json()
+    if (data.used != null) onUsed?.(data.used)
     return {
       description: data.description ?? null,
       amount: data.amount ?? null,
