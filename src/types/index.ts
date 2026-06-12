@@ -83,6 +83,11 @@ export interface Settings {
   ai_requests_used?: number
   ai_requests_reset_at?: string | null
   budget_period?: 'daily' | 'weekly' | 'monthly'
+  notifications_enabled?: boolean
+  notify_daily_reminder?: boolean
+  notify_budget_alert?: boolean
+  notify_commitments?: boolean
+  notify_weekly_summary?: boolean
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)

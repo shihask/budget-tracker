@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { ACCENT_OPTIONS } from '@/lib/tokens'
 import type { Layout } from '@/types'
+import { requestAndSubscribe, unsubscribeFromPush, getPermissionState, isPushSupported } from '@/lib/notifications'
 
 interface SettingsPanelProps {
   accent: string
@@ -13,6 +14,11 @@ interface SettingsPanelProps {
   autopilotEnabled: boolean
   aiRequestsUsed: number
   aiRequestsResetAt: string | null
+  notificationsEnabled: boolean
+  notifyDailyReminder: boolean
+  notifyBudgetAlert: boolean
+  notifyCommitments: boolean
+  notifyWeeklySummary: boolean
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
@@ -20,13 +26,46 @@ interface SettingsPanelProps {
   onTrackCreditCards: (v: boolean) => Promise<void>
   onTrackBorrowings: (v: boolean) => Promise<void>
   onAutopilot: (v: boolean) => Promise<void>
+  onNotificationsEnabled: (v: boolean) => Promise<void>
+  onNotifyDailyReminder: (v: boolean) => Promise<void>
+  onNotifyBudgetAlert: (v: boolean) => Promise<void>
+  onNotifyCommitments: (v: boolean) => Promise<void>
+  onNotifyWeeklySummary: (v: boolean) => Promise<void>
   onDashboardLayout: () => void
 }
 
-export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onAutopilot, onDashboardLayout }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [savingSalary, setSavingSalary] = useState(false)
+  const [notifLoading, setNotifLoading] = useState(false)
+  const [notifError, setNotifError] = useState<string | null>(null)
+
+  const permState = getPermissionState()
+  const pushSupported = isPushSupported()
+
+  const handleEnableNotifications = async () => {
+    setNotifLoading(true)
+    setNotifError(null)
+    const result = await requestAndSubscribe()
+    if (result === 'subscribed') {
+      await onNotificationsEnabled(true)
+    } else if (result === 'denied') {
+      setNotifError('Permission denied. Enable notifications in your browser settings.')
+    } else if (result === 'unsupported') {
+      setNotifError('Push notifications are not supported on this device/browser.')
+    } else {
+      setNotifError('Something went wrong. Please try again.')
+    }
+    setNotifLoading(false)
+  }
+
+  const handleDisableNotifications = async () => {
+    setNotifLoading(true)
+    await unsubscribeFromPush()
+    await onNotificationsEnabled(false)
+    setNotifLoading(false)
+  }
 
   const handleSalarySave = async () => {
     const v = parseInt(salaryInput)
@@ -256,6 +295,80 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
           </div>
         )
       })()}
+
+      {/* ── Notifications ──────────────────────────────────────────────────── */}
+      <div style={sectionLabel}>Notifications</div>
+
+      {!pushSupported ? (
+        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, padding: '8px 0 12px' }}>
+          Push notifications require installing MoneyPlant as an app (Add to Home Screen).
+        </div>
+      ) : permState === 'denied' ? (
+        <div style={{ font: '600 11px Plus Jakarta Sans', color: '#EF4444', padding: '8px 0 12px' }}>
+          Notifications blocked in browser settings. Open site permissions to re-enable.
+        </div>
+      ) : !notificationsEnabled ? (
+        /* Onboarding card */
+        <div style={{ background: `linear-gradient(135deg, rgba(22,201,138,0.08), rgba(22,201,138,0.04))`, border: `1px solid rgba(22,201,138,0.22)`, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
+          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Stay on track with Mint</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 12, lineHeight: 1.5 }}>
+            Get daily reminders, budget alerts &amp; weekly insights — so you never lose sight of your finances.
+          </div>
+          {notifError && (
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: '#EF4444', marginBottom: 8 }}>{notifError}</div>
+          )}
+          <button
+            onClick={handleEnableNotifications}
+            disabled={notifLoading}
+            style={{
+              width: '100%', background: c.accent, color: '#fff', border: 'none',
+              borderRadius: 10, padding: '10px', cursor: notifLoading ? 'not-allowed' : 'pointer',
+              font: '700 13px Plus Jakarta Sans', opacity: notifLoading ? 0.7 : 1,
+            }}
+          >
+            {notifLoading ? 'Enabling…' : '🔔 Enable Notifications'}
+          </button>
+        </div>
+      ) : (
+        /* Enabled — show toggles */
+        <>
+          <div style={{ ...rowStyle }}>
+            <div>
+              <div style={labelStyle}>Notifications</div>
+              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Receive push notifications</div>
+            </div>
+            <button
+              onClick={handleDisableNotifications}
+              disabled={notifLoading}
+              style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: c.accent, position: 'relative', transition: 'background 0.2s', flexShrink: 0, opacity: notifLoading ? 0.6 : 1 }}
+            >
+              <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', left: 21, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+            </button>
+          </div>
+
+          <div style={{ paddingLeft: 12, borderLeft: `2px solid ${c.faint}` }}>
+            {[
+              { label: 'Daily reminder', sub: 'If no expense recorded by 8 PM', val: notifyDailyReminder, fn: onNotifyDailyReminder },
+              { label: 'Budget alerts', sub: 'When weekly spend exceeds 90%', val: notifyBudgetAlert, fn: onNotifyBudgetAlert },
+              { label: 'Commitment dues', sub: 'Reminders for upcoming payments', val: notifyCommitments, fn: onNotifyCommitments },
+              { label: 'Weekly summary', sub: 'Every Monday morning insight', val: notifyWeeklySummary, fn: onNotifyWeeklySummary },
+            ].map(({ label, sub, val, fn }) => (
+              <div key={label} style={{ ...rowStyle, padding: '10px 0' }}>
+                <div>
+                  <div style={{ ...labelStyle, fontSize: 12 }}>{label}</div>
+                  <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{sub}</div>
+                </div>
+                <button
+                  onClick={() => fn(!val)}
+                  style={{ width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer', background: val ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
+                >
+                  <span style={{ position: 'absolute', top: 2, width: 18, height: 18, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: val ? 19 : 2, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div style={sectionLabel}>Theme</div>
       <div style={rowStyle}>

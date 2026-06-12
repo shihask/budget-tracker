@@ -129,9 +129,24 @@ function AppContent({ session }: { session: Session }) {
   const d = useMemo(() => derive(state), [state])
 
   const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
+    const prevPct = d.weeklyPct
     await addTransaction(form)
     setFlash(form.description)
     setTimeout(() => setFlash(null), 2200)
+
+    // Budget alert: fire when crossing the 90% threshold
+    const isTrackedExpense = form.transaction_type === 'expense' || form.transaction_type === 'commitment'
+    if (
+      isTrackedExpense &&
+      state.settings.notifications_enabled &&
+      state.settings.notify_budget_alert !== false
+    ) {
+      const newSpent = d.weeklySpent + form.amount
+      const newPct = d.weeklyBudget > 0 ? (newSpent / d.weeklyBudget) * 100 : 0
+      if (prevPct < 90 && newPct >= 90) {
+        supabase.functions.invoke('push-budget-alert').catch(() => {})
+      }
+    }
   }
 
   const panelW = typeof window !== 'undefined' ? Math.min(280, window.innerWidth) : 280
@@ -333,7 +348,31 @@ function AppContent({ session }: { session: Session }) {
         {settingsOpen && (
           <>
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
-            <SettingsPanel accent={accent} dark={dark} layout={layout} salaryDate={state.settings.salary_date} trackCreditCards={state.settings.track_credit_cards ?? false} trackBorrowings={state.settings.track_borrowings ?? true} autopilotEnabled={state.settings.autopilot_enabled ?? false} aiRequestsUsed={state.settings.ai_requests_used ?? 0} aiRequestsResetAt={state.settings.ai_requests_reset_at ?? null} onAccent={setAccent} onDark={setDark} onLayout={setLayout} onSalaryDate={v => updateSettings({ salary_date: v })} onTrackCreditCards={v => updateSettings({ track_credit_cards: v })} onTrackBorrowings={v => updateSettings({ track_borrowings: v })} onAutopilot={v => updateSettings({ autopilot_enabled: v })} onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }} />
+            <SettingsPanel
+              accent={accent} dark={dark} layout={layout}
+              salaryDate={state.settings.salary_date}
+              trackCreditCards={state.settings.track_credit_cards ?? false}
+              trackBorrowings={state.settings.track_borrowings ?? true}
+              autopilotEnabled={state.settings.autopilot_enabled ?? false}
+              aiRequestsUsed={state.settings.ai_requests_used ?? 0}
+              aiRequestsResetAt={state.settings.ai_requests_reset_at ?? null}
+              notificationsEnabled={state.settings.notifications_enabled ?? false}
+              notifyDailyReminder={state.settings.notify_daily_reminder ?? true}
+              notifyBudgetAlert={state.settings.notify_budget_alert ?? true}
+              notifyCommitments={state.settings.notify_commitments ?? true}
+              notifyWeeklySummary={state.settings.notify_weekly_summary ?? true}
+              onAccent={setAccent} onDark={setDark} onLayout={setLayout}
+              onSalaryDate={v => updateSettings({ salary_date: v })}
+              onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
+              onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
+              onAutopilot={v => updateSettings({ autopilot_enabled: v })}
+              onNotificationsEnabled={v => updateSettings({ notifications_enabled: v })}
+              onNotifyDailyReminder={v => updateSettings({ notify_daily_reminder: v })}
+              onNotifyBudgetAlert={v => updateSettings({ notify_budget_alert: v })}
+              onNotifyCommitments={v => updateSettings({ notify_commitments: v })}
+              onNotifyWeeklySummary={v => updateSettings({ notify_weekly_summary: v })}
+              onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }}
+            />
           </>
         )}
 

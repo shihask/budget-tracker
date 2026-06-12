@@ -10,6 +10,12 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+      },
       includeAssets: ['favicon.ico', 'pwa.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
         name: 'MoneyPlant',
@@ -26,35 +32,6 @@ export default defineConfig({
           { src: 'pwa-192x192.png',           sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512x512.png',           sizes: '512x512', type: 'image/png' },
           { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              networkTimeoutSeconds: 10,
-              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'google-fonts-stylesheets' },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              expiration: { maxEntries: 20, maxAgeSeconds: 31536000 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
         ],
       },
       devOptions: { enabled: false },
