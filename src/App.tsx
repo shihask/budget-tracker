@@ -228,13 +228,15 @@ function AppContent({ session }: { session: Session }) {
           </div>
 
           {/* FAB */}
-          <div style={{ position: 'fixed', bottom: 0, width: '100%', maxWidth: W, pointerEvents: 'none', zIndex: 50 }}>
-            <div style={{ position: 'relative', height: 'calc(100px + env(safe-area-inset-bottom, 0px))' }}>
-              <div style={{ pointerEvents: 'auto' }}>
-                <FAB onClick={() => setSheetOpen(true)} />
+          {!chatOpen && (
+            <div style={{ position: 'fixed', bottom: 0, width: '100%', maxWidth: W, pointerEvents: 'none', zIndex: 50 }}>
+              <div style={{ position: 'relative', height: 'calc(100px + env(safe-area-inset-bottom, 0px))' }}>
+                <div style={{ pointerEvents: 'auto' }}>
+                  <FAB onClick={() => setSheetOpen(true)} />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Toast */}
           <div style={{
