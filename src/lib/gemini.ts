@@ -160,6 +160,58 @@ export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext, onUse
   }
 }
 
+export interface GoalPlanContext {
+  item: string
+  goalAmount: number
+  currentSavings: number
+  required: number
+  monthlyCapacity: number
+  monthsNeeded: number
+  targetDate: string        // e.g. "December 2026"
+  reductions: { group: string; suggestion: number }[]
+}
+
+export async function goalPlanAdviceWithAI(
+  ctx: GoalPlanContext,
+  onUsed?: (n: number) => void
+): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const reductionLines = ctx.reductions
+      .map(r => `${r.group}: reduce by ₹${r.suggestion.toLocaleString('en-IN')}/month`)
+      .join(', ')
+
+    const context = [
+      `Goal: ${ctx.item || 'purchase'} worth ₹${ctx.goalAmount.toLocaleString('en-IN')}`,
+      `Currently available: ₹${ctx.currentSavings.toLocaleString('en-IN')}`,
+      `Still needed: ₹${ctx.required.toLocaleString('en-IN')}`,
+      `Monthly saving capacity: ₹${ctx.monthlyCapacity.toLocaleString('en-IN')}`,
+      `Months to goal: ${ctx.monthsNeeded}`,
+      `Target date: ${ctx.targetDate}`,
+      reductionLines ? `Spending reduction opportunities: ${reductionLines}` : null,
+    ].filter(Boolean).join('\n')
+
+    const message = `Give me a 2-3 sentence coaching message as Mint (a personal finance coach). Reference the target date and one specific action they can take. Be direct and encouraging. No emojis.`
+
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ mode: 'chat', message, context, history: [] }),
+    })
+
+    if (res.status === 429) return 'Mint daily limit reached (100/day). Try again tomorrow.'
+    if (!res.ok) return null
+
+    const data = await res.json()
+    if (data.used != null) onUsed?.(data.used)
+    return data.reply ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function categorizeWithAI(
   description: string,
   categoryNames: string[],

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
-import { affordabilityInsightWithAI } from '@/lib/gemini'
+import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
 import type { DerivedMetrics, Settings, Transaction } from '@/types'
 
 interface Props {
@@ -58,6 +58,9 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
   const [infoOpen, setInfoOpen] = useState(false)
   const [aiInsight, setAiInsight] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
+  const [showGoalPlan, setShowGoalPlan] = useState(false)
+  const [goalPlanAI, setGoalPlanAI] = useState<string | null>(null)
+  const [goalPlanAILoading, setGoalPlanAILoading] = useState(false)
 
   const spendingData = useMemo(() => {
     const cutoff = new Date()
@@ -88,7 +91,54 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
     setChecked(true)
   }
 
-  const reset = () => { setItem(''); setAmount(''); setChecked(false); setShowWhy(false); setAiInsight(null); setAiLoading(false) }
+  const calcGoalPlan = (goalAmount: number) => {
+    const currentSavings = Math.max(0, freeMoney)
+    const required = Math.max(0, goalAmount - currentSavings)
+    const monthlyBudgetAllocation = (weeklyBudget * 52) / 12
+    const monthlyCapacity = Math.max(500, Math.round(monthlyBudgetAllocation - spendingData.totalSpent30d))
+    const monthsNeeded = required > 0 ? Math.ceil(required / monthlyCapacity) : 0
+    const targetDate = new Date()
+    targetDate.setMonth(targetDate.getMonth() + monthsNeeded)
+    const targetLabel = targetDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+
+    const skipGroups = new Set(['Income', 'Transfer', 'Commitment'])
+    const reductions = Object.entries(spendingData.spendingByGroup)
+      .filter(([g]) => !skipGroups.has(g))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([group, spend]) => ({ group, monthlySpend: Math.round(spend), suggestion: Math.max(100, Math.round(spend * 0.15)) }))
+      .filter(r => r.suggestion >= 100)
+
+    const totalReductionSavings = reductions.reduce((s, r) => s + r.suggestion, 0)
+    const improvedCapacity = monthlyCapacity + totalReductionSavings
+    const improvedMonths = required > 0 ? Math.ceil(required / improvedCapacity) : 0
+    const improvedDate = new Date()
+    improvedDate.setMonth(improvedDate.getMonth() + improvedMonths)
+    const improvedLabel = improvedDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+
+    return { currentSavings, required, monthlyCapacity, monthsNeeded, targetLabel, reductions, improvedCapacity, improvedMonths, improvedLabel }
+  }
+
+  const getGoalPlanAI = async (plan: ReturnType<typeof calcGoalPlan>) => {
+    const a = parseFloat(amount)
+    if (isNaN(a)) return
+    setGoalPlanAILoading(true)
+    setGoalPlanAI(null)
+    const advice = await goalPlanAdviceWithAI({
+      item,
+      goalAmount: a,
+      currentSavings: plan.currentSavings,
+      required: plan.required,
+      monthlyCapacity: plan.monthlyCapacity,
+      monthsNeeded: plan.monthsNeeded,
+      targetDate: plan.targetLabel,
+      reductions: plan.reductions,
+    }, (n) => onUpdateSettings?.({ ai_requests_used: n }))
+    setGoalPlanAI(advice ?? "Mint couldn't respond right now. Try again.")
+    setGoalPlanAILoading(false)
+  }
+
+  const reset = () => { setItem(''); setAmount(''); setChecked(false); setShowWhy(false); setAiInsight(null); setAiLoading(false); setShowGoalPlan(false); setGoalPlanAI(null); setGoalPlanAILoading(false) }
   const close = () => { setOpen(false); reset() }
 
   const getAIInsight = async () => {
@@ -450,6 +500,137 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
                 )}
               </div>
             </div>
+
+            {/* How Can I Afford This? */}
+            {status!.tier === 'no' && (() => {
+              const plan = calcGoalPlan(amt)
+              return (
+                <>
+                  {!showGoalPlan ? (
+                    <button
+                      onClick={() => { setShowGoalPlan(true); if (settings.autopilot_enabled) getGoalPlanAI(plan) }}
+                      style={{
+                        width: '100%', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        background: c.surface, border: `1.5px solid ${c.faint}`,
+                        borderRadius: 14, padding: '13px 16px',
+                        font: '700 13px Plus Jakarta Sans', color: c.ink, cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke={c.accent} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 8v4l3 3" />
+                        </svg>
+                        How Can I Afford This?
+                      </span>
+                      <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke={c.muted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 6l6 6-6 6" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <div style={{ marginBottom: 14 }}>
+                      {/* Plan card */}
+                      <div style={{ background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
+                        <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Goal Plan</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                          <Row label="Goal Amount" value={fmt(amt)} bold />
+                          {plan.currentSavings > 0 && <Row label="You Currently Have" value={fmt(plan.currentSavings)} accent />}
+                          <Row label="Still Needed" value={fmt(plan.required)} />
+                          <Divider />
+                          <Row label="Monthly Capacity" value={fmt(plan.monthlyCapacity)} />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>Target Date</span>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ font: '800 13px Plus Jakarta Sans', color: c.accent }}>{plan.targetLabel}</div>
+                              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{plan.monthsNeeded} month{plan.monthsNeeded !== 1 ? 's' : ''} away</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Reduction suggestions */}
+                      {plan.reductions.length > 0 && (
+                        <div style={{ background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
+                          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Spending Opportunities</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {plan.reductions.map(r => (
+                              <div key={r.group} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>Reduce {r.group}</div>
+                                  <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+                                    Currently ₹{r.monthlySpend.toLocaleString('en-IN')}/mo — save {fmt(r.suggestion)}/mo
+                                  </div>
+                                </div>
+                                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.accent, background: c.accent + '18', borderRadius: 8, padding: '4px 8px', flexShrink: 0 }}>
+                                  −{plan.monthsNeeded - plan.improvedMonths > 0 ? `${plan.monthsNeeded - plan.improvedMonths}mo` : '<1mo'}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {plan.improvedMonths < plan.monthsNeeded && (
+                            <div style={{ marginTop: 10, padding: '8px 10px', background: c.accent + '12', borderRadius: 10 }}>
+                              <span style={{ font: '600 11px Plus Jakarta Sans', color: c.accent }}>
+                                With all reductions: {plan.improvedLabel} ({plan.improvedMonths} month{plan.improvedMonths !== 1 ? 's' : ''})
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Mint AI coaching */}
+                      {(settings.autopilot_enabled ?? false) && goalPlanAILoading && (
+                        <div style={{ borderRadius: 14, padding: '14px 16px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F122', marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                            <div style={{ width: 22, height: 22, borderRadius: 7, background: '#6366F122', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                              </svg>
+                            </div>
+                            <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint is thinking…</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                            {[100, 80, 60].map(w => (
+                              <div key={w} style={{ height: 10, borderRadius: 999, background: '#6366F118', width: `${w}%` }} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(settings.autopilot_enabled ?? false) && !goalPlanAI && !goalPlanAILoading && (
+                        <button
+                          onClick={() => getGoalPlanAI(plan)}
+                          style={{
+                            width: '100%', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            gap: 7, background: 'linear-gradient(135deg,#6366F114,#8B5CF614)',
+                            border: '1px solid #6366F130', borderRadius: 14, padding: '12px',
+                            font: '700 13px Plus Jakarta Sans', color: '#6366F1', cursor: 'pointer',
+                          }}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                          </svg>
+                          Ask Mint for Advice
+                        </button>
+                      )}
+
+                      {goalPlanAI && (
+                        <div style={{ borderRadius: 14, padding: '14px 16px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F130', marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 22, height: 22, borderRadius: 7, background: '#6366F122', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                              </svg>
+                            </div>
+                            <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint's Advice</span>
+                          </div>
+                          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6 }}>{goalPlanAI}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
 
             {/* AI Insight */}
             {(settings.autopilot_enabled ?? false) && !aiInsight && !aiLoading && (
