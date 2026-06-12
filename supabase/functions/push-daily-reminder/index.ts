@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     const { data: result } = await supabase.functions.invoke('push-send', {
       body: {
         user_id: needsReminder.length === 1 ? needsReminder[0] : undefined,
-        title: '🌱 Mint Reminder',
+        title: 'Mint Reminder',
         message: "You haven't recorded any expenses today.\nIt only takes a few seconds to stay on track.",
         url: '/',
         tag: 'daily-reminder',
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
           const { data } = await supabase.functions.invoke('push-send', {
             body: {
               user_id: uid,
-              title: '🌱 Mint Reminder',
+              title: 'Mint Reminder',
               message: "You haven't recorded any expenses today.\nIt only takes a few seconds to stay on track.",
               url: '/',
               tag: 'daily-reminder',

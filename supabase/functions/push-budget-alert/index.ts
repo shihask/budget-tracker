@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
 
     const isOver = pct >= 100
     const payload = JSON.stringify({
-      title: isOver ? '🚨 Budget Exceeded' : '⚠️ Budget Alert',
+      title: isOver ? 'Budget Exceeded' : 'Budget Alert',
       body: isOver
         ? `You've exceeded your ${period} budget. Spent ₹${Math.round(spent).toLocaleString('en-IN')} of ₹${budget.toLocaleString('en-IN')}.`
         : `You've used ${Math.round(pct)}% of your ${period} budget. ₹${Math.round(budget - spent).toLocaleString('en-IN')} remaining.`,

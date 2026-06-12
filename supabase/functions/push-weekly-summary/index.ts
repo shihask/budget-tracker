@@ -71,17 +71,17 @@ Deno.serve(async (req) => {
         const budget = s.weekly_budget ?? 5000
         const pct = budget > 0 ? Math.round((totalSpent / budget) * 100) : 0
 
-        let title = '✨ Mint Weekly Summary'
+        let title = 'Mint Weekly Summary'
         let message: string
 
         if (daysTracked === 0) {
           message = "You didn't track any expenses last week. Start fresh this week!"
         } else if (daysTracked >= 5) {
-          message = `You tracked expenses for ${daysTracked} days last week. Amazing streak — keep it going! 🌿`
+          message = `You tracked expenses for ${daysTracked} days last week. Amazing streak — keep it going!`
         } else if (pct > 100) {
           message = `You spent ₹${totalSpent.toLocaleString('en-IN')} last week — ${pct - 100}% over budget. Let's aim lower this week.`
         } else if (pct > 80) {
-          title = '⚠️ Mint Weekly Check-in'
+          title = 'Mint Weekly Check-in'
           message = `You used ${pct}% of your weekly budget last week (₹${totalSpent.toLocaleString('en-IN')}). Finish strong this week.`
         } else {
           message = `Great week! You spent ₹${totalSpent.toLocaleString('en-IN')} — ${pct}% of your budget. Tracked ${daysTracked} of 7 days.`
