@@ -324,7 +324,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
               </div>
               <span style={{ font: '800 17px Plus Jakarta Sans', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ color: '#16C98A' }}>Mint</span>
-                <span style={{ font: '700 8px Plus Jakarta Sans', color: '#16C98A', background: '#16C98A22', borderRadius: 5, padding: '2px 5px', letterSpacing: '0.06em' }}>BETA</span>
+                <span style={{ font: '700 8px Plus Jakarta Sans', color: '#F97316', background: '#F9731622', borderRadius: 5, padding: '2px 5px', letterSpacing: '0.06em' }}>BETA</span>
                 <span style={{ color: 'inherit' }}>Chat</span>
               </span>
             </div>
