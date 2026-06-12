@@ -297,7 +297,13 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
       })()}
 
       {/* ── Notifications ──────────────────────────────────────────────────── */}
-      <div style={sectionLabel}>Notifications</div>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke={c.muted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        Notifications
+      </div>
 
       {!pushSupported ? (
         <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, padding: '8px 0 12px' }}>
@@ -326,7 +332,15 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
               font: '700 13px Plus Jakarta Sans', opacity: notifLoading ? 0.7 : 1,
             }}
           >
-            {notifLoading ? 'Enabling…' : '🔔 Enable Notifications'}
+            {notifLoading ? 'Enabling…' : (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                Enable Notifications
+              </span>
+            )}
           </button>
         </div>
       ) : (
