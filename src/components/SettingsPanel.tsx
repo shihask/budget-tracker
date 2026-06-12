@@ -102,7 +102,17 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
       <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Settings</div>
       <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Customize your dashboard</div>
 
-      <div style={sectionLabel}>Dashboard</div>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ width: 18, height: 18, borderRadius: 5, background: '#3B82F6', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+        </span>
+        Dashboard
+      </div>
       <div style={{ ...rowStyle, cursor: 'pointer' }} onClick={onDashboardLayout}>
         <div>
           <div style={labelStyle}>Dashboard Layout</div>
@@ -132,7 +142,17 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         </div>
       </div>
 
-      <div style={sectionLabel}>Budget</div>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ width: 18, height: 18, borderRadius: 5, background: c.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            <line x1="12" y1="12" x2="12" y2="16" />
+            <line x1="10" y1="14" x2="14" y2="14" />
+          </svg>
+        </span>
+        Budget
+      </div>
       <div style={{ paddingBottom: 4, borderBottom: `1px solid ${c.faint}` }}>
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Salary credit date</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
@@ -166,7 +186,19 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         </button>
       </div>
 
-      <div style={sectionLabel}>Features</div>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ width: 18, height: 18, borderRadius: 5, background: '#8B5CF6', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+            <circle cx="8" cy="6" r="2" fill="#fff" stroke="none" />
+            <circle cx="16" cy="12" r="2" fill="#fff" stroke="none" />
+            <circle cx="10" cy="18" r="2" fill="#fff" stroke="none" />
+          </svg>
+        </span>
+        Features
+      </div>
       <div style={rowStyle}>
         <div>
           <div style={labelStyle}>Credit card tracking</div>
@@ -297,11 +329,13 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
       })()}
 
       {/* ── Notifications ──────────────────────────────────────────────────── */}
-      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke={c.muted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ width: 18, height: 18, borderRadius: 5, background: c.accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+        </span>
         Notifications
       </div>
 
@@ -384,7 +418,15 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
         </>
       )}
 
-      <div style={sectionLabel}>Theme</div>
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ width: 18, height: 18, borderRadius: 5, background: '#F59E0B', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+          </svg>
+        </span>
+        Theme
+      </div>
       <div style={rowStyle}>
         <span style={labelStyle}>Accent color</span>
         <div style={{ display: 'flex', gap: 8 }}>
