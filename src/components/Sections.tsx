@@ -77,7 +77,10 @@ interface RecentTxnsProps {
 export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: RecentTxnsProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
-  const acctById = Object.fromEntries(state.accounts.map(a => [a.id, a]))
+  const acctById = Object.fromEntries([
+    ...state.accounts.map(a => [a.id, a]),
+    ...(state.credit_cards ?? []).map(cc => [cc.id, { ...cc, name: cc.name }]),
+  ])
   const txns = state.transactions.slice(0, limit)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
