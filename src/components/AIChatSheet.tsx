@@ -300,7 +300,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
         style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', opacity: open ? 1 : 0, transition: 'opacity 0.3s' }}
       />
       <div style={{
-        position: 'absolute', left: 0, right: 0, bottom: keyboardH,
+        position: 'absolute', left: 0, right: 0, bottom: open ? keyboardH : 0,
         background: c.surface,
         borderTopLeftRadius: 28, borderTopRightRadius: 28,
         display: 'flex', flexDirection: 'column',
