@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { parseExpenseWithAI } from '@/lib/gemini'
+import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction } from '@/types'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
@@ -397,7 +398,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
           ))}
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src="/mint-thinking-loop.svg" width="38" height="38" alt="" style={{ borderRadius: 9, flexShrink: 0 }} />
+              <MintAnimation variant="thinking" size={38} style={{ borderRadius: 9, flexShrink: 0 }} />
               <div style={{
                 background: c.surface2, borderRadius: '18px 18px 18px 4px',
                 padding: '10px 14px', font: '500 14px Plus Jakarta Sans', color: c.muted,

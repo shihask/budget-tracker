@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { MintAnimation } from './MintAnimation'
 import type { Settings } from '@/types'
 
 interface AcctRow { name: string; type: 'bank' | 'cash'; balance: string }
@@ -90,7 +91,7 @@ export function OnboardingWizard({ containerWidth, onAddAccount, onUpdateSetting
         {/* Step 0 — Welcome */}
         {step === 0 && (
           <div style={{ margin: 'auto 0', textAlign: 'center' }}>
-            <img src="/favicon.svg" width="64" height="64" alt="MoneyPlant" style={{ borderRadius: 16, marginBottom: 20 }} />
+            <div style={{ display: 'inline-block', marginBottom: 20 }}><MintAnimation variant="transform" size={84} /></div>
             <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginBottom: 10 }}>
               Welcome to MoneyPlant
             </div>
