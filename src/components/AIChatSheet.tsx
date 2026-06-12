@@ -121,9 +121,10 @@ interface AIChatSheetProps {
   d: DerivedMetrics
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
+  onBusyChange?: (busy: boolean) => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings, onBusyChange }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -204,6 +205,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings 
     const next: Message[] = [...messages, { role: 'user', text }]
     setMessages(next)
     setLoading(true)
+    onBusyChange?.(true)
 
     const allAccObjs = [
       ...state.accounts.filter(a => a.is_active),
@@ -232,7 +234,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings 
           role: 'ai',
           text: `Which account should I use? Your accounts: ${allAccObjs.map(a => a.name).join(', ')}.`,
         }])
-        setLoading(false)
+        setLoading(false); onBusyChange?.(false)
         return
       }
 
@@ -262,7 +264,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings 
         text: `Done! Recorded ${verb} "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}.`,
         savedExpense,
       }])
-      setLoading(false)
+      setLoading(false); onBusyChange?.(false)
       return
     }
 
@@ -275,7 +277,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings 
     } else {
       setMessages(m => [...m, { role: 'ai', text: "Mint has reached its daily limit (100 requests/day). Please try again tomorrow." }])
     }
-    setLoading(false)
+    setLoading(false); onBusyChange?.(false)
   }
 
   const handleGrabStart = (e: React.TouchEvent) => { dragStartY.current = e.touches[0].clientY }
@@ -394,14 +396,13 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings 
             </div>
           ))}
           {loading && (
-            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              <div style={{ background: c.surface2, borderRadius: '18px 18px 18px 4px', padding: '12px 16px', display: 'flex', gap: 5 }}>
-                {[0, 1, 2].map(i => (
-                  <div key={i} style={{
-                    width: 7, height: 7, borderRadius: 999, background: c.muted,
-                    animation: `bounce 1s ease-in-out ${i * 0.15}s infinite`,
-                  }} />
-                ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <img src="/mint-thinking-loop.svg" width="38" height="38" alt="" style={{ borderRadius: 9, flexShrink: 0 }} />
+              <div style={{
+                background: c.surface2, borderRadius: '18px 18px 18px 4px',
+                padding: '10px 14px', font: '500 14px Plus Jakarta Sans', color: c.muted,
+              }}>
+                Mint is thinking…
               </div>
             </div>
           )}
@@ -473,7 +474,6 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings 
         </div>
       </div>
 
-      <style>{`@keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }`}</style>
     </div>
   )
 }

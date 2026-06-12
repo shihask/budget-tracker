@@ -100,6 +100,7 @@ function AppContent({ session }: { session: Session }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [aiProcessing, setAiProcessing] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
@@ -257,13 +258,13 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 60 }}>
-            <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} onUpdateSettings={updateSettings} />
+            <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
           </div>
 
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
-            <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} />
-            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdateSettings={updateSettings} />
+            <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} busy={aiProcessing} />
+            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
           </>)}
 
           {showOnboarding && (

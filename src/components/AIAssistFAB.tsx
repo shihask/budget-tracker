@@ -7,9 +7,10 @@ const EDGE_PAD = 14
 interface AIAssistFABProps {
   onOpen: () => void
   containerWidth: number
+  busy?: boolean
 }
 
-export function AIAssistFAB({ onOpen, containerWidth }: AIAssistFABProps) {
+export function AIAssistFAB({ onOpen, containerWidth, busy = false }: AIAssistFABProps) {
   const c = useTheme()
 
   const getBounds = () => {
@@ -152,7 +153,10 @@ export function AIAssistFAB({ onOpen, containerWidth }: AIAssistFABProps) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'grab',
       }}>
-        <img src="/mint-ai-logo.svg" width="32" height="32" alt="Mint AI" style={{ borderRadius: 8, display: 'block' }} />
+        {busy
+          ? <img src="/mint-thinking-loop.svg" width="34" height="34" alt="" style={{ borderRadius: 8, display: 'block' }} />
+          : <img src="/mint-ai-logo.svg" width="32" height="32" alt="Mint AI" style={{ borderRadius: 8, display: 'block' }} />
+        }
       </div>
     </div>
   )

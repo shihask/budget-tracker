@@ -132,9 +132,10 @@ interface QuickAddSheetProps {
   onAddCategory: (name: string, group_name: string) => Promise<string>
   autopilotEnabled?: boolean
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
+  onBusyChange?: (busy: boolean) => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, onUpdateSettings }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, onUpdateSettings, onBusyChange }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>('expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -167,6 +168,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   }
 
   const [aiParsing, setAiParsing] = useState(false)
+  const [aiSuccess, setAiSuccess] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<{ name: string; group: string } | null>(null)
   const [catSuggestions, setCatSuggestions] = useState<Category[]>([])
   const aiJustParsed = useRef(false)
@@ -261,6 +263,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       setAiSuggestion(null)
       setCatSuggestions([])
       setAiParsing(false)
+      setAiSuccess(false)
     }
   }, [open, reset])
 
@@ -304,6 +307,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
   const handleSmartInput = (text: string) => {
     setSmartInput(text)
+    if (aiSuccess) setAiSuccess(false)
     if (!text.trim()) { setSmartParsed(null); setAiParsing(false) }
   }
 
@@ -318,11 +322,11 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
     ]
 
     if (autopilotEnabled) {
-      setAiParsing(true)
+      setAiParsing(true); onBusyChange?.(true)
       const catNames = catsRef.current.filter(c => c.group_name !== 'Income').map(c => c.name)
       const accNames = allAccs.map(a => a.name)
       const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.({ ai_requests_used: n }))
-      setAiParsing(false)
+      setAiParsing(false); onBusyChange?.(false)
       if (!result) return
 
       aiJustParsed.current = true
@@ -344,6 +348,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         accountName: result.account ?? null,
         categoryName: result.category ?? null,
       })
+      setAiSuccess(true)
     } else {
       const parsed = parseSmartInput(text, allAccs, cats)
       if (parsed.description) setValue('description', parsed.description, { shouldValidate: true })
@@ -356,6 +361,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         accountName: allAccs.find(a => a.id === parsed.accountId)?.name ?? null,
         categoryName: cats.find(c => c.id === parsed.categoryId)?.name ?? null,
       })
+      setAiSuccess(true)
     }
   }
 
@@ -471,7 +477,16 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         {isExpense && !isTransfer && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 15, pointerEvents: 'none', opacity: aiParsing ? 1 : 0.5, color: aiParsing ? c.accent : undefined, transition: 'color 0.2s' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L21 11l-6.8 2.7L12 20l-2.2-6.3L3 11l6.8-2.7z"/></svg></span>
+              <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+                {aiParsing
+                  ? <img src="/mint-thinking-loop.svg" width="20" height="20" alt="" style={{ display: 'block' }} />
+                  : <svg width="20" height="20" viewBox="101 117 310 279" fill="none">
+                      <path d="M101 395.49C236.782 395.49 330.786 318.895 363.861 177.89C228.078 177.89 134.075 254.485 101 395.49Z" fill={aiSuccess ? '#16C98A' : c.muted}/>
+                      <path opacity="0.6" d="M119.93 377.33C187.33 296.93 259.29 245.87 354.43 186.33" stroke={aiSuccess ? '#F8F8F8' : c.muted} strokeWidth="12.288" strokeLinecap="round"/>
+                      <path d="M384.93 117C387.208 136.875 389.692 144.535 411.43 150.125C389.692 155.715 387.208 163.375 384.93 183.25C382.653 163.375 380.169 155.715 358.43 150.125C380.169 144.535 382.653 136.875 384.93 117Z" fill={aiSuccess ? '#9DE5CC' : c.muted}/>
+                    </svg>
+                }
+              </span>
               <input
                 ref={smartInputRef}
                 value={smartInput}
