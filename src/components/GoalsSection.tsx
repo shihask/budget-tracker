@@ -28,12 +28,12 @@ interface Props {
   onPrefillConsumed?: () => void
 }
 
-const TYPE_CFG: Record<GoalType, { label: string; color: string; icon: React.ReactNode }> = {
+const TYPE_CFG: Record<GoalType, { label: string; color: string; icon: (stroke: string) => React.ReactNode }> = {
   purchase: {
     label: 'Purchase',
     color: '#EF4444',
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    icon: (s) => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={s} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
         <path d="M16 10a4 4 0 01-8 0"/>
       </svg>
@@ -42,8 +42,8 @@ const TYPE_CFG: Record<GoalType, { label: string; color: string; icon: React.Rea
   savings: {
     label: 'Savings',
     color: '#10B981',
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    icon: (s) => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={s} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
       </svg>
     ),
@@ -51,8 +51,8 @@ const TYPE_CFG: Record<GoalType, { label: string; color: string; icon: React.Rea
   event: {
     label: 'Event',
     color: '#F59E0B',
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    icon: (s) => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={s} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
         <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
       </svg>
@@ -60,12 +60,12 @@ const TYPE_CFG: Record<GoalType, { label: string; color: string; icon: React.Rea
   },
 }
 
-function GoalIcon({ type, size = 32 }: { type: GoalType; size?: number }) {
+// Tinted icon badge — matches AccountsSection style (color+'22' bg, colored icon)
+function GoalIcon({ type, size = 40 }: { type: GoalType; size?: number }) {
   const cfg = TYPE_CFG[type]
-  const r = Math.round(size * 0.28)
   return (
-    <div style={{ width: size, height: size, borderRadius: r, background: cfg.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      {cfg.icon}
+    <div style={{ width: size, height: size, borderRadius: 12, background: cfg.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      {cfg.icon(cfg.color)}
     </div>
   )
 }
@@ -286,7 +286,7 @@ export function GoalsSection({
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <GoalIcon type={goal.goal_type} size={34} />
+                  <GoalIcon type={goal.goal_type} size={40} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                       <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>
