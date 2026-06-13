@@ -110,21 +110,53 @@ export function useSupabaseData(userId: string) {
           userCategories = seededCats || []
         }
 
-        // Migration: ensure Income group exists (re-query DB to avoid race with StrictMode double-invoke)
-        const { data: dbIncomeGroups } = await supabase
-          .from('groups').select('*').eq('user_id', userId).eq('name', INCOME_GROUP)
-        const incomeGroupRows = dbIncomeGroups || []
+        // Dedup ALL groups by name — re-query DB to get ground truth after any seeding race
+        const { data: allDbGroups } = await supabase
+          .from('groups').select('*').eq('user_id', userId).order('created_at', { ascending: true })
+        const groupsByName = new Map<string, Group[]>()
+        for (const g of (allDbGroups || []) as Group[]) {
+          const arr = groupsByName.get(g.name) || []
+          arr.push(g)
+          groupsByName.set(g.name, arr)
+        }
+        const groupExtras: string[] = []
+        const dedupedGroups: Group[] = []
+        for (const rows of groupsByName.values()) {
+          dedupedGroups.push(rows[0])
+          for (const extra of rows.slice(1)) groupExtras.push(extra.id)
+        }
+        if (groupExtras.length > 0) {
+          await supabase.from('groups').delete().in('id', groupExtras)
+        }
+        userGroups = dedupedGroups
 
-        // Dedup: if more than one Income group exists, delete the extras
-        if (incomeGroupRows.length > 1) {
-          const [keep, ...extras] = incomeGroupRows
-          await supabase.from('groups').delete().in('id', extras.map((g: Group) => g.id))
-          userGroups = [...userGroups.filter(g => g.name !== INCOME_GROUP), keep as Group]
-        } else if (incomeGroupRows.length === 0) {
+        // Migration: ensure Income group exists
+        if (!userGroups.some(g => g.name === INCOME_GROUP)) {
           const { data: newGroup } = await supabase
             .from('groups').insert({ name: INCOME_GROUP, user_id: userId }).select('*').single()
           if (newGroup) userGroups = [...userGroups, newGroup as Group]
         }
+
+        // Dedup ALL categories by (name, group_name) — same StrictMode protection
+        const { data: allDbCats } = await supabase
+          .from('categories').select('*').eq('user_id', userId).order('created_at', { ascending: true })
+        const catsByKey = new Map<string, Category[]>()
+        for (const cat of (allDbCats || []) as Category[]) {
+          const key = `${cat.name}|${cat.group_name}`
+          const arr = catsByKey.get(key) || []
+          arr.push(cat)
+          catsByKey.set(key, arr)
+        }
+        const catExtras: string[] = []
+        const dedupedCats: Category[] = []
+        for (const rows of catsByKey.values()) {
+          dedupedCats.push(rows[0])
+          for (const extra of rows.slice(1)) catExtras.push(extra.id)
+        }
+        if (catExtras.length > 0) {
+          await supabase.from('categories').delete().in('id', catExtras)
+        }
+        userCategories = dedupedCats
 
         // Ensure Income categories exist
         const existingIncomeNames = userCategories.filter(c => c.group_name === INCOME_GROUP).map(c => c.name)
