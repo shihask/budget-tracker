@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'autopilot_enabled' | 'notifications_enabled'
 
@@ -119,6 +119,108 @@ function BackArrow() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M19 12H5M12 5l-7 7 7 7"/>
     </svg>
+  )
+}
+
+function MintAIDemo() {
+  const TARGET = 'tea 20'
+  const [typed, setTyped] = useState('')
+  const [showResult, setShowResult] = useState(false)
+  const [cursorOn, setCursorOn] = useState(true)
+
+  useEffect(() => {
+    let i = 0
+    const delay = setTimeout(() => {
+      const interval = setInterval(() => {
+        i++
+        setTyped(TARGET.slice(0, i))
+        if (i >= TARGET.length) {
+          clearInterval(interval)
+          setTimeout(() => setShowResult(true), 700)
+        }
+      }, 110)
+      return () => clearInterval(interval)
+    }, 500)
+    return () => clearTimeout(delay)
+  }, [])
+
+  useEffect(() => {
+    if (showResult) return
+    const t = setInterval(() => setCursorOn(v => !v), 530)
+    return () => clearInterval(t)
+  }, [showResult])
+
+  return (
+    <div style={{ width: '100%', marginBottom: 20, textAlign: 'left' }}>
+      {/* Simulated input */}
+      <div style={{
+        background: '#FBF8F4', borderRadius: 12,
+        border: `1.5px solid ${showResult ? 'rgba(22,201,138,0.35)' : '#16C98A'}`,
+        padding: '13px 14px',
+        marginBottom: 10,
+        display: 'flex', alignItems: 'center',
+        transition: 'border-color 0.3s',
+      }}>
+        <span style={{ font: '600 15px "Plus Jakarta Sans"', color: '#1C1410', flex: 1 }}>
+          {typed || <span style={{ color: '#C0B9B1' }}>type anything…</span>}
+        </span>
+        {!showResult && (
+          <span style={{
+            display: 'inline-block', width: 2, height: 18,
+            background: cursorOn ? '#16C98A' : 'transparent',
+            borderRadius: 1, marginLeft: 1,
+            transition: 'background 0.1s',
+          }} />
+        )}
+      </div>
+
+      {/* Result card */}
+      {showResult && (
+        <div style={{
+          background: '#FBF8F4', borderRadius: 12,
+          border: '1.5px solid rgba(22,201,138,0.3)',
+          padding: '12px 14px',
+          marginBottom: 16,
+          animation: 'foFadeUp 0.35s ease both',
+        }}>
+          <div style={{
+            font: '700 10px "Plus Jakarta Sans"', color: '#16C98A',
+            letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 9,
+          }}>
+            Mint understood
+          </div>
+          {([
+            ['Description', 'Tea'],
+            ['Category', 'Food & Tea'],
+            ['Amount', '₹20'],
+          ] as const).map(([lbl, val], i, arr) => (
+            <div key={lbl} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '6px 0',
+              borderBottom: i < arr.length - 1 ? '1px solid #EDE7DD' : 'none',
+            }}>
+              <span style={{ font: '500 13px "Plus Jakarta Sans"', color: '#8A8178' }}>{lbl}</span>
+              <span style={{ font: '700 13px "Plus Jakarta Sans"', color: '#1C1410' }}>{val}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Feature list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {[
+          'Auto-categorizes as you type',
+          'Answers any spending question',
+          'Spots patterns & savings opportunities',
+          'Checks if you can afford something',
+        ].map(f => (
+          <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#16C98A', font: '700 13px "Plus Jakarta Sans"', flexShrink: 0 }}>✦</span>
+            <span style={{ font: '500 13px "Plus Jakarta Sans"', color: '#8A8178' }}>{f}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -291,58 +393,7 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
 
         {/* Description */}
         {cur.featured ? (
-          <div style={{ width: '100%', marginBottom: 24, textAlign: 'left' }}>
-            {/* Type demo */}
-            <div style={{
-              background: '#FBF8F4', borderRadius: 12,
-              padding: '11px 14px', marginBottom: 8,
-              border: '1px solid #E8E2DA',
-            }}>
-              <div style={{ font: '700 10px "Plus Jakarta Sans"', color: '#B0A9A1', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>
-                Type
-              </div>
-              <div style={{ font: '600 14px "Plus Jakarta Sans"', color: '#1C1410', marginBottom: 5 }}>
-                "tea 20"
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ font: '500 12px "Plus Jakarta Sans"', color: '#B0A9A1' }}>→</span>
-                <span style={{ font: '600 13px "Plus Jakarta Sans"', color: '#16C98A' }}>Food &amp; Tea · ₹20 ✓</span>
-              </div>
-            </div>
-
-            {/* Ask demo */}
-            <div style={{
-              background: '#FBF8F4', borderRadius: 12,
-              padding: '11px 14px', marginBottom: 16,
-              border: '1px solid #E8E2DA',
-            }}>
-              <div style={{ font: '700 10px "Plus Jakarta Sans"', color: '#B0A9A1', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>
-                Ask
-              </div>
-              <div style={{ font: '600 14px "Plus Jakarta Sans"', color: '#1C1410', marginBottom: 5 }}>
-                "How much on food this month?"
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ font: '500 12px "Plus Jakarta Sans"', color: '#B0A9A1' }}>→</span>
-                <span style={{ font: '600 13px "Plus Jakarta Sans"', color: '#16C98A' }}>₹3,200 across 18 transactions</span>
-              </div>
-            </div>
-
-            {/* Feature list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {[
-                'Auto-categorizes as you type',
-                'Answers any spending question',
-                'Spots patterns & savings opportunities',
-                'Checks if you can afford something',
-              ].map(f => (
-                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: '#16C98A', font: '700 13px "Plus Jakarta Sans"', flexShrink: 0 }}>✦</span>
-                  <span style={{ font: '500 13px "Plus Jakarta Sans"', color: '#8A8178' }}>{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <MintAIDemo />
         ) : (
           <div style={{
             font: '400 14px "Plus Jakarta Sans"',
