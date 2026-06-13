@@ -51,3 +51,7 @@ export function fmtDate(s: string): string {
   if (s === yesterday) return 'Yesterday'
   return new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 }
+
+export function fmtTime(s: string): string {
+  return new Date(s).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase()
+}

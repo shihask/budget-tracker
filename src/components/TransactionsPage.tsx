@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
-import { fmt, fmtDate } from '@/lib/utils'
+import { fmt, fmtDate, fmtTime } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
@@ -151,8 +151,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     if (filterDateFrom) txns = txns.filter(t => t.transaction_date >= filterDateFrom)
     if (filterDateTo) txns = txns.filter(t => t.transaction_date <= filterDateTo)
     txns.sort((a, b) => {
-      if (sortKey === 'date_desc')   return a.transaction_date < b.transaction_date ? 1 : -1
-      if (sortKey === 'date_asc')    return a.transaction_date > b.transaction_date ? 1 : -1
+      if (sortKey === 'date_desc') {
+        if (a.transaction_date !== b.transaction_date) return a.transaction_date < b.transaction_date ? 1 : -1
+        return a.created_at < b.created_at ? 1 : -1
+      }
+      if (sortKey === 'date_asc') {
+        if (a.transaction_date !== b.transaction_date) return a.transaction_date > b.transaction_date ? 1 : -1
+        return a.created_at > b.created_at ? 1 : -1
+      }
       if (sortKey === 'amount_desc') return b.amount - a.amount
       if (sortKey === 'amount_asc')  return a.amount - b.amount
       return 0
@@ -444,8 +450,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : t.transaction_type === 'transfer' ? c.accent : c.bad }}>
-                        {t.transaction_type === 'income' ? '+' : t.transaction_type === 'transfer' ? '⇄' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : t.transaction_type === 'transfer' ? c.accent : c.bad }}>
+                          {t.transaction_type === 'income' ? '+' : t.transaction_type === 'transfer' ? '⇄' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                        </div>
+                        <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{fmtTime(t.created_at)}</div>
                       </div>
                       <button
                         onClick={e => { e.stopPropagation(); handleDelete(t) }}
