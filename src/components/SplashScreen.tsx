@@ -7,13 +7,17 @@ const WORD_MS  = 900
 const P2_START = FORM_MS + WORDS.length * WORD_MS   // ~4.8 s
 const P2_HOLD  = 1600                                // brand reveal hold
 
-interface Props { onContinue: () => void }
+interface Props {
+  onContinue: () => void
+  initialPhase?: 1 | 2 | 3
+}
 
-export function SplashScreen({ onContinue }: Props) {
+export function SplashScreen({ onContinue, initialPhase = 1 }: Props) {
   const [wordIdx, setWordIdx] = useState(-1)
-  const [phase, setPhase]     = useState<1 | 2 | 3>(1)
+  const [phase, setPhase]     = useState<1 | 2 | 3>(initialPhase)
 
   useEffect(() => {
+    if (initialPhase !== 1) return
     const t: ReturnType<typeof setTimeout>[] = []
     WORDS.forEach((_, i) =>
       t.push(setTimeout(() => setWordIdx(i), FORM_MS + i * WORD_MS))
@@ -21,7 +25,7 @@ export function SplashScreen({ onContinue }: Props) {
     t.push(setTimeout(() => { setPhase(2); setWordIdx(-1) }, P2_START))
     t.push(setTimeout(() => setPhase(3), P2_START + P2_HOLD))
     return () => t.forEach(clearTimeout)
-  }, [])
+  }, [initialPhase])
 
   const handleClick = () => {
     if (phase === 1) setPhase(2)
