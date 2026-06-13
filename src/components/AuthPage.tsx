@@ -36,7 +36,10 @@ export function AuthPage() {
     clearError(); setLoading(true)
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.origin },
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: { prompt: 'select_account' },
+      },
     })
     // On success the browser navigates to the provider and back; the session
     // is restored automatically on return. Only reset loading on error.
