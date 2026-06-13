@@ -78,8 +78,8 @@ const PAGES: FeaturePage[] = [
   {
     key: 'notifications_enabled',
     label: 'Smart Reminders',
-    subtitle: 'Stay on top without effort',
-    description: 'Salary day nudges. A heads-up when you\'re close to your budget limit. A quick weekly summary of your spending.\n\nStay informed without having to check constantly.',
+    subtitle: 'Never forget to track your spending',
+    description: 'Life gets busy — MoneyPlant keeps you on track.\n\n• Salary day nudge to log your income\n• Due date alerts for bills & commitments\n• Budget limit warning before you overspend\n• Weekly spending summary every Sunday\n• Daily reminder to log today\'s expenses',
     defaultOn: false,
     Icon: BellIcon,
   },
@@ -187,9 +187,10 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
         key={page}
         style={{
           flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          padding: '0 32px 16px',
+          alignItems: 'center', justifyContent: cur.featured ? 'flex-start' : 'center',
+          padding: cur.featured ? '20px 24px 16px' : '0 32px 16px',
           textAlign: 'center',
+          overflowY: 'auto', overscrollBehavior: 'contain',
           animation: 'foFadeUp 0.32s ease both',
         }}
       >
@@ -234,14 +235,69 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
         </div>
 
         {/* Description */}
-        <div style={{
-          font: '400 14px "Plus Jakarta Sans"',
-          color: '#8A8178', lineHeight: 1.72,
-          marginBottom: 36, maxWidth: 320,
-          whiteSpace: 'pre-line',
-        }}>
-          {cur.description}
-        </div>
+        {cur.featured ? (
+          <div style={{ width: '100%', marginBottom: 24, textAlign: 'left' }}>
+            {/* Type demo */}
+            <div style={{
+              background: '#FBF8F4', borderRadius: 12,
+              padding: '11px 14px', marginBottom: 8,
+              border: '1px solid #E8E2DA',
+            }}>
+              <div style={{ font: '700 10px "Plus Jakarta Sans"', color: '#B0A9A1', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>
+                Type
+              </div>
+              <div style={{ font: '600 14px "Plus Jakarta Sans"', color: '#1C1410', marginBottom: 5 }}>
+                "tea 20"
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ font: '500 12px "Plus Jakarta Sans"', color: '#B0A9A1' }}>→</span>
+                <span style={{ font: '600 13px "Plus Jakarta Sans"', color: '#16C98A' }}>Food &amp; Tea · ₹20 ✓</span>
+              </div>
+            </div>
+
+            {/* Ask demo */}
+            <div style={{
+              background: '#FBF8F4', borderRadius: 12,
+              padding: '11px 14px', marginBottom: 16,
+              border: '1px solid #E8E2DA',
+            }}>
+              <div style={{ font: '700 10px "Plus Jakarta Sans"', color: '#B0A9A1', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>
+                Ask
+              </div>
+              <div style={{ font: '600 14px "Plus Jakarta Sans"', color: '#1C1410', marginBottom: 5 }}>
+                "How much on food this month?"
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ font: '500 12px "Plus Jakarta Sans"', color: '#B0A9A1' }}>→</span>
+                <span style={{ font: '600 13px "Plus Jakarta Sans"', color: '#16C98A' }}>₹3,200 across 18 transactions</span>
+              </div>
+            </div>
+
+            {/* Feature list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {[
+                'Auto-categorizes as you type',
+                'Answers any spending question',
+                'Spots patterns & savings opportunities',
+                'Checks if you can afford something',
+              ].map(f => (
+                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#16C98A', font: '700 13px "Plus Jakarta Sans"', flexShrink: 0 }}>✦</span>
+                  <span style={{ font: '500 13px "Plus Jakarta Sans"', color: '#8A8178' }}>{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            font: '400 14px "Plus Jakarta Sans"',
+            color: '#8A8178', lineHeight: 1.72,
+            marginBottom: 36, maxWidth: 320,
+            whiteSpace: 'pre-line',
+          }}>
+            {cur.description}
+          </div>
+        )}
 
         {/* Toggle + status */}
         <div style={{
