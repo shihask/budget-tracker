@@ -124,6 +124,7 @@ function BackArrow() {
 
 export function FeatureOnboarding({ onComplete, onBack }: Props) {
   const [page, setPage] = useState(0)
+  const [done, setDone] = useState(false)
   const [enabled, setEnabled] = useState<Record<FeatureKey, boolean>>(
     () => Object.fromEntries(PAGES.map(f => [f.key, f.defaultOn])) as Record<FeatureKey, boolean>
   )
@@ -133,8 +134,62 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
   const on = enabled[cur.key]
 
   const handleBack = () => page === 0 ? onBack() : setPage(p => p - 1)
-  const handleNext = () => isLast ? onComplete(enabled) : setPage(p => p + 1)
+  const handleNext = () => isLast ? setDone(true) : setPage(p => p + 1)
   const setOn = (v: boolean) => setEnabled(prev => ({ ...prev, [cur.key]: v }))
+
+  if (done) return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: '#EDE7DD',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      fontFamily: '"Plus Jakarta Sans", sans-serif',
+      padding: '0 32px',
+      animation: 'foFadeUp 0.4s ease both',
+    }}>
+      {/* Check mark */}
+      <div style={{
+        width: 72, height: 72, borderRadius: 24,
+        background: '#1C1410',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 28,
+      }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16C98A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+
+      <div style={{ font: '800 26px "Plus Jakarta Sans"', color: '#1C1410', letterSpacing: '-0.025em', marginBottom: 10, textAlign: 'center' }}>
+        Setup Complete
+      </div>
+      <div style={{ font: '600 15px "Plus Jakarta Sans"', color: '#16C98A', marginBottom: 16, textAlign: 'center' }}>
+        MoneyPlant is ready.
+      </div>
+      <div style={{ font: '400 14px "Plus Jakarta Sans"', color: '#8A8178', lineHeight: 1.7, textAlign: 'center', maxWidth: 280, marginBottom: 44 }}>
+        Your accounts, budget and preferences have been configured.
+      </div>
+
+      <button
+        onClick={() => onComplete(enabled)}
+        style={{
+          width: '100%', maxWidth: 320, padding: '16px',
+          background: '#1C1410', color: '#EDE7DD',
+          border: 'none', borderRadius: 16,
+          font: '700 15px "Plus Jakarta Sans"',
+          cursor: 'pointer', letterSpacing: '-0.01em',
+        }}
+      >
+        Go to Dashboard
+      </button>
+
+      <style>{`
+        @keyframes foFadeUp {
+          from { opacity: 0; transform: translateY(16px) }
+          to   { opacity: 1; transform: translateY(0) }
+        }
+      `}</style>
+    </div>
+  )
 
   const iconBg = cur.featured && on
     ? 'linear-gradient(135deg, #0FAF75, #16C98A)'
