@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { MintAnimation } from './MintAnimation'
 
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'autopilot_enabled' | 'notifications_enabled'
 
@@ -194,17 +195,22 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
         }}
       >
         {/* Icon */}
-        <div style={{
-          width: 76, height: 76, borderRadius: 24,
-          background: iconBg,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: iconColor,
-          marginBottom: 24,
-          transition: 'all 0.3s ease',
-          boxShadow: cur.featured && on ? '0 6px 24px rgba(22,201,138,0.3)' : 'none',
-        }}>
-          <cur.Icon size={30} />
-        </div>
+        {cur.featured ? (
+          <div style={{ marginBottom: 24 }}>
+            <MintAnimation variant="transform" size={76} style={{ borderRadius: '22.5%' }} />
+          </div>
+        ) : (
+          <div style={{
+            width: 76, height: 76, borderRadius: 24,
+            background: iconBg,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: iconColor,
+            marginBottom: 24,
+            transition: 'all 0.3s ease',
+          }}>
+            <cur.Icon size={30} />
+          </div>
+        )}
 
         {/* Label */}
         <div style={{
