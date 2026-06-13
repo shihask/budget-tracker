@@ -161,6 +161,9 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                 placeholder="e.g. HDFC Savings"
                 style={inp}
                 autoFocus
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore
               />
             </div>
 
@@ -207,7 +210,6 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
             <button style={primary} onClick={() => setStep(3)} disabled={!accountName.trim()}>
               Continue
             </button>
-            <button style={ghost} onClick={() => setStep(3)}>Skip for now</button>
           </div>
         )}
 
