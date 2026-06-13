@@ -39,6 +39,7 @@ import { AIChatSheet } from '@/components/AIChatSheet'
 import { OnboardingWizard } from '@/components/OnboardingWizard'
 import { AnalyticsPage } from '@/components/AnalyticsPage'
 import { SplashScreen } from '@/components/SplashScreen'
+import { FeatureOnboarding } from '@/components/FeatureOnboarding'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -105,6 +106,7 @@ function AppContent({ session }: { session: Session }) {
   const [aiProcessing, setAiProcessing] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showSplash, setShowSplash] = useState(false)
+  const [showFeatureOnboarding, setShowFeatureOnboarding] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
   const [borrowingAddOnOpen, setBorrowingAddOnOpen] = useState(false)
@@ -328,7 +330,23 @@ function AppContent({ session }: { session: Session }) {
             />
           )}
 
-          {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+          {showSplash && (
+            <SplashScreen
+              onContinue={() => {
+                setShowSplash(false)
+                setShowFeatureOnboarding(true)
+              }}
+            />
+          )}
+
+          {showFeatureOnboarding && (
+            <FeatureOnboarding
+              onComplete={features => {
+                updateSettings(features)
+                setShowFeatureOnboarding(false)
+              }}
+            />
+          )}
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
