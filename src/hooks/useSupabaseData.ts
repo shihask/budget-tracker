@@ -10,14 +10,14 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 20000, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true },
   commitments: [],
   borrowings: [],
   transactions: [],
   goals: [],
 }
 
-const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 20000, salary_date: null, track_credit_cards: false }
+const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false }
 
 const DEFAULT_GROUPS = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer', 'Income']
 
