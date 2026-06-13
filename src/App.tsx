@@ -111,6 +111,7 @@ function AppContent({ session }: { session: Session }) {
   const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
+  const [metricsInfoOpen, setMetricsInfoOpen] = useState(false)
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
@@ -130,6 +131,15 @@ function AppContent({ session }: { session: Session }) {
   }, [loading, state.accounts.length])
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
+
+  // Merge saved sections with defaults so newly added sections always appear
+  const dashboardSections = useMemo(() => {
+    const saved = state.settings.dashboard_sections
+    if (!saved) return DEFAULT_DASHBOARD_SECTIONS
+    const savedIds = new Set(saved.map(s => s.id))
+    const missing = DEFAULT_DASHBOARD_SECTIONS.filter(s => !savedIds.has(s.id))
+    return missing.length > 0 ? [...saved, ...missing] : saved
+  }, [state.settings.dashboard_sections])
 
   const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
     const prevPct = d.weeklyPct
@@ -198,7 +208,7 @@ function AppContent({ session }: { session: Session }) {
 
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              {(state.settings.dashboard_sections ?? DEFAULT_DASHBOARD_SECTIONS)
+              {dashboardSections
                 .filter(s => s.visible)
                 .map(s => {
                   let el: React.ReactNode = null
@@ -215,8 +225,8 @@ function AppContent({ session }: { session: Session }) {
                       break
                     case 'metrics':
                       el = <div>
-                        <SectionTitle action="Customize" onAction={() => setSettingsOpen(true)}>Your money</SectionTitle>
-                        <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} />
+                        <SectionTitle action="Customize" onAction={() => setLayoutOpen(true)} onInfo={() => setMetricsInfoOpen(true)}>Your money</SectionTitle>
+                        <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} infoOpen={metricsInfoOpen} onInfoClose={() => setMetricsInfoOpen(false)} />
                       </div>
                       break
                     case 'analytics':
@@ -355,7 +365,7 @@ function AppContent({ session }: { session: Session }) {
 
           {layoutOpen && (
             <DashboardLayoutPage
-              sections={state.settings.dashboard_sections ?? DEFAULT_DASHBOARD_SECTIONS}
+              sections={dashboardSections}
               settings={state.settings}
               categories={state.categories}
               onUpdate={async (sections) => { await updateSettings({ dashboard_sections: sections }) }}
