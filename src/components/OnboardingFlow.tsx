@@ -258,7 +258,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                     }}>₹</span>
                     <input
                       value={acc.balance}
-                      onChange={e => updateAccount(i, { balance: e.target.value })}
+                      onChange={e => updateAccount(i, { balance: e.target.value.replace(/\D/g, '') })}
                       placeholder="0"
                       inputMode="numeric"
                       onFocus={e => e.target.select()}
@@ -316,7 +316,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <input
                   value={salaryDay}
-                  onChange={e => setSalaryDay(e.target.value)}
+                  onChange={e => setSalaryDay(e.target.value.replace(/\D/g, '').slice(0, 2))}
                   placeholder="1"
                   inputMode="numeric"
                   maxLength={2}
@@ -342,7 +342,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                 }}>₹</span>
                 <input
                   value={monthlyIncome}
-                  onChange={e => setMonthlyIncome(e.target.value)}
+                  onChange={e => setMonthlyIncome(e.target.value.replace(/\D/g, ''))}
                   placeholder="50,000"
                   inputMode="numeric"
                   onFocus={e => e.target.select()}
