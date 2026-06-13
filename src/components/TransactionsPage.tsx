@@ -36,11 +36,12 @@ interface TransactionsPageProps {
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onReversePayment: (t: Transaction) => Promise<void>
   initialEditTx?: Transaction | null
+  onAdd?: () => void
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, initialEditTx }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, initialEditTx, onAdd }: TransactionsPageProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
 
@@ -288,6 +289,21 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 <line x1="11" y1="18" x2="13" y2="18"/>
               </svg>
             </button>
+            {/* Add transaction */}
+            {onAdd && (
+              <button
+                onClick={onAdd}
+                style={{
+                  width: 36, height: 36, borderRadius: 999, border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  background: c.accent,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            )}
             {/* Theme toggle */}
             <button onClick={onToggleTheme} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: `1px solid ${c.faint}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <Glyph name={dark ? 'sun' : 'moon'} color={c.ink} size={16} />
