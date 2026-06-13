@@ -156,16 +156,13 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
             <div style={{ marginBottom: 14 }}>
               <span style={label}>Account Name</span>
               <input
+                type="search"
                 value={accountName}
                 onChange={e => setAccountName(e.target.value)}
                 placeholder="e.g. HDFC Savings"
-                style={inp}
+                style={{ ...inp, WebkitAppearance: 'none' }}
                 autoFocus
                 autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                name="account-label-x"
                 data-lpignore="true"
                 data-1p-ignore
               />
