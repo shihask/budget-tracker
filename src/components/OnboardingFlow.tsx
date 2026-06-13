@@ -39,7 +39,7 @@ function parseDemo(text: string): { description: string; amount: number; categor
 }
 
 export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, userId }: Props) {
-  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4 | 5>(0)
+  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4 | 5>(1)
   const [accountName, setAccountName] = useState('')
   const [accountType, setAccountType] = useState<AccountType>('bank')
   const [accountBalance, setAccountBalance] = useState('')
@@ -138,35 +138,6 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                 transition: 'background 0.3s',
               }} />
             ))}
-          </div>
-        )}
-
-        {/* ── Step 0: Welcome ─────────────────────────────────────────── */}
-        {step === 0 && (
-          <div style={{ margin: 'auto 0', textAlign: 'center', padding: '40px 0' }}>
-            <div style={{
-              font: '800 32px "Plus Jakarta Sans"',
-              letterSpacing: '-0.03em', color: INK,
-              lineHeight: 1.15, marginBottom: 12,
-            }}>
-              Welcome to{' '}
-              <span style={{ color: ACCENT }}>MoneyPlant</span>
-            </div>
-            <div style={{
-              font: '600 15px "Plus Jakarta Sans"',
-              color: ACCENT, marginBottom: 16, letterSpacing: '-0.01em',
-            }}>
-              Plan Smart. Grow Better.
-            </div>
-            <div style={{
-              font: '500 14px "Plus Jakarta Sans"',
-              color: MUTED, lineHeight: 1.65, marginBottom: 44,
-              maxWidth: 300, margin: '0 auto 44px',
-            }}>
-              Your personal finance companion. Let's set up your finances in under a minute.
-            </div>
-            <button style={primary} onClick={() => setStep(1)}>Get Started</button>
-            <button style={ghost} onClick={() => { setStep(5) }}>Skip intro</button>
           </div>
         )}
 
