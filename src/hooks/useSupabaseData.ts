@@ -110,11 +110,9 @@ export function useSupabaseData(userId: string) {
           userCategories = seededCats || []
         }
 
-        // Dedup ALL groups by name — re-query DB to get ground truth after any seeding race
-        const { data: allDbGroups } = await supabase
-          .from('groups').select('*').eq('user_id', userId).order('created_at', { ascending: true })
+        // Dedup ALL groups by name (in-memory — initial query already loaded all rows incl. duplicates)
         const groupsByName = new Map<string, Group[]>()
-        for (const g of (allDbGroups || []) as Group[]) {
+        for (const g of userGroups as Group[]) {
           const arr = groupsByName.get(g.name) || []
           arr.push(g)
           groupsByName.set(g.name, arr)
@@ -137,11 +135,9 @@ export function useSupabaseData(userId: string) {
           if (newGroup) userGroups = [...userGroups, newGroup as Group]
         }
 
-        // Dedup ALL categories by (name, group_name) — same StrictMode protection
-        const { data: allDbCats } = await supabase
-          .from('categories').select('*').eq('user_id', userId).order('created_at', { ascending: true })
+        // Dedup ALL categories by (name, group_name) — same in-memory approach
         const catsByKey = new Map<string, Category[]>()
-        for (const cat of (allDbCats || []) as Category[]) {
+        for (const cat of userCategories as Category[]) {
           const key = `${cat.name}|${cat.group_name}`
           const arr = catsByKey.get(key) || []
           arr.push(cat)
