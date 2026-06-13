@@ -106,13 +106,14 @@ interface MetricCardsProps {
   onEditEmergencyFund?: () => void
   commitmentItems?: CommitmentItem[]
   accountItems?: AccountItem[]
+  infoOpen?: boolean
+  onInfoClose?: () => void
 }
 
-export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, commitmentItems, accountItems }: MetricCardsProps) {
+export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, commitmentItems, accountItems, infoOpen = false, onInfoClose }: MetricCardsProps) {
   const c = useTheme()
   const metrics = buildMetrics(d)
   const [activePopup, setActivePopup] = useState<string | null>(null)
-  const [infoOpen, setInfoOpen] = useState(false)
 
   const activeMetric = activePopup ? metrics.find(m => m.key === activePopup) : null
   const formula = activePopup ? buildFormula(activePopup, d, commitmentItems, accountItems) : []
@@ -215,21 +216,10 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8, marginTop: -6 }}>
-        <button
-          onClick={() => setInfoOpen(true)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.muted, display: 'flex', alignItems: 'center', gap: 4, font: '600 12px Plus Jakarta Sans', padding: 0 }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-          What's this?
-        </button>
-      </div>
       {content}
 
       {infoOpen && (
-        <div onClick={() => setInfoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div onClick={() => onInfoClose?.()} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 22, width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
               <div style={{ width: 38, height: 38, borderRadius: 12, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -273,7 +263,7 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
                 Tap any card to see the <strong style={{ color: c.ink }}>exact calculation</strong> behind that number.
               </div>
             </div>
-            <button onClick={() => setInfoOpen(false)} style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
+            <button onClick={() => onInfoClose?.()} style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
           </div>
         </div>
       )}
