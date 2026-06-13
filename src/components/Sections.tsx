@@ -3,13 +3,80 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt, fmtDate } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
-import { Glyph } from './Glyph'
 import { MONTH_START, catById as buildCatById } from '@/lib/data'
 import type { AppState, DashboardSection, Transaction } from '@/types'
 
 // ── Custom Group Section ───────────────────────────────────────────────────────
-const SECTION_COLORS = ['#6366F1', '#F97316', '#10B981', '#EC4899', '#3B82F6', '#8B5CF6', '#F59E0B']
-const sectionColor = (name: string) => SECTION_COLORS[name.charCodeAt(0) % SECTION_COLORS.length]
+
+function getSectionIcon(name: string): { color: string; svg: React.ReactNode } {
+  const n = name.toLowerCase()
+
+  const match = (re: RegExp, color: string, icon: React.ReactNode) =>
+    re.test(n) ? { color, svg: icon } : null
+
+  return (
+    match(/renov|repair|build|construct|kitchen|bath|plumb|electri|paint|floor|wall|roof|carpent|mason|home|house|interior|furnit/, '#F97316',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+      </svg>) ||
+    match(/food|eat|restaur|cafe|hotel|dhaba|mess|canteen|dine|lunch|dinner|breakfast|tea|coffee|snack|bakery/, '#EF4444',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
+      </svg>) ||
+    match(/travel|trip|tour|vacat|holiday|flight|train|bus|cab|taxi|transport|petrol|diesel/, '#3B82F6',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19.5 2.5c-1.5-1.5-3.5-1.5-5 0L11 6 2.8 4.2l-2 2L7 10l3.5 3.5-3.5 3.5-4-1-2 2 3 3 3 3 2-2-1-4 3.5-3.5L10 17l4 4 2-2z"/>
+      </svg>) ||
+    match(/medic|health|hospital|doctor|medicine|pharmac|clinic|dental|eye|optom|treatment/, '#EC4899',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+      </svg>) ||
+    match(/shop|market|mall|fashion|cloth|wear|apparel|boutique/, '#8B5CF6',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
+      </svg>) ||
+    match(/edu|school|college|universi|course|book|tuition|learn|class|study|coaching/, '#06B6D4',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/>
+      </svg>) ||
+    match(/entertain|movie|cinema|theatre|game|sport|gym|fitness|yoga|fun|hobby|subscri|ott|netflix|streaming/, '#F59E0B',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>) ||
+    match(/util|electric|water|gas|internet|phone|mobile|bill|recharge|postpaid|prepaid|broadband/, '#10B981',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>) ||
+    match(/famil|kid|child|baby|parent|mom|dad|wife|husband|son|daughter/, '#F43F5E',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+      </svg>) ||
+    match(/wed|marriag|annivers|birthday|celebrat|party|festival|puja|event|function|gift/, '#F59E0B',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/>
+      </svg>) ||
+    match(/invest|mutual|sip|fd|deposit|stock|share|dividend|gold|saving/, '#10B981',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+      </svg>) ||
+    match(/loan|emi|debt|credit|mortgage/, '#EF4444',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+      </svg>) ||
+    match(/grocer|vegetab|fruit|supermarket|provision|dairy|kirana/, '#14B8A6',
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 001.97-1.67L23 6H6"/>
+      </svg>) ||
+    // Default
+    { color: '#6366F1',
+      svg: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
+        </svg>
+      )
+    }
+  )
+}
 
 interface CustomGroupSectionProps { section: DashboardSection; state: AppState }
 
@@ -17,7 +84,7 @@ export function CustomGroupSection({ section, state }: CustomGroupSectionProps) 
   const c = useTheme()
   const catMap = buildCatById(state.categories)
   const name = section.customName || 'Custom'
-  const color = sectionColor(name)
+  const { color, svg: iconSvg } = getSectionIcon(name)
 
   const groupCatIds = new Set(
     state.categories
@@ -36,9 +103,14 @@ export function CustomGroupSection({ section, state }: CustomGroupSectionProps) 
   return (
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: items.length ? 14 : 0 }}>
-        <div>
-          <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>{name}</div>
-          <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>This month</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 9, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff' }}>
+            {iconSvg}
+          </div>
+          <div>
+            <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>{name}</div>
+            <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>This month</div>
+          </div>
         </div>
         <div style={{ font: '800 20px Plus Jakarta Sans', color, letterSpacing: '-0.02em' }}>{fmt(total)}</div>
       </div>
@@ -48,8 +120,8 @@ export function CustomGroupSection({ section, state }: CustomGroupSectionProps) 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {items.map(t => (
             <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Glyph name="doc" color={color} size={16} />
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color }}>
+                {iconSvg}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ font: '700 13.5px Plus Jakarta Sans', color: c.ink }}>{t.description}</div>
