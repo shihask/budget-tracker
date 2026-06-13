@@ -5,11 +5,20 @@ import { BottomSheet } from './BottomSheet'
 import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
 import type { DerivedMetrics, Settings, Transaction } from '@/types'
 
+interface SaveGoalData {
+  name: string
+  goal_amount: number
+  current_saved: number
+  monthly_target: number
+  target_date: string
+}
+
 interface Props {
   d: DerivedMetrics
   settings: Settings
   transactions: Transaction[]
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
+  onSaveGoal?: (data: SaveGoalData) => void
 }
 
 function daysUntil(dayOfMonth: number): number {
@@ -48,7 +57,7 @@ function StatusIcon({ tier, color }: { tier: 'safe' | 'risky' | 'no'; color: str
   )
 }
 
-export function AffordabilityChecker({ d, settings, transactions, onUpdateSettings }: Props) {
+export function AffordabilityChecker({ d, settings, transactions, onUpdateSettings, onSaveGoal }: Props) {
   const c = useTheme()
   const [open, setOpen] = useState(false)
   const [item, setItem] = useState('')
@@ -100,6 +109,7 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
     const targetDate = new Date()
     targetDate.setMonth(targetDate.getMonth() + monthsNeeded)
     const targetLabel = targetDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+    const targetISO = targetDate.toISOString().slice(0, 10)
 
     const skipGroups = new Set(['Income', 'Transfer', 'Commitment'])
     const reductions = Object.entries(spendingData.spendingByGroup)
@@ -116,7 +126,7 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
     improvedDate.setMonth(improvedDate.getMonth() + improvedMonths)
     const improvedLabel = improvedDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
 
-    return { currentSavings, required, monthlyCapacity, monthsNeeded, targetLabel, reductions, improvedCapacity, improvedMonths, improvedLabel }
+    return { currentSavings, required, monthlyCapacity, monthsNeeded, targetLabel, targetISO, reductions, improvedCapacity, improvedMonths, improvedLabel }
   }
 
   const getGoalPlanAI = async (plan: ReturnType<typeof calcGoalPlan>) => {
@@ -575,6 +585,32 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
                             </div>
                           )}
                         </div>
+                      )}
+
+                      {/* Save as Goal */}
+                      {onSaveGoal && (
+                        <button
+                          onClick={() => {
+                            onSaveGoal({
+                              name: item || '',
+                              goal_amount: amt,
+                              current_saved: Math.max(0, Math.round(plan.currentSavings)),
+                              monthly_target: plan.monthlyCapacity,
+                              target_date: plan.targetISO,
+                            })
+                          }}
+                          style={{
+                            width: '100%', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            gap: 7, background: '#10B98114', border: '1px solid #10B98130',
+                            borderRadius: 14, padding: '12px',
+                            font: '700 13px Plus Jakarta Sans', color: '#10B981', cursor: 'pointer',
+                          }}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+                          </svg>
+                          Save as Goal
+                        </button>
                       )}
 
                       {/* Mint AI coaching */}

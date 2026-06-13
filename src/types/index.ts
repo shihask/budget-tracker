@@ -108,6 +108,21 @@ export interface Commitment {
   current_installment: number | null
 }
 
+export type GoalType = 'purchase' | 'savings' | 'event'
+
+export interface Goal {
+  id: string
+  user_id?: string
+  name: string
+  goal_type: GoalType
+  goal_amount: number
+  current_saved: number
+  monthly_target: number
+  target_date: string
+  created_at: string
+  is_active: boolean
+}
+
 export interface AppState {
   accounts: Account[]
   categories: Category[]
@@ -117,6 +132,7 @@ export interface AppState {
   commitments: Commitment[]
   borrowings: Borrowing[]
   transactions: Transaction[]
+  goals: Goal[]
 }
 
 export interface DerivedMetrics {
@@ -138,8 +154,8 @@ export interface CatPoint   { name: string; value: number }
 export type Layout = 'grid' | 'carousel' | 'list'
 
 export type DashboardSectionId =
-  | 'hero' | 'affordability' | 'metrics' | 'commitments' | 'accounts'
-  | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns'
+  | 'hero' | 'affordability' | 'metrics' | 'commitments' | 'goals'
+  | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns'
 
 export interface DashboardSection {
   id: string                    // built-ins use DashboardSectionId; custom sections use 'custom__<timestamp>'
@@ -154,6 +170,7 @@ export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'affordability', visible: true },
   { id: 'metrics',       visible: true },
   { id: 'commitments',   visible: true },
+  { id: 'goals',         visible: true },
   { id: 'accounts',      visible: true },
   { id: 'borrowing',     visible: true },
   { id: 'credit_cards',  visible: true },

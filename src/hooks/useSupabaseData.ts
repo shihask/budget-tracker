@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard } from '@/types'
+import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal } from '@/types'
 
 const delta = (type: TransactionType, amount: number) =>
   type === 'income' ? amount : -amount
@@ -14,6 +14,7 @@ const EMPTY_STATE: AppState = {
   commitments: [],
   borrowings: [],
   transactions: [],
+  goals: [],
 }
 
 const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 20000, salary_date: null, track_credit_cards: false }
@@ -60,6 +61,7 @@ export function useSupabaseData(userId: string) {
           { data: borrowings },
           { data: commitments },
           { data: transactions },
+          { data: goals },
         ] = await Promise.all([
           supabase.from('settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
@@ -74,6 +76,7 @@ export function useSupabaseData(userId: string) {
             .order('transaction_date', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(200),
+          supabase.from('goals').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
         ])
 
         // First login — seed settings
@@ -143,6 +146,7 @@ export function useSupabaseData(userId: string) {
           commitments: (commitments as Commitment[]) || [],
           borrowings: borrowings || [],
           transactions: (transactions as Transaction[]) || [],
+          goals: (goals as Goal[]) || [],
         })
         setUsingSupabase(true)
       } catch (err) {
@@ -572,6 +576,32 @@ export function useSupabaseData(userId: string) {
     }
   }, [userId, state.credit_cards])
 
+  // ── Goals CRUD ───────────────────────────────────────────────────────────────
+  const addGoal = useCallback(async (form: Omit<Goal, 'id' | 'user_id' | 'created_at'>) => {
+    const { data, error } = await supabase.from('goals').insert({ ...form, user_id: userId }).select('*').single()
+    if (error) throw error
+    setState(s => ({ ...s, goals: [data as Goal, ...s.goals] }))
+  }, [userId])
+
+  const updateGoal = useCallback(async (id: string, patch: Partial<Goal>) => {
+    const { data, error } = await supabase.from('goals').update(patch).eq('id', id).select('*').single()
+    if (error) throw error
+    setState(s => ({ ...s, goals: s.goals.map(g => g.id === id ? data as Goal : g) }))
+  }, [])
+
+  const deleteGoal = useCallback(async (id: string) => {
+    await supabase.from('goals').delete().eq('id', id)
+    setState(s => ({ ...s, goals: s.goals.filter(g => g.id !== id) }))
+  }, [])
+
+  const addGoalSavings = useCallback(async (id: string, amount: number) => {
+    const goal = stateRef.current.goals.find(g => g.id === id)
+    if (!goal) return
+    const newSaved = goal.current_saved + amount
+    await supabase.from('goals').update({ current_saved: newSaved }).eq('id', id)
+    setState(s => ({ ...s, goals: s.goals.map(g => g.id === id ? { ...g, current_saved: newSaved } : g) }))
+  }, [])
+
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {
       await supabase.from('settings').update(patch).eq('id', state.settings.id)
@@ -661,5 +691,6 @@ export function useSupabaseData(userId: string) {
     addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, updateCreditCardBalance,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
+    addGoal, updateGoal, deleteGoal, addGoalSavings,
   }
 }

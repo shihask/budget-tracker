@@ -29,6 +29,7 @@ import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
 import { AffordabilityChecker } from '@/components/AffordabilityChecker'
+import { GoalsSection } from '@/components/GoalsSection'
 import { RemindersBar } from '@/components/RemindersBar'
 import { SavingsSuggestions } from '@/components/SavingsSuggestions'
 import { BottomSheet } from '@/components/BottomSheet'
@@ -118,7 +119,9 @@ function AppContent({ session }: { session: Session }) {
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings } = useSupabaseData(session.user.id)
+
+  const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
 
   useEffect(() => {
     if (!loading && state.accounts.length === 0) {
@@ -208,7 +211,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /></>
                       break
                     case 'affordability':
-                      el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
+                      el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
                       break
                     case 'metrics':
                       el = <div>
@@ -230,6 +233,22 @@ function AppContent({ session }: { session: Session }) {
                       break
                     case 'credit_cards':
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} /> : null
+                      break
+                    case 'goals':
+                      el = <GoalsSection
+                        goals={state.goals}
+                        d={d}
+                        transactions={state.transactions}
+                        settings={state.settings}
+                        autopilotEnabled={state.settings.autopilot_enabled ?? false}
+                        onAddGoal={addGoal}
+                        onUpdateGoal={updateGoal}
+                        onDeleteGoal={deleteGoal}
+                        onAddSavings={addGoalSavings}
+                        onUpdateSettings={updateSettings}
+                        prefillGoal={prefillGoal}
+                        onPrefillConsumed={() => setPrefillGoal(null)}
+                      />
                       break
                     case 'recent_txns':
                       el = <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />

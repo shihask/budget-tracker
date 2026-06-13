@@ -20,6 +20,7 @@ const SECTION_META: Record<DashboardSectionId, { label: string; desc: string }> 
   affordability: { label: 'Affordability Checker', desc: 'Can I afford this purchase?' },
   metrics:       { label: 'Your Money',            desc: 'Balance, savings & key metrics' },
   commitments:   { label: 'Commitments',           desc: 'Bills & recurring payments' },
+  goals:         { label: 'Goals',                 desc: 'Savings goals & progress tracking' },
   accounts:      { label: 'Accounts',              desc: 'Bank & cash account balances' },
   borrowing:     { label: 'Lend & Borrow',          desc: 'Money lent & borrowed' },
   credit_cards:  { label: 'Credit Cards',          desc: 'Card balances & due dates' },

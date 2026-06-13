@@ -212,6 +212,62 @@ export async function goalPlanAdviceWithAI(
   }
 }
 
+export interface GoalProgressContext {
+  name: string
+  goalType: 'purchase' | 'savings' | 'event'
+  goalAmount: number
+  currentSaved: number
+  monthlyTarget: number
+  targetDate: string
+  pct: number
+  daysAhead?: number
+  daysBehind?: number
+  extraNeeded?: number
+}
+
+export async function goalProgressInsightWithAI(
+  ctx: GoalProgressContext,
+  onUsed?: (n: number) => void
+): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const status = ctx.daysAhead != null
+      ? `ahead of schedule by ${ctx.daysAhead} days`
+      : ctx.daysBehind != null
+      ? `behind schedule by ${ctx.daysBehind} days — needs ₹${(ctx.extraNeeded ?? 0).toLocaleString('en-IN')}/month extra to catch up`
+      : 'on track'
+
+    const context = [
+      `Goal: "${ctx.name}" (${ctx.goalType})`,
+      `Target: ₹${ctx.goalAmount.toLocaleString('en-IN')} by ${ctx.targetDate}`,
+      `Saved so far: ₹${ctx.currentSaved.toLocaleString('en-IN')} (${ctx.pct}%)`,
+      `Monthly target: ₹${ctx.monthlyTarget.toLocaleString('en-IN')}`,
+      `Progress status: ${status}`,
+    ].join('\n')
+
+    const message = ctx.daysAhead != null
+      ? `Give me a 1-2 sentence motivational coaching message as Mint. Acknowledge I'm ahead of schedule. No emojis.`
+      : `Give me a 1-2 sentence honest coaching message as Mint. Acknowledge I'm behind and suggest a specific action to get back on track. No emojis.`
+
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ mode: 'chat', message, context, history: [] }),
+    })
+
+    if (res.status === 429) return 'Mint daily limit reached. Try again next month.'
+    if (!res.ok) return null
+
+    const data = await res.json()
+    if (data.used != null) onUsed?.(data.used)
+    return data.reply ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function categorizeWithAI(
   description: string,
   categoryNames: string[],
