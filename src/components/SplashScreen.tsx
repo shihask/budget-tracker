@@ -5,13 +5,14 @@ const WORDS    = ['Know', 'Plan', 'Afford', 'Grow']
 const FORM_MS  = 1200                               // formation settles
 const WORD_MS  = 900                                // each word on-screen
 const P2_START = FORM_MS + WORDS.length * WORD_MS  // ~4.8 s
-const P2_HOLD  = 1800                               // brand reveal hold
+const P2_HOLD  = 1800                               // brand reveal hold before hint
 
 interface Props { onContinue: () => void }
 
 export function SplashScreen({ onContinue }: Props) {
-  const [wordIdx, setWordIdx] = useState(-1)
-  const [phase, setPhase]     = useState<1 | 2 | 3>(1)
+  const [wordIdx, setWordIdx]       = useState(-1)
+  const [phase, setPhase]           = useState<1 | 2>(1)
+  const [showTapHint, setShowTapHint] = useState(false)
 
   useEffect(() => {
     const t: ReturnType<typeof setTimeout>[] = []
@@ -21,21 +22,30 @@ export function SplashScreen({ onContinue }: Props) {
     )
 
     t.push(setTimeout(() => { setPhase(2); setWordIdx(-1) }, P2_START))
-    t.push(setTimeout(() => setPhase(3), P2_START + P2_HOLD))
+    t.push(setTimeout(() => setShowTapHint(true), P2_START + P2_HOLD))
 
     return () => t.forEach(clearTimeout)
   }, [])
 
+  const handleClick = () => {
+    if (phase === 1) {
+      setPhase(2)
+      setWordIdx(-1)
+    } else {
+      onContinue()
+    }
+  }
+
   return (
     <div
-      onClick={phase < 3 ? () => setPhase(3) : undefined}
+      onClick={handleClick}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: '#EDE7DD',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         userSelect: 'none', WebkitUserSelect: 'none',
-        cursor: phase < 3 ? 'pointer' : 'default',
+        cursor: 'pointer',
       }}
     >
       <MintAnimation variant="transform" size={164} style={{ borderRadius: '22.5%' }} />
@@ -70,7 +80,7 @@ export function SplashScreen({ onContinue }: Props) {
         </div>
       )}
 
-      {/* Phase 2 — brand reveal */}
+      {/* Phase 2 — brand reveal + tap hint */}
       {phase === 2 && (
         <div style={{ textAlign: 'center', marginTop: 18 }}>
           <div style={{
@@ -98,52 +108,18 @@ export function SplashScreen({ onContinue }: Props) {
           }}>
             Powered by Mint AI ✦
           </div>
-        </div>
-      )}
 
-      {/* Phase 3 — welcome card */}
-      {phase === 3 && (
-        <div style={{
-          textAlign: 'center',
-          marginTop: 24,
-          padding: '0 28px',
-          animation: 'mpFadeUp 0.5s ease both',
-        }}>
-          <div style={{
-            font: '800 26px Plus Jakarta Sans',
-            letterSpacing: '-0.025em',
-            color: '#1C1410',
-          }}>
-            Welcome to{' '}
-            <span style={{ color: '#16C98A' }}>MoneyPlant</span>
-          </div>
-          <div style={{
-            marginTop: 10,
-            font: '500 14px Plus Jakarta Sans',
-            color: '#8A8178',
-            lineHeight: 1.6,
-          }}>
-            Your personal finance companion is ready.
-            <br />
-            Let's take 30 seconds to set things up.
-          </div>
-          <button
-            onClick={e => { e.stopPropagation(); onContinue() }}
-            style={{
-              marginTop: 32,
-              padding: '14px 48px',
-              background: '#16C98A',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 14,
-              font: '700 15px Plus Jakarta Sans',
-              cursor: 'pointer',
-              letterSpacing: '-0.01em',
-              boxShadow: '0 4px 20px rgba(22,201,138,0.32)',
-            }}
-          >
-            Continue
-          </button>
+          {showTapHint && (
+            <div style={{
+              marginTop: 52,
+              font: '500 12px Plus Jakarta Sans',
+              color: '#B8B0A8',
+              letterSpacing: '0.02em',
+              animation: 'mpPulse 2s ease-in-out infinite',
+            }}>
+              Tap to continue
+            </div>
+          )}
         </div>
       )}
 
@@ -161,6 +137,10 @@ export function SplashScreen({ onContinue }: Props) {
         @keyframes mpFadeIn {
           from { opacity: 0 }
           to   { opacity: 1 }
+        }
+        @keyframes mpPulse {
+          0%, 100% { opacity: 0.35 }
+          50%      { opacity: 1 }
         }
       `}</style>
     </div>

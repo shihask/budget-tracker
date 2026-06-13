@@ -6,6 +6,7 @@ interface FeatureDef {
   key: FeatureKey
   label: string
   tagline: string
+  settingsHint?: string
   defaultOn: boolean
   badge?: string
   featured?: boolean
@@ -53,7 +54,7 @@ const FEATURES: FeatureDef[] = [
   {
     key: 'autopilot_enabled',
     label: 'Mint AI',
-    tagline: 'Your money brain — auto-categorizes every transaction as you type, answers questions like "how much did I spend on food?", and spots hidden spending patterns before they become habits.',
+    tagline: "Mint auto-categorizes every transaction as you type, answers questions like \"how much did I spend on food this month?\", and surfaces spending patterns you'd never notice manually. It's MoneyPlant's core superpower.",
     defaultOn: true,
     badge: 'Recommended',
     featured: true,
@@ -62,21 +63,24 @@ const FEATURES: FeatureDef[] = [
   {
     key: 'track_credit_cards',
     label: 'Credit Card Tracking',
-    tagline: 'Track credit card spends separately — see exactly what you owe before the bill arrives.',
+    tagline: 'Do you use a credit card? This keeps your card spends separate from cash so you always know what you owe before the bill arrives.',
+    settingsHint: 'Can be enabled later in Settings',
     defaultOn: false,
     Icon: CreditCardIcon,
   },
   {
     key: 'track_borrowings',
     label: 'Lend & Borrow',
-    tagline: 'Log money you lend or borrow so nothing slips through the cracks.',
-    defaultOn: true,
+    tagline: 'Lent money to a friend? Borrowed from family? Log it here so nothing slips through the cracks.',
+    settingsHint: 'Can be enabled later in Settings',
+    defaultOn: false,
     Icon: UsersIcon,
   },
   {
     key: 'notifications_enabled',
-    label: 'Notifications',
-    tagline: 'Salary day reminders, budget alerts, and a weekly spending summary.',
+    label: 'Smart Reminders',
+    tagline: "Salary day nudges, budget alerts when you're close to your limit, and a weekly spending summary.",
+    settingsHint: 'Can be enabled later in Settings',
     defaultOn: false,
     Icon: BellIcon,
   },
@@ -216,6 +220,16 @@ export function FeatureOnboarding({ onComplete }: Props) {
                   }}>
                     {f.tagline}
                   </div>
+                  {f.settingsHint && (
+                    <div style={{
+                      marginTop: 6,
+                      font: '500 11px "Plus Jakarta Sans"',
+                      color: '#B8B0A8',
+                      letterSpacing: '0.01em',
+                    }}>
+                      {f.settingsHint}
+                    </div>
+                  )}
                 </div>
 
                 {/* Toggle */}

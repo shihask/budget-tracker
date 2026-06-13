@@ -36,10 +36,8 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
 import { AIAssistFAB } from '@/components/AIAssistFAB'
 import { AIChatSheet } from '@/components/AIChatSheet'
-import { OnboardingWizard } from '@/components/OnboardingWizard'
 import { AnalyticsPage } from '@/components/AnalyticsPage'
-import { SplashScreen } from '@/components/SplashScreen'
-import { FeatureOnboarding } from '@/components/FeatureOnboarding'
+import { OnboardingFlow } from '@/components/OnboardingFlow'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -104,9 +102,8 @@ function AppContent({ session }: { session: Session }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
-  const [showOnboarding, setShowOnboarding] = useState(false)
-  const [showSplash, setShowSplash] = useState(false)
-  const [showFeatureOnboarding, setShowFeatureOnboarding] = useState(false)
+  const [showOnboardingFlow, setShowOnboardingFlow] = useState(false)
+  const [showDashboardWelcome, setShowDashboardWelcome] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
   const [borrowingAddOnOpen, setBorrowingAddOnOpen] = useState(false)
@@ -128,7 +125,7 @@ function AppContent({ session }: { session: Session }) {
 
   useEffect(() => {
     if (!loading && state.accounts.length === 0) {
-      try { if (!localStorage.getItem('mp_onboarded_' + session.user.id)) setShowOnboarding(true) } catch (_) {}
+      try { if (!localStorage.getItem('mp_onboarded_' + session.user.id)) setShowOnboardingFlow(true) } catch (_) {}
     }
   }, [loading, state.accounts.length])
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
@@ -317,35 +314,51 @@ function AppContent({ session }: { session: Session }) {
             <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
           </>)}
 
-          {showOnboarding && (
-            <OnboardingWizard
-              containerWidth={W}
+          {showOnboardingFlow && (
+            <OnboardingFlow
               onAddAccount={addAccount}
               onUpdateSettings={updateSettings}
-              onClose={() => {
-                try { localStorage.setItem('mp_onboarded_' + session.user.id, '1') } catch (_) {}
-                setShowOnboarding(false)
-                setShowSplash(true)
+              onComplete={() => {
+                setShowOnboardingFlow(false)
+                setShowDashboardWelcome(true)
               }}
+              userId={session.user.id}
             />
           )}
 
-          {showSplash && (
-            <SplashScreen
-              onContinue={() => {
-                setShowSplash(false)
-                setShowFeatureOnboarding(true)
-              }}
-            />
-          )}
-
-          {showFeatureOnboarding && (
-            <FeatureOnboarding
-              onComplete={features => {
-                updateSettings(features)
-                setShowFeatureOnboarding(false)
-              }}
-            />
+          {showDashboardWelcome && (
+            <div style={{
+              position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+              width: '100%', maxWidth: W, zIndex: 400,
+              padding: '0 16px calc(16px + env(safe-area-inset-bottom, 0px))',
+              animation: 'slideUp 0.4s cubic-bezier(0.32,0.72,0,1) both',
+            }}>
+              <div style={{
+                background: '#1C1410',
+                borderRadius: 18,
+                padding: '18px 20px',
+                display: 'flex', alignItems: 'flex-start', gap: 14,
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: '#EDE7DD', marginBottom: 4 }}>
+                    You're all set
+                  </div>
+                  <div style={{ font: '400 12.5px Plus Jakarta Sans', color: '#8A8178', lineHeight: 1.55 }}>
+                    Add expenses as you spend. Ask Mint for insights anytime.
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDashboardWelcome(false)}
+                  style={{
+                    background: 'none', border: 'none', color: '#8A8178',
+                    font: '600 18px Plus Jakarta Sans', cursor: 'pointer',
+                    padding: '0 2px', lineHeight: 1, marginTop: -2,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
