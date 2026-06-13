@@ -102,7 +102,9 @@ function AppContent({ session }: { session: Session }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
-  const [showOnboardingFlow, setShowOnboardingFlow] = useState(false)
+  const [showOnboardingFlow, setShowOnboardingFlow] = useState(() => {
+    try { return localStorage.getItem('mp_onboarded_' + user.id) === null } catch (_) { return false }
+  })
   const [showDashboardWelcome, setShowDashboardWelcome] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
@@ -124,8 +126,9 @@ function AppContent({ session }: { session: Session }) {
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
 
   useEffect(() => {
-    if (!loading && state.accounts.length === 0) {
-      try { if (!localStorage.getItem('mp_onboarded_' + session.user.id)) setShowOnboardingFlow(true) } catch (_) {}
+    if (!loading && state.accounts.length > 0) {
+      setShowOnboardingFlow(false)
+      try { localStorage.setItem('mp_onboarded_' + session.user.id, '1') } catch (_) {}
     }
   }, [loading, state.accounts.length])
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
