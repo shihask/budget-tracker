@@ -185,6 +185,12 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
       <Card>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: '#8B5CF6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>
+              </svg>
+            </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Bills & Commitments</div>
@@ -200,6 +206,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
             <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
               Total: {fmt(d.remainingCommitments)}
             </div>
+          </div>
           </div>
           <button
             onClick={openAdd}

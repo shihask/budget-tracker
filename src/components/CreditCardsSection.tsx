@@ -148,17 +148,24 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
     <>
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: cards.length ? 16 : 0 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Credit Cards</div>
-              <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                </svg>
-              </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: '#EC4899', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="5" y1="15" x2="9" y2="15"/>
+              </svg>
             </div>
-            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-              {cards.length} card{cards.length !== 1 ? 's' : ''} · Total outstanding {fmt(cards.reduce((s, cd) => s + cd.current_balance, 0))}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Credit Cards</div>
+                <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                </button>
+              </div>
+              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+                {cards.length} card{cards.length !== 1 ? 's' : ''} · Total outstanding {fmt(cards.reduce((s, cd) => s + cd.current_balance, 0))}
+              </div>
             </div>
           </div>
           <button onClick={openAdd} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>

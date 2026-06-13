@@ -24,7 +24,13 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
   return (
     <>
     <Card pad={16}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 9, background: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="2" width="4" height="19" rx="1"/>
+          </svg>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
         <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Spending analytics</div>
         <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -39,6 +45,7 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
             </svg>
           </button>
         )}
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 4, background: c.surface2, borderRadius: 12, padding: 4, marginTop: 12 }}>
         {TABS.map(([k, l]) => (
