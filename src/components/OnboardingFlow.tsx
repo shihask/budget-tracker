@@ -155,17 +155,17 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
 
             <div style={{ marginBottom: 14 }}>
               <span style={label}>Account Name</span>
-              {/* Hidden dummy fields absorb browser autofill before it reaches the real input */}
-              <input type="text" style={{ display: 'none' }} aria-hidden="true" readOnly tabIndex={-1} />
-              <input type="password" style={{ display: 'none' }} aria-hidden="true" readOnly tabIndex={-1} />
               <input
                 value={accountName}
                 onChange={e => setAccountName(e.target.value)}
                 placeholder="e.g. HDFC Savings"
                 style={inp}
                 autoFocus
-                autoComplete="new-password"
-                name="account-label"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                name="account-label-x"
                 data-lpignore="true"
                 data-1p-ignore
               />
