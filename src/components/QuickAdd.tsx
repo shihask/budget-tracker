@@ -173,7 +173,12 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const [aiSuccess, setAiSuccess] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<{ name: string; group: string } | null>(null)
   const [catSuggestions, setCatSuggestions] = useState<Category[]>([])
+  const [listening, setListening] = useState(false)
   const aiJustParsed = useRef(false)
+  const recognitionRef = useRef<any>(null)
+  const SpeechRec = typeof window !== 'undefined'
+    ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+    : null
 
   const accs = state.accounts.filter(a => a.is_active)
   const isGroupVisible = (groupName: string) => {
@@ -317,8 +322,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
     if (!text.trim()) { setSmartParsed(null); setAiParsing(false) }
   }
 
-  const handleSmartSubmit = async () => {
-    const text = smartInput.trim()
+  const submitText = async (text: string) => {
     if (text.length < 2) return
     smartInputRef.current?.blur()
 
@@ -369,6 +373,29 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       })
       setAiSuccess(true)
     }
+  }
+
+  const handleSmartSubmit = () => submitText(smartInput.trim())
+
+  const startVoice = () => {
+    if (!SpeechRec || listening) return
+    const recognition = new SpeechRec()
+    recognition.lang = 'en-IN'
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+    recognition.onstart = () => setListening(true)
+    recognition.onend = () => setListening(false)
+    recognition.onerror = () => setListening(false)
+    recognition.onresult = (e: any) => {
+      const transcript: string = e.results[0]?.[0]?.transcript ?? ''
+      if (transcript) {
+        setSmartInput(transcript)
+        submitText(transcript)
+      }
+    }
+    recognitionRef.current = recognition
+    recognition.start()
   }
 
   const applyQuick = (label: string, category_id: string | null) => {
@@ -509,8 +536,37 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                 }}
                 placeholder={autopilotEnabled ? 'e.g. "paid electricity bill 1200 via HDFC"' : 'e.g. "petrol 500 axis"'}
                 enterKeyHint="done"
-                style={{ ...inputStyle, paddingLeft: 36 }}
+                style={{ ...inputStyle, paddingLeft: 36, paddingRight: SpeechRec ? 44 : 14 }}
               />
+              {SpeechRec && (
+                <button
+                  type="button"
+                  onPointerDown={e => { e.preventDefault(); startVoice() }}
+                  aria-label={listening ? 'Listening…' : 'Speak'}
+                  style={{
+                    position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                    width: 32, height: 32, borderRadius: 999, border: 'none',
+                    background: listening ? '#EF4444' : c.surface,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', flexShrink: 0,
+                    boxShadow: listening ? '0 0 0 4px #EF444433' : 'none',
+                    transition: 'background 0.15s, box-shadow 0.15s',
+                  }}
+                >
+                  {listening ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                      <rect x="6" y="6" width="12" height="12" rx="2"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.sub} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="2" width="6" height="11" rx="3"/>
+                      <path d="M5 10a7 7 0 0 0 14 0"/>
+                      <line x1="12" y1="19" x2="12" y2="22"/>
+                      <line x1="8" y1="22" x2="16" y2="22"/>
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
             {smartParsed && (smartParsed.description || smartParsed.amount !== null) && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
