@@ -23,12 +23,24 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
   const totalBalance = activeAccs.reduce((s, a) => s + a.current_balance, 0)
 
   const now = new Date()
+  const localDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
 
   const isBorrowingTx = (t: Transaction) =>
     t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment'
+
+  const todayTxns = state.transactions.filter(t =>
+    t.transaction_date === localDateStr && t.transaction_type === 'expense'
+  )
+  const todaySpend = todayTxns.reduce((s, t) => s + t.amount, 0)
+  const todayLines = todayTxns.length > 0
+    ? todayTxns.map(t => {
+        const catName = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
+        return `  • ${t.description}: ₹${t.amount.toLocaleString()} (${catName})`
+      }).join('\n')
+    : '  (none yet)'
 
   const thisMonthTxns = state.transactions.filter(t =>
     new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense'
@@ -73,89 +85,81 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
     .map(([name, v]) => `${name} (${v.count}x, avg ₹${Math.round(v.total / v.count).toLocaleString()})`)
     .join(', ')
 
-  const recent = state.transactions.slice(0, 8).map(t => {
-    const catName = state.categories.find(c => c.id === t.category_id)?.name
-    const typeLabel = isBorrowingTx(t)
-      ? (BORROWING_CREDIT_CATS.has(catName ?? '') ? `[${catName} — not income, balance-sheet]` : `[${catName} — not expense, balance-sheet]`)
-      : t.transaction_type
-    return `${t.transaction_date} | ${t.description} | ₹${t.amount} | ${typeLabel}`
+  const recent = state.transactions.slice(0, 5).map(t => {
+    const catName = state.categories.find(c => c.id === t.category_id)?.name ?? ''
+    const tag = isBorrowingTx(t) ? 'balance-sheet' : t.transaction_type
+    return `${t.transaction_date} ${t.description} ₹${t.amount} ${catName} [${tag}]`
   }).join('\n')
 
-  // Borrowings context
-  let borrowingsBlock = ''
+  // Compact borrowings — rules live in the system prompt, not here
+  let borrowingsLine = ''
   if (state.settings.track_borrowings) {
     const lent = state.borrowings.filter(b => b.direction === 'lent' && b.remaining_amount > 0)
     const borrowed = state.borrowings.filter(b => b.direction === 'borrowed' && b.remaining_amount > 0)
     const totalLent = lent.reduce((s, b) => s + b.remaining_amount, 0)
     const totalOwed = borrowed.reduce((s, b) => s + b.remaining_amount, 0)
-    const lentLines = lent.length
-      ? lent.map(b => `  • ${b.person_name}: lent ₹${b.total_amount.toLocaleString()}, still owed ₹${b.remaining_amount.toLocaleString()}`).join('\n')
-      : '  None'
-    const borrowedLines = borrowed.length
-      ? borrowed.map(b => `  • ${b.person_name}: borrowed ₹${b.total_amount.toLocaleString()}, still owe ₹${b.remaining_amount.toLocaleString()}`).join('\n')
-      : '  None'
-    borrowingsBlock = `
-=== BORROWINGS (balance-sheet, not income/expense) ===
-RULE: Never include borrowing/borrowing_repayment transactions in spending, income, savings, or free-money calculations. They are asset/liability movements.
-  • Lent Money = receivable (your asset, not an expense — you expect it back)
-  • Borrowed Money = liability (not your income — you owe it back)
-  • Lent Repayment = recovering your asset (not income)
-  • Borrow Repayment = settling your debt (not an expense)
-
-Money owed TO you (receivables):
-${lentLines}
-  Total receivable: ₹${totalLent.toLocaleString()}
-
-Money you OWE others (liabilities):
-${borrowedLines}
-  Total you owe: ₹${totalOwed.toLocaleString()}
-
-Net borrowing position: ${totalLent >= totalOwed ? `+₹${(totalLent - totalOwed).toLocaleString()} (net lender)` : `-₹${(totalOwed - totalLent).toLocaleString()} (net borrower)`}`
-  } else {
-    borrowingsBlock = '\nBorrowing tracker: disabled'
+    const lentStr = lent.map(b => `${b.person_name} ₹${b.remaining_amount.toLocaleString()}`).join(', ') || 'none'
+    const owedStr = borrowed.map(b => `${b.person_name} ₹${b.remaining_amount.toLocaleString()}`).join(', ') || 'none'
+    borrowingsLine = `\nBorrowings[balance-sheet]: owed-to-you: ${lentStr} (₹${totalLent.toLocaleString()}) | you-owe: ${owedStr} (₹${totalOwed.toLocaleString()})`
   }
 
-  return `Today: ${now.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-Total balance: ₹${totalBalance.toLocaleString()}
-Weekly spend: ₹${d.weeklySpent.toLocaleString()} / ₹${budget.toLocaleString()} budget (${Math.round(d.weeklySpent / budget * 100)}% used)
-This month spend: ₹${monthlySpend.toLocaleString()} (excludes borrowing movements)
-Last month spend: ₹${lastMonthSpend.toLocaleString()} (excludes borrowing movements)
-Emergency fund: ₹${d.emergencyFund.toLocaleString()}
-Real free money: ₹${d.realFreeMoney.toLocaleString()}
-Accounts: ${activeAccs.map(a => `${a.name} ₹${a.current_balance.toLocaleString()}`).join(', ')}
-This month by category: ${topCats || 'no data'}
-Recurring expenses (last 90 days): ${recurring || 'none detected'}
-Recent transactions:
-${recent}
-${borrowingsBlock}`
+  const todayStr = todayTxns.length > 0
+    ? todayTxns.map(t => {
+        const cat = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
+        return `${t.description} ₹${t.amount.toLocaleString()} (${cat})`
+      }).join(' | ')
+    : 'none'
+
+  return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
+Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}
+Budget: weekly ₹${budget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${Math.round(d.weeklySpent / budget * 100)}% used)
+Spend: this-month ₹${monthlySpend.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}
+Today(${localDateStr}): total ₹${todaySpend.toLocaleString()} | ${todayStr}
+Categories(month): ${topCats || 'no data'}
+Recurring(90d): ${recurring || 'none'}
+Recent:
+${recent}${borrowingsLine}`
 }
 
-async function chatWithAI(
+async function streamChat(
   message: string,
   history: Message[],
   context: string,
-  categoryNames: string[],
-  accountNames: string[]
-): Promise<{ reply: string; expense: SavedExpense | null; used: number | null } | null> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return null
+  signal: AbortSignal,
+  onToken: (token: string) => void,
+): Promise<{ used: number | null }> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('unauthenticated')
 
-    const res = await fetch(EDGE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ mode: 'chat', message, history, context, categoryNames, accountNames }),
-    })
+  const res = await fetch(EDGE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ mode: 'chat', message, history, context }),
+    signal,
+  })
 
-    if (!res.ok) return null
-    const data = await res.json()
-    return { reply: data.reply ?? '', expense: data.expense ?? null, used: data.used ?? null }
-  } catch {
-    return null
+  if (res.status === 429) throw new Error('quota_exceeded')
+  if (!res.ok) throw new Error('ai_error')
+
+  const used = res.headers.get('X-Used')
+  const reader = res.body!.getReader()
+  const decoder = new TextDecoder()
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    const chunk = decoder.decode(value, { stream: true })
+    for (const line of chunk.split('\n')) {
+      if (!line.startsWith('data: ')) continue
+      const data = line.slice(6).trim()
+      if (data === '[DONE]') return { used: used ? Number(used) : null }
+      try {
+        const token = JSON.parse(data).choices?.[0]?.delta?.content ?? ''
+        if (token) onToken(token)
+      } catch { /* partial chunk */ }
+    }
   }
+  return { used: used ? Number(used) : null }
 }
 
 interface AIChatSheetProps {
@@ -176,6 +180,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dragStartY = useRef<number | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const [dragY, setDragY] = useState(0)
   const [keyboardH, setKeyboardH] = useState(0)
 
@@ -312,16 +317,45 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
       return
     }
 
-    // No amount found — treat as Q&A
+    // No amount found — treat as Q&A (streamed)
     const context = buildContext(state, d)
-    const result = await chatWithAI(text, next.slice(-6), context, catNames, allAccNames)
-    if (result?.reply) {
-      setMessages(m => [...m, { role: 'ai', text: result.reply }])
-      if (result.used != null) onUpdateSettings?.({ ai_requests_used: result.used })
-    } else {
-      setMessages(m => [...m, { role: 'ai', text: "Mint has reached its daily limit (100 requests/day). Please try again tomorrow." }])
+    abortRef.current = new AbortController()
+
+    // Insert empty placeholder that tokens will fill in
+    setMessages(m => [...m, { role: 'ai', text: '' }])
+
+    try {
+      const { used } = await streamChat(
+        text,
+        next.slice(-6),
+        context,
+        abortRef.current.signal,
+        (token) => {
+          setMessages(m => {
+            const copy = [...m]
+            copy[copy.length - 1] = { role: 'ai', text: (copy[copy.length - 1].text) + token }
+            return copy
+          })
+        },
+      )
+      if (used != null) onUpdateSettings?.({ ai_requests_used: used })
+    } catch (err: unknown) {
+      const isAbort = err instanceof Error && err.name === 'AbortError'
+      if (!isAbort) {
+        const msg = err instanceof Error && err.message === 'quota_exceeded'
+          ? 'Mint has reached its daily limit (100 requests/day). Please try again tomorrow.'
+          : 'Something went wrong. Please try again.'
+        setMessages(m => {
+          const copy = [...m]
+          copy[copy.length - 1] = { role: 'ai', text: msg }
+          return copy
+        })
+      }
+    } finally {
+      abortRef.current = null
+      setLoading(false)
+      onBusyChange?.(false)
     }
-    setLoading(false); onBusyChange?.(false)
   }
 
   const handleGrabStart = (e: React.TouchEvent) => { dragStartY.current = e.touches[0].clientY }

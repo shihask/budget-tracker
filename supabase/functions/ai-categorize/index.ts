@@ -55,32 +55,34 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
       }
 
-      const historyLines = (history ?? []).slice(-6).map((m: { role: string; text: string }) =>
-        `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`
-      ).join('\n')
+      const systemPrompt = `You are Mint, MoneyPlant's AI financial assistant. Answer concisely. When asked for monthly summary or recurring patterns, be detailed and structured. Use ₹ for amounts. Be specific with numbers when relevant. The user may write in broken English, Hinglish, or Manglish — understand their intent and always reply in simple English.
 
-      const prompt = `You are Mint, MoneyPlant's AI financial assistant. Answer concisely in 1-4 sentences. When asked for monthly summary or recurring patterns, be detailed and structured. Use ₹ for amounts. Be specific with numbers when relevant. The user may write in broken English, Hinglish, or Manglish — understand their intent and always reply in simple English.
-
-IMPORTANT RULES:
-- You are a READ-ONLY assistant. You CANNOT record, save, modify, or delete any transactions or data.
-- Transaction recording is handled automatically by the app — the user types something like "500 coffee" and the app detects and saves it. You have no role in that process.
-- Never say "I've recorded", "I've saved", "I've added", or imply you performed any action on the user's data.
-- If the user seems to be asking you to record a transaction, clarify: "To record a transaction, just type the amount and item (e.g. '500 coffee') and the app will save it automatically."
+RULES:
+- READ-ONLY assistant. Never claim to record, save, or delete data. If the user seems to be entering a transaction, say: "Just type the amount and description (e.g. '500 coffee') and the app will save it automatically."
+- For date-specific questions use the exact Date and Today fields from the data — do not infer from the Recent list.
+- Borrowings are balance-sheet movements (not income or expense). Never include them in spending, savings, or free-money totals. "owed-to-you" = your receivable asset. "you-owe" = your liability.
 
 User's financial data:
-${context ?? ''}
+${context ?? ''}`
 
-${historyLines ? `Conversation so far:\n${historyLines}\n` : ''}User: ${message}
-Assistant:`
+      const historyMessages = (history ?? []).slice(-6).map((m: { role: string; text: string }) => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }))
 
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 150,
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...historyMessages,
+            { role: 'user', content: message },
+          ],
+          max_tokens: 350,
           temperature: 0.4,
+          stream: true,
         }),
       })
 
@@ -88,18 +90,43 @@ Assistant:`
         return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
-      const groqData = await groqRes.json()
-      const reply = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
-
+      // Increment quota before stream starts
       await db.from('settings').update({
         ai_requests_used: used + 1,
         ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
       }).eq('user_id', user.id)
 
-      return new Response(
-        JSON.stringify({ reply, expense: null, used: used + 1, limit: DAILY_LIMIT }),
-        { headers: { ...cors, 'Content-Type': 'application/json' } }
-      )
+      // Pipe Groq's SSE stream straight to the client
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream({
+        async start(controller) {
+          const reader = groqRes.body!.getReader()
+          const decoder = new TextDecoder()
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              controller.enqueue(encoder.encode(decoder.decode(value)))
+            }
+          } catch {
+            // client disconnected — nothing to do
+          } finally {
+            controller.close()
+          }
+        },
+        cancel() {
+          groqRes.body?.cancel()
+        },
+      })
+
+      return new Response(stream, {
+        headers: {
+          ...cors,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'X-Used': String(used + 1),
+        },
+      })
     }
 
     // ── Parse mode: extract description, amount, account, category from free text ──
