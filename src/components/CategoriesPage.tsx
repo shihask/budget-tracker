@@ -77,6 +77,7 @@ export function CategoriesPage({
   const [showAddCategory, setShowAddCategory] = useState<string | null>(null) // group_name
   const [inputVal, setInputVal] = useState('')
   const [saving, setSaving] = useState(false)
+  const [catInUse, setCatInUse] = useState<{ cat: Category; txnCount: number } | null>(null)
 
   // Lock the dashboard behind this full-screen overlay (no ghost scrollbar / background scroll).
   useEffect(() => {
@@ -154,7 +155,7 @@ export function CategoriesPage({
   const handleDeleteCategory = async (cat: Category) => {
     const txnCount = state.transactions.filter(t => t.category_id === cat.id).length
     if (txnCount > 0) {
-      alert(`Cannot delete "${cat.name}" — ${txnCount} transaction(s) use this category. Reassign them first.`)
+      setCatInUse({ cat, txnCount })
       return
     }
     if (!confirm(`Delete category "${cat.name}"?`)) return
@@ -284,8 +285,6 @@ export function CategoriesPage({
                         <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px 10px 42px', borderBottom: `1px solid ${c.faint}` }}>
                           <span style={{ flex: 1, font: '600 13px Plus Jakarta Sans', color: c.ink }}>{cat.name}</span>
                           {(() => {
-                            const catTxnCount = state.transactions.filter(t => t.category_id === cat.id).length
-                            const catRestricted = catTxnCount > 0
                             const parentGroup = groups.find(g => g.name === cat.group_name)
                             const isProtectedCat = parentGroup?.is_system === true
                             return (
@@ -311,7 +310,7 @@ export function CategoriesPage({
                                     : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                                   }
                                 </button>
-                                {/* Delete — lock icon for protected categories */}
+                                {/* Delete — lock icon for protected categories, active red for all others */}
                                 {isProtectedCat ? (
                                   <div title="System category — cannot be deleted" style={{ width: 28, height: 28, borderRadius: 8, background: c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.4 }}>
                                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -319,9 +318,9 @@ export function CategoriesPage({
                                 ) : (
                                   <button
                                     onClick={() => handleDeleteCategory(cat)}
-                                    title={catRestricted ? `${catTxnCount} transaction(s) use this category` : 'Delete category'}
-                                    style={{ width: 28, height: 28, borderRadius: 8, background: catRestricted ? c.surface2 : '#FEE2E2', border: 'none', cursor: catRestricted ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: catRestricted ? 0.4 : 1 }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={catRestricted ? c.muted : '#EF4444'} strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                                    title="Delete category"
+                                    style={{ width: 28, height: 28, borderRadius: 8, background: '#FEE2E2', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
                                   </button>
                                 )}
                               </>
@@ -353,6 +352,32 @@ export function CategoriesPage({
           )
         })}
       </div>
+
+      {/* Category in-use dialog */}
+      {catInUse && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={() => setCatInUse(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+              </div>
+              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>Cannot Delete</div>
+            </div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              <strong style={{ color: c.ink }}>{catInUse.cat.name}</strong> is used by{' '}
+              <strong style={{ color: c.ink }}>{catInUse.txnCount} transaction{catInUse.txnCount !== 1 ? 's' : ''}</strong>.
+              Reassign those transactions to a different category before deleting this one.
+            </div>
+            <button
+              onClick={() => setCatInUse(null)}
+              style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '12px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
