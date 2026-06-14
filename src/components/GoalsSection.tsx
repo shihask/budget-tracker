@@ -105,7 +105,7 @@ function calcTargetInfo(goalAmount: number, currentSaved: number, monthlyTarget:
   }
 }
 
-const EMPTY_FORM = { name: '', goalType: 'purchase' as GoalType, goalAmount: '', currentSaved: '', monthlyTarget: '' }
+const EMPTY_FORM = { name: '', goalType: 'purchase' as GoalType, goalAmount: '', currentSaved: '', monthlyTarget: '', targetDate: '' }
 
 export function GoalsSection({
   goals, d, transactions, settings, autopilotEnabled,
@@ -140,11 +140,23 @@ export function GoalsSection({
         goalAmount: String(prefillGoal.goal_amount),
         currentSaved: String(prefillGoal.current_saved > 0 ? Math.round(prefillGoal.current_saved) : 0),
         monthlyTarget: String(Math.round(prefillGoal.monthly_target)),
+        targetDate: prefillGoal.target_date || '',
       })
       setAddOpen(true)
       onPrefillConsumed?.()
     }
   }, [prefillGoal])
+
+  useEffect(() => {
+    if (!form.targetDate || goalAmt <= 0) return
+    const targetMs = new Date(form.targetDate + 'T00:00:00').getTime()
+    const nowMs = Date.now()
+    if (targetMs <= nowMs) return
+    const needed = Math.max(0, goalAmt - curSaved)
+    const monthsLeft = (targetMs - nowMs) / (1000 * 60 * 60 * 24 * 30.44)
+    if (monthsLeft <= 0) return
+    setForm(f => ({ ...f, monthlyTarget: String(Math.ceil(needed / monthsLeft)) }))
+  }, [form.targetDate, form.goalAmount, form.currentSaved])
 
   const openAdd = () => {
     setForm({ ...EMPTY_FORM, monthlyTarget: String(suggestedMonthly) })
@@ -168,7 +180,7 @@ export function GoalsSection({
         goal_amount: goalAmt,
         current_saved: curSaved,
         monthly_target: monthly,
-        target_date: target.iso,
+        target_date: form.targetDate || target.iso,
         is_active: true,
       })
       closeAdd()
@@ -384,9 +396,30 @@ export function GoalsSection({
           />
         </div>
 
+        {/* Target Date */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
+            Target Date <span style={{ textTransform: 'none', fontWeight: 600 }}>— optional</span>
+          </label>
+          <input
+            type="date"
+            value={form.targetDate}
+            min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+            onChange={e => setForm(f => ({ ...f, targetDate: e.target.value }))}
+            style={inp}
+          />
+          {form.targetDate && goalAmt > 0 && monthly > 0 && (
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: '#10B981', marginTop: 5 }}>
+              Monthly savings needed: {fmt(monthly)}/mo to reach goal by this date
+            </div>
+          )}
+        </div>
+
         {/* Monthly Target */}
         <div style={{ marginBottom: 16 }}>
-          <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Monthly Target (₹)</label>
+          <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
+            Monthly Target (₹){form.targetDate && goalAmt > 0 ? <span style={{ textTransform: 'none', fontWeight: 600, marginLeft: 4 }}>— auto-calculated</span> : null}
+          </label>
           <input
             type="number" inputMode="decimal"
             value={form.monthlyTarget}
@@ -400,8 +433,8 @@ export function GoalsSection({
           </div>
         </div>
 
-        {/* Projected target date */}
-        {goalAmt > 0 && monthly > 0 && (
+        {/* Projected target date — only shown when no explicit target date is entered */}
+        {goalAmt > 0 && monthly > 0 && !form.targetDate && (
           <div style={{ background: `#10B98114`, border: `1px solid #10B98130`, borderRadius: 12, padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>Projected target date</span>
             <div style={{ textAlign: 'right' }}>
