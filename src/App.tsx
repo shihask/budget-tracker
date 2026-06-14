@@ -39,6 +39,7 @@ import { AIChatSheet } from '@/components/AIChatSheet'
 import { AnalyticsPage } from '@/components/AnalyticsPage'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
 import { UpdateToast } from '@/components/UpdateToast'
+import { InsightCard } from '@/components/InsightCard'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -212,6 +213,7 @@ function AppContent({ session }: { session: Session }) {
 
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <InsightCard state={state} d={d} />
               {dashboardSections
                 .filter(s => s.visible)
                 .map(s => {
