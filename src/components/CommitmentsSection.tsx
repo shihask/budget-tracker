@@ -59,6 +59,9 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
   const [saving, setSaving] = useState(false)
   const [paying, setPaying] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
+
+  const INITIAL_VISIBLE = 3
   const [confirmPay, setConfirmPay] = useState<Commitment | null>(null)
   const [confirmAccountId, setConfirmAccountId] = useState('')
 
@@ -179,6 +182,8 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
   }
 
   const active = state.commitments.filter(c => c.is_active !== false)
+  const visible = showAll ? active : active.slice(0, INITIAL_VISIBLE)
+  const hasMore = active.length > INITIAL_VISIBLE
 
   return (
     <>
@@ -224,7 +229,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {active.map((cm, i) => {
+            {visible.map((cm, i) => {
               const cat = catMap[cm.category_id!]
               const col = (cat && CAT_COLORS[cat.name]) || c.accent
               const completed = !cm.is_recurring && cm.remaining <= 0
@@ -248,7 +253,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 11,
                     paddingTop: i === 0 ? 0 : 12, paddingBottom: 12,
-                    borderBottom: i < active.length - 1 ? `1px solid ${c.faint}` : 'none',
+                    borderBottom: i < visible.length - 1 ? `1px solid ${c.faint}` : 'none',
                     opacity: isDeleting ? 0.4 : 1,
                     cursor: 'pointer',
                   }}
@@ -360,6 +365,34 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               )
             })}
           </div>
+        )}
+
+        {hasMore && (
+          <button
+            onClick={() => setShowAll(v => !v)}
+            style={{
+              marginTop: 10, width: '100%', background: 'none', border: `1.5px solid ${c.faint}`,
+              borderRadius: 10, padding: '8px', font: '700 12px Plus Jakarta Sans',
+              color: c.muted, cursor: 'pointer', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', gap: 5,
+            }}
+          >
+            {showAll ? (
+              <>
+                Show less
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="18 15 12 9 6 15" />
+                </svg>
+              </>
+            ) : (
+              <>
+                Show {active.length - INITIAL_VISIBLE} more
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </>
+            )}
+          </button>
         )}
       </Card>
 

@@ -94,7 +94,7 @@ export async function affordabilityInsightWithAI(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ mode: 'chat', message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
     })
 
     if (res.status === 429) return 'Mint daily limit reached (100/day). Try again next month.'
@@ -146,7 +146,7 @@ export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext, onUse
     const res = await fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mode: 'chat', message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
     })
 
     if (res.status === 429) return 'Mint daily limit reached (100/day). Try again next month.'
@@ -198,7 +198,7 @@ export async function goalPlanAdviceWithAI(
     const res = await fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mode: 'chat', message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
     })
 
     if (res.status === 429) return 'Mint daily limit reached (100/day). Try again tomorrow.'
@@ -254,7 +254,7 @@ export async function goalProgressInsightWithAI(
     const res = await fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mode: 'chat', message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
     })
 
     if (res.status === 429) return 'Mint daily limit reached. Try again next month.'

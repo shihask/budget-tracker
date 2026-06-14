@@ -74,6 +74,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [saving, setSaving] = useState(false)
+  const [quickCatTx, setQuickCatTx] = useState<Transaction | null>(null)
+  const [quickCatId, setQuickCatId] = useState('')
+  const [quickCatSaving, setQuickCatSaving] = useState(false)
   const [filtersVisible, setFiltersVisible] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -207,6 +210,30 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   }
 
   const closeEdit = () => { setEditingTx(null); setEditForm(null) }
+
+  const openQuickCat = (e: React.MouseEvent, t: Transaction) => {
+    e.stopPropagation()
+    setQuickCatTx(t)
+    setQuickCatId(t.category_id || '')
+  }
+
+  const handleQuickCatSave = async () => {
+    if (!quickCatTx) return
+    setQuickCatSaving(true)
+    try {
+      await onUpdate(quickCatTx, {
+        description: quickCatTx.description,
+        amount: quickCatTx.amount,
+        transaction_date: quickCatTx.transaction_date,
+        transaction_type: quickCatTx.transaction_type,
+        category_id: quickCatId || null,
+        from_account_id: quickCatTx.from_account_id || null,
+        to_account_id: quickCatTx.to_account_id || null,
+      })
+      setQuickCatTx(null)
+    } catch (_) {}
+    setQuickCatSaving(false)
+  }
 
   const handleEditSave = async () => {
     if (!editingTx || !editForm) return
@@ -446,7 +473,17 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
-                        {cat && <span style={{ font: '600 10px Plus Jakarta Sans', color: col, background: col + '18', borderRadius: 999, padding: '2px 7px' }}>{cat.name}</span>}
+                        {cat
+                          ? <span style={{ font: '600 10px Plus Jakarta Sans', color: col, background: col + '18', borderRadius: 999, padding: '2px 7px' }}>{cat.name}</span>
+                          : t.transaction_type !== 'transfer' && (
+                            <span
+                              onClick={e => openQuickCat(e, t)}
+                              style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px', border: `1px dashed ${c.faint}`, cursor: 'pointer' }}
+                            >
+                              + category
+                            </span>
+                          )
+                        }
                         {accLabel && <span style={{ font: '600 10px Plus Jakarta Sans', color: accColor, background: accColor + '18', borderRadius: 999, padding: '2px 7px' }}>{accLabel}</span>}
                       </div>
                     </div>
@@ -613,6 +650,28 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </button>
             </div>
             </>}
+      </BottomSheet>
+
+      {/* Quick categorize sheet */}
+      <BottomSheet open={!!quickCatTx} onClose={() => setQuickCatTx(null)} zIndex={350}>
+        <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Set Category</div>
+        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>{quickCatTx?.description}</div>
+        <CategorySelect
+          value={quickCatId}
+          onChange={setQuickCatId}
+          state={state}
+          onAddCategory={onAddCategory}
+          style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
+          includeEmpty
+          emptyLabel="None"
+          filterGroup={quickCatTx?.transaction_type === 'income' ? 'Income' : undefined}
+        />
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <button onClick={() => setQuickCatTx(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={handleQuickCatSave} disabled={quickCatSaving} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: quickCatSaving ? 'not-allowed' : 'pointer', opacity: quickCatSaving ? 0.7 : 1 }}>
+            {quickCatSaving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       </BottomSheet>
 
       {/* Borrowing-linked delete confirmation */}

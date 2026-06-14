@@ -251,9 +251,9 @@ export function GoalsSection({
           </div>
           <button
             onClick={openAdd}
-            style={{ background: '#10B98118', color: '#10B981', border: 'none', borderRadius: 20, padding: '5px 13px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
+            style={{ background: '#10B98118', color: '#10B981', border: 'none', borderRadius: 20, padding: '5px 11px', font: '700 18px Plus Jakarta Sans', cursor: 'pointer', lineHeight: 1 }}
           >
-            + Add
+            +
           </button>
         </div>
 

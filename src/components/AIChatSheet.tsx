@@ -155,6 +155,25 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
       }).join(' | ')}`
     : ''
 
+  const activeGoals = (state.goals ?? []).filter(g => g.is_active)
+  const goalsLine = activeGoals.length > 0
+    ? `\nGoals: ${activeGoals.map(g => {
+        const pct = g.goal_amount > 0 ? Math.round((g.current_saved / g.goal_amount) * 100) : 0
+        const tDate = new Date(g.target_date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+        return `${g.name}(${g.goal_type}) ${pct}% · ₹${g.current_saved.toLocaleString()}/${g.goal_amount.toLocaleString()} by ${tDate}`
+      }).join(' | ')}`
+    : ''
+
+  const activeCommitments = (state.commitments ?? []).filter(c => c.is_active)
+  const commitmentsLine = activeCommitments.length > 0
+    ? `\nCommitments(monthly obligations): ${activeCommitments.map(c => {
+        const paid = c.remaining < c.amount
+        const dueStr = c.due_day ? ` due-day:${c.due_day}` : ''
+        const status = paid ? 'paid' : 'unpaid'
+        return `${c.name} ₹${c.amount.toLocaleString()}${dueStr} [${status}]`
+      }).join(' | ')} | remaining-unpaid: ₹${d.remainingCommitments.toLocaleString()}`
+    : ''
+
   return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
 Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}${ccLine}
 Budget: weekly ₹${budget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${Math.round(d.weeklySpent / budget * 100)}% used)
@@ -163,7 +182,7 @@ Today(${localDateStr}): total ₹${todaySpend.toLocaleString()} | ${todayStr}
 Categories(month): ${topCats || 'no data'}
 Recurring(90d): ${recurring || 'none'}
 Recent:
-${recent}${borrowingsLine}`
+${recent}${borrowingsLine}${goalsLine}${commitmentsLine}`
 }
 
 type ParsedEdit =

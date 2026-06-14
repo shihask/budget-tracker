@@ -62,6 +62,36 @@ const CHAT_TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'getAccountTransactions',
+      description: 'Fetch transactions from a specific bank account or credit card by name. Use when the user asks about a specific card or account: "what did I spend on HDFC card", "show Axis credit card transactions", "how much charged to SBI account this month".',
+      parameters: {
+        type: 'object',
+        properties: {
+          account_name: { type: 'string', description: 'Name or partial name of the account or credit card, e.g. "HDFC", "Axis", "SBI"' },
+          start_date:   { type: 'string', description: 'Optional YYYY-MM-DD' },
+          end_date:     { type: 'string', description: 'Optional YYYY-MM-DD' },
+        },
+        required: ['account_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getMonthlySummary',
+      description: 'Get full income vs expense summary with category breakdown for a month. Use for: "give me my monthly report", "summarize my spending", "income vs expense this month", "how much did I save last month", "monthly breakdown".',
+      parameters: {
+        type: 'object',
+        properties: {
+          month: { type: 'string', description: 'YYYY-MM format. Omit for current month.' },
+        },
+        required: [],
+      },
+    },
+  },
 ]
 
 type DbClient = ReturnType<typeof createClient>
@@ -84,6 +114,8 @@ function extractTextToolCall(content: string): { name: string; rawArgs: string }
 function resolveToolName(name: string, args: ToolArgs): string | null {
   const n = name.toLowerCase()
   if (n.includes('search')) return 'searchTransactions'
+  if (n.includes('account') || args.account_name || args.account) return 'getAccountTransactions'
+  if (n.includes('monthly') || n.includes('report') || args.month) return 'getMonthlySummary'
   // If args contain a category field, the intent is a category summary
   if (n.includes('category') || n.includes('summary') || args.category) return 'getCategorySummary'
   if (n.includes('date') || n.includes('range') || n.includes('transaction')) return 'getTransactionsByDateRange'
@@ -169,6 +201,85 @@ async function executeTool(name: string, args: ToolArgs, userId: string, db: DbC
     }
   }
 
+  if (name === 'getAccountTransactions') {
+    const { account_name, start_date, end_date } = args
+    // Find matching account (bank accounts first, then credit cards)
+    const [{ data: accRows }, { data: ccRows }] = await Promise.all([
+      db.from('accounts').select('id, name').eq('user_id', userId).ilike('name', `%${account_name}%`).limit(1),
+      db.from('credit_cards').select('id, name').eq('user_id', userId).ilike('name', `%${account_name}%`).limit(1),
+    ])
+    type NamedRow = { id: string; name: string }
+    const found = ((accRows ?? []) as NamedRow[])[0] ?? ((ccRows ?? []) as NamedRow[])[0]
+    if (!found) {
+      return { error: 'account_not_found', searched: account_name }
+    }
+    let q = db
+      .from('transactions')
+      .select('transaction_date, description, amount, transaction_type, categories!category_id(name)')
+      .eq('user_id', userId)
+      .eq('from_account_id', found.id)
+      .order('transaction_date', { ascending: false })
+      .limit(40)
+    if (start_date) q = q.gte('transaction_date', start_date)
+    if (end_date)   q = q.lte('transaction_date', end_date)
+    const { data } = await q
+    type TxRow = { transaction_date: string; description: string; amount: number; transaction_type: string; categories: { name: string } | null }
+    const rows = (data ?? []) as TxRow[]
+    return {
+      account: found.name,
+      total: rows.reduce((s, t) => s + t.amount, 0),
+      count: rows.length,
+      transactions: rows.map(t => ({
+        date: t.transaction_date,
+        description: t.description,
+        amount: t.amount,
+        category: t.categories?.name ?? 'Uncategorized',
+      })),
+    }
+  }
+
+  if (name === 'getMonthlySummary') {
+    const { month } = args
+    const now = new Date()
+    const target = month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const [yr, mo] = target.split('-').map(Number)
+    const start = `${yr}-${String(mo).padStart(2, '0')}-01`
+    const lastDay = new Date(yr, mo, 0).getDate()
+    const end = `${yr}-${String(mo).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    const { data } = await db
+      .from('transactions')
+      .select('amount, transaction_type, categories!category_id(name)')
+      .eq('user_id', userId)
+      .gte('transaction_date', start)
+      .lte('transaction_date', end)
+      .in('transaction_type', ['expense', 'income'])
+      .limit(500)
+    type TxRow = { amount: number; transaction_type: string; categories: { name: string } | null }
+    const rows = (data ?? []) as TxRow[]
+    const expenses = rows.filter(r => r.transaction_type === 'expense')
+    const incomes = rows.filter(r => r.transaction_type === 'income')
+    const totalExpense = expenses.reduce((s, r) => s + r.amount, 0)
+    const totalIncome = incomes.reduce((s, r) => s + r.amount, 0)
+    const catTotals: Record<string, number> = {}
+    expenses.forEach(r => {
+      const cat = r.categories?.name ?? 'Uncategorized'
+      catTotals[cat] = (catTotals[cat] ?? 0) + r.amount
+    })
+    return {
+      month: target,
+      totalExpense,
+      totalIncome,
+      savings: totalIncome - totalExpense,
+      categories: Object.entries(catTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([category, total]) => ({
+          category,
+          total,
+          pct: totalExpense > 0 ? Math.round((total / totalExpense) * 100) : 0,
+        })),
+    }
+  }
+
   return { error: 'unknown_tool' }
 }
 
@@ -209,7 +320,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json()
-    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context } = body
+    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once } = body
 
     // ── Chat mode: conversational finance assistant with tool calling ──
     if (mode === 'chat') {
@@ -247,38 +358,37 @@ ${context ?? ''}`
         'X-Used': String(used + 1),
       }
 
-      // ── Call 1: detect intent / tool need (non-streaming) ──
-      const call1 = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: groqHeaders,
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: baseMessages,
-          tools: CHAT_TOOLS,
-          tool_choice: 'auto',
-          max_tokens: 500,
-          temperature: 0.2,
-        }),
-      })
+      // ── Multi-turn tool calling loop (up to 3 rounds) ──
+      type ToolCall = { id: string; function: { name: string; arguments: string } }
+      let loopMessages = [...baseMessages]
+      let directAnswer: string | null = null
 
-      if (!call1.ok) {
-        return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
-      }
+      for (let round = 0; round < 3; round++) {
+        const callR = await fetch(GROQ_URL, {
+          method: 'POST',
+          headers: groqHeaders,
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: loopMessages,
+            tools: CHAT_TOOLS,
+            tool_choice: 'auto',
+            parallel_tool_calls: true,
+            max_tokens: 500,
+            temperature: 0.2,
+          }),
+        })
+        if (!callR.ok) {
+          return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+        }
+        const callRData = await callR.json()
+        const roundChoice = callRData.choices?.[0]
 
-      const call1Data = await call1.json()
-      const choice = call1Data.choices?.[0]
+        if (roundChoice?.finish_reason !== 'tool_calls') {
+          directAnswer = roundChoice?.message?.content?.trim() ?? ''
+          break
+        }
 
-      // Increment quota
-      await db.from('settings').update({
-        ai_requests_used: used + 1,
-        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
-      }).eq('user_id', user.id)
-
-      // ── Tool path: execute tools then stream final answer ──
-      if (choice?.finish_reason === 'tool_calls') {
-        type ToolCall = { id: string; function: { name: string; arguments: string } }
-        const toolCalls: ToolCall[] = choice.message.tool_calls ?? []
-
+        const toolCalls: ToolCall[] = roundChoice.message.tool_calls ?? []
         const toolResults = await Promise.all(
           toolCalls.map(async (tc) => {
             const args = JSON.parse(tc.function.arguments) as ToolArgs
@@ -286,26 +396,35 @@ ${context ?? ''}`
             return { role: 'tool' as const, tool_call_id: tc.id, content: JSON.stringify(result) }
           })
         )
+        loopMessages = [...loopMessages, roundChoice.message, ...toolResults]
+      }
 
-        const call2 = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: groqHeaders,
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [...baseMessages, choice.message, ...toolResults],
-            max_tokens: 450,
-            temperature: 0.4,
-            stream: true,
-          }),
-        })
+      // Increment quota (once per request regardless of tool rounds)
+      await db.from('settings').update({
+        ai_requests_used: used + 1,
+        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
+      }).eq('user_id', user.id)
 
-        if (!call2.ok) {
-          return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+      // Helper: produce final answer from a messages array (streaming or JSON)
+      const streamFinal = async (msgs: object[]): Promise<Response> => {
+        if (once) {
+          const r = await fetch(GROQ_URL, {
+            method: 'POST', headers: groqHeaders,
+            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: msgs, max_tokens: 600, temperature: 0.4 }),
+          })
+          if (!r.ok) return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+          const d = await r.json()
+          const reply = d.choices?.[0]?.message?.content?.trim() ?? ''
+          return new Response(JSON.stringify({ reply, used: used + 1 }), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } })
         }
-
+        const r = await fetch(GROQ_URL, {
+          method: 'POST', headers: groqHeaders,
+          body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: msgs, max_tokens: 600, temperature: 0.4, stream: true }),
+        })
+        if (!r.ok) return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
         const stream = new ReadableStream({
           async start(controller) {
-            const reader = call2.body!.getReader()
+            const reader = r.body!.getReader()
             const decoder = new TextDecoder()
             try {
               while (true) {
@@ -313,76 +432,41 @@ ${context ?? ''}`
                 if (done) break
                 controller.enqueue(encoder.encode(decoder.decode(value)))
               }
-            } catch { /* client disconnected */ } finally {
-              controller.close()
-            }
+            } catch { /* client disconnected */ } finally { controller.close() }
           },
-          cancel() { call2.body?.cancel() },
+          cancel() { r.body?.cancel() },
         })
-
         return new Response(stream, { headers: streamHeaders })
       }
 
-      // ── No-tool path: check for text-format tool call (llama fallback) ──
-      const text = choice?.message?.content?.trim() ?? ''
+      // ── If tools were used: generate proper final answer with full context ──
+      if (loopMessages.length > baseMessages.length) {
+        return await streamFinal(loopMessages)
+      }
+
+      // ── No tools used: check for text-format tool call (llama fallback) ──
+      const text = directAnswer ?? ''
       const textCall = extractTextToolCall(text)
       let parsedArgs: ToolArgs = {}
       if (textCall) { try { parsedArgs = JSON.parse(textCall.rawArgs) } catch { /* use empty */ } }
       const resolvedName = textCall ? resolveToolName(textCall.name, parsedArgs) : null
 
       if (textCall && resolvedName) {
-        // Normalise arg names (model sometimes uses 'category' instead of 'category_name')
         const args: ToolArgs = { ...parsedArgs }
         if (args.category && !args.category_name) { args.category_name = args.category; delete args.category }
-
         const result = await executeTool(resolvedName, args, user.id, db)
         const syntheticId = 'tool_0'
-
-        const call2 = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: groqHeaders,
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              ...baseMessages,
-              {
-                role: 'assistant',
-                content: null,
-                tool_calls: [{ id: syntheticId, type: 'function', function: { name: resolvedName, arguments: textCall.rawArgs } }],
-              },
-              { role: 'tool', tool_call_id: syntheticId, content: JSON.stringify(result) },
-            ],
-            max_tokens: 450,
-            temperature: 0.4,
-            stream: true,
-          }),
-        })
-
-        if (!call2.ok) {
-          return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
-        }
-
-        const stream = new ReadableStream({
-          async start(controller) {
-            const reader = call2.body!.getReader()
-            const decoder = new TextDecoder()
-            try {
-              while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-                controller.enqueue(encoder.encode(decoder.decode(value)))
-              }
-            } catch { /* client disconnected */ } finally {
-              controller.close()
-            }
-          },
-          cancel() { call2.body?.cancel() },
-        })
-
-        return new Response(stream, { headers: streamHeaders })
+        return await streamFinal([
+          ...baseMessages,
+          { role: 'assistant', content: null, tool_calls: [{ id: syntheticId, type: 'function', function: { name: resolvedName, arguments: textCall.rawArgs } }] },
+          { role: 'tool', tool_call_id: syntheticId, content: JSON.stringify(result) },
+        ])
       }
 
-      // Truly no tool needed — return answer as SSE
+      // Truly no tool needed
+      if (once) {
+        return new Response(JSON.stringify({ reply: text, used: used + 1 }), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } })
+      }
       const ssePayload = `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`
       return new Response(encoder.encode(ssePayload), { headers: streamHeaders })
     }
