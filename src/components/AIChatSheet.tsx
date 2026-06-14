@@ -145,8 +145,18 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
       }).join(' | ')
     : 'none'
 
+  const activeCCs = (state.credit_cards ?? []).filter(cc => cc.is_active)
+  const ccLine = activeCCs.length > 0
+    ? `\nCreditCards: ${activeCCs.map(cc => {
+        const last = cc.last_four ? ` •${cc.last_four}` : ''
+        const used = Math.round(cc.current_balance)
+        const limit = Math.round(cc.credit_limit)
+        return `${cc.name}${last} outstanding ₹${used.toLocaleString('en-IN')} / limit ₹${limit.toLocaleString('en-IN')}`
+      }).join(' | ')}`
+    : ''
+
   return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
-Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}
+Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}${ccLine}
 Budget: weekly ₹${budget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${Math.round(d.weeklySpent / budget * 100)}% used)
 Spend: this-month ₹${monthlySpend.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}
 Today(${localDateStr}): total ₹${todaySpend.toLocaleString()} | ${todayStr}
