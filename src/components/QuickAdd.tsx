@@ -377,6 +377,12 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
   const handleSmartSubmit = () => submitText(smartInput.trim())
 
+  const stopVoice = () => {
+    recognitionRef.current?.stop()
+    recognitionRef.current = null
+    setListening(false)
+  }
+
   const startVoice = () => {
     if (!SpeechRec || listening) return
     const recognition = new SpeechRec()
@@ -541,22 +547,30 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
               {SpeechRec && (
                 <button
                   type="button"
-                  onPointerDown={e => { e.preventDefault(); startVoice() }}
-                  aria-label={listening ? 'Listening…' : 'Speak'}
+                  onPointerDown={e => { e.preventDefault(); listening ? stopVoice() : startVoice() }}
+                  aria-label={listening ? 'Stop recording' : 'Speak'}
                   style={{
                     position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
                     width: 32, height: 32, borderRadius: 999, border: 'none',
                     background: listening ? '#EF4444' : c.surface,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: 'pointer', flexShrink: 0,
-                    boxShadow: listening ? '0 0 0 4px #EF444433' : 'none',
-                    transition: 'background 0.15s, box-shadow 0.15s',
+                    boxShadow: listening ? '0 0 0 5px #EF444430, 0 0 0 10px #EF444415' : 'none',
+                    transition: 'background 0.15s, box-shadow 0.2s',
                   }}
                 >
                   {listening ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                      <rect x="6" y="6" width="12" height="12" rx="2"/>
-                    </svg>
+                    <div style={{ display: 'flex', gap: 2.5, alignItems: 'center' }}>
+                      {[0, 0.14, 0.28, 0.42].map((delay, i) => (
+                        <div key={i} style={{
+                          width: 3, height: 14, borderRadius: 2,
+                          background: '#fff',
+                          transformOrigin: 'center',
+                          animation: 'voiceBar 0.7s ease-in-out infinite',
+                          animationDelay: `${delay}s`,
+                        }} />
+                      ))}
+                    </div>
                   ) : (
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.sub} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="9" y="2" width="6" height="11" rx="3"/>
