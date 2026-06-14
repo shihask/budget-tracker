@@ -314,7 +314,7 @@ function AppContent({ session }: { session: Session }) {
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
             {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} busy={aiProcessing} />}
-            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
+            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdate={updateTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
           </>)}
 
           {showOnboardingFlow && (

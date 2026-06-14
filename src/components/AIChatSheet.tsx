@@ -9,13 +9,37 @@ import { INCOME_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean }
+type EditPrompt = { transaction: Transaction; newAmount: number }
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt }
 
 function guessTransactionType(text: string): 'income' | 'expense' {
   const lower = text.toLowerCase()
   return /\b(received|receive|salary|income|earned|earn|credited|got paid|deposited|deposit)\b/.test(lower)
     ? 'income'
     : 'expense'
+}
+
+const FINANCE_QUERY_WORDS = [
+  'expense', 'expenses', 'spend', 'spent', 'spending',
+  'budget', 'balance', 'category', 'categories',
+  'transaction', 'transactions', 'summary', 'report',
+  'analytics', 'compare', 'remaining', 'total', 'monthly', 'weekly',
+]
+
+function classifyIntent(text: string): 'question' | 'edit' | 'transaction' {
+  const q = text.toLowerCase().trim()
+
+  // Stage 1: question keywords or finance query words → never try to parse as transaction
+  if (/\b(what|how|why|show|compare|give|list|tell|which|when|am i|did i|can i)\b/.test(q)) return 'question'
+  if (FINANCE_QUERY_WORDS.some(w => q.includes(w))) return 'question'
+
+  // Stage 2: edit/delete intent → send to chat to explain edit is not yet supported
+  if (/\b(change|edit|update|fix|delete|remove|wrong|replace|correct)\b/.test(q)) return 'edit'
+
+  // Stage 3: contains a number → likely a transaction entry
+  if (/\d/.test(q)) return 'transaction'
+
+  return 'question'
 }
 
 function buildContext(state: AppState, d: DerivedMetrics): string {
@@ -121,6 +145,34 @@ Recent:
 ${recent}${borrowingsLine}`
 }
 
+function parseEditIntent(text: string): { description: string; oldAmount: number | null; newAmount: number } | null {
+  // "change fuel 500 to 300"
+  const withOld = text.match(/(?:change|fix|update|edit|correct|replace)\s+(.+?)\s+(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)/i)
+  if (withOld) return { description: withOld[1].trim(), oldAmount: parseFloat(withOld[2]), newAmount: parseFloat(withOld[3]) }
+  // "change fuel to 300"
+  const noOld = text.match(/(?:change|fix|update|edit|correct|replace)\s+(.+?)\s+to\s+(\d+(?:\.\d+)?)/i)
+  if (noOld) return { description: noOld[1].trim(), oldAmount: null, newAmount: parseFloat(noOld[2]) }
+  return null
+}
+
+function findMatchingTransaction(transactions: Transaction[], description: string, oldAmount: number | null): Transaction | null {
+  const words = description.toLowerCase().replace(/\bthe\b/g, '').trim().split(/\s+/).filter(w => w.length > 1)
+  const scored = transactions
+    .filter(t => t.transaction_type === 'expense' || t.transaction_type === 'income')
+    .map(t => {
+      const td = t.description.toLowerCase()
+      let score = words.filter(w => td.includes(w)).length * 2
+      if (td === description.toLowerCase()) score += 5
+      if (oldAmount !== null && Math.abs(t.amount - oldAmount) < 0.01) score += 3
+      const daysOld = (Date.now() - new Date(t.transaction_date).getTime()) / 86400000
+      score += daysOld < 7 ? 2 : daysOld < 30 ? 1 : 0
+      return { t, score }
+    })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+  return scored[0]?.t ?? null
+}
+
 async function streamChat(
   message: string,
   history: Message[],
@@ -168,11 +220,12 @@ interface AIChatSheetProps {
   state: AppState
   d: DerivedMetrics
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
+  onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<void>
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   onBusyChange?: (busy: boolean) => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings, onBusyChange }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onUpdateSettings, onBusyChange }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -261,14 +314,13 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
       ...(state.credit_cards ?? []),
     ]
     const allAccNames = allAccObjs.map(a => a.name)
+    const intent = classifyIntent(text)
     const txType = guessTransactionType(text)
     const catNames = txType === 'income'
       ? state.categories.filter(c => c.group_name === INCOME_GROUP).map(c => c.name)
       : state.categories.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)
 
-    // Only try to parse as transaction if the message contains a number (amount)
-    const hasNumber = /\d/.test(text)
-    const parsed = hasNumber
+    const parsed = intent === 'transaction'
       ? await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.({ ai_requests_used: n }))
       : null
 
@@ -317,6 +369,34 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
       return
     }
 
+    // Edit intent — find matching transaction and show confirmation card
+    if (intent === 'edit') {
+      const parsed = parseEditIntent(text)
+      if (parsed) {
+        const match = findMatchingTransaction(state.transactions, parsed.description, parsed.oldAmount)
+        if (match) {
+          const acc = [...state.accounts, ...(state.credit_cards ?? [])].find(a => a.id === match.from_account_id)
+          setMessages(m => [...m, {
+            role: 'ai',
+            text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'}. Update amount to ₹${parsed.newAmount.toLocaleString()}?`,
+            editPrompt: { transaction: match, newAmount: parsed.newAmount },
+          }])
+        } else {
+          setMessages(m => [...m, {
+            role: 'ai',
+            text: `I couldn't find a matching "${parsed.description}" transaction. Check the transaction list and try again.`,
+          }])
+        }
+      } else {
+        setMessages(m => [...m, {
+          role: 'ai',
+          text: 'To edit a transaction, say something like: "change fuel 500 to 300".',
+        }])
+      }
+      setLoading(false); onBusyChange?.(false)
+      return
+    }
+
     // No amount found — treat as Q&A (streamed)
     const context = buildContext(state, d)
     abortRef.current = new AbortController()
@@ -356,6 +436,36 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
       setLoading(false)
       onBusyChange?.(false)
     }
+  }
+
+  const handleEditConfirm = async (msgIndex: number, ep: EditPrompt) => {
+    try {
+      await onUpdate(ep.transaction, {
+        transaction_date: ep.transaction.transaction_date,
+        description: ep.transaction.description,
+        amount: ep.newAmount,
+        transaction_type: ep.transaction.transaction_type,
+        category_id: ep.transaction.category_id,
+        from_account_id: ep.transaction.from_account_id,
+      })
+      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : {
+        role: 'ai',
+        text: `Done! Updated "${ep.transaction.description}" from ₹${ep.transaction.amount.toLocaleString()} to ₹${ep.newAmount.toLocaleString()}.`,
+        savedExpense: {
+          description: ep.transaction.description,
+          amount: ep.newAmount,
+          account: [...state.accounts, ...(state.credit_cards ?? [])].find(a => a.id === ep.transaction.from_account_id)?.name ?? '',
+          category: state.categories.find(c => c.id === ep.transaction.category_id)?.name ?? 'Uncategorized',
+          date: ep.transaction.transaction_date,
+        },
+      }))
+    } catch {
+      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text: 'Something went wrong updating the transaction. Please try again.' }))
+    }
+  }
+
+  const handleEditCancel = (msgIndex: number) => {
+    setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text: 'Cancelled. No changes made.' }))
   }
 
   const handleGrabStart = (e: React.TouchEvent) => { dragStartY.current = e.touches[0].clientY }
@@ -471,6 +581,22 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
                     <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{m.savedExpense.description} · ₹{m.savedExpense.amount.toLocaleString()}</div>
                     <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{m.savedExpense.category} · {m.savedExpense.account}</div>
                   </div>
+                </div>
+              )}
+              {m.editPrompt && (
+                <div style={{ display: 'flex', gap: 8, maxWidth: '82%' }}>
+                  <button
+                    onClick={() => handleEditConfirm(i, m.editPrompt!)}
+                    style={{ flex: 1, height: 36, borderRadius: 10, background: c.accent, border: 'none', font: '600 13px Plus Jakarta Sans', color: '#fff', cursor: 'pointer' }}
+                  >
+                    Yes, update
+                  </button>
+                  <button
+                    onClick={() => handleEditCancel(i)}
+                    style={{ flex: 1, height: 36, borderRadius: 10, background: c.surface2, border: 'none', font: '600 13px Plus Jakarta Sans', color: c.sub, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
                 </div>
               )}
             </div>
