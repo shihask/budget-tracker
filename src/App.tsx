@@ -38,6 +38,7 @@ import { AIAssistFAB } from '@/components/AIAssistFAB'
 import { AIChatSheet } from '@/components/AIChatSheet'
 import { AnalyticsPage } from '@/components/AnalyticsPage'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
+import { UpdateToast } from '@/components/UpdateToast'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -176,6 +177,7 @@ function AppContent({ session }: { session: Session }) {
   return (
     <ThemeContext.Provider value={c}>
       <PWAPrompt />
+      <UpdateToast />
       <div style={{
         minHeight: '100svh', width: '100%',
         background: dark ? '#0C0A07' : '#EDE7DD',
