@@ -10,7 +10,8 @@ const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categoriz
 
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
 type EditPrompt = { transaction: Transaction; newAmount: number }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt }
+type DeletePrompt = { transaction: Transaction }
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt }
 
 function guessTransactionType(text: string): 'income' | 'expense' {
   const lower = text.toLowerCase()
@@ -26,15 +27,18 @@ const FINANCE_QUERY_WORDS = [
   'analytics', 'compare', 'remaining', 'total', 'monthly', 'weekly',
 ]
 
-function classifyIntent(text: string): 'question' | 'edit' | 'transaction' {
+function classifyIntent(text: string): 'question' | 'edit' | 'delete' | 'transaction' {
   const q = text.toLowerCase().trim()
 
   // Stage 1: question keywords or finance query words → never try to parse as transaction
   if (/\b(what|how|why|show|compare|give|list|tell|which|when|am i|did i|can i)\b/.test(q)) return 'question'
   if (FINANCE_QUERY_WORDS.some(w => q.includes(w))) return 'question'
 
-  // Stage 2: edit/delete intent → send to chat to explain edit is not yet supported
-  if (/\b(change|edit|update|fix|delete|remove|wrong|replace|correct)\b/.test(q)) return 'edit'
+  // Stage 2a: delete intent
+  if (/\b(delete|remove)\b/.test(q)) return 'delete'
+
+  // Stage 2b: edit intent
+  if (/\b(change|edit|update|fix|wrong|replace|correct)\b/.test(q)) return 'edit'
 
   // Stage 3: contains a number → likely a transaction entry
   if (/\d/.test(q)) return 'transaction'
@@ -155,6 +159,16 @@ function parseEditIntent(text: string): { description: string; oldAmount: number
   return null
 }
 
+function parseDeleteIntent(text: string): { description: string; amount: number | null } | null {
+  // "delete tea 20" or "remove petrol 500"
+  const withAmount = text.match(/(?:delete|remove)\s+(.+?)\s+(\d+(?:\.\d+)?)\s*$/i)
+  if (withAmount) return { description: withAmount[1].trim(), amount: parseFloat(withAmount[2]) }
+  // "delete tea" or "remove petrol"
+  const noAmount = text.match(/(?:delete|remove)\s+(.+)/i)
+  if (noAmount) return { description: noAmount[1].trim(), amount: null }
+  return null
+}
+
 function findMatchingTransaction(transactions: Transaction[], description: string, oldAmount: number | null): Transaction | null {
   const words = description.toLowerCase().replace(/\bthe\b/g, '').trim().split(/\s+/).filter(w => w.length > 1)
   const scored = transactions
@@ -221,11 +235,12 @@ interface AIChatSheetProps {
   d: DerivedMetrics
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
   onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<void>
+  onDelete: (t: Transaction) => Promise<void>
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   onBusyChange?: (busy: boolean) => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onUpdateSettings, onBusyChange }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -397,6 +412,35 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onUpdat
       return
     }
 
+    // Delete intent — find matching transaction and show confirmation card
+    if (intent === 'delete') {
+      const parsedDel = parseDeleteIntent(text)
+      if (parsedDel) {
+        const match = findMatchingTransaction(state.transactions, parsedDel.description, parsedDel.amount)
+        if (match) {
+          const acc = [...state.accounts, ...(state.credit_cards ?? [])].find(a => a.id === match.from_account_id)
+          const cat = state.categories.find(c => c.id === match.category_id)?.name ?? 'Uncategorized'
+          setMessages(m => [...m, {
+            role: 'ai',
+            text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'} · ${cat}. Delete this?`,
+            deletePrompt: { transaction: match },
+          }])
+        } else {
+          setMessages(m => [...m, {
+            role: 'ai',
+            text: `I couldn't find a matching "${parsedDel.description}" transaction. Check the transaction list and try again.`,
+          }])
+        }
+      } else {
+        setMessages(m => [...m, {
+          role: 'ai',
+          text: 'To delete a transaction, say something like: "delete tea 20" or "remove petrol 500".',
+        }])
+      }
+      setLoading(false); onBusyChange?.(false)
+      return
+    }
+
     // No amount found — treat as Q&A (streamed)
     const context = buildContext(state, d)
     abortRef.current = new AbortController()
@@ -465,6 +509,23 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onUpdat
   }
 
   const handleEditCancel = (msgIndex: number) => {
+    setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text: 'Cancelled. No changes made.' }))
+  }
+
+  const handleDeleteConfirm = async (msgIndex: number, dp: DeletePrompt) => {
+    try {
+      await onDelete(dp.transaction)
+      const acc = [...state.accounts, ...(state.credit_cards ?? [])].find(a => a.id === dp.transaction.from_account_id)
+      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : {
+        role: 'ai',
+        text: `Done! Deleted "${dp.transaction.description}" ₹${dp.transaction.amount.toLocaleString()} from ${acc?.name ?? 'account'}.`,
+      }))
+    } catch {
+      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text: 'Something went wrong deleting the transaction. Please try again.' }))
+    }
+  }
+
+  const handleDeleteCancel = (msgIndex: number) => {
     setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text: 'Cancelled. No changes made.' }))
   }
 
@@ -593,6 +654,22 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onUpdat
                   </button>
                   <button
                     onClick={() => handleEditCancel(i)}
+                    style={{ flex: 1, height: 36, borderRadius: 10, background: c.surface2, border: 'none', font: '600 13px Plus Jakarta Sans', color: c.sub, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              {m.deletePrompt && (
+                <div style={{ display: 'flex', gap: 8, maxWidth: '82%' }}>
+                  <button
+                    onClick={() => handleDeleteConfirm(i, m.deletePrompt!)}
+                    style={{ flex: 1, height: 36, borderRadius: 10, background: '#EF4444', border: 'none', font: '600 13px Plus Jakarta Sans', color: '#fff', cursor: 'pointer' }}
+                  >
+                    Yes, delete
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCancel(i)}
                     style={{ flex: 1, height: 36, borderRadius: 10, background: c.surface2, border: 'none', font: '600 13px Plus Jakarta Sans', color: c.sub, cursor: 'pointer' }}
                   >
                     Cancel
