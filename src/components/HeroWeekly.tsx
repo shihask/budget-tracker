@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, iso, TODAY } from '@/lib/utils'
-import { WEEK_START, MONTH_START } from '@/lib/data'
+import { fmt, iso, TODAY, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ProgressRing } from './ProgressRing'
 import { BottomSheet } from './BottomSheet'
 import type { DerivedMetrics, AppState, WeeklyBudgetScope } from '@/types'
@@ -76,6 +75,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   const [salaryDateInput, setSalaryDateInput] = useState(String(settings.salary_date || ''))
   const [budgetInput, setBudgetInput] = useState(String(settings.weekly_budget))
   const [budgetPeriod, setBudgetPeriod] = useState<'daily' | 'weekly' | 'monthly'>(settings.budget_period ?? 'weekly')
+  const [weeklyStartDay, setWeeklyStartDay] = useState(settings.weekly_start_day ?? 1)
+  const [monthlyStartDate, setMonthlyStartDate] = useState(String(settings.monthly_start_date ?? 1))
   const [saving, setSaving] = useState(false)
   const [popup, setPopup] = useState<'budget' | 'spent' | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
@@ -96,6 +97,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
       setSalaryDateInput(String(settings.salary_date || ''))
       setBudgetInput(String(settings.weekly_budget))
       setBudgetPeriod(settings.budget_period ?? 'weekly')
+      setWeeklyStartDay(settings.weekly_start_day ?? 1)
+      setMonthlyStartDate(String(settings.monthly_start_date ?? 1))
       const s = settings.weekly_budget_scope
       const isEmpty = !s || (s.groups.length === 0 && s.categoryIds.length === 0 && (!s.transactionIds || s.transactionIds.length === 0))
       setScopeGroups(isEmpty ? DEFAULT_SCOPE_GROUPS : s!.groups)
@@ -104,7 +107,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
       setShowCatPicker(false)
       setShowTxnPicker(false)
     }
-  }, [editOpen, settings.salary_date, settings.weekly_budget, settings.weekly_budget_scope, settings.budget_period])
+  }, [editOpen, settings.salary_date, settings.weekly_budget, settings.weekly_budget_scope, settings.budget_period, settings.weekly_start_day, settings.monthly_start_date])
 
   // Expense transactions within the current budget period
   const activePeriod = settings.budget_period ?? 'weekly'
@@ -112,12 +115,12 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     const start = activePeriod === 'daily'
       ? new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate())
       : activePeriod === 'monthly'
-      ? MONTH_START
-      : WEEK_START
+      ? getMonthStart(TODAY, settings.monthly_start_date ?? 1)
+      : getWeekStart(TODAY, settings.weekly_start_day ?? 1)
     return transactions
       .filter(t => t.transaction_type === 'expense' && new Date(t.transaction_date) >= start)
       .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
-  }, [transactions, activePeriod])
+  }, [transactions, activePeriod, settings.weekly_start_day, settings.monthly_start_date])
 
   // Returns true if a transaction is already covered by the current group/category scope
   const isCoveredByScope = (t: AppState['transactions'][0]) => {
@@ -154,7 +157,15 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     setSaving(true)
     try {
       const scope: WeeklyBudgetScope = { groups: scopeGroups, categoryIds: scopeCategoryIds, transactionIds: scopeTransactionIds }
-      await onUpdateSettings({ weekly_budget: budget, salary_date: sd, weekly_budget_scope: scope, budget_period: budgetPeriod })
+      const msd = parseInt(monthlyStartDate)
+      await onUpdateSettings({
+        weekly_budget: budget,
+        salary_date: sd,
+        weekly_budget_scope: scope,
+        budget_period: budgetPeriod,
+        weekly_start_day: weeklyStartDay,
+        monthly_start_date: (!isNaN(msd) && msd >= 1 && msd <= 31) ? msd : 1,
+      })
       onEditClose()
     } catch (_) {}
     setSaving(false)
@@ -407,6 +418,38 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   ))}
                 </div>
               </div>
+
+              {/* Week start day */}
+              {budgetPeriod === 'weekly' && (
+                <div>
+                  <label style={lbl}>Week starts on</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([['Mon', 1], ['Tue', 2], ['Wed', 3], ['Thu', 4], ['Fri', 5], ['Sat', 6], ['Sun', 0]] as [string, number][]).map(([label, day]) => (
+                      <button key={day} onClick={() => setWeeklyStartDay(day)} style={{
+                        flex: 1, background: weeklyStartDay === day ? c.accent : c.surface2,
+                        color: weeklyStartDay === day ? '#fff' : c.ink,
+                        border: `1.5px solid ${weeklyStartDay === day ? c.accent : c.faint}`,
+                        borderRadius: 8, padding: '7px 0',
+                        font: '700 11px Plus Jakarta Sans', cursor: 'pointer',
+                      }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Monthly start date */}
+              {budgetPeriod === 'monthly' && (
+                <div>
+                  <label style={lbl}>Month starts on</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input type="number" value={monthlyStartDate} onChange={e => setMonthlyStartDate(e.target.value)}
+                      placeholder="e.g. 1" min="1" max="31" style={{ ...inp, width: 100 }} />
+                    <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>of every month</span>
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={lbl}>Salary credit date (day of month)</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

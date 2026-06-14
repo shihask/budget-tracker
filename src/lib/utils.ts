@@ -32,16 +32,19 @@ export function addDays(d: Date, n: number): Date {
   return x
 }
 
-export function getWeekStart(d: Date): Date {
+export function getWeekStart(d: Date, startDay = 1): Date {
   const x = new Date(d)
-  const day = (x.getDay() + 6) % 7 // Mon=0
+  const day = (x.getDay() - startDay + 7) % 7
   x.setHours(0, 0, 0, 0)
   x.setDate(x.getDate() - day)
   return x
 }
 
-export function getMonthStart(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1)
+export function getMonthStart(d: Date, startDate = 1): Date {
+  if (d.getDate() >= startDate) {
+    return new Date(d.getFullYear(), d.getMonth(), startDate)
+  }
+  return new Date(d.getFullYear(), d.getMonth() - 1, startDate)
 }
 
 export function fmtDate(s: string): string {

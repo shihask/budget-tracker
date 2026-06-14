@@ -56,8 +56,8 @@ const remainingCommitments = state.commitments
   const periodStart = period === 'daily'
     ? new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate())
     : period === 'monthly'
-    ? MONTH_START
-    : WEEK_START
+    ? getMonthStart(TODAY, state.settings.monthly_start_date ?? 1)
+    : getWeekStart(TODAY, state.settings.weekly_start_day ?? 1)
   const weeklySpent = state.transactions
     .filter(t => matchesScope(t, catMap) && new Date(t.transaction_date) >= periodStart)
     .reduce((s, t) => s + t.amount, 0)

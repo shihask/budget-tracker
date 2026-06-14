@@ -86,6 +86,8 @@ export interface Settings {
   ai_requests_used?: number
   ai_requests_reset_at?: string | null
   budget_period?: 'daily' | 'weekly' | 'monthly'
+  weekly_start_day?: number     // 0=Sun 1=Mon … 6=Sat, default 1
+  monthly_start_date?: number   // 1–31, default 1
   notifications_enabled?: boolean
   notify_daily_reminder?: boolean
   notify_budget_alert?: boolean

@@ -15,7 +15,7 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true },
   commitments: [],
   borrowings: [],
   transactions: [],
