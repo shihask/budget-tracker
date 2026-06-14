@@ -3,13 +3,20 @@ import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { parseExpenseWithAI } from '@/lib/gemini'
 import { MintAnimation } from './MintAnimation'
-import type { AppState, DerivedMetrics, Transaction } from '@/types'
+import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
-type EditPrompt = { transaction: Transaction; newAmount: number }
+type EditPrompt = {
+  transaction: Transaction
+  field: 'amount' | 'description' | 'category'
+  newAmount?: number
+  newDescription?: string
+  newCategoryId?: string
+  newCategoryName?: string
+}
 type DeletePrompt = { transaction: Transaction }
 type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt }
 
@@ -38,7 +45,7 @@ function classifyIntent(text: string): 'question' | 'edit' | 'delete' | 'transac
   if (/\b(delete|remove)\b/.test(q)) return 'delete'
 
   // Stage 2b: edit intent
-  if (/\b(change|edit|update|fix|wrong|replace|correct)\b/.test(q)) return 'edit'
+  if (/\b(change|edit|update|fix|wrong|replace|correct|rename|recategorize|categorize)\b/.test(q)) return 'edit'
 
   // Stage 3: contains a number → likely a transaction entry
   if (/\d/.test(q)) return 'transaction'
@@ -149,13 +156,62 @@ Recent:
 ${recent}${borrowingsLine}`
 }
 
-function parseEditIntent(text: string): { description: string; oldAmount: number | null; newAmount: number } | null {
-  // "change fuel 500 to 300"
-  const withOld = text.match(/(?:change|fix|update|edit|correct|replace)\s+(.+?)\s+(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)/i)
-  if (withOld) return { description: withOld[1].trim(), oldAmount: parseFloat(withOld[2]), newAmount: parseFloat(withOld[3]) }
-  // "change fuel to 300"
-  const noOld = text.match(/(?:change|fix|update|edit|correct|replace)\s+(.+?)\s+to\s+(\d+(?:\.\d+)?)/i)
-  if (noOld) return { description: noOld[1].trim(), oldAmount: null, newAmount: parseFloat(noOld[2]) }
+type ParsedEdit =
+  | { type: 'amount'; description: string; oldAmount: number | null; newAmount: number }
+  | { type: 'description'; oldDescription: string; newDescription: string }
+  | { type: 'category'; description: string; newCategoryId: string; newCategoryName: string }
+  | { type: 'category_not_found'; description: string; attempted: string }
+
+function findCategory(name: string, categories: Category[]): Category | null {
+  const lower = name.toLowerCase().trim()
+  return (
+    categories.find(c => c.name.toLowerCase() === lower) ??
+    categories.find(c => c.name.toLowerCase().includes(lower)) ??
+    categories.find(c => lower.includes(c.name.toLowerCase())) ??
+    null
+  )
+}
+
+function parseEditIntent(text: string, categories: Category[]): ParsedEdit | null {
+  const t = text.trim()
+
+  // Amount: "change fuel 500 to 300"
+  const withOld = t.match(/(?:change|fix|update|edit|correct|replace)\s+(.+?)\s+(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)/i)
+  if (withOld) return { type: 'amount', description: withOld[1].trim(), oldAmount: parseFloat(withOld[2]), newAmount: parseFloat(withOld[3]) }
+
+  // Amount: "change fuel to 300"
+  const amountOnly = t.match(/(?:change|fix|update|edit|correct|replace)\s+(.+?)\s+to\s+(\d+(?:\.\d+)?)\s*$/i)
+  if (amountOnly) return { type: 'amount', description: amountOnly[1].trim(), oldAmount: null, newAmount: parseFloat(amountOnly[2]) }
+
+  // Category: "recategorize petrol to Travel" / "move petrol to Travel"
+  const recatMatch = t.match(/(?:recategorize|categorize|move)\s+(.+?)\s+to\s+(.+)/i)
+  if (recatMatch) {
+    const desc = recatMatch[1].trim()
+    const attempt = recatMatch[2].trim()
+    const cat = findCategory(attempt, categories)
+    return cat ? { type: 'category', description: desc, newCategoryId: cat.id, newCategoryName: cat.name }
+               : { type: 'category_not_found', description: desc, attempted: attempt }
+  }
+
+  // Category: "change petrol category to Travel"
+  const changeCatMatch = t.match(/(?:change|update|set)\s+(.+?)\s+category\s+to\s+(.+)/i)
+  if (changeCatMatch) {
+    const desc = changeCatMatch[1].trim()
+    const attempt = changeCatMatch[2].trim()
+    const cat = findCategory(attempt, categories)
+    return cat ? { type: 'category', description: desc, newCategoryId: cat.id, newCategoryName: cat.name }
+               : { type: 'category_not_found', description: desc, attempted: attempt }
+  }
+
+  // Description rename: "rename tea to Coffee Shop" / "change tea to Coffee Shop"
+  const renameMatch = t.match(/(?:rename|change|update)\s+(.+?)\s+to\s+(.+)/i)
+  if (renameMatch) {
+    const newDesc = renameMatch[2].trim()
+    if (!/^\d+(?:\.\d+)?$/.test(newDesc)) {
+      return { type: 'description', oldDescription: renameMatch[1].trim(), newDescription: newDesc }
+    }
+  }
+
   return null
 }
 
@@ -415,26 +471,56 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
 
     // Edit intent — find matching transaction and show confirmation card
     if (intent === 'edit') {
-      const parsed = parseEditIntent(text)
-      if (parsed) {
+      const parsed = parseEditIntent(text, state.categories)
+      const allAccs = [...state.accounts, ...(state.credit_cards ?? [])]
+
+      if (parsed?.type === 'category_not_found') {
+        const available = state.categories.slice(0, 8).map(c => c.name).join(', ')
+        setMessages(m => [...m, {
+          role: 'ai',
+          text: `I couldn't find a category called "${parsed.attempted}". Available categories: ${available}.`,
+        }])
+      } else if (parsed?.type === 'amount') {
         const match = findMatchingTransaction(state.transactions, parsed.description, parsed.oldAmount)
         if (match) {
-          const acc = [...state.accounts, ...(state.credit_cards ?? [])].find(a => a.id === match.from_account_id)
+          const acc = allAccs.find(a => a.id === match.from_account_id)
           setMessages(m => [...m, {
             role: 'ai',
             text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'}. Update amount to ₹${parsed.newAmount.toLocaleString()}?`,
-            editPrompt: { transaction: match, newAmount: parsed.newAmount },
+            editPrompt: { transaction: match, field: 'amount', newAmount: parsed.newAmount },
           }])
         } else {
+          setMessages(m => [...m, { role: 'ai', text: `I couldn't find a matching "${parsed.description}" transaction.` }])
+        }
+      } else if (parsed?.type === 'description') {
+        const match = findMatchingTransaction(state.transactions, parsed.oldDescription, null)
+        if (match) {
+          const acc = allAccs.find(a => a.id === match.from_account_id)
           setMessages(m => [...m, {
             role: 'ai',
-            text: `I couldn't find a matching "${parsed.description}" transaction. Check the transaction list and try again.`,
+            text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'}. Rename to "${parsed.newDescription}"?`,
+            editPrompt: { transaction: match, field: 'description', newDescription: parsed.newDescription },
           }])
+        } else {
+          setMessages(m => [...m, { role: 'ai', text: `I couldn't find a matching "${parsed.oldDescription}" transaction.` }])
+        }
+      } else if (parsed?.type === 'category') {
+        const match = findMatchingTransaction(state.transactions, parsed.description, null)
+        if (match) {
+          const acc = allAccs.find(a => a.id === match.from_account_id)
+          const currentCat = state.categories.find(c => c.id === match.category_id)?.name ?? 'Uncategorized'
+          setMessages(m => [...m, {
+            role: 'ai',
+            text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'} (${currentCat}). Move to ${parsed.newCategoryName}?`,
+            editPrompt: { transaction: match, field: 'category', newCategoryId: parsed.newCategoryId, newCategoryName: parsed.newCategoryName },
+          }])
+        } else {
+          setMessages(m => [...m, { role: 'ai', text: `I couldn't find a matching "${parsed.description}" transaction.` }])
         }
       } else {
         setMessages(m => [...m, {
           role: 'ai',
-          text: 'To edit a transaction, say something like: "change fuel 500 to 300".',
+          text: 'To edit a transaction, try:\n• "change fuel 500 to 300" — update amount\n• "rename tea to Coffee Shop" — rename description\n• "recategorize petrol to Travel" — change category',
         }])
       }
       setLoading(false); onBusyChange?.(false)
@@ -515,23 +601,23 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
     try {
       await onUpdate(ep.transaction, {
         transaction_date: ep.transaction.transaction_date,
-        description: ep.transaction.description,
-        amount: ep.newAmount,
+        description: ep.field === 'description' ? ep.newDescription! : ep.transaction.description,
+        amount: ep.field === 'amount' ? ep.newAmount! : ep.transaction.amount,
         transaction_type: ep.transaction.transaction_type,
-        category_id: ep.transaction.category_id,
+        category_id: ep.field === 'category' ? ep.newCategoryId! : ep.transaction.category_id,
         from_account_id: ep.transaction.from_account_id,
       })
-      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : {
-        role: 'ai',
-        text: `Done! Updated "${ep.transaction.description}" from ₹${ep.transaction.amount.toLocaleString()} to ₹${ep.newAmount.toLocaleString()}.`,
-        savedExpense: {
-          description: ep.transaction.description,
-          amount: ep.newAmount,
-          account: [...state.accounts, ...(state.credit_cards ?? [])].find(a => a.id === ep.transaction.from_account_id)?.name ?? '',
-          category: state.categories.find(c => c.id === ep.transaction.category_id)?.name ?? 'Uncategorized',
-          date: ep.transaction.transaction_date,
-        },
-      }))
+
+      let text = ''
+      if (ep.field === 'amount') {
+        text = `Done! Updated "${ep.transaction.description}" from ₹${ep.transaction.amount.toLocaleString()} to ₹${ep.newAmount!.toLocaleString()}.`
+      } else if (ep.field === 'description') {
+        text = `Done! Renamed "${ep.transaction.description}" to "${ep.newDescription}".`
+      } else {
+        const oldCat = state.categories.find(c => c.id === ep.transaction.category_id)?.name ?? 'Uncategorized'
+        text = `Done! Moved "${ep.transaction.description}" from ${oldCat} to ${ep.newCategoryName}.`
+      }
+      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text }))
     } catch {
       setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text: 'Something went wrong updating the transaction. Please try again.' }))
     }
