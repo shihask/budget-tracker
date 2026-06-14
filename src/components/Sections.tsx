@@ -3,6 +3,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt, fmtDate } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
+import { BORROWING_CREDIT_CATS } from '@/lib/constants'
 import { MONTH_START, catById as buildCatById } from '@/lib/data'
 import type { AppState, DashboardSection, Transaction } from '@/types'
 
@@ -188,7 +189,6 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
       </div>
       {txns.length === 0 ? (
         <div style={{ padding: '24px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>💸</div>
           <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>No transactions yet</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>Tap the <strong style={{ color: c.accent }}>+</strong> button to log your first expense or income.</div>
         </div>
@@ -216,8 +216,16 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : t.transaction_type === 'transfer' ? c.accent : c.bad }}>
-                  {t.transaction_type === 'income' ? '+' : t.transaction_type === 'transfer' ? '⇄' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                <div style={{ font: '800 14px Plus Jakarta Sans', color:
+                  t.transaction_type === 'income' ? c.good :
+                  t.transaction_type === 'transfer' ? c.accent :
+                  (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') ? '#6366F1' :
+                  c.bad }}>
+                  {t.transaction_type === 'income' ? '+' :
+                   t.transaction_type === 'transfer' ? '⇄' :
+                   (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
+                     ? (BORROWING_CREDIT_CATS.has(cat?.name ?? '') ? '+' : '−')
+                     : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
                 </div>
                 <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted }}>{fmtDate(t.transaction_date)}</div>
               </div>

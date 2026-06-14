@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal } from '@/types'
+import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 const delta = (type: TransactionType, amount: number) =>
   type === 'income' ? amount : -amount
+
+// 'Borrowed Money' and 'Lent Repayment' are credits (money came in); the other two are debits.
+const borrowingIsCredit = (categoryName: string | undefined) =>
+  BORROWING_CREDIT_CATS.has(categoryName ?? '')
 
 const EMPTY_STATE: AppState = {
   accounts: [],
@@ -19,30 +24,36 @@ const EMPTY_STATE: AppState = {
 
 const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false }
 
-const DEFAULT_GROUPS = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer', 'Income']
-
-const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
-  { name: 'Food & Tea',        group_name: 'Lifestyle' },
-  { name: 'Groceries',         group_name: 'Lifestyle' },
-  { name: 'Fuel',              group_name: 'Lifestyle' },
-  { name: 'Shopping',          group_name: 'Lifestyle' },
-  { name: 'Medical',           group_name: 'Lifestyle' },
-  { name: 'Utilities',         group_name: 'Lifestyle' },
-  { name: 'Loan EMI',          group_name: 'Commitment' },
-  { name: 'Gold Scheme',       group_name: 'Commitment' },
-  { name: 'SIP',               group_name: 'Commitment' },
-  { name: 'Borrow Repayment',  group_name: 'Commitment' },
-  { name: 'Renovation',        group_name: 'Renovation' },
-  { name: 'Family',            group_name: 'Family' },
-  { name: 'Transfer',          group_name: 'Transfer' },
-  { name: 'Salary',            group_name: 'Income' },
-  { name: 'Freelance',         group_name: 'Income' },
-  { name: 'Refund',            group_name: 'Income' },
-  { name: 'Other Income',      group_name: 'Income' },
+const DEFAULT_GROUPS: { name: string; is_system?: boolean }[] = [
+  { name: 'Lifestyle' },
+  { name: 'Commitment' },
+  { name: 'Renovation' },
+  { name: 'Family' },
+  { name: 'Transfer',  is_system: true },
+  { name: 'Income',    is_system: true },
 ]
 
-const INCOME_GROUP = 'Income'
+const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
+  { name: 'Food & Tea',    group_name: 'Lifestyle' },
+  { name: 'Groceries',     group_name: 'Lifestyle' },
+  { name: 'Fuel',          group_name: 'Lifestyle' },
+  { name: 'Shopping',      group_name: 'Lifestyle' },
+  { name: 'Medical',       group_name: 'Lifestyle' },
+  { name: 'Utilities',     group_name: 'Lifestyle' },
+  { name: 'Loan EMI',      group_name: 'Commitment' },
+  { name: 'Gold Scheme',   group_name: 'Commitment' },
+  { name: 'SIP',           group_name: 'Commitment' },
+  { name: 'Renovation',    group_name: 'Renovation' },
+  { name: 'Family',        group_name: 'Family' },
+  { name: 'Transfer',      group_name: 'Transfer' },
+  { name: 'Salary',        group_name: 'Income' },
+  { name: 'Freelance',     group_name: 'Income' },
+  { name: 'Refund',        group_name: 'Income' },
+  { name: 'Other Income',  group_name: 'Income' },
+]
+
 const DEFAULT_INCOME_CATEGORIES = ['Salary', 'Freelance', 'Refund', 'Other Income']
+const BORROWING_CATEGORIES = ['Lent Money', 'Lent Repayment', 'Borrowed Money', 'Borrow Repayment']
 
 export function useSupabaseData(userId: string) {
   const [state, setState] = useState<AppState>(EMPTY_STATE)
@@ -95,7 +106,7 @@ export function useSupabaseData(userId: string) {
         if (userGroups.length === 0) {
           const { data: seededGroups } = await supabase
             .from('groups')
-            .insert(DEFAULT_GROUPS.map(name => ({ name, user_id: userId })))
+            .insert(DEFAULT_GROUPS.map(g => ({ ...g, user_id: userId })))
             .select('*')
           userGroups = seededGroups || []
         }
@@ -128,11 +139,22 @@ export function useSupabaseData(userId: string) {
         }
         userGroups = dedupedGroups
 
-        // Migration: ensure Income group exists
-        if (!userGroups.some(g => g.name === INCOME_GROUP)) {
+        // Migration: ensure Income group exists and is marked system
+        const existingIncomeGroup = userGroups.find(g => g.name === INCOME_GROUP)
+        if (!existingIncomeGroup) {
           const { data: newGroup } = await supabase
-            .from('groups').insert({ name: INCOME_GROUP, user_id: userId }).select('*').single()
+            .from('groups').insert({ name: INCOME_GROUP, user_id: userId, is_system: true }).select('*').single()
           if (newGroup) userGroups = [...userGroups, newGroup as Group]
+        } else if (!existingIncomeGroup.is_system) {
+          await supabase.from('groups').update({ is_system: true }).eq('id', existingIncomeGroup.id)
+          userGroups = userGroups.map(g => g.id === existingIncomeGroup.id ? { ...g, is_system: true } : g)
+        }
+
+        // Migration: ensure Transfer group is marked system
+        const existingTransferGroup = userGroups.find(g => g.name === TRANSFER_GROUP)
+        if (existingTransferGroup && !existingTransferGroup.is_system) {
+          await supabase.from('groups').update({ is_system: true }).eq('id', existingTransferGroup.id)
+          userGroups = userGroups.map(g => g.id === existingTransferGroup.id ? { ...g, is_system: true } : g)
         }
 
         // Dedup ALL categories by (name, group_name) — same in-memory approach
@@ -163,6 +185,29 @@ export function useSupabaseData(userId: string) {
             .insert(incomeCatsToAdd.map(name => ({ name, group_name: INCOME_GROUP, user_id: userId })))
             .select('*')
           if (newCats) userCategories = [...userCategories, ...(newCats as Category[])]
+        }
+
+        // Ensure Borrowing group and categories exist when tracker is enabled
+        if (settings.track_borrowings) {
+          const existingBorrowingGroup = userGroups.find(g => g.name === BORROWING_GROUP)
+          if (!existingBorrowingGroup) {
+            const { data: newGroup } = await supabase
+              .from('groups').insert({ name: BORROWING_GROUP, user_id: userId, is_system: true }).select('*').single()
+            if (newGroup) userGroups = [...userGroups, newGroup as Group]
+          } else if (!existingBorrowingGroup.is_system) {
+            // Migration: mark existing Borrowing group as system
+            await supabase.from('groups').update({ is_system: true }).eq('id', existingBorrowingGroup.id)
+            userGroups = userGroups.map(g => g.id === existingBorrowingGroup.id ? { ...g, is_system: true } : g)
+          }
+          const existingBorrowingNames = userCategories.filter(c => c.group_name === BORROWING_GROUP).map(c => c.name)
+          const borrowingCatsToAdd = BORROWING_CATEGORIES.filter(n => !existingBorrowingNames.includes(n))
+          if (borrowingCatsToAdd.length > 0) {
+            const { data: newCats } = await supabase
+              .from('categories')
+              .insert(borrowingCatsToAdd.map(name => ({ name, group_name: BORROWING_GROUP, user_id: userId })))
+              .select('*')
+            if (newCats) userCategories = [...userCategories, ...(newCats as Category[])]
+          }
         }
 
         setState({
@@ -249,7 +294,18 @@ export function useSupabaseData(userId: string) {
       await supabase.from('transactions').delete().eq('id', t.id)
       if (t.from_account_id) {
         const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
-        if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - delta(t.transaction_type, t.amount) }).eq('id', t.from_account_id)
+        if (acc) {
+          let newBal: number
+          if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
+            const catName = stateRef.current.categories.find(c => c.id === t.category_id)?.name
+            newBal = borrowingIsCredit(catName)
+              ? acc.current_balance - t.amount   // was credit → reverse = debit
+              : acc.current_balance + t.amount   // was debit  → reverse = credit
+          } else {
+            newBal = acc.current_balance - delta(t.transaction_type, t.amount)
+          }
+          await supabase.from('accounts').update({ current_balance: newBal }).eq('id', t.from_account_id)
+        }
       }
       if (t.transaction_type === 'transfer' && t.to_account_id) {
         const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', t.to_account_id).single()
@@ -260,7 +316,14 @@ export function useSupabaseData(userId: string) {
         transactions: s.transactions.filter(tx => tx.id !== t.id),
         accounts: s.accounts.map(a => {
           let bal = a.current_balance
-          if (a.id === t.from_account_id) bal -= delta(t.transaction_type, t.amount)
+          if (a.id === t.from_account_id) {
+            if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
+              const catName = s.categories.find(c => c.id === t.category_id)?.name
+              bal += borrowingIsCredit(catName) ? -t.amount : t.amount
+            } else {
+              bal -= delta(t.transaction_type, t.amount)
+            }
+          }
           if (t.transaction_type === 'transfer' && a.id === t.to_account_id) bal -= t.amount
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
@@ -387,6 +450,16 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, categories: s.categories.filter(c => c.id !== id) }))
   }, [])
 
+  const toggleGroupVisibility = useCallback(async (id: string, visible: boolean) => {
+    await supabase.from('groups').update({ is_visible: visible }).eq('id', id)
+    setState(s => ({ ...s, groups: s.groups.map(g => g.id === id ? { ...g, is_visible: visible } : g) }))
+  }, [])
+
+  const toggleCategoryVisibility = useCallback(async (id: string, visible: boolean) => {
+    await supabase.from('categories').update({ is_visible: visible }).eq('id', id)
+    setState(s => ({ ...s, categories: s.categories.map(c => c.id === id ? { ...c, is_visible: visible } : c) }))
+  }, [])
+
   const addBorrowing = useCallback(async (
     form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' },
     addTransaction: boolean,
@@ -398,12 +471,13 @@ export function useSupabaseData(userId: string) {
     const borrowing = data as AppState['borrowings'][0]
 
     if (addTransaction && accountId && form.direction === 'borrowed') {
+      const borrowedCatId = stateRef.current.categories.find(c => c.name === 'Borrowed Money' && c.group_name === BORROWING_GROUP)?.id ?? null
       const { data: newTx } = await supabase.from('transactions').insert({
         transaction_date: today,
         description: `${form.person_name} – borrowed`,
         amount: form.total_amount,
-        transaction_type: 'income',
-        category_id: null,
+        transaction_type: 'borrowing',
+        category_id: borrowedCatId,
         from_account_id: accountId,
         to_account_id: null,
         notes: '',
@@ -421,12 +495,13 @@ export function useSupabaseData(userId: string) {
         accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance + form.total_amount } : a),
       }))
     } else if (addTransaction && accountId && form.direction === 'lent') {
+      const lentCatId = stateRef.current.categories.find(c => c.name === 'Lent Money' && c.group_name === BORROWING_GROUP)?.id ?? null
       const { data: newTx } = await supabase.from('transactions').insert({
         transaction_date: today,
         description: `${form.person_name} – lent`,
         amount: form.total_amount,
-        transaction_type: 'expense',
-        category_id: null,
+        transaction_type: 'borrowing',
+        category_id: lentCatId,
         from_account_id: accountId,
         to_account_id: null,
         notes: '',
@@ -462,7 +537,18 @@ export function useSupabaseData(userId: string) {
         for (const t of txns) {
           if (t.from_account_id) {
             const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
-            if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - delta(t.transaction_type, t.amount) }).eq('id', t.from_account_id)
+            if (acc) {
+              let newBal: number
+              if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
+                const catName = stateRef.current.categories.find(c => c.id === t.category_id)?.name
+                newBal = borrowingIsCredit(catName)
+                  ? acc.current_balance - t.amount
+                  : acc.current_balance + t.amount
+              } else {
+                newBal = acc.current_balance - delta(t.transaction_type, t.amount)
+              }
+              await supabase.from('accounts').update({ current_balance: newBal }).eq('id', t.from_account_id)
+            }
           }
         }
         await supabase.from('transactions').delete().eq('borrowing_id', id)
@@ -478,11 +564,16 @@ export function useSupabaseData(userId: string) {
 
   const recordBorrowingPayment = useCallback(async (
     borrowing: AppState['borrowings'][0], payment: number, accountId: string | null,
-    incoming: boolean, categoryId: string | null = null, addTransaction: boolean = true,
+    incoming: boolean, _categoryId: string | null = null, addTransaction: boolean = true,
   ) => {
     const today = new Date().toISOString().slice(0, 10)
     const newPaid = Math.min(borrowing.total_amount, borrowing.paid_amount + payment)
     await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', borrowing.id)
+
+    // incoming=true → received repayment on a lent → 'Lent Repayment' (credit)
+    // incoming=false → made repayment on borrowed → 'Borrow Repayment' (debit)
+    const repaymentCatName = incoming ? 'Lent Repayment' : 'Borrow Repayment'
+    const repaymentCatId = stateRef.current.categories.find(c => c.name === repaymentCatName && c.group_name === BORROWING_GROUP)?.id ?? null
 
     let newTx: Transaction | null = null
     if (addTransaction && accountId) {
@@ -490,8 +581,8 @@ export function useSupabaseData(userId: string) {
         transaction_date: today,
         description: `${borrowing.person_name} – ${incoming ? 'received repayment' : 'repayment'}`,
         amount: payment,
-        transaction_type: incoming ? 'income' : 'expense',
-        category_id: categoryId,
+        transaction_type: 'borrowing_repayment',
+        category_id: repaymentCatId,
         from_account_id: accountId,
         to_account_id: null,
         notes: '',
@@ -634,8 +725,35 @@ export function useSupabaseData(userId: string) {
     try {
       await supabase.from('settings').update(patch).eq('id', state.settings.id)
       setState(s => ({ ...s, settings: { ...s.settings, ...patch } }))
+
+      if (patch.track_borrowings === true) {
+        let newGroups = [...stateRef.current.groups]
+        let newCategories = [...stateRef.current.categories]
+
+        const existingBorrowingGroup = newGroups.find(g => g.name === BORROWING_GROUP)
+        if (!existingBorrowingGroup) {
+          const { data: newGroup } = await supabase
+            .from('groups').insert({ name: BORROWING_GROUP, user_id: userId, is_system: true }).select('*').single()
+          if (newGroup) newGroups = [...newGroups, newGroup as Group]
+        } else if (!existingBorrowingGroup.is_system) {
+          await supabase.from('groups').update({ is_system: true }).eq('id', existingBorrowingGroup.id)
+          newGroups = newGroups.map(g => g.id === existingBorrowingGroup.id ? { ...g, is_system: true } : g)
+        }
+
+        const existingBorrowingNames = newCategories.filter(c => c.group_name === BORROWING_GROUP).map(c => c.name)
+        const borrowingCatsToAdd = BORROWING_CATEGORIES.filter(n => !existingBorrowingNames.includes(n))
+        if (borrowingCatsToAdd.length > 0) {
+          const { data: seededCats } = await supabase
+            .from('categories')
+            .insert(borrowingCatsToAdd.map(name => ({ name, group_name: BORROWING_GROUP, user_id: userId })))
+            .select('*')
+          if (seededCats) newCategories = [...newCategories, ...(seededCats as Category[])]
+        }
+
+        setState(s => ({ ...s, groups: newGroups, categories: newCategories }))
+      }
     } catch (err) { console.error('Failed to update settings:', err); throw err }
-  }, [state.settings.id])
+  }, [state.settings.id, userId])
 
   // Reverse a borrowing-linked transaction (called when user deletes it from TransactionsPage)
   const reversePayment = useCallback(async (t: Transaction) => {
@@ -643,18 +761,36 @@ export function useSupabaseData(userId: string) {
     // Reverse account balance
     if (t.from_account_id) {
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
-      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - delta(t.transaction_type, t.amount) }).eq('id', t.from_account_id)
+      if (acc) {
+        let newBal: number
+        if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
+          const catName = stateRef.current.categories.find(c => c.id === t.category_id)?.name
+          newBal = borrowingIsCredit(catName)
+            ? acc.current_balance - t.amount
+            : acc.current_balance + t.amount
+        } else {
+          newBal = acc.current_balance - delta(t.transaction_type, t.amount)
+        }
+        await supabase.from('accounts').update({ current_balance: newBal }).eq('id', t.from_account_id)
+      }
     }
     // Reverse paid_amount on borrowing
     const { data: borrowing } = await supabase.from('borrowings').select('paid_amount, total_amount').eq('id', t.borrowing_id).single()
     if (borrowing) {
       const newPaid = Math.max(0, borrowing.paid_amount - t.amount)
       await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', t.borrowing_id)
-      setState(s => ({
-        ...s,
-        borrowings: s.borrowings.map(b => b.id === t.borrowing_id ? { ...b, paid_amount: newPaid, remaining_amount: b.total_amount - newPaid } : b),
-        accounts: t.from_account_id ? s.accounts.map(a => a.id === t.from_account_id ? { ...a, current_balance: a.current_balance - delta(t.transaction_type, t.amount) } : a) : s.accounts,
-      }))
+      setState(s => {
+        const catName = s.categories.find(c => c.id === t.category_id)?.name
+        const isBorrowingType = t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment'
+        const balDelta = isBorrowingType
+          ? (borrowingIsCredit(catName) ? -t.amount : t.amount)
+          : -delta(t.transaction_type, t.amount)
+        return {
+          ...s,
+          borrowings: s.borrowings.map(b => b.id === t.borrowing_id ? { ...b, paid_amount: newPaid, remaining_amount: b.total_amount - newPaid } : b),
+          accounts: t.from_account_id ? s.accounts.map(a => a.id === t.from_account_id ? { ...a, current_balance: a.current_balance + balDelta } : a) : s.accounts,
+        }
+      })
     }
     // Delete the transaction
     await supabase.from('transactions').delete().eq('id', t.id)
@@ -714,8 +850,8 @@ export function useSupabaseData(userId: string) {
     state, setState, loading, usingSupabase,
     addTransaction, deleteTransaction, updateTransaction, updateSettings,
     addAccount, deleteAccount, updateAccount,
-    addGroup, updateGroup, deleteGroup,
-    addCategory, updateCategory, deleteCategory,
+    addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
+    addCategory, updateCategory, deleteCategory, toggleCategoryVisibility,
     addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, updateCreditCardBalance,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,

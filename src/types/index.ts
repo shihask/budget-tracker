@@ -1,10 +1,12 @@
-export type AccountType = 'bank' | 'cash' | 'credit_card'
+export type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet'
 export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment'
 
 export interface Group {
   id: string
   name: string
   user_id?: string
+  is_visible?: boolean
+  is_system?: boolean
 }
 
 export interface Category {
@@ -12,6 +14,7 @@ export interface Category {
   name: string
   group_name: string
   user_id?: string
+  is_visible?: boolean
 }
 
 export interface Account {

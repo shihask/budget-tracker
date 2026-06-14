@@ -9,10 +9,10 @@ import type { AppState, AccountType } from '@/types'
 import type { GlyphName } from './Glyph'
 
 const TYPE_ICON: Record<string, GlyphName> = {
-  bank: 'shield', cash: 'wallet', credit_card: 'doc',
+  bank: 'shield', cash: 'wallet', credit_card: 'doc', wallet: 'spark',
 }
 const TYPE_LABEL: Record<string, string> = {
-  bank: 'Bank account', cash: 'Cash in hand', credit_card: 'Credit card',
+  bank: 'Bank account', cash: 'Cash in hand', credit_card: 'Credit card', wallet: 'Wallet',
 }
 
 type AForm = { name: string; type: AccountType; current_balance: string }
@@ -256,7 +256,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
               <div>
                 <label style={lbl}>Type</label>
                 <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
-                  {(['bank', 'cash'] as AccountType[]).map(t => (
+                  {(['bank', 'cash', 'wallet'] as AccountType[]).map(t => (
                     <button key={t} type="button" onClick={() => setEditForm(f => ({ ...f, type: t }))} style={{
                       flex: 1, border: 'none', borderRadius: 10, padding: '9px 4px',
                       font: '700 11px Plus Jakarta Sans',
@@ -264,7 +264,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                       color: editForm.type === t ? '#fff' : c.muted,
                       cursor: 'pointer',
                     }}>
-                      {t === 'bank' ? 'Bank' : 'Cash'}
+                      {t === 'bank' ? 'Bank' : t === 'cash' ? 'Cash' : 'Wallet'}
                     </button>
                   ))}
                 </div>
@@ -305,7 +305,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
               <div>
                 <label style={lbl}>Type</label>
                 <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
-                  {(['bank', 'cash'] as AccountType[]).map(t => (
+                  {(['bank', 'cash', 'wallet'] as AccountType[]).map(t => (
                     <button key={t} type="button" onClick={() => setForm(f => ({ ...f, type: t }))} style={{
                       flex: 1, border: 'none', borderRadius: 10, padding: '9px 4px',
                       font: '700 11px Plus Jakarta Sans',
@@ -313,7 +313,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                       color: form.type === t ? '#fff' : c.muted,
                       cursor: 'pointer',
                     }}>
-                      {t === 'bank' ? 'Bank' : 'Cash'}
+                      {t === 'bank' ? 'Bank' : t === 'cash' ? 'Cash' : 'Wallet'}
                     </button>
                   ))}
                 </div>

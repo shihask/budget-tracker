@@ -2,21 +2,24 @@ import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import type { AppState, Group, Category } from '@/types'
 
+
 interface Props {
   state: AppState
   onClose: () => void
   onAddGroup: (name: string) => Promise<void>
   onUpdateGroup: (id: string, name: string) => Promise<void>
   onDeleteGroup: (id: string, groupName: string) => Promise<void>
+  onToggleGroupVisibility: (id: string, visible: boolean) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onUpdateCategory: (id: string, name: string, group_name: string) => Promise<void>
   onDeleteCategory: (id: string) => Promise<void>
+  onToggleCategoryVisibility: (id: string, visible: boolean) => Promise<void>
 }
 
 export function CategoriesPage({
   state, onClose,
-  onAddGroup, onUpdateGroup, onDeleteGroup,
-  onAddCategory, onUpdateCategory, onDeleteCategory,
+  onAddGroup, onUpdateGroup, onDeleteGroup, onToggleGroupVisibility,
+  onAddCategory, onUpdateCategory, onDeleteCategory, onToggleCategoryVisibility,
 }: Props) {
   const c = useTheme()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -219,18 +222,40 @@ export function CategoriesPage({
                   <span style={{ font: '700 15px Plus Jakarta Sans', color: c.ink }}>{group.name}</span>
                   <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 8px' }}>{cats.length}</span>
                 </button>
-                {/* Edit group */}
-                <button onClick={() => { setEditingGroup(group); setInputVal(group.name); setShowAddGroup(false); setShowAddCategory(null); setEditingCategory(null) }}
-                  style={{ width: 30, height: 30, borderRadius: 8, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-                {/* Delete group */}
+                {/* Edit group — locked for system groups */}
+                {group.is_system ? (
+                  <div title="System group — cannot be renamed" style={{ width: 30, height: 30, borderRadius: 8, background: c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.4 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  </div>
+                ) : (
+                  <button onClick={() => { setEditingGroup(group); setInputVal(group.name); setShowAddGroup(false); setShowAddCategory(null); setEditingCategory(null) }}
+                    style={{ width: 30, height: 30, borderRadius: 8, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                )}
+                {/* Show/hide toggle */}
                 <button
-                  onClick={() => handleDeleteGroup(group)}
-                  title={groupRestricted ? `${groupTxnCount} transaction(s) use this group` : 'Delete group'}
-                  style={{ width: 30, height: 30, borderRadius: 8, background: groupRestricted ? c.surface2 : '#FEE2E2', border: 'none', cursor: groupRestricted ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: groupRestricted ? 0.4 : 1 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={groupRestricted ? c.muted : '#EF4444'} strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                  onClick={() => onToggleGroupVisibility(group.id, group.is_visible === false)}
+                  title={group.is_visible === false ? 'Show in dropdowns' : 'Hide from dropdowns'}
+                  style={{ width: 30, height: 30, borderRadius: 8, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: group.is_visible === false ? 0.4 : 1 }}>
+                  {group.is_visible === false
+                    ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  }
                 </button>
+                {/* Delete — replaced with lock badge for system groups */}
+                {group.is_system ? (
+                  <div title="System group — cannot be deleted" style={{ width: 30, height: 30, borderRadius: 8, background: c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.4 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleDeleteGroup(group)}
+                    title={groupRestricted ? `${groupTxnCount} transaction(s) use this group` : 'Delete group'}
+                    style={{ width: 30, height: 30, borderRadius: 8, background: groupRestricted ? c.surface2 : '#FEE2E2', border: 'none', cursor: groupRestricted ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: groupRestricted ? 0.4 : 1 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={groupRestricted ? c.muted : '#EF4444'} strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                  </button>
+                )}
               </div>
 
               {/* Edit group inline */}
@@ -261,18 +286,44 @@ export function CategoriesPage({
                           {(() => {
                             const catTxnCount = state.transactions.filter(t => t.category_id === cat.id).length
                             const catRestricted = catTxnCount > 0
+                            const parentGroup = groups.find(g => g.name === cat.group_name)
+                            const isProtectedCat = parentGroup?.is_system === true
                             return (
                               <>
-                                <button onClick={() => { setEditingCategory(cat); setInputVal(cat.name); setShowAddCategory(null) }}
-                                  style={{ width: 28, height: 28, borderRadius: 8, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </button>
+                                {/* Edit category — locked for system categories */}
+                                {isProtectedCat ? (
+                                  <div title="System category — cannot be renamed" style={{ width: 28, height: 28, borderRadius: 8, background: c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 4, opacity: 0.4 }}>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => { setEditingCategory(cat); setInputVal(cat.name); setShowAddCategory(null) }}
+                                    style={{ width: 28, height: 28, borderRadius: 8, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                  </button>
+                                )}
+                                {/* Show/hide toggle */}
                                 <button
-                                  onClick={() => handleDeleteCategory(cat)}
-                                  title={catRestricted ? `${catTxnCount} transaction(s) use this category` : 'Delete category'}
-                                  style={{ width: 28, height: 28, borderRadius: 8, background: catRestricted ? c.surface2 : '#FEE2E2', border: 'none', cursor: catRestricted ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: catRestricted ? 0.4 : 1 }}>
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={catRestricted ? c.muted : '#EF4444'} strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                                  onClick={() => onToggleCategoryVisibility(cat.id, cat.is_visible === false)}
+                                  title={cat.is_visible === false ? 'Show in dropdowns' : 'Hide from dropdowns'}
+                                  style={{ width: 28, height: 28, borderRadius: 8, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 4, opacity: cat.is_visible === false ? 0.4 : 1 }}>
+                                  {cat.is_visible === false
+                                    ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                    : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                  }
                                 </button>
+                                {/* Delete — lock icon for protected categories */}
+                                {isProtectedCat ? (
+                                  <div title="System category — cannot be deleted" style={{ width: 28, height: 28, borderRadius: 8, background: c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.4 }}>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => handleDeleteCategory(cat)}
+                                    title={catRestricted ? `${catTxnCount} transaction(s) use this category` : 'Delete category'}
+                                    style={{ width: 28, height: 28, borderRadius: 8, background: catRestricted ? c.surface2 : '#FEE2E2', border: 'none', cursor: catRestricted ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: catRestricted ? 0.4 : 1 }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={catRestricted ? c.muted : '#EF4444'} strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                                  </button>
+                                )}
                               </>
                             )
                           })()}
@@ -281,8 +332,8 @@ export function CategoriesPage({
                     </div>
                   ))}
 
-                  {/* Add category inline */}
-                  {showAddCategory === group.name ? (
+                  {/* Add category inline — not allowed in system groups */}
+                  {!group.is_system && (showAddCategory === group.name ? (
                     <div style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
                       <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCategory(group.name)} placeholder="Category name" style={{ ...inp, flex: 1 }} />
                       <button onClick={() => { setShowAddCategory(null); setInputVal('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>✕</button>
@@ -295,7 +346,7 @@ export function CategoriesPage({
                     >
                       <span style={{ fontSize: 16 }}>+</span> Add category
                     </button>
-                  )}
+                  ))}
                 </div>
               )}
             </div>

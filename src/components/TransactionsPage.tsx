@@ -8,6 +8,7 @@ import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { BottomSheet } from './BottomSheet'
 import type { AppState, Transaction, TransactionType } from '@/types'
+import { BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 type EditForm = {
   description: string
@@ -140,7 +141,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
   const accounts = state.accounts.filter(a => a.is_active)
-  const groups = ['Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer']
+  const groups = state.groups
 
   const filtered = useMemo(() => {
     let txns = [...state.transactions]
@@ -372,7 +373,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
             <div style={{ display: 'flex', gap: 8 }}>
               <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterCategory('all') }} style={{ ...inp, flex: 1 }}>
                 <option value="all">All groups</option>
-                {groups.map(g => <option key={g} value={g}>{g}</option>)}
+                {groups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
               </select>
               <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...inp, flex: 1 }}>
                 <option value="all">All categories</option>
@@ -451,8 +452,16 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                        <div style={{ font: '800 14px Plus Jakarta Sans', color: t.transaction_type === 'income' ? c.good : t.transaction_type === 'transfer' ? c.accent : c.bad }}>
-                          {t.transaction_type === 'income' ? '+' : t.transaction_type === 'transfer' ? '⇄' : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                        <div style={{ font: '800 14px Plus Jakarta Sans', color:
+                          t.transaction_type === 'income' ? c.good :
+                          t.transaction_type === 'transfer' ? c.accent :
+                          (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') ? '#6366F1' :
+                          c.bad }}>
+                          {t.transaction_type === 'income' ? '+' :
+                           t.transaction_type === 'transfer' ? '⇄' :
+                           (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
+                             ? (BORROWING_CREDIT_CATS.has(catMap[t.category_id!]?.name ?? '') ? '+' : '−')
+                             : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
                         </div>
                         <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{fmtTime(t.created_at)}</div>
                       </div>
@@ -498,12 +507,13 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     type="number"
                     inputMode="decimal"
                     value={editForm.amount}
-                    onChange={e => setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
+                    onChange={e => !editingTx?.borrowing_id && setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
                     onFocus={e => e.target.select()}
-                    style={inp}
+                    style={{ ...inp, ...(editingTx?.borrowing_id ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
                     placeholder="0"
                     min="0"
                     step="0.01"
+                    readOnly={!!editingTx?.borrowing_id}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -533,15 +543,22 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 {editForm.transaction_type !== 'transfer' && (
                   <div style={{ flex: 1 }}>
                     <Label>Category</Label>
-                    <CategorySelect
-                      value={editForm.category_id}
-                      onChange={v => setEditForm(f => f ? { ...f, category_id: v } : f)}
-                      state={state}
-                      onAddCategory={onAddCategory}
-                      style={inp}
-                      includeEmpty
-                      emptyLabel="No category"
-                    />
+                    {editingTx?.borrowing_id ? (
+                      <div style={{ ...inp, opacity: 0.5, cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>{state.categories.find(c => c.id === editForm.category_id)?.name || 'Uncategorized'}</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                      </div>
+                    ) : (
+                      <CategorySelect
+                        value={editForm.category_id}
+                        onChange={v => setEditForm(f => f ? { ...f, category_id: v } : f)}
+                        state={state}
+                        onAddCategory={onAddCategory}
+                        style={inp}
+                        includeEmpty
+                        emptyLabel="No category"
+                      />
+                    )}
                   </div>
                 )}
                 <div style={{ flex: 1 }}>

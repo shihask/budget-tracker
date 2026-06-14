@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { parseExpenseWithAI } from '@/lib/gemini'
 import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction } from '@/types'
+import { INCOME_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -26,6 +27,9 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
 
+  const isBorrowingTx = (t: Transaction) =>
+    t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment'
+
   const thisMonthTxns = state.transactions.filter(t =>
     new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense'
   )
@@ -38,7 +42,7 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
   const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + t.amount, 0)
   const budget = d.weeklyBudget
 
-  // Category breakdown this month
+  // Category breakdown this month (exclude borrowing transactions)
   const catTotalsMonth: Record<string, number> = {}
   thisMonthTxns.forEach(t => {
     const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
@@ -50,7 +54,7 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
     .map(([n, v]) => `${n}: ₹${v.toLocaleString()}`)
     .join(', ')
 
-  // Recurring pattern detection — descriptions appearing 3+ times in last 90 days
+  // Recurring pattern detection — descriptions appearing 3+ times in last 90 days (exclude borrowing)
   const ninetyDaysAgo = new Date(now)
   ninetyDaysAgo.setDate(now.getDate() - 90)
   const descCount: Record<string, { count: number; total: number }> = {}
@@ -69,22 +73,61 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
     .map(([name, v]) => `${name} (${v.count}x, avg ₹${Math.round(v.total / v.count).toLocaleString()})`)
     .join(', ')
 
-  const recent = state.transactions.slice(0, 8).map(t =>
-    `${t.transaction_date} | ${t.description} | ₹${t.amount} | ${t.transaction_type}`
-  ).join('\n')
+  const recent = state.transactions.slice(0, 8).map(t => {
+    const catName = state.categories.find(c => c.id === t.category_id)?.name
+    const typeLabel = isBorrowingTx(t)
+      ? (BORROWING_CREDIT_CATS.has(catName ?? '') ? `[${catName} — not income, balance-sheet]` : `[${catName} — not expense, balance-sheet]`)
+      : t.transaction_type
+    return `${t.transaction_date} | ${t.description} | ₹${t.amount} | ${typeLabel}`
+  }).join('\n')
+
+  // Borrowings context
+  let borrowingsBlock = ''
+  if (state.settings.track_borrowings) {
+    const lent = state.borrowings.filter(b => b.direction === 'lent' && b.remaining_amount > 0)
+    const borrowed = state.borrowings.filter(b => b.direction === 'borrowed' && b.remaining_amount > 0)
+    const totalLent = lent.reduce((s, b) => s + b.remaining_amount, 0)
+    const totalOwed = borrowed.reduce((s, b) => s + b.remaining_amount, 0)
+    const lentLines = lent.length
+      ? lent.map(b => `  • ${b.person_name}: lent ₹${b.total_amount.toLocaleString()}, still owed ₹${b.remaining_amount.toLocaleString()}`).join('\n')
+      : '  None'
+    const borrowedLines = borrowed.length
+      ? borrowed.map(b => `  • ${b.person_name}: borrowed ₹${b.total_amount.toLocaleString()}, still owe ₹${b.remaining_amount.toLocaleString()}`).join('\n')
+      : '  None'
+    borrowingsBlock = `
+=== BORROWINGS (balance-sheet, not income/expense) ===
+RULE: Never include borrowing/borrowing_repayment transactions in spending, income, savings, or free-money calculations. They are asset/liability movements.
+  • Lent Money = receivable (your asset, not an expense — you expect it back)
+  • Borrowed Money = liability (not your income — you owe it back)
+  • Lent Repayment = recovering your asset (not income)
+  • Borrow Repayment = settling your debt (not an expense)
+
+Money owed TO you (receivables):
+${lentLines}
+  Total receivable: ₹${totalLent.toLocaleString()}
+
+Money you OWE others (liabilities):
+${borrowedLines}
+  Total you owe: ₹${totalOwed.toLocaleString()}
+
+Net borrowing position: ${totalLent >= totalOwed ? `+₹${(totalLent - totalOwed).toLocaleString()} (net lender)` : `-₹${(totalOwed - totalLent).toLocaleString()} (net borrower)`}`
+  } else {
+    borrowingsBlock = '\nBorrowing tracker: disabled'
+  }
 
   return `Today: ${now.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
 Total balance: ₹${totalBalance.toLocaleString()}
 Weekly spend: ₹${d.weeklySpent.toLocaleString()} / ₹${budget.toLocaleString()} budget (${Math.round(d.weeklySpent / budget * 100)}% used)
-This month spend: ₹${monthlySpend.toLocaleString()}
-Last month spend: ₹${lastMonthSpend.toLocaleString()}
+This month spend: ₹${monthlySpend.toLocaleString()} (excludes borrowing movements)
+Last month spend: ₹${lastMonthSpend.toLocaleString()} (excludes borrowing movements)
 Emergency fund: ₹${d.emergencyFund.toLocaleString()}
 Real free money: ₹${d.realFreeMoney.toLocaleString()}
 Accounts: ${activeAccs.map(a => `${a.name} ₹${a.current_balance.toLocaleString()}`).join(', ')}
 This month by category: ${topCats || 'no data'}
 Recurring expenses (last 90 days): ${recurring || 'none detected'}
 Recent transactions:
-${recent}`
+${recent}
+${borrowingsBlock}`
 }
 
 async function chatWithAI(
@@ -215,8 +258,8 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
     const allAccNames = allAccObjs.map(a => a.name)
     const txType = guessTransactionType(text)
     const catNames = txType === 'income'
-      ? state.categories.filter(c => c.group_name === 'Income').map(c => c.name)
-      : state.categories.filter(c => c.group_name !== 'Income').map(c => c.name)
+      ? state.categories.filter(c => c.group_name === INCOME_GROUP).map(c => c.name)
+      : state.categories.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)
 
     // Only try to parse as transaction if the message contains a number (amount)
     const hasNumber = /\d/.test(text)
@@ -422,6 +465,8 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdateSettings,
               { label: 'Top category', q: "What's my top expense category this month?" },
               { label: 'Save money', q: 'Where can I cut expenses to save money?' },
               { label: 'Free money', q: "What's my real free money right now?" },
+              { label: 'Who owes me?', q: 'Who owes me money and how much in total?' },
+              { label: 'What do I owe?', q: 'Who do I owe money to and what is the total?' },
             ].map(({ label, q }) => (
               <button
                 key={q}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import type { AppState } from '@/types'
+import { BORROWING_GROUP } from '@/lib/constants'
 
 interface Props {
   value: string
@@ -11,9 +12,10 @@ interface Props {
   includeEmpty?: boolean
   emptyLabel?: string
   filterGroup?: string
+  trackBorrowings?: boolean
 }
 
-export function CategorySelect({ value, onChange, state, onAddCategory, style, includeEmpty, emptyLabel = 'No category', filterGroup }: Props) {
+export function CategorySelect({ value, onChange, state, onAddCategory, style, includeEmpty, emptyLabel = 'No category', filterGroup, trackBorrowings = true }: Props) {
   const c = useTheme()
   const [showAddModal, setShowAddModal] = useState(false)
   const [newName, setNewName] = useState('')
@@ -22,8 +24,18 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
   const [pendingId, setPendingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const groups = filterGroup ? state.groups.filter(g => g.name === filterGroup) : state.groups
-  const categories = filterGroup ? state.categories.filter(c => c.group_name === filterGroup) : state.categories
+  const isGroupVisible = (g: { name: string; is_visible?: boolean }) =>
+    g.is_visible !== false && (trackBorrowings || g.name !== BORROWING_GROUP)
+
+  const allGroups = filterGroup ? state.groups.filter(g => g.name === filterGroup) : state.groups
+  const allCategories = filterGroup ? state.categories.filter(c => c.group_name === filterGroup) : state.categories
+
+  const groups = allGroups.filter(isGroupVisible)
+  const categories = allCategories.filter(cat => {
+    if (cat.is_visible === false) return false
+    const grp = state.groups.find(g => g.name === cat.group_name)
+    return grp ? isGroupVisible(grp) : true
+  })
 
   // Wait for the new category to appear in the options, then select it
   useEffect(() => {

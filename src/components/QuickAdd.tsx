@@ -8,6 +8,7 @@ import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
 import { parseExpenseWithAI } from '@/lib/gemini'
+import { INCOME_GROUP, BORROWING_GROUP } from '@/lib/constants'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -131,11 +132,12 @@ interface QuickAddSheetProps {
   state: AppState
   onAddCategory: (name: string, group_name: string) => Promise<string>
   autopilotEnabled?: boolean
+  trackBorrowings?: boolean
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   onBusyChange?: (busy: boolean) => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, onUpdateSettings, onBusyChange }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>('expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -174,7 +176,11 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const aiJustParsed = useRef(false)
 
   const accs = state.accounts.filter(a => a.is_active)
-  const cats = state.categories
+  const isGroupVisible = (groupName: string) => {
+    const g = state.groups.find(g => g.name === groupName)
+    return g ? g.is_visible !== false && (trackBorrowings || g.name !== BORROWING_GROUP) : true
+  }
+  const cats = state.categories.filter(c => c.is_visible !== false && isGroupVisible(c.group_name))
   const catsRef = useRef(cats)
   catsRef.current = cats
 
@@ -279,7 +285,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
     if (txType === 'income') {
       setAiSuggestion(null); setCatSuggestions([])
-      const incomeCats = catsRef.current.filter(c => c.group_name === 'Income')
+      const incomeCats = catsRef.current.filter(c => c.group_name === INCOME_GROUP)
       const guessed = guessCategory(descriptionVal, incomeCats)
       if (guessed) setValue('category_id', guessed, { shouldValidate: true })
       return
@@ -323,7 +329,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
     if (autopilotEnabled) {
       setAiParsing(true); onBusyChange?.(true)
-      const catNames = catsRef.current.filter(c => c.group_name !== 'Income').map(c => c.name)
+      const catNames = catsRef.current.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)
       const accNames = allAccs.map(a => a.name)
       const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.({ ai_requests_used: n }))
       setAiParsing(false); onBusyChange?.(false)
@@ -700,7 +706,8 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                     style={inputStyle}
                     includeEmpty={txType === 'income'}
                     emptyLabel="No category"
-                    filterGroup={txType === 'income' ? 'Income' : undefined}
+                    filterGroup={txType === 'income' ? INCOME_GROUP : undefined}
+                    trackBorrowings={trackBorrowings}
                   />
                   {catSuggestions.length > 1 && (
                     <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>

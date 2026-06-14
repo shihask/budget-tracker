@@ -195,7 +195,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     )
   }
 
-  const expenseGroups = groups.filter(g => g.name !== 'Income' && g.name !== 'Transfer')
+  const expenseGroups = groups.filter(g => !g.is_system)
 
   const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: c.surface2,

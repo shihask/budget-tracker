@@ -121,7 +121,7 @@ function AppContent({ session }: { session: Session }) {
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, addCategory, updateCategory, deleteCategory, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
 
@@ -308,7 +308,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
+            <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
           </div>
 
           {/* AI Assist FAB + Chat */}
@@ -387,9 +387,11 @@ function AppContent({ session }: { session: Session }) {
               onAddGroup={addGroup}
               onUpdateGroup={updateGroup}
               onDeleteGroup={deleteGroup}
+              onToggleGroupVisibility={toggleGroupVisibility}
               onAddCategory={addCategory}
               onUpdateCategory={updateCategory}
               onDeleteCategory={deleteCategory}
+              onToggleCategoryVisibility={toggleCategoryVisibility}
             />
           )}
 
