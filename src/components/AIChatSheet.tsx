@@ -245,12 +245,17 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [chatListening, setChatListening] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dragStartY = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const chatRecognitionRef = useRef<any>(null)
   const [dragY, setDragY] = useState(0)
   const [keyboardH, setKeyboardH] = useState(0)
+  const SpeechRec = typeof window !== 'undefined'
+    ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+    : null
 
   useEffect(() => {
     const onResize = () => {
@@ -315,10 +320,34 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const send = async () => {
-    const text = input.trim()
+  const stopChatVoice = () => {
+    chatRecognitionRef.current?.stop()
+    chatRecognitionRef.current = null
+    setChatListening(false)
+  }
+
+  const startChatVoice = () => {
+    if (!SpeechRec || chatListening) return
+    const recognition = new SpeechRec()
+    recognition.lang = 'en-IN'
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+    recognition.onstart = () => setChatListening(true)
+    recognition.onend = () => setChatListening(false)
+    recognition.onerror = () => setChatListening(false)
+    recognition.onresult = (e: any) => {
+      const transcript: string = e.results[0]?.[0]?.transcript ?? ''
+      if (transcript) send(transcript)
+    }
+    chatRecognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const send = async (textOverride?: string) => {
+    const text = (textOverride ?? input).trim()
     if (!text || loading) return
-    setInput('')
+    if (!textOverride) setInput('')
     const next: Message[] = [...messages, { role: 'user', text }]
     setMessages(next)
     setLoading(true)
@@ -725,23 +754,58 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
         <div style={{
           padding: `12px 14px ${keyboardH > 0 ? '12px' : 'calc(18px + env(safe-area-inset-bottom, 0px))'}`,
           borderTop: `1px solid ${c.faint}`,
-          display: 'flex', gap: 10, alignItems: 'center', background: c.surface,
+          display: 'flex', gap: 8, alignItems: 'center', background: c.surface,
         }}>
           <input
             ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder="Ask about your finances…"
+            placeholder={chatListening ? 'Listening…' : 'Ask about your finances…'}
             enterKeyHint="send"
             style={{
-              flex: 1, border: `1.5px solid ${c.faint}`, background: c.surface2,
-              borderRadius: 22, padding: '11px 16px',
+              flex: 1, border: `1.5px solid ${chatListening ? '#EF4444' : c.faint}`,
+              background: c.surface2, borderRadius: 22, padding: '11px 16px',
               font: '500 14px Plus Jakarta Sans', color: c.ink, outline: 'none',
+              transition: 'border-color 0.2s',
             }}
           />
+          {SpeechRec && (
+            <button
+              onPointerDown={e => { e.preventDefault(); chatListening ? stopChatVoice() : startChatVoice() }}
+              aria-label={chatListening ? 'Stop recording' : 'Speak'}
+              style={{
+                width: 42, height: 42, borderRadius: 999, border: 'none',
+                background: chatListening ? '#EF4444' : c.surface2,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', flexShrink: 0,
+                boxShadow: chatListening ? '0 0 0 5px #EF444430, 0 0 0 10px #EF444415' : 'none',
+                transition: 'background 0.15s, box-shadow 0.2s',
+              }}
+            >
+              {chatListening ? (
+                <div style={{ display: 'flex', gap: 2.5, alignItems: 'center' }}>
+                  {[0, 0.14, 0.28, 0.42].map((delay, i) => (
+                    <div key={i} style={{
+                      width: 3, height: 14, borderRadius: 2, background: '#fff',
+                      transformOrigin: 'center',
+                      animation: 'voiceBar 0.7s ease-in-out infinite',
+                      animationDelay: `${delay}s`,
+                    }} />
+                  ))}
+                </div>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.sub} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="2" width="6" height="11" rx="3"/>
+                  <path d="M5 10a7 7 0 0 0 14 0"/>
+                  <line x1="12" y1="19" x2="12" y2="22"/>
+                  <line x1="8" y1="22" x2="16" y2="22"/>
+                </svg>
+              )}
+            </button>
+          )}
           <button
-            onClick={send}
+            onClick={() => send()}
             disabled={!input.trim() || loading}
             style={{
               width: 42, height: 42, borderRadius: 999, border: 'none',
