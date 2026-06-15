@@ -295,20 +295,32 @@ async function streamChat(
   const used = res.headers.get('X-Used')
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
+  let buffer = ''
+
+  const handleLine = (line: string): boolean => {
+    if (!line.startsWith('data: ')) return false
+    const data = line.slice(6).trim()
+    if (data === '[DONE]') return true
+    try {
+      const token = JSON.parse(data).choices?.[0]?.delta?.content ?? ''
+      if (token) onToken(token)
+    } catch { /* malformed line, skip */ }
+    return false
+  }
 
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    const chunk = decoder.decode(value, { stream: true })
-    for (const line of chunk.split('\n')) {
-      if (!line.startsWith('data: ')) continue
-      const data = line.slice(6).trim()
-      if (data === '[DONE]') return { used: used ? Number(used) : null }
-      try {
-        const token = JSON.parse(data).choices?.[0]?.delta?.content ?? ''
-        if (token) onToken(token)
-      } catch { /* partial chunk */ }
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? '' // keep the last, possibly-incomplete line for the next read
+    for (const line of lines) {
+      if (handleLine(line)) return { used: used ? Number(used) : null }
     }
+  }
+  // flush any trailing complete line that had no newline
+  for (const line of buffer.split('\n')) {
+    if (handleLine(line)) break
   }
   return { used: used ? Number(used) : null }
 }
