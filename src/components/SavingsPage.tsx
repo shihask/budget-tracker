@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { BottomSheet } from './BottomSheet'
+import { BottomSheet, HelpText } from './BottomSheet'
 import { CategorySelect } from './CategorySelect'
 import { SAVINGS_GROUP } from '@/lib/constants'
 import type { AppState, Savings, SavingsType, SavingsFrequency } from '@/types'
@@ -528,6 +528,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           {/* Type selector */}
           <div>
             <label style={lbl}>Type</label>
+            <HelpText>The kind of investment. Changes which fields are shown below.</HelpText>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {TYPE_ORDER.map(t => {
                 const tcfg = TYPE_CONFIG[t]
@@ -555,6 +556,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           {/* Name */}
           <div>
             <label style={lbl}>Name</label>
+            <HelpText>A recognizable name. e.g. Axis Bluechip SIP, HDFC Home RD, Gold Scheme Jan.</HelpText>
             <input value={form.name} onChange={e => set('name', e.target.value)}
               placeholder={`e.g. Axis Bluechip SIP, HDFC RD`} style={inp} autoFocus />
           </div>
@@ -562,6 +564,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           {/* Amount */}
           <div>
             <label style={lbl}>{cfg.amountLabel}</label>
+            <HelpText>How much you contribute each period.</HelpText>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
               <input
@@ -578,6 +581,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <label style={lbl}>Frequency</label>
+                <HelpText>How often you make contributions to this investment.</HelpText>
                 <select value={form.frequency} onChange={e => set('frequency', e.target.value as SavingsFrequency)} style={inp}>
                   <option value="monthly">Monthly</option>
                   <option value="weekly">Weekly</option>
@@ -587,6 +591,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
               {form.frequency === 'monthly' && (
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Contribution day</label>
+                  <HelpText>Day of the month the amount is auto-debited from your account.</HelpText>
                   <input type="number" value={form.due_day} onChange={e => set('due_day', e.target.value)}
                     placeholder="e.g. 5" min="1" max="31" style={inp} />
                 </div>
@@ -598,11 +603,13 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <label style={lbl}>{cfg.isRecurring ? 'Total months / tenure' : 'Tenure (months)'}</label>
+              <HelpText>Total duration of this plan. e.g. 5-year RD = 60 months.</HelpText>
               <input type="number" inputMode="numeric" value={form.total_installments}
                 onChange={e => set('total_installments', e.target.value)} placeholder="e.g. 60" min="1" style={inp} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={lbl}>{cfg.isRecurring ? 'Contributions so far' : 'Months elapsed'}</label>
+              <HelpText>How many contributions you have already made — used to calculate progress.</HelpText>
               <input type="number" inputMode="numeric" value={form.current_installment}
                 onChange={e => set('current_installment', e.target.value)} placeholder="0" min="0" style={inp} />
             </div>
@@ -620,6 +627,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                   : null
               })()}
             </div>
+            <HelpText>Total amount you aim to accumulate. Auto-fills from amount × months — you can override it.</HelpText>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
               <input type="number" inputMode="decimal" value={form.total_target}
@@ -634,12 +642,14 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
               {cfg.showMaturity && (
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Maturity date</label>
+                  <HelpText>When this investment matures or ends.</HelpText>
                   <input type="date" value={form.maturity_date} onChange={e => set('maturity_date', e.target.value)} style={inp} />
                 </div>
               )}
               {cfg.showInterest && (
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Interest rate (% p.a.)</label>
+                  <HelpText>Annual interest rate offered by the bank — for reference only, not used in calculations.</HelpText>
                   <input type="number" inputMode="decimal" value={form.interest_rate}
                     onChange={e => set('interest_rate', e.target.value)} placeholder="7.5" min="0" max="100" step="0.01" style={inp} />
                 </div>
@@ -651,6 +661,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           {form.type === 'chit' && (
             <div>
               <label style={lbl}>Prize status</label>
+              <HelpText>Whether you have already received the chit prize pot this cycle.</HelpText>
               <div style={{ display: 'flex', gap: 8 }}>
                 {[{ val: false, label: 'Unprized', desc: 'Still waiting for prize' }, { val: true, label: 'Prized', desc: 'Already received prize pot' }].map(opt => (
                   <button
@@ -675,6 +686,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           {form.type === 'chit' && form.is_prized && (
             <div>
               <label style={lbl}>Prize amount received</label>
+              <HelpText>The lump sum amount you received when you won the chit.</HelpText>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
                 <input type="number" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
@@ -688,6 +700,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           {cfg.showCurrentValue && (
             <div>
               <label style={lbl}>Current portfolio value (optional)</label>
+              <HelpText>Current market value from your fund app or bank statement. Used to track gains/losses.</HelpText>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
                 <input type="number" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
@@ -701,6 +714,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <label style={lbl}>Category</label>
+              <HelpText>Tag contributions as an expense category. Only relevant when recording contributions as expenses.</HelpText>
               <CategorySelect
                 value={form.category_id} onChange={v => set('category_id', v)}
                 state={state} onAddCategory={onAddCategory}
@@ -710,6 +724,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
             </div>
             <div style={{ flex: 1 }}>
               <label style={lbl}>Debit from account</label>
+              <HelpText>Which account your contributions are deducted from.</HelpText>
               <select value={form.from_account_id} onChange={e => set('from_account_id', e.target.value)} style={inp}>
                 <option value="">None</option>
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -720,6 +735,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           {/* Notes */}
           <div>
             <label style={lbl}>Notes (optional)</label>
+            <HelpText>Folio number, fund house, bank branch, or any other reference info.</HelpText>
             <input value={form.notes} onChange={e => set('notes', e.target.value)}
               placeholder="Folio no., bank, fund house…" style={inp} />
           </div>

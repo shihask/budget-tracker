@@ -366,8 +366,8 @@ export function CategoriesPage({
                     </div>
                   ))}
 
-                  {/* Add category inline — not allowed in system groups */}
-                  {!group.is_system && (showAddCategory === group.name ? (
+                  {/* Add category inline — only blocked for Borrowing system group */}
+                  {group.name !== BORROWING_GROUP && (showAddCategory === group.name ? (
                     <div style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
                       <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCategory(group.name)} placeholder="Category name" style={{ ...inp, flex: 1 }} />
                       <button onClick={() => { setShowAddCategory(null); setInputVal('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>✕</button>

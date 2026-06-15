@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CategorySelect } from './CategorySelect'
-import { BottomSheet } from './BottomSheet'
+import { BottomSheet, HelpText } from './BottomSheet'
 import { Glyph } from './Glyph'
 import type { AppState, Borrowing } from '@/types'
 
@@ -555,15 +555,18 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           </div>
           <div>
             <Label>Person name</Label>
+            <HelpText>Who you lent money to or borrowed from.</HelpText>
             <input value={form.person_name} onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))} placeholder="e.g. Noushad" style={inp} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <Label>Total amount</Label>
+              <HelpText>The full amount lent or borrowed.</HelpText>
               <input type="number" inputMode="decimal" value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
             </div>
             <div style={{ flex: 1 }}>
               <Label>{form.direction === 'lent' ? 'Repaid by them' : 'Repaid by you'}</Label>
+              <HelpText>How much has already been paid back. Set to 0 if nothing has been repaid yet.</HelpText>
               <input type="number" inputMode="decimal" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
             </div>
           </div>
@@ -578,6 +581,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           )}
           <div>
             <Label>Notes (optional)</Label>
+            <HelpText>Any context — when it happened, agreed repayment plan, etc. Optional.</HelpText>
             <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. Lent in April, repaying monthly" style={inp} />
           </div>
         </div>

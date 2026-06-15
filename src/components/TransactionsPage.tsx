@@ -6,7 +6,7 @@ import { fmt, fmtDate, fmtTime } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
-import { BottomSheet } from './BottomSheet'
+import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, Transaction, TransactionType } from '@/types'
 import { BORROWING_CREDIT_CATS } from '@/lib/constants'
 
@@ -528,6 +528,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <Label>Description</Label>
+                <HelpText>What this transaction was for.</HelpText>
                 <input
                   value={editForm.description}
                   onChange={e => setEditForm(f => f ? { ...f, description: e.target.value } : f)}
@@ -540,6 +541,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <Label>Amount</Label>
+                  <HelpText>Transaction amount in rupees.</HelpText>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -555,6 +557,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 </div>
                 <div style={{ flex: 1 }}>
                   <Label>Date</Label>
+                  <HelpText>When this transaction occurred.</HelpText>
                   <input
                     type="date"
                     value={editForm.transaction_date}
@@ -580,6 +583,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 {editForm.transaction_type !== 'transfer' && (
                   <div style={{ flex: 1 }}>
                     <Label>Category</Label>
+                    <HelpText>Used for spending analytics and reports.</HelpText>
                     {editingTx?.borrowing_id ? (
                       <div style={{ ...inp, opacity: 0.5, cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span>{state.categories.find(c => c.id === editForm.category_id)?.name || 'Uncategorized'}</span>
@@ -600,6 +604,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 )}
                 <div style={{ flex: 1 }}>
                   <Label>{editForm.transaction_type === 'transfer' ? 'From' : 'Account'}</Label>
+                  <HelpText>Which account was debited or credited.</HelpText>
                   <select
                     value={editForm.from_account_id}
                     onChange={e => setEditForm(f => f ? { ...f, from_account_id: e.target.value } : f)}

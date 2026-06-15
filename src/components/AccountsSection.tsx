@@ -4,7 +4,7 @@ import { fmt } from '@/lib/utils'
 import { ACCOUNT_PALETTE } from '@/lib/tokens'
 import { Card } from './Card'
 import { Glyph } from './Glyph'
-import { BottomSheet } from './BottomSheet'
+import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, AccountType } from '@/types'
 import type { GlyphName } from './Glyph'
 
@@ -249,12 +249,14 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Account name</label>
+                <HelpText>A recognizable name for this account. e.g. Axis Bank, SBI Savings, Cash.</HelpText>
                 <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Axis Bank" style={inp} />
               </div>
 
               <div>
                 <label style={lbl}>Type</label>
+                <HelpText>Bank: savings or current account. Cash: physical cash. Wallet: UPI wallets like PhonePe or GPay.</HelpText>
                 <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
                   {(['bank', 'cash', 'wallet'] as AccountType[]).map(t => (
                     <button key={t} type="button" onClick={() => setEditForm(f => ({ ...f, type: t }))} style={{
@@ -272,6 +274,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
 
               <div>
                 <label style={lbl}>Balance</label>
+                <HelpText>Current balance in this account right now.</HelpText>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input type="number" inputMode="decimal" value={editForm.current_balance}
@@ -298,12 +301,14 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Account name</label>
+                <HelpText>A recognizable name for this account. e.g. Axis Bank, SBI Savings, Cash.</HelpText>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Axis Bank, Cash" style={inp} />
               </div>
 
               <div>
                 <label style={lbl}>Type</label>
+                <HelpText>Bank: savings or current account. Cash: physical cash. Wallet: UPI wallets like PhonePe or GPay.</HelpText>
                 <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
                   {(['bank', 'cash', 'wallet'] as AccountType[]).map(t => (
                     <button key={t} type="button" onClick={() => setForm(f => ({ ...f, type: t }))} style={{
@@ -321,6 +326,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
 
               <div>
                 <label style={lbl}>Opening balance</label>
+                <HelpText>Current balance in this account right now.</HelpText>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input type="number" inputMode="decimal" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))}

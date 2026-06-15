@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { BottomSheet } from './BottomSheet'
+import { BottomSheet, HelpText } from './BottomSheet'
 import { goalProgressInsightWithAI } from '@/lib/gemini'
 import type { Goal, GoalType, DerivedMetrics, Settings, Transaction } from '@/types'
 
@@ -362,6 +362,7 @@ export function GoalsSection({
         {/* Name */}
         <div style={{ marginBottom: 12 }}>
           <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Goal Name</label>
+          <HelpText>What you are saving for. e.g. iPhone 16, Emergency Fund, Goa Trip.</HelpText>
           <input
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -373,6 +374,7 @@ export function GoalsSection({
         {/* Goal Amount */}
         <div style={{ marginBottom: 12 }}>
           <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Goal Amount (₹)</label>
+          <HelpText>Total amount you need to save to reach this goal.</HelpText>
           <input
             type="number" inputMode="decimal"
             value={form.goalAmount}
@@ -386,6 +388,7 @@ export function GoalsSection({
         {/* Already Saved */}
         <div style={{ marginBottom: 12 }}>
           <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Already Saved (₹) <span style={{ textTransform: 'none', fontWeight: 600 }}>— optional</span></label>
+          <HelpText>If you have already set aside money for this goal, enter it here.</HelpText>
           <input
             type="number" inputMode="decimal"
             value={form.currentSaved}
@@ -401,6 +404,7 @@ export function GoalsSection({
           <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
             Target Date <span style={{ textTransform: 'none', fontWeight: 600 }}>— optional</span>
           </label>
+          <HelpText>When you want to reach this goal. Used to calculate how much to save each month.</HelpText>
           <input
             type="date"
             value={form.targetDate}
@@ -420,6 +424,7 @@ export function GoalsSection({
           <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
             Monthly Target (₹){form.targetDate && goalAmt > 0 ? <span style={{ textTransform: 'none', fontWeight: 600, marginLeft: 4 }}>— auto-calculated</span> : null}
           </label>
+          <HelpText>How much to save each month. Auto-calculated from goal amount and target date — you can override it.</HelpText>
           <input
             type="number" inputMode="decimal"
             value={form.monthlyTarget}

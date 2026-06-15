@@ -33,6 +33,7 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `track_borrowings` | boolean | true | opt-out |
 | `autopilot_enabled` | boolean | false | AI categorization, opt-in |
 | `dashboard_sections` | json\|null | null | Section order/visibility |
+| `track_savings` | boolean | false | Savings & Investments tracker, opt-in |
 
 ## Auto-categorize in QuickAdd (three-tier)
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  

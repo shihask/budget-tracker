@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, iso, TODAY, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ProgressRing } from './ProgressRing'
-import { BottomSheet } from './BottomSheet'
+import { BottomSheet, HelpText } from './BottomSheet'
 import type { DerivedMetrics, AppState, WeeklyBudgetScope } from '@/types'
 
 interface HeroWeeklyProps {
@@ -403,6 +403,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               {/* Period selector */}
               <div>
                 <label style={lbl}>Budget period</label>
+                <HelpText>How frequently your budget resets — daily, weekly, or monthly.</HelpText>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {(['daily', 'weekly', 'monthly'] as const).map(p => (
                     <button key={p} onClick={() => setBudgetPeriod(p)} style={{
@@ -423,6 +424,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               {budgetPeriod === 'weekly' && (
                 <div>
                   <label style={lbl}>Week starts on</label>
+                  <HelpText>Which day your week begins for budget calculations.</HelpText>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {([['Mon', 1], ['Tue', 2], ['Wed', 3], ['Thu', 4], ['Fri', 5], ['Sat', 6], ['Sun', 0]] as [string, number][]).map(([label, day]) => (
                       <button key={day} onClick={() => setWeeklyStartDay(day)} style={{
@@ -443,6 +445,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               {budgetPeriod === 'monthly' && (
                 <div>
                   <label style={lbl}>Month starts on</label>
+                  <HelpText>Which date your monthly budget cycle starts.</HelpText>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <input type="number" value={monthlyStartDate} onChange={e => setMonthlyStartDate(e.target.value)}
                       placeholder="e.g. 1" min="1" max="31" style={{ ...inp, width: 100 }} />
@@ -452,6 +455,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               )}
               <div>
                 <label style={lbl}>Salary credit date (day of month)</label>
+                <HelpText>When your salary arrives each month. Helps MoneyPlant understand your financial cycle.</HelpText>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="number" value={salaryDateInput} onChange={e => setSalaryDateInput(e.target.value)}
                     placeholder="e.g. 28" min="1" max="31" style={{ ...inp, width: 100 }} />
@@ -652,6 +656,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
 
               <div>
                 <label style={lbl}>{budgetPeriod === 'daily' ? 'Daily' : budgetPeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget</label>
+                <HelpText>How much you plan to spend in this budget period.</HelpText>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input type="number" inputMode="decimal" value={budgetInput} onChange={e => setBudgetInput(e.target.value)}

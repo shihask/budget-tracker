@@ -5,7 +5,7 @@ import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
 import { catById as buildCatById } from '@/lib/data'
 import { CategorySelect } from './CategorySelect'
-import { BottomSheet } from './BottomSheet'
+import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, DerivedMetrics, Commitment } from '@/types'
 
 type Freq = 'monthly' | 'weekly' | 'yearly'
@@ -411,6 +411,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               {/* Name */}
               <div>
                 <label style={lbl}>Name</label>
+                <HelpText>What to call this bill. e.g. Rent, KSEB Bill, Home Loan EMI</HelpText>
                 <input value={form.name} onChange={e => set('name', e.target.value)}
                   placeholder="e.g. Rent, KSEB Bill, Home Loan EMI" style={inp} />
               </div>
@@ -423,18 +424,21 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 <div style={{ display: 'flex', gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>EMI Amount</label>
+                    <HelpText>The amount you pay each installment. Fill any 2 of the 3 fields — the third auto-calculates.</HelpText>
                     <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
                       value={form.amount} onChange={e => handleAmountChange(e.target.value)}
                       placeholder="₹" min="0" style={inp} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Total Months</label>
+                    <HelpText>Total duration in months. e.g. a 5-year loan = 60 months.</HelpText>
                     <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
                       value={form.total_installments} onChange={e => handleTenureChange(e.target.value)}
                       placeholder="e.g. 12" min="1" style={inp} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Total Amount</label>
+                    <HelpText>Full amount owed across all installments. Auto-fills from EMI × months.</HelpText>
                     <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
                       value={form.total_amount} onChange={e => handleTotalChange(e.target.value)}
                       placeholder="₹" min="0" style={inp} />
@@ -443,6 +447,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Paid so far (months)</label>
+                    <HelpText>Number of installments you have already paid.</HelpText>
                     <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
                       value={form.current_installment} onChange={e => set('current_installment', e.target.value)}
                       placeholder="0" min="0" style={inp} />
@@ -464,6 +469,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               {/* One-time / Recurring toggle */}
               <div>
                 <label style={lbl}>Type</label>
+                <HelpText>Recurring: repeats every month, week or year. One-time: a fixed amount you still owe.</HelpText>
                 <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, gap: 3 }}>
                   {([false, true] as const).map(v => (
                     <button
@@ -500,6 +506,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 <div style={{ display: 'flex', gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Frequency</label>
+                    <HelpText>How often this bill repeats.</HelpText>
                     <select value={form.frequency} onChange={e => set('frequency', e.target.value)} style={inp}>
                       <option value="monthly">Monthly</option>
                       <option value="weekly">Weekly</option>
@@ -509,6 +516,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                   {form.frequency === 'monthly' && (
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Due day (1–31)</label>
+                      <HelpText>Day of the month this is due — helps you track upcoming payments.</HelpText>
                       <input type="number" value={form.due_day} onChange={e => set('due_day', e.target.value)}
                         placeholder="e.g. 5" min="1" max="31" style={inp} />
                     </div>
@@ -520,6 +528,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               {!form.is_recurring && (
                 <div>
                   <label style={lbl}>Total remaining balance</label>
+                  <HelpText>How much you still owe in total for this one-time payment.</HelpText>
                   <input type="number" value={form.remaining} onChange={e => set('remaining', e.target.value)}
                     placeholder="Total amount still owed" min="0" step="0.01" style={inp} />
                 </div>
@@ -529,10 +538,12 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Category</label>
+                  <HelpText>Tag this for expense tracking and analytics. Optional.</HelpText>
                   <CategorySelect value={form.category_id} onChange={v => set('category_id', v)} state={state} onAddCategory={onAddCategory} style={inp} includeEmpty emptyLabel="None" />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Pay from account</label>
+                  <HelpText>Which account or card this bill is paid from.</HelpText>
                   <select value={form.from_account_id} onChange={e => set('from_account_id', e.target.value)} style={inp}>
                     <option value="">None</option>
                     <optgroup label="Bank / Cash">
