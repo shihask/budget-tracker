@@ -29,10 +29,17 @@ const EMPTY_FORM: CardForm = {
 }
 
 function getDaysUntil(day: number): number {
-  const today = new Date()
-  const target = new Date(today.getFullYear(), today.getMonth(), day)
-  if (target <= today) target.setMonth(target.getMonth() + 1)
-  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = new Date(now.getFullYear(), now.getMonth(), day)
+  if (target < today) target.setMonth(target.getMonth() + 1)
+  return Math.round((target.getTime() - today.getTime()) / 86400000)
+}
+
+function dayLabel(n: number): string {
+  if (n <= 0) return 'Today'
+  if (n === 1) return 'Tomorrow'
+  return `in ${n} days`
 }
 
 function getCycleSpend(card: CreditCard, transactions: AppState['transactions']): number {
@@ -258,7 +265,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                         <div style={{ flex: 1, background: c.surface, borderRadius: 10, padding: '8px 10px' }}>
                           <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Bill date</div>
                           <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{card.bill_day}th</div>
-                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>in {daysUntilBill} days</div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{dayLabel(daysUntilBill)}</div>
                         </div>
                         <div style={{ flex: 1, background: isUrgent ? c.badSoft : c.surface, borderRadius: 10, padding: '8px 10px', border: isUrgent ? `1px solid ${c.bad}40` : 'none' }}>
                           <div style={{ font: '600 10px Plus Jakarta Sans', color: isUrgent ? c.bad : c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Due date</div>
@@ -269,7 +276,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                                 <path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><circle cx="12" cy="17" r=".8" fill={c.bad}/>
                               </svg>
                             )}
-                            in {daysUntilDue} days
+                            {dayLabel(daysUntilDue)}
                           </div>
                         </div>
                         <div style={{ flex: 1, background: c.surface, borderRadius: 10, padding: '8px 10px' }}>
