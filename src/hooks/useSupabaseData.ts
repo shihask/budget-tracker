@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal } from '@/types'
-import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
+import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, Savings } from '@/types'
+import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 const delta = (type: TransactionType, amount: number) =>
   type === 'income' ? amount : -amount
@@ -15,11 +15,12 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false },
   commitments: [],
   borrowings: [],
   transactions: [],
   goals: [],
+  savings: [],
 }
 
 const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false }
@@ -54,6 +55,7 @@ const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
 
 const DEFAULT_INCOME_CATEGORIES = ['Salary', 'Freelance', 'Refund', 'Other Income']
 const BORROWING_CATEGORIES = ['Lent Money', 'Lent Repayment', 'Borrowed Money', 'Borrow Repayment']
+const SAVINGS_CATEGORIES = ['SIP', 'Gold Scheme', 'Recurring Deposit', 'Fixed Deposit', 'PPF / NPS', 'Chit Fund']
 
 export function useSupabaseData(userId: string) {
   const [state, setState] = useState<AppState>(EMPTY_STATE)
@@ -73,6 +75,7 @@ export function useSupabaseData(userId: string) {
           { data: commitments },
           { data: transactions },
           { data: goals },
+          { data: savingsRows },
         ] = await Promise.all([
           supabase.from('settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
@@ -88,6 +91,7 @@ export function useSupabaseData(userId: string) {
             .order('created_at', { ascending: false })
             .limit(200),
           supabase.from('goals').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
+          supabase.from('savings').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
         ])
 
         // First login — seed settings
@@ -220,6 +224,7 @@ export function useSupabaseData(userId: string) {
           borrowings: borrowings || [],
           transactions: (transactions as Transaction[]) || [],
           goals: (goals as Goal[]) || [],
+          savings: (savingsRows as Savings[]) || [],
         })
         setUsingSupabase(true)
       } catch (err) {
@@ -721,10 +726,121 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, goals: s.goals.map(g => g.id === id ? { ...g, current_saved: newSaved } : g) }))
   }, [])
 
+  // ── Savings CRUD ─────────────────────────────────────────────────────────────
+
+  const addSavings = useCallback(async (form: Omit<Savings, 'id' | 'created_at'>) => {
+    const { data, error } = await supabase
+      .from('savings').insert({ ...form, user_id: userId }).select('*').single()
+    if (error) throw error
+    setState(s => ({ ...s, savings: [data as Savings, ...s.savings] }))
+  }, [userId])
+
+  const updateSavings = useCallback(async (id: string, patch: Partial<Omit<Savings, 'id' | 'user_id' | 'created_at'>>) => {
+    const { data, error } = await supabase.from('savings').update(patch).eq('id', id).select('*').single()
+    if (error) throw error
+    setState(s => ({ ...s, savings: s.savings.map(sv => sv.id === id ? data as Savings : sv) }))
+  }, [])
+
+  const deleteSavings = useCallback(async (id: string) => {
+    await supabase.from('savings').delete().eq('id', id)
+    setState(s => ({ ...s, savings: s.savings.filter(sv => sv.id !== id) }))
+  }, [])
+
+  const recordContribution = useCallback(async (
+    sv: Savings,
+    recordExpense: boolean,
+    accountId: string | null
+  ) => {
+    const today = new Date().toISOString().split('T')[0]
+    const newInstallment = sv.current_installment + 1
+    const patch: Partial<Savings> = {
+      current_installment: newInstallment,
+      last_contribution_date: today,
+    }
+
+    // Mark complete if all installments done
+    if (sv.total_installments && newInstallment >= sv.total_installments) {
+      patch.is_active = false
+    }
+
+    await supabase.from('savings').update(patch).eq('id', sv.id)
+
+    if (recordExpense && accountId) {
+      // Deduct from account
+      const { data: acc } = await supabase
+        .from('accounts').select('current_balance').eq('id', accountId).single()
+      if (acc) {
+        await supabase.from('accounts')
+          .update({ current_balance: acc.current_balance - sv.amount })
+          .eq('id', accountId)
+      }
+      // Record transaction
+      const { data: newTx } = await supabase.from('transactions').insert({
+        user_id: userId,
+        transaction_date: today,
+        description: sv.name,
+        amount: sv.amount,
+        transaction_type: 'expense',
+        category_id: sv.category_id,
+        from_account_id: accountId,
+        to_account_id: null,
+        notes: 'Savings contribution',
+      }).select('*, category:categories(*)').single()
+
+      setState(s => ({
+        ...s,
+        savings: s.savings.map(item => item.id === sv.id ? { ...item, ...patch } : item),
+        accounts: s.accounts.map(a =>
+          a.id === accountId ? { ...a, current_balance: a.current_balance - sv.amount } : a
+        ),
+        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+      }))
+    } else {
+      setState(s => ({
+        ...s,
+        savings: s.savings.map(item => item.id === sv.id ? { ...item, ...patch } : item),
+      }))
+    }
+  }, [userId])
+
+  const updateSavingsValue = useCallback(async (id: string, currentValue: number) => {
+    await supabase.from('savings').update({ current_value: currentValue }).eq('id', id)
+    setState(s => ({ ...s, savings: s.savings.map(sv => sv.id === id ? { ...sv, current_value: currentValue } : sv) }))
+  }, [])
+
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {
       await supabase.from('settings').update(patch).eq('id', state.settings.id)
       setState(s => ({ ...s, settings: { ...s.settings, ...patch } }))
+
+      if (patch.track_savings === true) {
+        let newGroups = [...stateRef.current.groups]
+        let newCategories = [...stateRef.current.categories]
+
+        const existingSavingsGroup = newGroups.find(g => g.name === SAVINGS_GROUP)
+        if (!existingSavingsGroup) {
+          const { data: newGroup } = await supabase
+            .from('groups').insert({ name: SAVINGS_GROUP, user_id: userId, is_system: true }).select('*').single()
+          if (newGroup) newGroups = [...newGroups, newGroup as Group]
+        } else if (!existingSavingsGroup.is_system) {
+          await supabase.from('groups').update({ is_system: true }).eq('id', existingSavingsGroup.id)
+          newGroups = newGroups.map(g => g.id === existingSavingsGroup.id ? { ...g, is_system: true } : g)
+        }
+
+        // Skip creating categories that already exist under any group (avoids duplicates for existing users)
+        const allExistingNames = new Set(newCategories.map(c => c.name))
+        const existingSavingsNames = newCategories.filter(c => c.group_name === SAVINGS_GROUP).map(c => c.name)
+        const savingsCatsToAdd = SAVINGS_CATEGORIES.filter(n => !existingSavingsNames.includes(n) && !allExistingNames.has(n))
+        if (savingsCatsToAdd.length > 0) {
+          const { data: seededCats } = await supabase
+            .from('categories')
+            .insert(savingsCatsToAdd.map(name => ({ name, group_name: SAVINGS_GROUP, user_id: userId })))
+            .select('*')
+          if (seededCats) newCategories = [...newCategories, ...(seededCats as Category[])]
+        }
+
+        setState(s => ({ ...s, groups: newGroups, categories: newCategories }))
+      }
 
       if (patch.track_borrowings === true) {
         let newGroups = [...stateRef.current.groups]
@@ -856,5 +972,6 @@ export function useSupabaseData(userId: string) {
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
+    addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue,
   }
 }

@@ -19,9 +19,10 @@ const SECTION_META: Record<DashboardSectionId, { label: string; desc: string }> 
   hero:          { label: 'Weekly Overview',       desc: 'Spending vs budget & week summary' },
   affordability: { label: 'Affordability Checker', desc: 'Can I afford this purchase?' },
   metrics:       { label: 'Your Money',            desc: 'Balance, savings & key metrics' },
-  commitments:   { label: 'Commitments',           desc: 'Bills & recurring payments' },
+  commitments:   { label: 'Bills & Obligations',    desc: 'Bills & recurring payments' },
   goals:         { label: 'Goals',                 desc: 'Savings goals & progress tracking' },
   accounts:      { label: 'Accounts',              desc: 'Bank & cash account balances' },
+  savings:       { label: 'Savings & Investments',  desc: 'SIPs, gold schemes & recurring deposits' },
   borrowing:     { label: 'Lend & Borrow',          desc: 'Money lent & borrowed' },
   credit_cards:  { label: 'Credit Cards',          desc: 'Card balances & due dates' },
   analytics:     { label: 'Analytics',             desc: 'Spending trends & charts' },
@@ -262,6 +263,7 @@ export function DashboardLayoutPage({ sections, settings, categories, onUpdate, 
   }
 
   const featureDisabled = (id: string) => {
+    if (id === 'savings')      return !(settings.track_savings ?? false)
     if (id === 'borrowing')    return !(settings.track_borrowings ?? true)
     if (id === 'credit_cards') return !(settings.track_credit_cards ?? false)
     return false

@@ -198,7 +198,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
             </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Bills & Commitments</div>
+              <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Bills & Obligations</div>
               <button
                 onClick={() => setInfoOpen(true)}
                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}
@@ -629,7 +629,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                   <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
               </div>
-              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>Bills & Commitments</div>
+              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>Bills & Obligations</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {([

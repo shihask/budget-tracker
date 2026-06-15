@@ -93,6 +93,7 @@ export interface Settings {
   notify_budget_alert?: boolean
   notify_commitments?: boolean
   notify_weekly_summary?: boolean
+  track_savings?: boolean
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
@@ -111,6 +112,33 @@ export interface Commitment {
   last_paid_date: string | null
   total_installments: number | null
   current_installment: number | null
+}
+
+export type SavingsType = 'sip' | 'gold' | 'rd' | 'fd' | 'ppf_nps' | 'chit' | 'custom'
+export type SavingsFrequency = 'monthly' | 'weekly' | 'yearly'
+
+export interface Savings {
+  id: string
+  user_id?: string
+  name: string
+  type: SavingsType
+  amount: number                      // contribution per period (or FD principal)
+  is_recurring: boolean
+  frequency: SavingsFrequency | null
+  due_day: number | null              // day of month for recurring contribution
+  total_installments: number | null   // total months / tenure (= member count for chits)
+  current_installment: number         // contributions made so far
+  total_target: number | null         // target corpus amount
+  current_value: number               // market value / maturity value / chit prize amount
+  maturity_date: string | null        // ISO date — for FD / RD
+  interest_rate: number | null        // % p.a. — for FD / RD
+  from_account_id: string | null
+  category_id: string | null
+  last_contribution_date: string | null
+  notes: string | null
+  is_active: boolean
+  is_prized: boolean                  // chit: have you received the prize pot yet?
+  created_at?: string
 }
 
 export type GoalType = 'purchase' | 'savings' | 'event'
@@ -138,6 +166,7 @@ export interface AppState {
   borrowings: Borrowing[]
   transactions: Transaction[]
   goals: Goal[]
+  savings: Savings[]
 }
 
 export interface DerivedMetrics {
@@ -160,7 +189,7 @@ export type Layout = 'grid' | 'carousel' | 'list'
 
 export type DashboardSectionId =
   | 'hero' | 'affordability' | 'metrics' | 'commitments' | 'goals'
-  | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns'
+  | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns' | 'savings'
 
 export interface DashboardSection {
   id: string                    // built-ins use DashboardSectionId; custom sections use 'custom__<timestamp>'
@@ -177,6 +206,7 @@ export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'commitments',   visible: true },
   { id: 'goals',         visible: true },
   { id: 'accounts',      visible: true },
+  { id: 'savings',       visible: true },
   { id: 'borrowing',     visible: true },
   { id: 'credit_cards',  visible: true },
   { id: 'analytics',     visible: true },

@@ -8,7 +8,7 @@ import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
 import { parseExpenseWithAI } from '@/lib/gemini'
-import { INCOME_GROUP, BORROWING_GROUP } from '@/lib/constants'
+import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -296,8 +296,10 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       return
     }
 
+    const expenseCats = catsRef.current.filter(c => c.group_name !== INCOME_GROUP && c.group_name !== TRANSFER_GROUP)
+
     // 1. Match against actual category names
-    const nameMatches = findCategoryMatches(descriptionVal, catsRef.current)
+    const nameMatches = findCategoryMatches(descriptionVal, expenseCats)
     if (nameMatches.length === 1) {
       setValue('category_id', nameMatches[0].id, { shouldValidate: true })
       setCatSuggestions([]); setAiSuggestion(null)
@@ -311,7 +313,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
     // 2. Keyword fallback
     setCatSuggestions([])
-    const guessed = guessCategory(descriptionVal, catsRef.current)
+    const guessed = guessCategory(descriptionVal, expenseCats)
     if (guessed) setValue('category_id', guessed, { shouldValidate: true })
     setAiSuggestion(null)
   }, [descriptionVal, setValue, txType])
@@ -777,6 +779,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                     includeEmpty={txType === 'income'}
                     emptyLabel="No category"
                     filterGroup={txType === 'income' ? INCOME_GROUP : undefined}
+                    excludeGroups={txType === 'expense' ? [INCOME_GROUP, TRANSFER_GROUP] : undefined}
                     trackBorrowings={trackBorrowings}
                   />
                   {catSuggestions.length > 1 && (

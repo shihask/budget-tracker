@@ -41,7 +41,7 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
     ]
     case 'free': return [
       { label: 'Spendable balance', value: d.availableBalance },
-      { label: 'Bills & commitments', value: -d.remainingCommitments, muted: true },
+      { label: 'Bills & obligations', value: -d.remainingCommitments, muted: true },
       { separator: true },
       { label: 'Real free money', value: d.realFreeMoney },
     ]
@@ -93,9 +93,9 @@ function buildMetrics(d: DerivedMetrics): Metric[] {
   return [
     { key: 'actual',  label: 'Actual Balance',      value: d.actualBalance,       hint: 'All active accounts',       tone: 'ink',    icon: 'wallet' },
     { key: 'avail',   label: 'Spendable Balance',   value: d.availableBalance,    hint: 'Emergency fund protected',  tone: 'accent', icon: 'shield' },
-    { key: 'free',    label: 'Real Free Money',     value: d.realFreeMoney,       hint: 'After bills & commitments', tone: 'good',   icon: 'spark'  },
+    { key: 'free',    label: 'Real Free Money',     value: d.realFreeMoney,       hint: 'After bills & obligations', tone: 'good',   icon: 'spark'  },
     { key: 'emerg',   label: 'Emergency Fund',      value: d.emergencyFund,       hint: 'Reserved',                  tone: 'warn',   icon: 'lock'   },
-    { key: 'commit',  label: 'Bills & Commitments', value: d.remainingCommitments, hint: 'Still owed this cycle',    tone: 'bad',    icon: 'doc'    },
+    { key: 'commit',  label: 'Bills & Obligations', value: d.remainingCommitments, hint: 'Still owed this cycle',    tone: 'bad',    icon: 'doc'    },
   ]
 }
 
@@ -244,7 +244,7 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"/></svg>,
                   title: 'Real Free Money',
-                  desc: 'Spendable balance after deducting all unpaid bills and commitments. This is what you can truly spend freely.',
+                  desc: 'Spendable balance after deducting all unpaid bills and obligations. This is what you can truly spend freely.',
                 },
               ] as const).map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>

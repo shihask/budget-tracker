@@ -19,6 +19,8 @@ import { AccountsSection } from '@/components/AccountsSection'
 import { CommitmentsSection } from '@/components/CommitmentsSection'
 import { BorrowingSection } from '@/components/BorrowingSection'
 import { BorrowingPage } from '@/components/BorrowingPage'
+import { SavingsSection } from '@/components/SavingsSection'
+import { SavingsPage } from '@/components/SavingsPage'
 import { CustomGroupSection, RecentTxns } from '@/components/Sections'
 import { FAB, QuickAddSheet } from '@/components/QuickAdd'
 import { SettingsPanel } from '@/components/SettingsPanel'
@@ -111,6 +113,8 @@ function AppContent({ session }: { session: Session }) {
   const [txnsOpen, setTxnsOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
   const [borrowingAddOnOpen, setBorrowingAddOnOpen] = useState(false)
+  const [savingsOpen, setSavingsOpen] = useState(false)
+  const [savingsAddOnOpen, setSavingsAddOnOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
@@ -123,7 +127,7 @@ function AppContent({ session }: { session: Session }) {
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
 
@@ -243,6 +247,9 @@ function AppContent({ session }: { session: Session }) {
                       break
                     case 'commitments':
                       el = <CommitmentsSection state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />
+                      break
+                    case 'savings':
+                      el = (state.settings.track_savings ?? false) ? <SavingsSection state={state} onSeeAll={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onAdd={() => { setSavingsAddOnOpen(true); setSavingsOpen(true) }} /> : null
                       break
                     case 'borrowing':
                       el = (state.settings.track_borrowings ?? true) ? <BorrowingSection state={state} onSeeAll={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} onAdd={() => { setBorrowingAddOnOpen(true); setBorrowingOpen(true) }} /> : null
@@ -384,6 +391,19 @@ function AppContent({ session }: { session: Session }) {
             <BorrowingPage state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} onClose={() => setBorrowingOpen(false)} initialAddOpen={borrowingAddOnOpen} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />
           )}
 
+          <SavingsPage
+            open={savingsOpen}
+            state={state}
+            onClose={() => { setSavingsOpen(false); setSavingsAddOnOpen(false) }}
+            onAdd={addSavings}
+            onUpdate={updateSavings}
+            onDelete={deleteSavings}
+            onRecordContribution={recordContribution}
+            onUpdateValue={updateSavingsValue}
+            onAddCategory={addCategory}
+            startAdd={savingsAddOnOpen}
+          />
+
           {catsOpen && (
             <CategoriesPage
               state={state}
@@ -422,6 +442,7 @@ function AppContent({ session }: { session: Session }) {
               salaryDate={state.settings.salary_date}
               trackCreditCards={state.settings.track_credit_cards ?? false}
               trackBorrowings={state.settings.track_borrowings ?? true}
+              trackSavings={state.settings.track_savings ?? false}
               autopilotEnabled={state.settings.autopilot_enabled ?? false}
               aiRequestsUsed={state.settings.ai_requests_used ?? 0}
               aiRequestsResetAt={state.settings.ai_requests_reset_at ?? null}
@@ -434,6 +455,7 @@ function AppContent({ session }: { session: Session }) {
               onSalaryDate={v => updateSettings({ salary_date: v })}
               onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
               onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
+              onTrackSavings={v => updateSettings({ track_savings: v })}
               onAutopilot={v => updateSettings({ autopilot_enabled: v })}
               onNotificationsEnabled={v => updateSettings({ notifications_enabled: v })}
               onNotifyDailyReminder={v => updateSettings({ notify_daily_reminder: v })}

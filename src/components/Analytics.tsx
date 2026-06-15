@@ -124,7 +124,7 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
             </div>
             <div style={{ marginTop: 16, padding: '12px', background: c.surface2, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
-                Only <strong style={{ color: c.ink }}>Lifestyle</strong> category expenses are counted here — bills and commitments are excluded.
+                Only <strong style={{ color: c.ink }}>Lifestyle</strong> category expenses are counted here — bills and obligations are excluded.
               </div>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
                 <strong style={{ color: c.ink }}>Transfers</strong> between accounts are excluded — they move money, not spend it.

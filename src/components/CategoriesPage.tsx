@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { BORROWING_GROUP } from '@/lib/constants'
+import { supabase } from '@/lib/supabase'
 import type { AppState, Group, Category } from '@/types'
 
 
@@ -73,6 +75,7 @@ export function CategoriesPage({
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [editingCategoryGroup, setEditingCategoryGroup] = useState<string>('')
   const [showAddGroup, setShowAddGroup] = useState(false)
   const [showAddCategory, setShowAddCategory] = useState<string | null>(null) // group_name
   const [inputVal, setInputVal] = useState('')
@@ -147,17 +150,33 @@ export function CategoriesPage({
   const handleUpdateCategory = async () => {
     if (!editingCategory || !inputVal.trim()) return
     setSaving(true)
-    await onUpdateCategory(editingCategory.id, inputVal.trim(), editingCategory.group_name)
-    setEditingCategory(null); setInputVal(''); setSaving(false)
+    await onUpdateCategory(editingCategory.id, inputVal.trim(), editingCategoryGroup || editingCategory.group_name)
+    setEditingCategory(null); setInputVal(''); setEditingCategoryGroup(''); setSaving(false)
   }
 
   // ── Delete Category ──────────────────────────────────────────────────────────
   const handleDeleteCategory = async (cat: Category) => {
-    const txnCount = state.transactions.filter(t => t.category_id === cat.id).length
-    if (txnCount > 0) {
+    setSaving(true)
+
+    // Query actual transaction count from DB (state only holds last 200)
+    const { count: txnCount } = await supabase
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('category_id', cat.id)
+
+    setSaving(false)
+
+    if (txnCount && txnCount > 0) {
       setCatInUse({ cat, txnCount })
       return
     }
+
+    const commitmentCount = state.commitments.filter(c => c.category_id === cat.id).length
+    if (commitmentCount > 0) {
+      alert(`Cannot delete "${cat.name}" — ${commitmentCount} commitment${commitmentCount > 1 ? 's' : ''} use this category. Reassign them first.`)
+      return
+    }
+
     if (!confirm(`Delete category "${cat.name}"?`)) return
     setSaving(true)
     await onDeleteCategory(cat.id)
@@ -276,17 +295,33 @@ export function CategoriesPage({
                   {cats.map(cat => (
                     <div key={cat.id}>
                       {editingCategory?.id === cat.id ? (
-                        <div style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUpdateCategory()} style={{ ...inp, flex: 1 }} />
-                          <button onClick={() => { setEditingCategory(null); setInputVal('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap' }}>✕</button>
-                          <button onClick={handleUpdateCategory} disabled={saving} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap', opacity: saving ? 0.6 : 1 }}>Save</button>
+                        <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUpdateCategory()} style={{ ...inp, flex: 1 }} autoFocus />
+                            <button onClick={() => { setEditingCategory(null); setInputVal(''); setEditingCategoryGroup('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap' }}>✕</button>
+                            <button onClick={handleUpdateCategory} disabled={saving} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap', opacity: saving ? 0.6 : 1 }}>Save</button>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, whiteSpace: 'nowrap' }}>Move to group:</span>
+                            <select
+                              value={editingCategoryGroup}
+                              onChange={e => setEditingCategoryGroup(e.target.value)}
+                              style={{ ...inp, flex: 1, padding: '6px 10px', font: '600 12px Plus Jakarta Sans' }}
+                            >
+                              {groups.map(g => (
+                                <option key={g.id} value={g.name}>{g.name}{g.name === cat.group_name ? ' (current)' : ''}</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px 10px 42px', borderBottom: `1px solid ${c.faint}` }}>
                           <span style={{ flex: 1, font: '600 13px Plus Jakarta Sans', color: c.ink }}>{cat.name}</span>
                           {(() => {
                             const parentGroup = groups.find(g => g.name === cat.group_name)
-                            const isProtectedCat = parentGroup?.is_system === true
+                            // Only lock borrowing group categories — they're used in internal code logic.
+                            // Other system groups (Savings, Income, Transfer) allow category management.
+                            const isProtectedCat = cat.group_name === BORROWING_GROUP
                             return (
                               <>
                                 {/* Edit category — locked for system categories */}
@@ -295,7 +330,7 @@ export function CategoriesPage({
                                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                                   </div>
                                 ) : (
-                                  <button onClick={() => { setEditingCategory(cat); setInputVal(cat.name); setShowAddCategory(null) }}
+                                  <button onClick={() => { setEditingCategory(cat); setInputVal(cat.name); setEditingCategoryGroup(cat.group_name); setShowAddCategory(null) }}
                                     style={{ width: 28, height: 28, borderRadius: 8, background: c.surface2, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                   </button>

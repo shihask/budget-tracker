@@ -4,7 +4,7 @@ import { FeatureOnboarding } from './FeatureOnboarding'
 import type { Settings } from '@/types'
 
 type AccountType = 'bank' | 'cash' | 'wallet'
-type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'autopilot_enabled' | 'notifications_enabled'
+type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'autopilot_enabled' | 'notifications_enabled'
 
 interface AccountDraft {
   name: string

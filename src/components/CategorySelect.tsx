@@ -12,10 +12,11 @@ interface Props {
   includeEmpty?: boolean
   emptyLabel?: string
   filterGroup?: string
+  excludeGroups?: string[]
   trackBorrowings?: boolean
 }
 
-export function CategorySelect({ value, onChange, state, onAddCategory, style, includeEmpty, emptyLabel = 'No category', filterGroup, trackBorrowings = true }: Props) {
+export function CategorySelect({ value, onChange, state, onAddCategory, style, includeEmpty, emptyLabel = 'No category', filterGroup, excludeGroups, trackBorrowings = true }: Props) {
   const c = useTheme()
   const [showAddModal, setShowAddModal] = useState(false)
   const [newName, setNewName] = useState('')
@@ -27,8 +28,16 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
   const isGroupVisible = (g: { name: string; is_visible?: boolean }) =>
     g.is_visible !== false && (trackBorrowings || g.name !== BORROWING_GROUP)
 
-  const allGroups = filterGroup ? state.groups.filter(g => g.name === filterGroup) : state.groups
-  const allCategories = filterGroup ? state.categories.filter(c => c.group_name === filterGroup) : state.categories
+  const allGroups = filterGroup
+    ? state.groups.filter(g => g.name === filterGroup)
+    : excludeGroups
+      ? state.groups.filter(g => !excludeGroups.includes(g.name))
+      : state.groups
+  const allCategories = filterGroup
+    ? state.categories.filter(c => c.group_name === filterGroup)
+    : excludeGroups
+      ? state.categories.filter(c => !excludeGroups.includes(c.group_name))
+      : state.categories
 
   const groups = allGroups.filter(isGroupVisible)
   const categories = allCategories.filter(cat => {
