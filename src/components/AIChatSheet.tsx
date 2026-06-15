@@ -32,6 +32,10 @@ const FINANCE_QUERY_WORDS = [
   'budget', 'balance', 'category', 'categories',
   'transaction', 'transactions', 'summary', 'report',
   'analytics', 'compare', 'remaining', 'total', 'monthly', 'weekly',
+  'saving', 'savings', 'investment', 'investments', 'invest',
+  'sip', 'mutual fund', 'fd', 'fixed deposit', 'rd', 'recurring deposit',
+  'gold', 'ppf', 'nps', 'chit', 'kuri', 'portfolio', 'contribution',
+  'maturity', 'prized', 'corpus',
 ]
 
 function classifyIntent(text: string): 'question' | 'edit' | 'delete' | 'transaction' {
@@ -166,13 +170,31 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
 
   const activeCommitments = (state.commitments ?? []).filter(c => c.is_active)
   const commitmentsLine = activeCommitments.length > 0
-    ? `\nCommitments(monthly obligations): ${activeCommitments.map(c => {
+    ? `\nBillsAndObligations: ${activeCommitments.map(c => {
         const paid = c.remaining < c.amount
         const dueStr = c.due_day ? ` due-day:${c.due_day}` : ''
         const status = paid ? 'paid' : 'unpaid'
         return `${c.name} ₹${c.amount.toLocaleString()}${dueStr} [${status}]`
       }).join(' | ')} | remaining-unpaid: ₹${d.remainingCommitments.toLocaleString()}`
     : ''
+
+  const activeSavings = (state.savings ?? []).filter(s => s.is_active)
+  let savingsLine = ''
+  if (activeSavings.length > 0) {
+    const totalMonthly = activeSavings.filter(s => s.is_recurring && s.frequency === 'monthly').reduce((a, s) => a + s.amount, 0)
+    const totalContributed = activeSavings.reduce((a, s) => a + s.current_installment * s.amount, 0)
+    const totalPortfolio = activeSavings.filter(s => s.current_value > 0).reduce((a, s) => a + s.current_value, 0)
+    const items = activeSavings.map(s => {
+      const contributed = s.current_installment * s.amount
+      const progress = s.total_installments ? `${s.current_installment}/${s.total_installments}` : `${s.current_installment} done`
+      const valueStr = s.current_value > 0 ? ` current-value:₹${s.current_value.toLocaleString()}` : ''
+      const prizedStr = s.type === 'chit' ? ` [${s.is_prized ? 'prized' : 'unprized'}]` : ''
+      const dueStr = s.due_day ? ` due-day:${s.due_day}` : ''
+      return `${s.name}(${s.type}) ₹${s.amount.toLocaleString()}/${s.frequency ?? 'one-time'} contributed:₹${contributed.toLocaleString()} [${progress}]${valueStr}${prizedStr}${dueStr}`
+    }).join(' | ')
+    const portfolioStr = totalPortfolio > 0 ? ` | portfolio-value:₹${totalPortfolio.toLocaleString()}` : ''
+    savingsLine = `\nSavingsAndInvestments: monthly-commitment:₹${totalMonthly.toLocaleString()} total-contributed:₹${totalContributed.toLocaleString()}${portfolioStr} | ${items}`
+  }
 
   return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
 Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}${ccLine}
@@ -182,7 +204,7 @@ Today(${localDateStr}): total ₹${todaySpend.toLocaleString()} | ${todayStr}
 Categories(month): ${topCats || 'no data'}
 Recurring(90d): ${recurring || 'none'}
 Recent:
-${recent}${borrowingsLine}${goalsLine}${commitmentsLine}`
+${recent}${borrowingsLine}${goalsLine}${commitmentsLine}${savingsLine}`
 }
 
 type ParsedEdit =
@@ -858,6 +880,8 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
               { label: 'Top category', q: "What's my top expense category this month?" },
               { label: 'Save money', q: 'Where can I cut expenses to save money?' },
               { label: 'Free money', q: "What's my real free money right now?" },
+              { label: 'My investments', q: 'Show me a summary of my savings and investments' },
+              { label: 'Monthly savings', q: 'How much am I saving and investing every month?' },
               { label: 'Who owes me?', q: 'Who owes me money and how much in total?' },
               { label: 'What do I owe?', q: 'Who do I owe money to and what is the total?' },
             ].map(({ label, q }) => (
