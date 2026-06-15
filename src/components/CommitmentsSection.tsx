@@ -165,7 +165,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this commitment?')) return
+    if (!confirm('Delete this bill / obligation?')) return
     setDeleting(id)
     try { await onDelete(id) } catch (_) {}
     setDeleting(null)
@@ -209,7 +209,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               </button>
             </div>
             <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-              Total: {fmt(d.remainingCommitments)}
+              {fmt(d.remainingCommitments)} unpaid
             </div>
           </div>
           </div>
@@ -225,7 +225,9 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
 
         {active.length === 0 ? (
           <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '8px 0' }}>
-            No commitments yet. Tap + to add one.
+            No bills or obligations added yet.{' '}
+            <span onClick={openAdd} style={{ color: c.accent, cursor: 'pointer' }}>Add one</span>
+            {' '}— rent, electricity, loan EMIs, subscriptions and any recurring payment.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -398,8 +400,11 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
 
       {/* Add / Edit Sheet */}
       <BottomSheet open={sheetOpen} onClose={closeSheet}>
-            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>
-              {editingId ? 'Edit Commitment' : 'Add Commitment'}
+            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>
+              {editingId ? 'Edit Bill / Obligation' : 'Add Bill / Obligation'}
+            </div>
+            <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16, lineHeight: 1.5 }}>
+              Rent, electricity, loan EMIs, subscriptions — anything you owe on a schedule.
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -407,7 +412,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
               <div>
                 <label style={lbl}>Name</label>
                 <input value={form.name} onChange={e => set('name', e.target.value)}
-                  placeholder="e.g. SIP, Kuri, Loan EMI" style={inp} />
+                  placeholder="e.g. Rent, KSEB Bill, Home Loan EMI" style={inp} />
               </div>
 
               {/* Loan calculator fields */}
@@ -554,7 +559,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans',
                 cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
               }}>
-                {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Commitment'}
+                {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Bill / Obligation'}
               </button>
             </div>
       </BottomSheet>
@@ -636,17 +641,17 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15"/></svg>,
                   title: 'Recurring bills',
-                  desc: 'Electricity, internet, rent, subscriptions — anything that repeats monthly, weekly or yearly.',
+                  desc: 'Electricity, internet, rent, mobile recharge, subscriptions — anything that repeats monthly, weekly or yearly.',
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2h-2"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>,
                   title: 'One-time payments',
-                  desc: 'A single large payment you still owe — insurance, annual fees, upcoming dues.',
+                  desc: 'A single payment you still owe — insurance premium, annual fees, hospital bill, any upcoming due.',
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><rect x="2" y="10" width="20" height="12" rx="1"/><path d="M12 2L2 10h20L12 2z"/><line x1="9" y1="15" x2="9" y2="22"/><line x1="15" y1="15" x2="15" y2="22"/></svg>,
-                  title: 'Loan EMIs & SIPs',
-                  desc: 'Track installments with total amount, tenure and paid count. Auto-calculates remaining.',
+                  title: 'Loan EMIs',
+                  desc: 'Home loan, car loan, personal loan — enter EMI amount, tenure and how many you\'ve paid. Remaining is auto-calculated.',
                 },
               ] as const).map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -662,7 +667,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
             </div>
             <div style={{ marginTop: 16, padding: '12px', background: c.surface2, borderRadius: 12 }}>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
-                The total unpaid amount here is deducted from your <strong style={{ color: c.ink }}>Spendable Balance</strong> to give you your <strong style={{ color: c.ink }}>Real Free Money</strong>.
+                Unpaid amounts here are deducted from your <strong style={{ color: c.ink }}>Spendable Balance</strong> to show your <strong style={{ color: c.ink }}>Real Free Money</strong>. For SIPs, chit funds and investments, use the <strong style={{ color: c.ink }}>Savings & Investments</strong> section.
               </div>
             </div>
             <button
