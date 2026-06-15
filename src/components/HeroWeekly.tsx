@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, iso, TODAY, getWeekStart, getMonthStart } from '@/lib/utils'
+import { fmt, iso, TODAY, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ProgressRing } from './ProgressRing'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { DerivedMetrics, AppState, WeeklyBudgetScope } from '@/types'
@@ -206,6 +206,23 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     )
   }
 
+  const streak = useMemo(() => {
+    if (transactions.length === 0) return 0
+    const dates = new Set(transactions.map(t => t.transaction_date.slice(0, 10)))
+    const todayStr = iso(TODAY)
+    const yesterStr = iso(addDays(TODAY, -1))
+    const startStr = dates.has(todayStr) ? todayStr : dates.has(yesterStr) ? yesterStr : null
+    if (!startStr) return 0
+    let count = 0
+    let check = new Date(startStr)
+    while (dates.has(iso(check))) {
+      count++
+      check = addDays(check, -1)
+      if (count > 366) break
+    }
+    return count
+  }, [transactions])
+
   const expenseGroups = groups.filter(g => !g.is_system)
 
   const inp: React.CSSProperties = {
@@ -250,9 +267,19 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             <div style={{ font: '800 40px Plus Jakarta Sans', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 6 }}>
               {fmt(d.weeklyRemaining)}
             </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: '#fff' }} />
-              <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{status.t}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: '#fff' }} />
+                <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{status.t}</span>
+              </div>
+              {streak >= 2 && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(255,255,255,0.9)" stroke="none">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{streak}-day streak</span>
+                </div>
+              )}
             </div>
           </div>
 

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import type { AppState, DerivedMetrics } from '@/types'
 
-type Insight = { text: string; type: 'warning' | 'positive' | 'info' }
+type Insight = { text: string; type: 'warning' | 'positive' | 'info' | 'celebrate' }
 
 function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
   const now = new Date()
@@ -80,7 +80,26 @@ function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
     }
   }
 
-  // 4. Top category this month (fallback)
+  // 4. Tracking discipline — celebrate consistent logging when on track
+  const txCount = thisMonth.length
+  const daysTracked = new Set(thisMonth.map(t => t.transaction_date.slice(0, 10))).size
+  const onTrack = weekPct <= weekProgress * 1.15
+  if (txCount >= 6 && daysTracked >= 4 && onTrack) {
+    const dayOfMonth = now.getDate()
+    const isEndOfMonth = dayOfMonth >= 25
+    if (isEndOfMonth) {
+      return {
+        text: `Strong month! You logged ${txCount} transactions across ${daysTracked} days. That kind of consistency is how you stay in control.`,
+        type: 'celebrate',
+      }
+    }
+    return {
+      text: `${txCount} transactions logged across ${daysTracked} days this month — great tracking discipline.`,
+      type: 'celebrate',
+    }
+  }
+
+  // 5. Top category this month (neutral fallback)
   const catTotals: Record<string, number> = {}
   thisMonth.forEach(t => {
     const n = catName(t.category_id)
@@ -133,6 +152,15 @@ export function InsightCard({ state, d }: InsightCardProps) {
       icon: (
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      ),
+    },
+    celebrate: {
+      border: c.good,
+      bg: c.goodSoft,
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill={c.good} stroke="none">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
       ),
     },

@@ -88,9 +88,21 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
     const dt = new Date(t.transaction_date)
     return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense'
   })
+  const thisMonthIncomeTxns = state.transactions.filter(t =>
+    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income'
+  )
+  const thisMonthTransferTxns = state.transactions.filter(t =>
+    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'transfer'
+  )
 
   const monthlySpend = thisMonthTxns.reduce((s, t) => s + t.amount, 0)
   const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + t.amount, 0)
+  const thisMonthIncome = thisMonthIncomeTxns.reduce((s, t) => s + t.amount, 0)
+  const thisMonthTransfers = thisMonthTransferTxns.reduce((s, t) => s + t.amount, 0)
+  // Approximate what balance was at start of month (before this month's income/spend)
+  const monthStartBalance = Math.round(totalBalance + monthlySpend - thisMonthIncome)
+  const trackingDaysThisMonth = new Set(thisMonthTxns.map(t => t.transaction_date)).size
+  const trackingCountThisMonth = thisMonthTxns.length
   const budget = d.weeklyBudget
 
   // Category breakdown this month (exclude borrowing transactions)
@@ -196,10 +208,15 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
     savingsLine = `\nSavingsAndInvestments: monthly-commitment:₹${totalMonthly.toLocaleString()} total-contributed:₹${totalContributed.toLocaleString()}${portfolioStr} | ${items}`
   }
 
-  return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
+  const transfersLine = thisMonthTransfers > 0
+    ? ` | transfers-this-month:₹${thisMonthTransfers.toLocaleString()} (internal moves, not spending)`
+    : ''
+
+  return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
 Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}${ccLine}
 Budget: weekly ₹${budget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${Math.round(d.weeklySpent / budget * 100)}% used)
-Spend: this-month ₹${monthlySpend.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}
+Spend: this-month ₹${monthlySpend.toLocaleString()} | income-this-month ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transfersLine}
+Tracking: ${trackingCountThisMonth} transactions logged across ${trackingDaysThisMonth} days this month
 Today(${localDateStr}): total ₹${todaySpend.toLocaleString()} | ${todayStr}
 Categories(month): ${topCats || 'no data'}
 Recurring(90d): ${recurring || 'none'}
@@ -397,16 +414,13 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
         const weeklySpent = d.weeklySpent
         const pct = weeklyBudget > 0 ? Math.round((weeklySpent / weeklyBudget) * 100) : 0
 
-        let greeting = 'Hey! Ask me anything about your finances.'
-        let isWarning = false
+        let greeting = "Hey! I'm Mint, your finance coach. Ask me anything — or tap a suggestion below to get started."
         if (pct >= 100) {
-          greeting = `You've exceeded your weekly budget! Spent ₹${weeklySpent.toLocaleString()} of ₹${weeklyBudget.toLocaleString()} (${pct}%). Ask me how to manage the rest of the week.`
-          isWarning = true
+          greeting = `You've used ${pct}% of your weekly budget this week. That happens — let's look at what drove it and find a way forward. Try "help me recover my budget" or ask me anything.`
         } else if (pct >= 80) {
-          greeting = `Heads up! You've used ${pct}% of your weekly budget (₹${weeklySpent.toLocaleString()} of ₹${weeklyBudget.toLocaleString()}). Spend carefully this week.`
-          isWarning = true
+          greeting = `You've used ${pct}% of your weekly budget. You're still in control — ask me where you can ease up, or anything else about your finances.`
         }
-        setMessages([{ role: 'ai', text: greeting, warning: isWarning }])
+        setMessages([{ role: 'ai', text: greeting }])
       }
       setTimeout(() => inputRef.current?.focus(), 300)
       // iOS-safe scroll lock: pinning the body with position:fixed actually stops
@@ -874,16 +888,16 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
         {messages.length <= 1 && (
           <div style={{ padding: '8px 14px 4px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
-              { label: 'Monthly summary', q: 'Give me a summary of my spending this month' },
-              { label: 'Recurring expenses', q: 'What are my recurring expenses and how much do they cost monthly?' },
-              { label: 'Am I on budget?', q: 'Am I on budget this week?' },
-              { label: 'Top category', q: "What's my top expense category this month?" },
-              { label: 'Save money', q: 'Where can I cut expenses to save money?' },
-              { label: 'Free money', q: "What's my real free money right now?" },
-              { label: 'My investments', q: 'Show me a summary of my savings and investments' },
-              { label: 'Monthly savings', q: 'How much am I saving and investing every month?' },
-              { label: 'Who owes me?', q: 'Who owes me money and how much in total?' },
-              { label: 'What do I owe?', q: 'Who do I owe money to and what is the total?' },
+              { label: 'Why is balance low?', q: 'My balance feels low this month. Help me understand what happened — what was real spending vs transfers vs money I lent out?' },
+              { label: 'My financial story', q: "Give me my financial story this month — where did my money go, what's recoverable, and how am I actually doing?" },
+              { label: 'Quick savings wins', q: 'Based on my actual spending, what are 3 quick ways I can save money this week without feeling it too much?' },
+              { label: 'Budget recovery', q: "I've been over my weekly budget. Give me a realistic recovery plan with specific steps." },
+              { label: 'Monthly summary', q: 'Give me a full summary of my spending this month — categories, totals, and how I compare to last month.' },
+              { label: 'Am I on track?', q: 'Am I really overspending, or does it just feel that way? Give me an honest assessment.' },
+              { label: 'Save ₹5,000', q: 'Create a personalized plan for me to save ₹5,000 in the next 3 months based on my actual spending.' },
+              { label: 'Free money', q: "What's my real free money right now after emergency fund and bills?" },
+              { label: 'Who owes me?', q: 'Who owes me money and how much in total? When might I get it back?' },
+              { label: 'My investments', q: 'Show me a summary of my savings and investments and how they are progressing.' },
             ].map(({ label, q }) => (
               <button
                 key={q}
