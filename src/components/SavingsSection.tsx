@@ -20,7 +20,7 @@ export function SavingsSection({ state, onSeeAll, onAdd }: Props) {
     .filter(s => s.is_recurring && s.frequency === 'monthly')
     .reduce((sum, s) => sum + s.amount, 0)
 
-  const totalContributed = active.reduce((sum, s) => sum + s.current_installment * s.amount, 0)
+  const totalContributed = active.filter(s => !s.is_prized).reduce((sum, s) => sum + s.current_installment * s.amount, 0)
 
   const totalCurrentValue = active.reduce((sum, s) => sum + (s.current_value || 0), 0)
 

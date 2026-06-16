@@ -313,7 +313,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
   // ── Derived stats for active savings ─────────────────────────────────────────
   const totalMonthly   = active.filter(s => s.is_recurring && s.frequency === 'monthly').reduce((a, s) => a + s.amount, 0)
-  const totalContrib   = active.reduce((a, s) => a + s.current_installment * s.amount, 0)
+  const totalContrib   = active.filter(s => !s.is_prized).reduce((a, s) => a + s.current_installment * s.amount, 0)
   const totalPortfolio = active.reduce((a, s) => a + (s.current_value || 0), 0)
 
   return (

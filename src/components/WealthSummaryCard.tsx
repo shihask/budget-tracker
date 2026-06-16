@@ -16,7 +16,7 @@ export function WealthSummaryCard({ state, onGoToSavings, onGoToBorrowing }: Pro
   const trackBorrowing = state.settings.track_borrowings ?? true
 
   const totalInvested = trackSavings
-    ? state.savings.filter(s => s.is_active).reduce((sum, s) => sum + s.current_installment * s.amount, 0)
+    ? state.savings.filter(s => s.is_active && !s.is_prized).reduce((sum, s) => sum + s.current_installment * s.amount, 0)
     : 0
 
   const totalLent = trackBorrowing
