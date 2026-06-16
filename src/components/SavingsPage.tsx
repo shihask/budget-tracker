@@ -244,6 +244,8 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
   }, [])
 
   const triggerClose = () => {
+    setDragX(0)
+    dragXRef.current = 0
     setClosing(true)
     setTimeout(() => { onClose(); setClosing(false); setEntryPlayed(false) }, 290)
   }
