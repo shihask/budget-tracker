@@ -446,10 +446,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               const col = (cat && CAT_COLORS[cat.name]) || c.muted
               const acc = state.accounts.find(a => a.id === t.from_account_id)
               const creditCard = !acc ? (state.credit_cards || []).find(cc => cc.id === t.from_account_id || cc.id === (t as any).credit_card_id) : null
-              const toAcc = t.transaction_type === 'transfer' && t.to_account_id ? state.accounts.find(a => a.id === t.to_account_id) : null
-              const accLabel = toAcc
+              const toAcc = (t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal') && t.to_account_id ? state.accounts.find(a => a.id === t.to_account_id) : null
+              const displayAcc = t.transaction_type === 'savings_withdrawal' ? toAcc : acc
+              const accLabel = t.transaction_type === 'transfer' && toAcc
                 ? `${acc?.name || '?'} → ${toAcc.name}`
-                : acc ? acc.name : creditCard ? creditCard.name : ''
+                : displayAcc ? displayAcc.name : acc ? acc.name : creditCard ? creditCard.name : ''
               const accIdx = acc ? state.accounts.findIndex(a => a.id === acc.id) : -1
               const accColor = acc ? ACCOUNT_PALETTE[Math.max(0, accIdx) % ACCOUNT_PALETTE.length] : creditCard ? '#6366F1' : c.muted
               const isDeleting = deleting === t.id
@@ -473,9 +474,15 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
-                        {cat
+                        {t.transaction_type === 'savings_contribution' && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 999, padding: '2px 7px' }}>Savings</span>
+                        )}
+                        {t.transaction_type === 'savings_withdrawal' && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 999, padding: '2px 7px' }}>Withdrawal</span>
+                        )}
+                        {cat && t.transaction_type !== 'savings_contribution' && t.transaction_type !== 'savings_withdrawal'
                           ? <span style={{ font: '600 10px Plus Jakarta Sans', color: col, background: col + '18', borderRadius: 999, padding: '2px 7px' }}>{cat.name}</span>
-                          : t.transaction_type !== 'transfer' && (
+                          : t.transaction_type !== 'transfer' && t.transaction_type !== 'savings_contribution' && t.transaction_type !== 'savings_withdrawal' && (
                             <span
                               onClick={e => openQuickCat(e, t)}
                               style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px', border: `1px dashed ${c.faint}`, cursor: 'pointer' }}
@@ -491,10 +498,13 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                         <div style={{ font: '800 14px Plus Jakarta Sans', color:
                           t.transaction_type === 'income' ? c.good :
+                          t.transaction_type === 'savings_withdrawal' ? '#10B981' :
+                          t.transaction_type === 'savings_contribution' ? '#10B981' :
                           t.transaction_type === 'transfer' ? c.accent :
                           (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') ? '#6366F1' :
                           c.bad }}>
-                          {t.transaction_type === 'income' ? '+' :
+                          {(t.transaction_type === 'income' || t.transaction_type === 'savings_withdrawal') ? '+' :
+                           t.transaction_type === 'savings_contribution' ? '−' :
                            t.transaction_type === 'transfer' ? '⇄' :
                            (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
                              ? (BORROWING_CREDIT_CATS.has(catMap[t.category_id!]?.name ?? '') ? '+' : '−')
@@ -576,11 +586,13 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                   <option value="commitment">Commitment</option>
                   <option value="borrowing">Borrowing</option>
                   <option value="borrowing_repayment">Borrowing Repayment</option>
+                  <option value="savings_contribution">Savings Contribution</option>
+                  <option value="savings_withdrawal">Savings Withdrawal</option>
                 </select>
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
-                {editForm.transaction_type !== 'transfer' && (
+                {editForm.transaction_type !== 'transfer' && editForm.transaction_type !== 'savings_contribution' && editForm.transaction_type !== 'savings_withdrawal' && (
                   <div style={{ flex: 1 }}>
                     <Label>Category</Label>
                     <HelpText>Used for spending analytics and reports.</HelpText>
@@ -603,7 +615,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                   </div>
                 )}
                 <div style={{ flex: 1 }}>
-                  <Label>{editForm.transaction_type === 'transfer' ? 'From' : 'Account'}</Label>
+                  <Label>{editForm.transaction_type === 'transfer' || editForm.transaction_type === 'savings_contribution' ? 'From' : editForm.transaction_type === 'savings_withdrawal' ? 'To Account' : 'Account'}</Label>
                   <HelpText>Which account was debited or credited.</HelpText>
                   <select
                     value={editForm.from_account_id}
@@ -614,14 +626,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     <optgroup label="Bank / Cash">
                       {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </optgroup>
-                    {(state.credit_cards || []).length > 0 && !['income', 'borrowing', 'transfer'].includes(editForm.transaction_type) && (
+                    {(state.credit_cards || []).length > 0 && !['income', 'borrowing', 'transfer', 'savings_contribution', 'savings_withdrawal'].includes(editForm.transaction_type) && (
                       <optgroup label="Credit Cards">
                         {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                       </optgroup>
                     )}
                   </select>
                 </div>
-                {editForm.transaction_type === 'transfer' && (
+                {(editForm.transaction_type === 'transfer') && (
                   <div style={{ flex: 1 }}>
                     <Label>To</Label>
                     <select

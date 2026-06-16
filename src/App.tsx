@@ -42,6 +42,7 @@ import { AnalyticsPage } from '@/components/AnalyticsPage'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
 import { UpdateToast } from '@/components/UpdateToast'
 import { InsightCard } from '@/components/InsightCard'
+import { WealthSummaryCard } from '@/components/WealthSummaryCard'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -127,7 +128,7 @@ function AppContent({ session }: { session: Session }) {
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
 
@@ -218,6 +219,7 @@ function AppContent({ session }: { session: Session }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <InsightCard state={state} d={d} />
+              <WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />
               {dashboardSections
                 .filter(s => s.visible)
                 .map(s => {
@@ -400,6 +402,7 @@ function AppContent({ session }: { session: Session }) {
             onDelete={deleteSavings}
             onRecordContribution={recordContribution}
             onUpdateValue={updateSavingsValue}
+            onRecordPayout={recordSavingsPayout}
             onAddCategory={addCategory}
             startAdd={savingsAddOnOpen}
           />

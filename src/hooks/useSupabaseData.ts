@@ -55,6 +55,19 @@ const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
 
 const DEFAULT_INCOME_CATEGORIES = ['Salary', 'Freelance', 'Refund', 'Other Income']
 const BORROWING_CATEGORIES = ['Lent Money', 'Lent Repayment', 'Borrowed Money', 'Borrow Repayment']
+
+const SAVINGS_TYPE_LABEL: Record<string, string> = {
+  sip:     'SIP / Mutual Fund',
+  gold:    'Gold Scheme',
+  rd:      'Recurring Deposit',
+  fd:      'Fixed Deposit',
+  ppf_nps: 'PPF / NPS',
+  chit:    'Chit Fund',
+  custom:  'Savings',
+}
+const savingsContribNote = (type: string) => `${SAVINGS_TYPE_LABEL[type] ?? 'Savings'} Contribution`
+const savingsWithdrawNote = (type: string, isChit: boolean) =>
+  isChit ? 'Chit Fund Payout' : `${SAVINGS_TYPE_LABEL[type] ?? 'Savings'} Redemption`
 const SAVINGS_CATEGORIES = ['SIP', 'Gold Scheme', 'Recurring Deposit', 'Fixed Deposit', 'PPF / NPS', 'Chit Fund']
 
 export function useSupabaseData(userId: string) {
@@ -780,11 +793,11 @@ export function useSupabaseData(userId: string) {
         transaction_date: today,
         description: sv.name,
         amount: sv.amount,
-        transaction_type: 'expense',
+        transaction_type: 'savings_contribution',
         category_id: sv.category_id,
         from_account_id: accountId,
         to_account_id: null,
-        notes: 'Savings contribution',
+        notes: savingsContribNote(sv.type),
       }).select('*, category:categories(*)').single()
 
       setState(s => ({
@@ -807,6 +820,45 @@ export function useSupabaseData(userId: string) {
     await supabase.from('savings').update({ current_value: currentValue }).eq('id', id)
     setState(s => ({ ...s, savings: s.savings.map(sv => sv.id === id ? { ...sv, current_value: currentValue } : sv) }))
   }, [])
+
+  const recordSavingsPayout = useCallback(async (sv: Savings, amount: number, accountId: string) => {
+    const today = new Date().toISOString().split('T')[0]
+    const label = sv.type === 'chit' ? `${sv.name} — Chit Prize` : `${sv.name} — Redemption`
+
+    // Credit the account
+    const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
+    if (acc) {
+      await supabase.from('accounts').update({ current_balance: acc.current_balance + amount }).eq('id', accountId)
+    }
+
+    // Record as savings_withdrawal (not income — doesn't affect budget/earnings)
+    const { data: newTx } = await supabase.from('transactions').insert({
+      user_id: userId,
+      transaction_date: today,
+      description: label,
+      amount,
+      transaction_type: 'savings_withdrawal',
+      category_id: null,
+      from_account_id: null,
+      to_account_id: accountId,
+      notes: savingsWithdrawNote(sv.type, sv.type === 'chit'),
+    }).select('*, category:categories(*)').single()
+
+    // For non-chit: reduce current_value by the withdrawn amount
+    let savingsPatch: Partial<Savings> | undefined
+    if (sv.type !== 'chit') {
+      const newValue = Math.max(0, sv.current_value - amount)
+      savingsPatch = { current_value: newValue }
+      await supabase.from('savings').update({ current_value: newValue }).eq('id', sv.id)
+    }
+
+    setState(s => ({
+      ...s,
+      accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance + amount } : a),
+      transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+      savings: savingsPatch ? s.savings.map(item => item.id === sv.id ? { ...item, ...savingsPatch } : item) : s.savings,
+    }))
+  }, [userId])
 
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {
@@ -972,6 +1024,6 @@ export function useSupabaseData(userId: string) {
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
-    addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue,
+    addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout,
   }
 }

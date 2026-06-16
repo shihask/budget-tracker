@@ -1,5 +1,5 @@
 export type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet'
-export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment'
+export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment' | 'savings_contribution' | 'savings_withdrawal'
 
 export interface Group {
   id: string
@@ -138,6 +138,7 @@ export interface Savings {
   notes: string | null
   is_active: boolean
   is_prized: boolean                  // chit: have you received the prize pot yet?
+  prize_month: number | null          // chit: which installment number the prize was received at
   created_at?: string
 }
 

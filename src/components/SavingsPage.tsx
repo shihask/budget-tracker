@@ -48,13 +48,14 @@ type SForm = {
   category_id: string
   notes: string
   is_prized: boolean
+  prize_month: string
 }
 
 const EMPTY_FORM: SForm = {
   name: '', type: 'sip', amount: '', is_recurring: true, frequency: 'monthly',
   due_day: '', total_installments: '', current_installment: '0',
   total_target: '', current_value: '0', maturity_date: '', interest_rate: '',
-  from_account_id: '', category_id: '', notes: '', is_prized: false,
+  from_account_id: '', category_id: '', notes: '', is_prized: false, prize_month: '',
 }
 
 function formFromSavings(sv: Savings): SForm {
@@ -75,6 +76,7 @@ function formFromSavings(sv: Savings): SForm {
     category_id: sv.category_id ?? '',
     notes: sv.notes ?? '',
     is_prized: sv.is_prized ?? false,
+    prize_month: sv.prize_month ? String(sv.prize_month) : '',
   }
 }
 
@@ -89,7 +91,9 @@ function payloadFromForm(form: SForm): Omit<Savings, 'id' | 'created_at'> {
     frequency: cfg.isRecurring ? form.frequency : null,
     due_day: (cfg.isRecurring && form.frequency === 'monthly' && form.due_day) ? parseInt(form.due_day) : null,
     total_installments: form.total_installments ? parseInt(form.total_installments) : null,
-    current_installment: parseInt(form.current_installment) || 0,
+    current_installment: (isChit && form.is_prized && form.prize_month)
+      ? Math.max(parseInt(form.current_installment) || 0, parseInt(form.prize_month) || 0)
+      : parseInt(form.current_installment) || 0,
     total_target: form.total_target ? parseFloat(form.total_target) : null,
     current_value: (isChit && form.is_prized) ? (parseFloat(form.current_value) || 0) : (!isChit ? parseFloat(form.current_value) || 0 : 0),
     maturity_date: form.maturity_date || null,
@@ -99,6 +103,7 @@ function payloadFromForm(form: SForm): Omit<Savings, 'id' | 'created_at'> {
     notes: form.notes.trim() || null,
     is_active: true,
     is_prized: isChit ? form.is_prized : false,
+    prize_month: (isChit && form.is_prized && form.prize_month) ? parseInt(form.prize_month) : null,
     last_contribution_date: null,
   }
 }
@@ -119,13 +124,14 @@ interface Props {
   onDelete: (id: string) => Promise<void>
   onRecordContribution: (sv: Savings, recordExpense: boolean, accountId: string | null) => Promise<void>
   onUpdateValue: (id: string, currentValue: number) => Promise<void>
+  onRecordPayout: (sv: Savings, amount: number, accountId: string) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
   startAdd?: boolean
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, onRecordContribution, onUpdateValue, onAddCategory, startAdd }: Props) {
+export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, onRecordContribution, onUpdateValue, onRecordPayout, onAddCategory, startAdd }: Props) {
   const c = useTheme()
 
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -138,6 +144,10 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
   const [confirmAccountId, setConfirmAccountId] = useState('')
   const [updateValueId, setUpdateValueId] = useState<string | null>(null)
   const [newValueInput, setNewValueInput] = useState('')
+  const [confirmPayout, setConfirmPayout] = useState<Savings | null>(null)
+  const [payoutAccountId, setPayoutAccountId] = useState('')
+  const [payoutAmount, setPayoutAmount] = useState('')
+  const [recordingPayout, setRecordingPayout] = useState<string | null>(null)
 
   const active = state.savings.filter(s => s.is_active)
   const accounts = state.accounts.filter(a => a.is_active)
@@ -196,6 +206,12 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
     setConfirmContrib(sv)
   }
 
+  const handlePayout = (sv: Savings) => {
+    setPayoutAccountId(sv.from_account_id || accounts[0]?.id || '')
+    setPayoutAmount(sv.current_value > 0 ? String(sv.current_value) : '')
+    setConfirmPayout(sv)
+  }
+
   const handleUpdateValue = async () => {
     if (!updateValueId) return
     const val = parseFloat(newValueInput)
@@ -233,7 +249,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
   }
 
   const onTouchStart = (e: React.TouchEvent) => {
-    if (closing || sheetOpen || confirmContrib || updateValueId) return
+    if (closing || sheetOpen || confirmContrib || updateValueId || confirmPayout) return
     const t = e.touches[0]
     if (t.clientX > 28) return
     gestureRef.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now() }
@@ -332,7 +348,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{active.length} plan{active.length !== 1 ? 's' : ''}</div>
             </div>
             <div style={{ flex: 1, background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 14, padding: '12px 14px' }}>
-              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Contributed</div>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Wealth Created</div>
               <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginTop: 3 }}>{fmt(totalContrib)}</div>
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>total invested</div>
             </div>
@@ -411,7 +427,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>
                     {sv.is_recurring && sv.due_day
                       ? contributedThisMonth
-                        ? `Contributed on ${new Date(sv.last_contribution_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                        ? `Invested on ${new Date(sv.last_contribution_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
                         : `Contribute by ${ord(sv.due_day)} every month`
                       : sv.maturity_date
                         ? `Matures ${new Date(sv.maturity_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -430,7 +446,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
               {/* Stats row */}
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                 <div style={{ background: c.surface2, borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
-                  <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Contributed</div>
+                  <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Invested</div>
                   <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(contrib)}</div>
                   {sv.total_installments && (
                     <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{sv.current_installment}/{sv.total_installments}</div>
@@ -442,6 +458,9 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                       {sv.type === 'chit' ? 'Prize Received' : 'Current Value'}
                     </div>
                     <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981', marginTop: 2 }}>{fmt(sv.current_value)}</div>
+                    {sv.type === 'chit' && sv.prize_month && sv.total_installments && (
+                      <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Month {sv.prize_month} of {sv.total_installments}</div>
+                    )}
                     {sv.type !== 'chit' && returns !== null && (
                       <div style={{ font: '600 9px Plus Jakarta Sans', color: (returns ?? 0) >= 0 ? '#10B981' : '#EF4444', marginTop: 1 }}>
                         {returns >= 0 ? '+' : ''}{fmt(returns)}
@@ -449,6 +468,16 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                     )}
                   </div>
                 )}
+                {sv.type === 'chit' && sv.is_prized && sv.total_installments && sv.current_installment < sv.total_installments && (() => {
+                  const remaining = sv.total_installments - sv.current_installment
+                  return (
+                    <div style={{ background: 'rgba(249,115,22,0.08)', borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
+                      <div style={{ font: '600 9px Plus Jakarta Sans', color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Remaining</div>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: '#F97316', marginTop: 2 }}>{fmt(remaining * sv.amount)}</div>
+                      <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{remaining} installment{remaining !== 1 ? 's' : ''} left</div>
+                    </div>
+                  )
+                })()}
                 {sv.interest_rate && (
                   <div style={{ background: c.surface2, borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
                     <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Interest</div>
@@ -490,7 +519,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                 )}
                 {sv.is_recurring && contributedThisMonth && (
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 10, padding: '7px 12px', flex: 1, textAlign: 'center' }}>
-                    Contributed this month
+                    Invested this month
                   </span>
                 )}
                 {tcfg.showCurrentValue && (
@@ -499,6 +528,15 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                     style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '7px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
                   >
                     Update value
+                  </button>
+                )}
+                {(sv.type === 'chit' ? sv.is_prized && sv.current_value > 0 : sv.current_value > 0) && accounts.length > 0 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); handlePayout(sv) }}
+                    disabled={recordingPayout === sv.id}
+                    style={{ background: 'rgba(16,185,129,0.1)', color: '#10B981', border: 'none', borderRadius: 10, padding: '7px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', opacity: recordingPayout === sv.id ? 0.6 : 1 }}
+                  >
+                    {recordingPayout === sv.id ? '...' : sv.type === 'chit' ? 'Record Payout' : 'Redeem'}
                   </button>
                 )}
                 <button
@@ -618,7 +656,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
           {/* Goal amount */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-              <label style={{ ...lbl, marginBottom: 0 }}>Goal amount (optional)</label>
+              <label style={{ ...lbl, marginBottom: 0 }}>{form.type === 'chit' ? 'Chit Value' : 'Goal amount (optional)'}</label>
               {(() => {
                 const amt = parseFloat(form.amount), months = parseInt(form.total_installments)
                 const autoVal = cfg.isRecurring && amt > 0 && months > 0 ? amt * months : null
@@ -627,7 +665,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                   : null
               })()}
             </div>
-            <HelpText>Total amount you aim to accumulate. Auto-fills from amount × months — you can override it.</HelpText>
+            <HelpText>{form.type === 'chit' ? 'The fixed prize value of this chit fund. Auto-fills from contribution × members.' : 'Total amount you aim to accumulate. Auto-fills from amount × months — you can override it.'}</HelpText>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
               <input type="number" inputMode="decimal" value={form.total_target}
@@ -682,16 +720,24 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
             </div>
           )}
 
-          {/* Prize amount (chit, prized only) */}
+          {/* Prize month + prize amount (chit, prized only) */}
           {form.type === 'chit' && form.is_prized && (
-            <div>
-              <label style={lbl}>Prize amount received</label>
-              <HelpText>The lump sum amount you received when you won the chit.</HelpText>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
-                <input type="number" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
-                  onChange={e => set('current_value', e.target.value || '0')} placeholder="Amount you received"
-                  min="0" style={{ ...inp, paddingLeft: 28 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>Prize Month</label>
+                <HelpText>Which installment number you received the prize at (e.g. 8 of 10).</HelpText>
+                <input type="number" inputMode="numeric" value={form.prize_month}
+                  onChange={e => set('prize_month', e.target.value)} placeholder="e.g. 8" min="1" style={inp} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>Prize Amount Received</label>
+                <HelpText>Actual cash received after deductions (charity, current month, etc.).</HelpText>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
+                  <input type="number" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
+                    onChange={e => set('current_value', e.target.value || '0')} placeholder="e.g. 43,000"
+                    min="0" style={{ ...inp, paddingLeft: 28 }} />
+                </div>
               </div>
             </div>
           )}
@@ -787,6 +833,70 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                 style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
               >
                 No, just mark as contributed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Record payout / redemption ──────────────────────────────────────── */}
+      {confirmPayout && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setConfirmPayout(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
+              {confirmPayout.type === 'chit' ? 'Record Prize Payout' : 'Redeem Investment'}
+            </div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 16 }}>
+              {confirmPayout.type === 'chit'
+                ? 'Credit the prize amount to your bank account. Recorded as a transfer — will not affect income reports.'
+                : 'Enter how much you withdrew. Your portfolio value will reduce accordingly.'}
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Amount</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
+                <input
+                  type="number" inputMode="decimal"
+                  value={payoutAmount}
+                  onChange={e => setPayoutAmount(e.target.value)}
+                  onFocus={e => e.target.select()}
+                  placeholder="Amount received"
+                  autoFocus
+                  style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px 10px 28px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Credit to</label>
+              <select value={payoutAccountId} onChange={e => setPayoutAccountId(e.target.value)}
+                style={{ width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none' }}>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={async () => {
+                  const sv = confirmPayout
+                  const amount = parseFloat(payoutAmount)
+                  if (!amount || amount <= 0 || !payoutAccountId) return
+                  setConfirmPayout(null)
+                  setRecordingPayout(sv.id)
+                  try { await onRecordPayout(sv, amount, payoutAccountId) } catch (_) {}
+                  setRecordingPayout(null)
+                }}
+                style={{ width: '100%', background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                {confirmPayout.type === 'chit' ? 'Record Payout' : 'Record Redemption'}
+              </button>
+              <button
+                onClick={() => setConfirmPayout(null)}
+                style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Cancel
               </button>
             </div>
           </div>

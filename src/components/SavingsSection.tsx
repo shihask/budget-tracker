@@ -66,7 +66,7 @@ export function SavingsSection({ state, onSeeAll, onAdd }: Props) {
             </div>
             <div style={{ flex: 1, background: c.surface2, borderRadius: 14, padding: '12px 14px', cursor: 'pointer' }}>
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                {totalCurrentValue > 0 ? 'Current Value' : 'Contributed'}
+                {totalCurrentValue > 0 ? 'Current Value' : 'Invested'}
               </div>
               <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginTop: 3 }}>
                 {fmt(totalCurrentValue > 0 ? totalCurrentValue : totalContributed)}

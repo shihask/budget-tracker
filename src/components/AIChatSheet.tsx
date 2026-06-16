@@ -94,6 +94,12 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
   const thisMonthTransferTxns = state.transactions.filter(t =>
     new Date(t.transaction_date) >= monthStart && t.transaction_type === 'transfer'
   )
+  const savingsContribThisMonth = state.transactions
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'savings_contribution')
+    .reduce((s, t) => s + t.amount, 0)
+  const savingsWithdrawThisMonth = state.transactions
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'savings_withdrawal')
+    .reduce((s, t) => s + t.amount, 0)
 
   const monthlySpend = thisMonthTxns.reduce((s, t) => s + t.amount, 0)
   const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + t.amount, 0)
@@ -200,7 +206,11 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
       const contributed = s.current_installment * s.amount
       const progress = s.total_installments ? `${s.current_installment}/${s.total_installments}` : `${s.current_installment} done`
       const valueStr = s.current_value > 0 ? ` current-value:₹${s.current_value.toLocaleString()}` : ''
-      const prizedStr = s.type === 'chit' ? ` [${s.is_prized ? 'prized' : 'unprized'}]` : ''
+      const prizedStr = s.type === 'chit'
+        ? s.is_prized
+          ? ` [prized at month ${s.prize_month ?? '?'} of ${s.total_installments ?? '?'} prize-received:₹${s.current_value.toLocaleString()}${s.total_installments && s.current_installment < s.total_installments ? ` remaining:${s.total_installments - s.current_installment}-installments=₹${((s.total_installments - s.current_installment) * s.amount).toLocaleString()}` : ''}]`
+          : ` [unprized]`
+        : ''
       const dueStr = s.due_day ? ` due-day:${s.due_day}` : ''
       return `${s.name}(${s.type}) ₹${s.amount.toLocaleString()}/${s.frequency ?? 'one-time'} contributed:₹${contributed.toLocaleString()} [${progress}]${valueStr}${prizedStr}${dueStr}`
     }).join(' | ')
@@ -211,11 +221,14 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
   const transfersLine = thisMonthTransfers > 0
     ? ` | transfers-this-month:₹${thisMonthTransfers.toLocaleString()} (internal moves, not spending)`
     : ''
+  const savingsActivityLine = (savingsContribThisMonth > 0 || savingsWithdrawThisMonth > 0)
+    ? ` | savings-contributed-this-month:₹${savingsContribThisMonth.toLocaleString()} savings-withdrawn-this-month:₹${savingsWithdrawThisMonth.toLocaleString()} (wealth movement, not spending)`
+    : ''
 
   return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
 Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}${ccLine}
 Budget: weekly ₹${budget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${Math.round(d.weeklySpent / budget * 100)}% used)
-Spend: this-month ₹${monthlySpend.toLocaleString()} | income-this-month ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transfersLine}
+Spend: this-month ₹${monthlySpend.toLocaleString()} | income-this-month ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transfersLine}${savingsActivityLine}
 Tracking: ${trackingCountThisMonth} transactions logged across ${trackingDaysThisMonth} days this month
 Today(${localDateStr}): total ₹${todaySpend.toLocaleString()} | ${todayStr}
 Categories(month): ${topCats || 'no data'}
