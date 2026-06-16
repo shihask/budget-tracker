@@ -63,7 +63,7 @@ const PAGES: FeaturePage[] = [
     key: 'autopilot_enabled',
     label: 'Mint AI',
     subtitle: "MoneyPlant's core feature",
-    description: 'Mint reads what you type and categorizes automatically — "tea 20" becomes Food & Tea instantly.\n\nAsk it anything: "how much did I spend on food this month?" Get answers in seconds. Spot patterns before they become bad habits.',
+    description: 'Mint reads what you type and categorizes automatically — "tea 20" becomes Tea & Snacks instantly.\n\nAsk it anything: "how much did I spend on food this month?" Get answers in seconds. Spot patterns before they become bad habits.',
     defaultOn: true,
     featured: true,
     Icon: SparkleIcon,
@@ -208,7 +208,7 @@ function MintAIDemo() {
           </div>
           {([
             ['Description', 'Tea'],
-            ['Category', 'Food & Tea'],
+            ['Category', 'Tea & Snacks'],
             ['Amount', '₹20'],
           ] as const).map(([lbl, val], i, arr) => (
             <div key={lbl} style={{

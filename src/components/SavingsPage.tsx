@@ -125,13 +125,14 @@ interface Props {
   onRecordContribution: (sv: Savings, recordExpense: boolean, accountId: string | null) => Promise<void>
   onUpdateValue: (id: string, currentValue: number) => Promise<void>
   onRecordPayout: (sv: Savings, amount: number, accountId: string) => Promise<void>
+  onRevertPayout: (sv: Savings) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
   startAdd?: boolean
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, onRecordContribution, onUpdateValue, onRecordPayout, onAddCategory, startAdd }: Props) {
+export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, onRecordContribution, onUpdateValue, onRecordPayout, onRevertPayout, onAddCategory, startAdd }: Props) {
   const c = useTheme()
 
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -148,6 +149,8 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
   const [payoutAccountId, setPayoutAccountId] = useState('')
   const [payoutAmount, setPayoutAmount] = useState('')
   const [recordingPayout, setRecordingPayout] = useState<string | null>(null)
+  const [revertConfirm, setRevertConfirm] = useState<Savings | null>(null)
+  const [reverting, setReverting] = useState<string | null>(null)
 
   const active = state.savings.filter(s => s.is_active)
   const accounts = state.accounts.filter(a => a.is_active)
@@ -251,7 +254,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
   }
 
   const onTouchStart = (e: React.TouchEvent) => {
-    if (closing || sheetOpen || confirmContrib || updateValueId || confirmPayout) return
+    if (closing || sheetOpen || confirmContrib || updateValueId || confirmPayout || revertConfirm) return
     const t = e.touches[0]
     if (t.clientX > 28) return
     gestureRef.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now() }
@@ -539,6 +542,15 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                     style={{ background: 'rgba(16,185,129,0.1)', color: '#10B981', border: 'none', borderRadius: 10, padding: '7px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', opacity: recordingPayout === sv.id ? 0.6 : 1 }}
                   >
                     {recordingPayout === sv.id ? '...' : sv.type === 'chit' ? 'Record Payout' : 'Redeem'}
+                  </button>
+                )}
+                {sv.type === 'chit' && sv.is_prized && sv.current_value === 0 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setRevertConfirm(sv) }}
+                    disabled={reverting === sv.id}
+                    style={{ background: 'rgba(239,68,68,0.08)', color: '#EF4444', border: 'none', borderRadius: 10, padding: '7px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', opacity: reverting === sv.id ? 0.6 : 1 }}
+                  >
+                    {reverting === sv.id ? '...' : 'Revert payout'}
                   </button>
                 )}
                 <button
@@ -896,6 +908,39 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
               </button>
               <button
                 onClick={() => setConfirmPayout(null)}
+                style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Revert payout confirm ───────────────────────────────────────────── */}
+      {revertConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setRevertConfirm(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Revert Payout?</div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              This will delete the payout transaction and deduct the credited amount from your account. The "Record Payout" button will reappear.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={async () => {
+                  const sv = revertConfirm
+                  setRevertConfirm(null)
+                  setReverting(sv.id)
+                  try { await onRevertPayout(sv) } catch (_) {}
+                  setReverting(null)
+                }}
+                style={{ width: '100%', background: '#EF4444', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Yes, Revert
+              </button>
+              <button
+                onClick={() => setRevertConfirm(null)}
                 style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
               >
                 Cancel

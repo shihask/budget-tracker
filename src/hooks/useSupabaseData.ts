@@ -35,7 +35,8 @@ const DEFAULT_GROUPS: { name: string; is_system?: boolean }[] = [
 ]
 
 const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
-  { name: 'Food & Tea',    group_name: 'Lifestyle' },
+  { name: 'Food',          group_name: 'Lifestyle' },
+  { name: 'Tea & Snacks', group_name: 'Lifestyle' },
   { name: 'Groceries',     group_name: 'Lifestyle' },
   { name: 'Fuel',          group_name: 'Lifestyle' },
   { name: 'Shopping',      group_name: 'Lifestyle' },
@@ -325,7 +326,7 @@ export function useSupabaseData(userId: string) {
           await supabase.from('accounts').update({ current_balance: newBal }).eq('id', t.from_account_id)
         }
       }
-      if (t.transaction_type === 'transfer' && t.to_account_id) {
+      if ((t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal') && t.to_account_id) {
         const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', t.to_account_id).single()
         if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance - t.amount }).eq('id', t.to_account_id)
       }
@@ -342,7 +343,7 @@ export function useSupabaseData(userId: string) {
               bal -= delta(t.transaction_type, t.amount)
             }
           }
-          if (t.transaction_type === 'transfer' && a.id === t.to_account_id) bal -= t.amount
+          if ((t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal') && a.id === t.to_account_id) bal -= t.amount
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
       }))
@@ -857,6 +858,27 @@ export function useSupabaseData(userId: string) {
     }))
   }, [userId])
 
+  const revertSavingsPayout = useCallback(async (sv: Savings) => {
+    const tx = stateRef.current.transactions
+      .filter(t => t.transaction_type === 'savings_withdrawal' && t.description === sv.name)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+    if (!tx) return
+
+    if (tx.to_account_id) {
+      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', tx.to_account_id).single()
+      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - tx.amount }).eq('id', tx.to_account_id)
+    }
+    await supabase.from('transactions').delete().eq('id', tx.id)
+    await supabase.from('savings').update({ current_value: tx.amount }).eq('id', sv.id)
+
+    setState(s => ({
+      ...s,
+      transactions: s.transactions.filter(t => t.id !== tx.id),
+      accounts: s.accounts.map(a => a.id === tx.to_account_id ? { ...a, current_balance: a.current_balance - tx.amount } : a),
+      savings: s.savings.map(item => item.id === sv.id ? { ...item, current_value: tx.amount } : item),
+    }))
+  }, [])
+
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {
       await supabase.from('settings').update(patch).eq('id', state.settings.id)
@@ -1021,6 +1043,6 @@ export function useSupabaseData(userId: string) {
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
-    addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout,
+    addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout,
   }
 }

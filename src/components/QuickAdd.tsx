@@ -21,7 +21,8 @@ type FormValues = z.infer<typeof schema>
 
 // Keyword → category name mapping for auto-detection
 const KEYWORD_CATS: [string[], string][] = [
-  [['tea', 'coffee', 'chai', 'juice', 'drink', 'snack', 'breakfast', 'lunch', 'dinner', 'food', 'eat', 'restaurant', 'hotel', 'bakery', 'biscuit', 'sweet', 'biriyani', 'parotta', 'dosa', 'idli'], 'Food & Tea'],
+  [['breakfast', 'lunch', 'dinner', 'food', 'eat', 'restaurant', 'hotel', 'bakery', 'sweet', 'biriyani', 'parotta', 'dosa', 'idli'], 'Food'],
+  [['tea', 'coffee', 'chai', 'juice', 'drink', 'snack', 'biscuit'], 'Tea & Snacks'],
   [['petrol', 'fuel', 'diesel', 'gas', 'bunk', 'pump', 'filling station'], 'Fuel'],
   [['grocery', 'groceries', 'vegetable', 'rice', 'dal', 'flour', 'milk', 'bread', 'egg', 'fruit', 'supermarket', 'provision', 'store', 'market', 'sabzi'], 'Groceries'],
   [['medical', 'medicine', 'doctor', 'hospital', 'pharmacy', 'tablet', 'injection', 'clinic', 'health', 'lab', 'prescription'], 'Medical'],

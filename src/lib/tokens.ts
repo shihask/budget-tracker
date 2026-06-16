@@ -75,7 +75,8 @@ export function toneSoft(c: ColorTokens, tone: ToneKey): string {
 
 // Category colors from data.js
 export const CAT_COLORS: Record<string, string> = {
-  'Food & Tea': '#F59E0B',
+  'Food': '#F59E0B',
+  'Tea & Snacks': '#FBBF24',
   'Groceries': '#10B981',
   'Fuel': '#0EA5E9',
   'Shopping': '#7C3AED',
