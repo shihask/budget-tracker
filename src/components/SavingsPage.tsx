@@ -233,6 +233,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
   const [entryPlayed, setEntryPlayed] = useState(false)
   const dragXRef = useRef(0)
   const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
 
   useEffect(() => {
@@ -241,16 +242,24 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
   }, [])
 
   useEffect(() => {
-    const prev = document.body.style.overflow
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
+  }, [])
+
+  // Cancel any in-flight close timer when this instance unmounts (e.g. key-counter remount)
+  useEffect(() => {
+    return () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current) }
   }, [])
 
   const triggerClose = () => {
-    setDragX(0)
-    dragXRef.current = 0
     setClosing(true)
-    setTimeout(() => { onClose(); setClosing(false); setEntryPlayed(false) }, 290)
+    closeTimerRef.current = setTimeout(() => { onClose() }, 290)
   }
 
   const onTouchStart = (e: React.TouchEvent) => {
