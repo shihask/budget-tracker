@@ -284,6 +284,12 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
       setTimeout(() => setSnapping(false), 300)
     }
   }
+  const onTouchCancel = () => {
+    if (!gestureRef.current) return
+    gestureRef.current = null
+    setSnapping(true); setDragX(0); dragXRef.current = 0
+    setTimeout(() => setSnapping(false), 300)
+  }
 
   const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: c.surface2,
@@ -306,7 +312,7 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
 
   return (
     <div
-      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}
       style={{
         position: 'fixed', inset: 0, zIndex: 200, background: c.bg,
         display: 'flex', flexDirection: 'column',

@@ -157,6 +157,12 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
       setTimeout(() => setSnapping(false), 300)
     }
   }
+  const onTouchCancel = () => {
+    if (!gestureRef.current) return
+    gestureRef.current = null
+    setSnapping(true); setDragX(0); dragXRef.current = 0; onSwipeProgress?.(0)
+    setTimeout(() => setSnapping(false), 300)
+  }
 
   const initials = userName.split(' ').map((w: string) => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
 
@@ -290,7 +296,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
 
   return (
     <div
-      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}
       style={{
         position: 'fixed', inset: 0, background: c.bg, zIndex: 100,
         overflowY: dragX > 0 ? 'hidden' : 'auto',
