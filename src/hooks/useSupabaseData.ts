@@ -844,13 +844,10 @@ export function useSupabaseData(userId: string) {
       notes: savingsWithdrawNote(sv.type, sv.type === 'chit'),
     }).select('*, category:categories(*)').single()
 
-    // For non-chit: reduce current_value by the withdrawn amount
-    let savingsPatch: Partial<Savings> | undefined
-    if (sv.type !== 'chit') {
-      const newValue = Math.max(0, sv.current_value - amount)
-      savingsPatch = { current_value: newValue }
-      await supabase.from('savings').update({ current_value: newValue }).eq('id', sv.id)
-    }
+    // Clear current_value after payout: chit → 0 (prize is now in tx history); non-chit → reduce by amount
+    const newValue = sv.type === 'chit' ? 0 : Math.max(0, sv.current_value - amount)
+    const savingsPatch: Partial<Savings> = { current_value: newValue }
+    await supabase.from('savings').update({ current_value: newValue }).eq('id', sv.id)
 
     setState(s => ({
       ...s,
