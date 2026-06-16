@@ -393,20 +393,22 @@ function AppContent({ session }: { session: Session }) {
             <BorrowingPage state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} onClose={() => setBorrowingOpen(false)} initialAddOpen={borrowingAddOnOpen} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />
           )}
 
-          <SavingsPage
-            open={savingsOpen}
-            state={state}
-            onClose={() => { setSavingsOpen(false); setSavingsAddOnOpen(false) }}
-            onAdd={addSavings}
-            onUpdate={updateSavings}
-            onDelete={deleteSavings}
-            onRecordContribution={recordContribution}
-            onUpdateValue={updateSavingsValue}
-            onRecordPayout={recordSavingsPayout}
-            onRevertPayout={revertSavingsPayout}
-            onAddCategory={addCategory}
-            startAdd={savingsAddOnOpen}
-          />
+          {savingsOpen && (
+            <SavingsPage
+              open={savingsOpen}
+              state={state}
+              onClose={() => { setSavingsOpen(false); setSavingsAddOnOpen(false) }}
+              onAdd={addSavings}
+              onUpdate={updateSavings}
+              onDelete={deleteSavings}
+              onRecordContribution={recordContribution}
+              onUpdateValue={updateSavingsValue}
+              onRecordPayout={recordSavingsPayout}
+              onRevertPayout={revertSavingsPayout}
+              onAddCategory={addCategory}
+              startAdd={savingsAddOnOpen}
+            />
+          )}
 
           {catsOpen && (
             <CategoriesPage
