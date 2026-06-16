@@ -19,13 +19,17 @@ export function WealthSummaryCard({ state, onGoToSavings, onGoToBorrowing }: Pro
     ? state.savings.filter(s => s.is_active && !s.is_prized).reduce((sum, s) => sum + s.current_installment * s.amount, 0)
     : 0
 
+  const realizedPayouts = trackSavings
+    ? state.savings.filter(s => s.is_active && s.is_prized && s.current_value > 0).reduce((sum, s) => sum + s.current_value, 0)
+    : 0
+
   const totalLent = trackBorrowing
     ? state.borrowings
         .filter(b => (b.direction ?? 'lent') === 'lent')
         .reduce((sum, b) => sum + (b.remaining_amount ?? (b.total_amount - b.paid_amount)), 0)
     : 0
 
-  const totalAssets = totalInvested + totalLent
+  const totalAssets = totalInvested + realizedPayouts + totalLent
 
   // Only render when there's something meaningful to show
   if (totalAssets === 0 || (!trackSavings && !trackBorrowing)) return null
@@ -34,6 +38,9 @@ export function WealthSummaryCard({ state, onGoToSavings, onGoToBorrowing }: Pro
 
   if (trackSavings && totalInvested > 0) {
     rows.push({ label: 'Savings & Investments', value: totalInvested, onClick: onGoToSavings, color: '#10B981', accent: 'rgba(16,185,129,0.1)' })
+  }
+  if (trackSavings && realizedPayouts > 0) {
+    rows.push({ label: 'Realized Chit Payouts', value: realizedPayouts, onClick: onGoToSavings, color: '#3B82F6', accent: 'rgba(59,130,246,0.08)' })
   }
   if (trackBorrowing && totalLent > 0) {
     rows.push({ label: 'Lent Out', value: totalLent, onClick: onGoToBorrowing, color: '#F97316', accent: 'rgba(249,115,22,0.08)' })
@@ -73,7 +80,7 @@ export function WealthSummaryCard({ state, onGoToSavings, onGoToBorrowing }: Pro
       {/* Total */}
       <div style={{ borderTop: `1px solid ${c.faint}`, paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Assets Built</div>
+          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Wealth Managed</div>
         </div>
         <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{fmt(totalAssets)}</div>
       </div>

@@ -313,8 +313,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
   // ── Derived stats for active savings ─────────────────────────────────────────
   const totalMonthly   = active.filter(s => s.is_recurring && s.frequency === 'monthly').reduce((a, s) => a + s.amount, 0)
-  const totalContrib   = active.filter(s => !s.is_prized).reduce((a, s) => a + s.current_installment * s.amount, 0)
-  const totalPortfolio = active.reduce((a, s) => a + (s.current_value || 0), 0)
+  const totalContrib      = active.filter(s => !s.is_prized).reduce((a, s) => a + s.current_installment * s.amount, 0)
+  const totalPortfolio    = active.reduce((a, s) => a + (s.current_value || 0), 0)
+  const hasUnvaluedPlans  = active.filter(s => !s.is_prized).some(s => !s.current_value)
 
   return (
     <div
@@ -365,15 +366,15 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{active.length} plan{active.length !== 1 ? 's' : ''}</div>
             </div>
             <div style={{ flex: 1, background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 14, padding: '12px 14px' }}>
-              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Wealth Created</div>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Invested</div>
               <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginTop: 3 }}>{fmt(totalContrib)}</div>
-              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>total invested</div>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>capital deployed</div>
             </div>
             {totalPortfolio > 0 && (
               <div style={{ flex: 1, background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 14, padding: '12px 14px' }}>
                 <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Portfolio</div>
                 <div style={{ font: '800 20px Plus Jakarta Sans', color: totalPortfolio >= totalContrib ? '#10B981' : '#EF4444', marginTop: 3 }}>{fmt(totalPortfolio)}</div>
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>current value</div>
+                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{hasUnvaluedPlans ? 'market-linked only' : 'current value'}</div>
               </div>
             )}
           </div>
@@ -462,39 +463,47 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
               {/* Stats row */}
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <div style={{ background: c.surface2, borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
-                  <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Invested</div>
-                  <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(contrib)}</div>
-                  {sv.total_installments && (
-                    <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{sv.current_installment}/{sv.total_installments}</div>
-                  )}
-                </div>
-                {sv.current_value > 0 && (
-                  <div style={{ background: sv.type === 'chit' ? 'rgba(16,185,129,0.08)' : (returns ?? 0) >= 0 ? 'rgba(16,185,129,0.08)' : '#FEF2F2', borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
-                    <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      {sv.type === 'chit' ? 'Prize Received' : 'Current Value'}
+                {sv.type === 'chit' && sv.is_prized ? (
+                  <>
+                    <div style={{ background: 'rgba(16,185,129,0.08)', borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
+                      <div style={{ font: '600 9px Plus Jakarta Sans', color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Prize Received</div>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981', marginTop: 2 }}>
+                        {sv.current_value > 0 ? fmt(sv.current_value) : 'In balance'}
+                      </div>
+                      {sv.prize_month && sv.total_installments && (
+                        <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Month {sv.prize_month} of {sv.total_installments}</div>
+                      )}
                     </div>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981', marginTop: 2 }}>{fmt(sv.current_value)}</div>
-                    {sv.type === 'chit' && sv.prize_month && sv.total_installments && (
-                      <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Month {sv.prize_month} of {sv.total_installments}</div>
-                    )}
-                    {sv.type !== 'chit' && returns !== null && (
-                      <div style={{ font: '600 9px Plus Jakarta Sans', color: (returns ?? 0) >= 0 ? '#10B981' : '#EF4444', marginTop: 1 }}>
-                        {returns >= 0 ? '+' : ''}{fmt(returns)}
+                    {sv.total_installments && sv.current_installment < sv.total_installments && (
+                      <div style={{ background: 'rgba(249,115,22,0.08)', borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
+                        <div style={{ font: '600 9px Plus Jakarta Sans', color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Remaining Obligation</div>
+                        <div style={{ font: '700 13px Plus Jakarta Sans', color: '#F97316', marginTop: 2 }}>{fmt((sv.total_installments - sv.current_installment) * sv.amount)}</div>
+                        <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{sv.total_installments - sv.current_installment} installment{sv.total_installments - sv.current_installment !== 1 ? 's' : ''} left</div>
                       </div>
                     )}
-                  </div>
-                )}
-                {sv.type === 'chit' && sv.is_prized && sv.total_installments && sv.current_installment < sv.total_installments && (() => {
-                  const remaining = sv.total_installments - sv.current_installment
-                  return (
-                    <div style={{ background: 'rgba(249,115,22,0.08)', borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
-                      <div style={{ font: '600 9px Plus Jakarta Sans', color: '#F97316', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Remaining</div>
-                      <div style={{ font: '700 13px Plus Jakarta Sans', color: '#F97316', marginTop: 2 }}>{fmt(remaining * sv.amount)}</div>
-                      <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{remaining} installment{remaining !== 1 ? 's' : ''} left</div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ background: c.surface2, borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
+                      <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Invested</div>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(contrib)}</div>
+                      {sv.total_installments && (
+                        <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{sv.current_installment}/{sv.total_installments}</div>
+                      )}
                     </div>
-                  )
-                })()}
+                    {sv.current_value > 0 && (
+                      <div style={{ background: (returns ?? 0) >= 0 ? 'rgba(16,185,129,0.08)' : '#FEF2F2', borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
+                        <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current Value</div>
+                        <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981', marginTop: 2 }}>{fmt(sv.current_value)}</div>
+                        {returns !== null && (
+                          <div style={{ font: '600 9px Plus Jakarta Sans', color: (returns ?? 0) >= 0 ? '#10B981' : '#EF4444', marginTop: 1 }}>
+                            {returns >= 0 ? '+' : ''}{fmt(returns)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
                 {sv.interest_rate && (
                   <div style={{ background: c.surface2, borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
                     <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Interest</div>
