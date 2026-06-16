@@ -184,12 +184,19 @@ export function useSupabaseData(userId: string) {
           catsByKey.set(key, arr)
         }
         const catExtras: string[] = []
+        const catIdRemap = new Map<string, string>()
         const dedupedCats: Category[] = []
         for (const rows of catsByKey.values()) {
           dedupedCats.push(rows[0])
-          for (const extra of rows.slice(1)) catExtras.push(extra.id)
+          for (const extra of rows.slice(1)) {
+            catExtras.push(extra.id)
+            catIdRemap.set(extra.id, rows[0].id)
+          }
         }
         if (catExtras.length > 0) {
+          for (const [extraId, canonicalId] of catIdRemap) {
+            await supabase.from('transactions').update({ category_id: canonicalId }).eq('category_id', extraId)
+          }
           await supabase.from('categories').delete().in('id', catExtras)
         }
         userCategories = dedupedCats

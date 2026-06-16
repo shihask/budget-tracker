@@ -8,6 +8,7 @@ const DAILY_LIMIT = 100
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'X-Used',
 }
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
@@ -377,6 +378,12 @@ ${context ?? ''}`
       ]
 
       const groqHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` }
+      // Try primary model; fall back to 8b-instant on TPD rate-limit (429)
+      const groqFetch = async (payload: Record<string, unknown>): Promise<Response> => {
+        let r = await fetch(GROQ_URL, { method: 'POST', headers: groqHeaders, body: JSON.stringify({ model: 'llama-3.3-70b-versatile', ...payload }) })
+        if (r.status === 429) r = await fetch(GROQ_URL, { method: 'POST', headers: groqHeaders, body: JSON.stringify({ model: 'llama-3.1-8b-instant', ...payload }) })
+        return r
+      }
       const encoder = new TextEncoder()
       const streamHeaders = {
         ...cors,
@@ -391,21 +398,17 @@ ${context ?? ''}`
       let directAnswer: string | null = null
 
       for (let round = 0; round < 3; round++) {
-        const callR = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: groqHeaders,
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: loopMessages,
-            tools: CHAT_TOOLS,
-            tool_choice: 'auto',
-            parallel_tool_calls: true,
-            max_tokens: 500,
-            temperature: 0.2,
-          }),
+        const callR = await groqFetch({
+          messages: loopMessages,
+          tools: CHAT_TOOLS,
+          tool_choice: 'auto',
+          max_tokens: 500,
+          temperature: 0.2,
         })
         if (!callR.ok) {
-          return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+          const errBody = await callR.text()
+          console.error(`[chat] Groq tool-call round ${round} failed: ${callR.status} ${errBody}`)
+          return new Response(JSON.stringify({ error: 'ai_error', groq_status: callR.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
         }
         const callRData = await callR.json()
         const roundChoice = callRData.choices?.[0]
@@ -435,20 +438,22 @@ ${context ?? ''}`
       // Helper: produce final answer from a messages array (streaming or JSON)
       const streamFinal = async (msgs: object[]): Promise<Response> => {
         if (once) {
-          const r = await fetch(GROQ_URL, {
-            method: 'POST', headers: groqHeaders,
-            body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: msgs, max_tokens: 600, temperature: 0.4 }),
-          })
-          if (!r.ok) return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+          const r = await groqFetch({ messages: msgs, max_tokens: 600, temperature: 0.4 })
+          if (!r.ok) {
+            const errBody = await r.text()
+            console.error(`[chat] Groq final (once) failed: ${r.status} ${errBody}`)
+            return new Response(JSON.stringify({ error: 'ai_error', groq_status: r.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+          }
           const d = await r.json()
           const reply = d.choices?.[0]?.message?.content?.trim() ?? ''
           return new Response(JSON.stringify({ reply, used: used + 1 }), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } })
         }
-        const r = await fetch(GROQ_URL, {
-          method: 'POST', headers: groqHeaders,
-          body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: msgs, max_tokens: 600, temperature: 0.4, stream: true }),
-        })
-        if (!r.ok) return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+        const r = await groqFetch({ messages: msgs, max_tokens: 600, temperature: 0.4, stream: true })
+        if (!r.ok) {
+          const errBody = await r.text()
+          console.error(`[chat] Groq stream failed: ${r.status} ${errBody}`)
+          return new Response(JSON.stringify({ error: 'ai_error', groq_status: r.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+        }
         const stream = new ReadableStream({
           async start(controller) {
             const reader = r.body!.getReader()
@@ -659,7 +664,8 @@ ${groupLines}
       JSON.stringify({ result, suggestion, used: used + 1, limit: DAILY_LIMIT }),
       { headers: { ...cors, 'Content-Type': 'application/json' } }
     )
-  } catch {
+  } catch (e) {
+    console.error('[ai-categorize] unhandled exception:', e)
     return new Response(JSON.stringify({ error: 'internal_error' }), { status: 500, headers: cors })
   }
 })
