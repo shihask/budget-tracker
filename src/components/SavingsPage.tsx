@@ -869,8 +869,8 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
             </div>
             <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 16 }}>
               {confirmPayout.type === 'chit'
-                ? 'Credit the prize amount to your bank account. Recorded as a transfer — will not affect income reports.'
-                : 'Enter how much you withdrew. Your portfolio value will reduce accordingly.'}
+                ? 'Received the prize now? Add it to your account balance and create a transaction record.'
+                : 'Withdrew now? Add the amount to your account balance and create a transaction record.'}
             </div>
 
             <div style={{ marginBottom: 14 }}>
@@ -910,11 +910,21 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
                 }}
                 style={{ width: '100%', background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
               >
-                {confirmPayout.type === 'chit' ? 'Record Payout' : 'Record Redemption'}
+                {confirmPayout.type === 'chit' ? 'Record Payout & Add to Balance' : 'Record Redemption & Add to Balance'}
+              </button>
+              <button
+                onClick={async () => {
+                  const sv = confirmPayout
+                  setConfirmPayout(null)
+                  try { await onUpdateValue(sv.id, 0) } catch (_) {}
+                }}
+                style={{ width: '100%', background: c.surface2, color: c.ink, border: `1.5px solid ${c.faint}`, borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Already in my balance — no transaction
               </button>
               <button
                 onClick={() => setConfirmPayout(null)}
-                style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+                style={{ width: '100%', background: 'none', color: c.muted, border: 'none', borderRadius: 12, padding: '10px', font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
               >
                 Cancel
               </button>
