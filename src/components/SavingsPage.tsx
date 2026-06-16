@@ -116,7 +116,6 @@ const ord = (n: number) => {
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
-  open: boolean
   state: AppState
   onClose: () => void
   onAdd: (form: Omit<Savings, 'id' | 'created_at'>) => Promise<void>
@@ -132,7 +131,7 @@ interface Props {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, onRecordContribution, onUpdateValue, onRecordPayout, onRevertPayout, onAddCategory, startAdd }: Props) {
+export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecordContribution, onUpdateValue, onRecordPayout, onRevertPayout, onAddCategory, startAdd }: Props) {
   const c = useTheme()
 
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -156,8 +155,8 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
   const accounts = state.accounts.filter(a => a.is_active)
 
   useEffect(() => {
-    if (open && startAdd) { setEditingId(null); setForm(EMPTY_FORM); setSheetOpen(true) }
-  }, [open, startAdd])
+    if (startAdd) { setEditingId(null); setForm(EMPTY_FORM); setSheetOpen(true) }
+  }, [startAdd])
 
   // Sync is_recurring when type changes
   const setType = (type: SavingsType) => {
@@ -309,8 +308,6 @@ export function SavingsPage({ open, state, onClose, onAdd, onUpdate, onDelete, o
     font: '600 11px Plus Jakarta Sans', color: c.muted,
     textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5, display: 'block',
   }
-
-  if (!open) return null
 
   const cfg = TYPE_CONFIG[form.type]
 

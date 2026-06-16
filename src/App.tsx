@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.8.12'
+const APP_VERSION = '1.8.14'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
@@ -116,7 +116,6 @@ function AppContent({ session }: { session: Session }) {
   const [borrowingAddOnOpen, setBorrowingAddOnOpen] = useState(false)
   const [savingsOpen, setSavingsOpen] = useState(false)
   const [savingsAddOnOpen, setSavingsAddOnOpen] = useState(false)
-  const [savingsKey, setSavingsKey] = useState(0)
   const [catsOpen, setCatsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
@@ -220,7 +219,7 @@ function AppContent({ session }: { session: Session }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <InsightCard state={state} d={d} />
-              <WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsKey(k => k + 1); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />
+              <WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />
               {dashboardSections
                 .filter(s => s.visible)
                 .map(s => {
@@ -252,7 +251,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <CommitmentsSection state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />
                       break
                     case 'savings':
-                      el = (state.settings.track_savings ?? false) ? <SavingsSection state={state} onSeeAll={() => { setSavingsAddOnOpen(false); setSavingsKey(k => k + 1); setSavingsOpen(true) }} onAdd={() => { setSavingsAddOnOpen(true); setSavingsKey(k => k + 1); setSavingsOpen(true) }} /> : null
+                      el = (state.settings.track_savings ?? false) ? <SavingsSection state={state} onSeeAll={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onAdd={() => { setSavingsAddOnOpen(true); setSavingsOpen(true) }} /> : null
                       break
                     case 'borrowing':
                       el = (state.settings.track_borrowings ?? true) ? <BorrowingSection state={state} onSeeAll={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} onAdd={() => { setBorrowingAddOnOpen(true); setBorrowingOpen(true) }} /> : null
@@ -396,8 +395,6 @@ function AppContent({ session }: { session: Session }) {
 
           {savingsOpen && (
             <SavingsPage
-              key={savingsKey}
-              open={savingsOpen}
               state={state}
               onClose={() => { setSavingsOpen(false); setSavingsAddOnOpen(false) }}
               onAdd={addSavings}
