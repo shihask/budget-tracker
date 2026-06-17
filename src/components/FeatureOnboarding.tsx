@@ -376,7 +376,23 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             marginBottom: 24,
           }}>
-            <img src="/mint-thinking-loop.svg" alt="Mint AI" width={44} height={44} />
+            <img
+              src="/mint-thinking-loop.svg"
+              alt="Mint AI"
+              width={44}
+              height={44}
+              onError={e => {
+                const el = e.currentTarget
+                el.style.display = 'none'
+                const fallback = el.nextElementSibling as HTMLElement | null
+                if (fallback) fallback.style.display = 'flex'
+              }}
+            />
+            <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', color: '#16C98A' }}>
+              <svg width={44} height={44} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l1.88 5.8 5.62.82-4.06 3.96.96 5.6L12 16.9l-5.02 2.63.96-5.6L3.88 9.62l5.62-.82z"/>
+              </svg>
+            </div>
           </div>
         ) : (
           <div style={{

@@ -325,6 +325,30 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
     if (!text.trim()) { setSmartParsed(null); setAiParsing(false) }
   }
 
+  // Debounced local parse: fills amount/description in real-time as user types
+  // AI path (autopilotEnabled) still triggers on blur/Enter to avoid excess API calls
+  useEffect(() => {
+    if (autopilotEnabled || !smartInput.trim() || smartInput.trim().length < 2) return
+    const timer = setTimeout(() => {
+      const allAccs = [
+        ...accs.map(a => ({ id: a.id, name: a.name })),
+        ...(state.credit_cards || []).map(cc => ({ id: cc.id, name: cc.name })),
+      ]
+      const parsed = parseSmartInput(smartInput.trim(), allAccs, cats)
+      if (parsed.description) setValue('description', parsed.description, { shouldValidate: true })
+      if (parsed.amount !== null) setValue('amount', parsed.amount, { shouldValidate: true })
+      if (parsed.accountId) setValue('from_account_id', parsed.accountId, { shouldValidate: true })
+      if (parsed.categoryId) setValue('category_id', parsed.categoryId, { shouldValidate: true })
+      setSmartParsed({
+        description: parsed.description,
+        amount: parsed.amount,
+        accountName: allAccs.find(a => a.id === parsed.accountId)?.name ?? null,
+        categoryName: cats.find(c => c.id === parsed.categoryId)?.name ?? null,
+      })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [smartInput, autopilotEnabled, accs, cats, state.credit_cards, setValue])
+
   const submitText = async (text: string) => {
     if (text.length < 2) return
     smartInputRef.current?.blur()
@@ -501,8 +525,15 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
             return (
               <button key={t} type="button" onClick={() => {
                 setTxType(t)
-                if (t === 'transfer') setValue('description', 'Transfer', { shouldValidate: true })
-                else if (descriptionVal === 'Transfer') setValue('description', '', { shouldValidate: false })
+                if (t === 'transfer') {
+                  setValue('description', 'Transfer', { shouldValidate: true })
+                } else {
+                  // Reset description and category when switching between expense/income
+                  setValue('description', '', { shouldValidate: false })
+                  setValue('category_id', '', { shouldValidate: false })
+                  setSmartInput('')
+                  setSmartParsed(null)
+                }
               }} style={{
                 flex: 1, border: 'none', borderRadius: 11, padding: '9px 0',
                 font: '700 13px Plus Jakarta Sans',

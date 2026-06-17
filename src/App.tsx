@@ -219,7 +219,7 @@ function AppContent({ session }: { session: Session }) {
           {/* Fixed Header — hidden when transactions page is open */}
           <div style={{
             position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-            width: '100%', maxWidth: W, zIndex: 200,
+            width: '100%', maxWidth: W, zIndex: 350,
             background: dark ? 'rgba(12,10,7,0.85)' : 'rgba(237,231,221,0.85)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
