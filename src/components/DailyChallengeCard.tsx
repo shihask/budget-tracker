@@ -2,7 +2,8 @@ import { useMemo, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, iso, addDays, TODAY } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
-import { PlantSVG, STAGE_THRESHOLDS } from './PlantSVG'
+import { STAGE_THRESHOLDS } from './PlantSVG'
+import { MoneyPlantWatermark } from './MoneyPlantWatermark'
 import type { AppState, DerivedMetrics } from '@/types'
 
 const STAGE_LABELS = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing', 'Mature', 'Blooming']
@@ -165,8 +166,8 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
   return (
     <div style={{ ...cardStyle, position: 'relative', overflow: 'hidden' }}>
       {/* Watermark */}
-      <div style={{ position: 'absolute', bottom: -24, right: -16, width: 130, pointerEvents: 'none', opacity: 0.07, zIndex: 0 }}>
-        <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} viewBoxOverride="6 45 188 260" />
+      <div style={{ position: 'absolute', bottom: -24, right: -16, width: 130, pointerEvents: 'none', opacity: 0.07, zIndex: 0, color: c.ink }}>
+        <MoneyPlantWatermark />
       </div>
 
       {/* Header */}

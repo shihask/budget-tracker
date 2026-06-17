@@ -4,6 +4,7 @@ import { fmt } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
 import { Glyph } from './Glyph'
 import { PlantSVG, STAGE_VIEWBOX, STAGE_THRESHOLDS, NEXT_STAGE_REWARDS } from './PlantSVG'
+import { MoneyPlantWatermark } from './MoneyPlantWatermark'
 import type { AppState } from '@/types'
 
 interface Props {
@@ -241,8 +242,8 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
       <style>{PLANT_ANIM_STYLE}</style>
 
       {/* Page watermark */}
-      <div style={{ position: 'fixed', top: 0, right: -30, width: 220, pointerEvents: 'none', zIndex: 0, opacity: 0.045 }}>
-        <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} viewBoxOverride="6 45 188 260" />
+      <div style={{ position: 'fixed', top: 0, right: -30, width: 220, pointerEvents: 'none', zIndex: 0, opacity: 0.045, color: c.ink }}>
+        <MoneyPlantWatermark />
       </div>
 
       {/* ── Sticky header ─────────────────────────────────────────────────────── */}
