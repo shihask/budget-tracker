@@ -181,30 +181,55 @@ const STAGE_MESSAGES = [
 export function PlantSheet({ open, onClose, state }: Props) {
   const c = useTheme()
   const settings = state.settings
+  const containerRef = useRef<HTMLDivElement>(null)
   const touchStartY = useRef(0)
   const [dragDelta, setDragDelta] = useState(0)
+  const dragDeltaRef = useRef(0)
 
-  // Lock body scroll while open
+  // iOS-safe body scroll lock: position:fixed preserves scroll position
   useEffect(() => {
     if (!open) return
-    const prev = document.body.style.overflow
+    const scrollY = window.scrollY
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
+    return () => {
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      document.body.style.overflow = ''
+      window.scrollTo(0, scrollY)
+    }
+  }, [open])
+
+  // Non-passive touchmove: intercept swipe-down only when scrolled to top
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || !open) return
+    const onMove = (e: TouchEvent) => {
+      const scrollTop = el.scrollTop
+      const delta = e.touches[0].clientY - touchStartY.current
+      if (scrollTop === 0 && delta > 0) {
+        e.preventDefault()
+        dragDeltaRef.current = delta
+        setDragDelta(delta)
+      }
+    }
+    el.addEventListener('touchmove', onMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onMove)
   }, [open])
 
   if (!open) return null
 
-  // Swipe-down-to-close handlers (on drag handle only)
   const onTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY
+    dragDeltaRef.current = 0
     setDragDelta(0)
   }
-  const onTouchMove = (e: React.TouchEvent) => {
-    const delta = Math.max(0, e.touches[0].clientY - touchStartY.current)
-    setDragDelta(delta)
-  }
   const onTouchEnd = () => {
-    if (dragDelta > 80) onClose()
+    if (dragDeltaRef.current > 80) onClose()
+    dragDeltaRef.current = 0
     setDragDelta(0)
   }
 
@@ -244,6 +269,9 @@ export function PlantSheet({ open, onClose, state }: Props) {
 
   return (
     <div
+      ref={containerRef}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
         background: c.bg, overflowY: 'auto', overscrollBehavior: 'none',
@@ -252,19 +280,13 @@ export function PlantSheet({ open, onClose, state }: Props) {
         transition: dragDelta === 0 ? 'transform 0.25s ease' : undefined,
       }}
     >
-      {/* Drag handle — swipe down here to close */}
-      <div
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        style={{
-          paddingTop: 'env(safe-area-inset-top, 16px)',
-          paddingBottom: 8,
-          display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
-          cursor: 'grab', background: c.bg,
-          position: 'sticky', top: 0, zIndex: 2,
-        }}
-      >
+      {/* Drag handle — visual hint only, gesture is now handled on the whole container */}
+      <div style={{
+        paddingTop: 'env(safe-area-inset-top, 16px)',
+        paddingBottom: 8,
+        display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
+        background: c.bg, position: 'sticky', top: 0, zIndex: 2,
+      }}>
         <div style={{ width: 36, height: 4, borderRadius: 99, background: c.muted, opacity: 0.4 }} />
       </div>
 
