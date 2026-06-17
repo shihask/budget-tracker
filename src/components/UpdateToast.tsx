@@ -1,14 +1,35 @@
+import { useEffect, useRef } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { useTheme } from '@/lib/theme-context'
 
 export function UpdateToast() {
   const c = useTheme()
+  const registrationRef = useRef<ServiceWorkerRegistration | undefined>(undefined)
+  const hiddenAtRef = useRef<number>(0)
+
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
     onRegisteredSW(_url, registration) {
-      // Poll for updates once per hour for long-lived sessions
-      if (registration) setInterval(() => registration.update(), 60 * 60 * 1000)
+      registrationRef.current = registration
     },
   })
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        hiddenAtRef.current = Date.now()
+        return
+      }
+      // iOS suspends PWAs when backgrounded — setInterval never fires.
+      // visibilitychange is reliable: check for updates whenever the user
+      // foregrounds the app after it's been hidden for more than 30 seconds.
+      const hiddenMs = Date.now() - hiddenAtRef.current
+      if (hiddenMs > 30_000 && registrationRef.current) {
+        registrationRef.current.update().catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
 
   if (!needRefresh) return null
 
