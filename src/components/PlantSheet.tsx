@@ -41,9 +41,9 @@ const G2 = '#8CC96A'
 const G3 = '#5B9E4A'
 const G4 = '#3D7A30'   // darkest — oldest growth
 
-function PlantSVG({ stageIdx, opacity = 1 }: { stageIdx: number; opacity?: number }) {
+function PlantSVG({ stageIdx, opacity = 1, viewBoxOverride }: { stageIdx: number; opacity?: number; viewBoxOverride?: string }) {
   return (
-    <svg viewBox={STAGE_VIEWBOX[stageIdx]} style={{ opacity, display: 'block', width: '100%', maxWidth: 220, height: 'auto' }}>
+    <svg viewBox={viewBoxOverride ?? STAGE_VIEWBOX[stageIdx]} style={{ opacity, display: 'block', width: '100%', maxWidth: 220, height: 'auto' }}>
       <Pot />
 
       {/* Stage 0 – Seed */}
@@ -156,6 +156,18 @@ const STAGE_VIEWBOX = [
 
 const STAGE_LABELS = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing', 'Mature', 'Blooming']
 
+const STAGE_THRESHOLDS = [0, 1, 5, 15, 30, 60, 100]
+
+const NEXT_STAGE_REWARDS = [
+  'Your first stem will emerge from the soil.',
+  'Your plant grows its first pair of leaves.',
+  'New branches begin to form.',
+  'Your plant grows taller and wider.',
+  'Strong branches spread outward.',
+  'Flowers bloom at the top.',
+  '',
+]
+
 const STAGE_MESSAGES = [
   'Your MoneyPlant is waiting.\nComplete today\'s goal to sprout your first stem.',
   'Your first sprout emerged.\nKeep going to grow your first leaf.',
@@ -216,6 +228,16 @@ export function PlantSheet({ open, onClose, state }: Props) {
   const canGrowToday = calc !== null && calc.status !== 'exceeded' && nextGoal > 0
   const ghostStage   = Math.min(6, stageIdx + 1) as 0|1|2|3|4|5|6
 
+  // Shared viewBox for ghost preview — both current and ghost use the next stage's crop
+  const sharedViewBox = canGrowToday && stageIdx < 6 ? STAGE_VIEWBOX[ghostStage] : STAGE_VIEWBOX[stageIdx]
+
+  // Stage progress toward next milestone
+  const curThreshold  = STAGE_THRESHOLDS[stageIdx] ?? 0
+  const nextThreshold = STAGE_THRESHOLDS[stageIdx + 1] ?? null
+  const leavesInStage = leaves - curThreshold
+  const stageSize     = nextThreshold !== null ? nextThreshold - curThreshold : 1
+  const stageProgress = Math.min(1, leavesInStage / stageSize)
+
   // Today's opportunity: how many leaves can be earned today
   const leavesIfSuccess = calc && calc.status !== 'exceeded' ? 2 + (streak + 1 === 7 ? 3 : streak + 1 === 30 ? 10 : streak + 1 === 90 ? 25 : 0) : 0
 
@@ -266,29 +288,30 @@ export function PlantSheet({ open, onClose, state }: Props) {
         </button>
       </div>
 
-      {/* Stage pill */}
-      <div style={{ padding: '10px 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{
-          font: '700 13px Plus Jakarta Sans', color: c.accent,
-          background: c.accent + '18', padding: '4px 12px', borderRadius: 99,
-        }}>
-          {STAGE_LABELS[stageIdx]}
-        </span>
-        {streak >= 7 && (
-          <span style={{
-            font: '600 12px Plus Jakarta Sans', color: '#E879F9',
-            background: '#E879F922', padding: '4px 10px', borderRadius: 99,
-          }}>
-            7-day streak bonus active
-          </span>
-        )}
+      {/* Stage roadmap — horizontal scrollable chips */}
+      <div style={{
+        display: 'flex', gap: 6, padding: '12px 20px 0',
+        overflowX: 'auto', scrollbarWidth: 'none',
+      }}>
+        {STAGE_LABELS.map((label, i) => {
+          const isPast    = i < stageIdx
+          const isCurrent = i === stageIdx
+          return (
+            <div key={i} style={{
+              padding: '4px 11px', borderRadius: 99, flexShrink: 0,
+              background: isCurrent ? c.accent : isPast ? c.good + '22' : c.surface2,
+              border: `1px solid ${isCurrent ? c.accent : isPast ? c.good + '55' : c.faint}`,
+              font: '600 11px Plus Jakarta Sans',
+              color: isCurrent ? '#fff' : isPast ? c.good : c.muted,
+            }}>
+              {isPast ? `✓ ${label}` : label}
+            </div>
+          )
+        })}
       </div>
 
       {/* Stats row */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
-        gap: 8, padding: '14px 20px 0',
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '12px 20px 0' }}>
         {[
           { label: 'Total Leaves', value: `${leaves}` },
           { label: 'Streak',       value: `${streak} days` },
@@ -304,15 +327,14 @@ export function PlantSheet({ open, onClose, state }: Props) {
         ))}
       </div>
 
-      {/* Plant visualization */}
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 40px 8px', position: 'relative' }}>
-        {/* Ghost preview: next stage at 15% opacity, same crop as current so it aligns */}
+      {/* Plant visualization — ghost and current share the same viewBox so they align */}
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 50px 4px', position: 'relative' }}>
         {canGrowToday && stageIdx < 6 && (
-          <div style={{ position: 'absolute', top: 20, left: 40, right: 40 }}>
-            <PlantSVG stageIdx={ghostStage as 0|1|2|3|4|5|6} opacity={0.15} />
+          <div style={{ position: 'absolute', top: 20, left: 50, right: 50 }}>
+            <PlantSVG stageIdx={ghostStage} viewBoxOverride={sharedViewBox} opacity={0.14} />
           </div>
         )}
-        <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} opacity={1} />
+        <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} viewBoxOverride={sharedViewBox} opacity={1} />
       </div>
 
       {/* Stage message */}
@@ -321,13 +343,41 @@ export function PlantSheet({ open, onClose, state }: Props) {
           <div key={i} style={{
             font: i === 0 ? '600 14px Plus Jakarta Sans' : '500 13px Plus Jakarta Sans',
             color: i === 0 ? c.ink : c.muted,
-            marginTop: i === 0 ? 0 : 3,
-            lineHeight: 1.5,
-          }}>
-            {line}
-          </div>
+            marginTop: i === 0 ? 0 : 3, lineHeight: 1.5,
+          }}>{line}</div>
         ))}
+        {canGrowToday && (
+          <div style={{ font: '500 12px Plus Jakarta Sans', color: c.accent, marginTop: 6 }}>
+            Complete today's challenge to grow a new leaf
+          </div>
+        )}
       </div>
+
+      {/* Next Growth — shows progress toward next milestone + reward */}
+      {stageIdx < 6 && nextThreshold !== null && (
+        <div style={{
+          margin: '14px 20px 0', background: c.surface,
+          border: `1px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px',
+        }}>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Next Growth</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink }}>{STAGE_LABELS[stageIdx + 1]}</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+              {nextGoal} {nextGoal === 1 ? 'leaf' : 'leaves'} away
+            </div>
+          </div>
+          <div style={{ height: 5, borderRadius: 99, background: c.surface2, overflow: 'hidden', marginBottom: 8 }}>
+            <div style={{
+              height: '100%', borderRadius: 99, background: c.good,
+              width: `${stageProgress * 100}%`,
+              transition: 'width 0.5s ease',
+            }} />
+          </div>
+          <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>
+            {NEXT_STAGE_REWARDS[stageIdx]}
+          </div>
+        </div>
+      )}
 
       {/* Today's Opportunity — remaining budget is the hero number */}
       {calc && calc.status !== 'exceeded' && leavesIfSuccess > 0 && (
