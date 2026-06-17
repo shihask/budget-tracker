@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { version } from '../../package.json'
 
 type Mode = 'login' | 'signup' | 'check-email' | 'forgot' | 'forgot-sent'
 
@@ -309,6 +310,9 @@ function Screen({ children }: { children: React.ReactNode }) {
         boxShadow: '0 4px 32px rgba(0,0,0,0.08)',
       }}>
         {children}
+      </div>
+      <div style={{ font: '500 11px Plus Jakarta Sans', color: '#C4BCB4', textAlign: 'center', marginTop: 12 }}>
+        v{version}
       </div>
     </div>
   )
