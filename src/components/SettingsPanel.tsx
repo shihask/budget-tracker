@@ -12,6 +12,7 @@ interface SettingsPanelProps {
   trackCreditCards: boolean
   trackBorrowings: boolean
   trackSavings: boolean
+  challengeEnabled: boolean
   autopilotEnabled: boolean
   aiRequestsUsed: number
   aiRequestsResetAt: string | null
@@ -27,6 +28,7 @@ interface SettingsPanelProps {
   onTrackCreditCards: (v: boolean) => Promise<void>
   onTrackBorrowings: (v: boolean) => Promise<void>
   onTrackSavings: (v: boolean) => Promise<void>
+  onChallengeEnabled: (v: boolean) => Promise<void>
   onAutopilot: (v: boolean) => Promise<void>
   onNotificationsEnabled: (v: boolean) => Promise<void>
   onNotifyDailyReminder: (v: boolean) => Promise<void>
@@ -36,7 +38,7 @@ interface SettingsPanelProps {
   onDashboardLayout: () => void
 }
 
-export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, trackSavings, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, trackSavings, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [savingSalary, setSavingSalary] = useState(false)
@@ -258,6 +260,19 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
           style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackSavings ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
         >
           <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackSavings ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+        </button>
+      </div>
+
+      <div style={rowStyle}>
+        <div>
+          <div style={labelStyle}>Daily Challenge Mode</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Get a daily spending target based on your available money</div>
+        </div>
+        <button
+          onClick={() => onChallengeEnabled(!challengeEnabled)}
+          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: challengeEnabled ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
+        >
+          <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: challengeEnabled ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </button>
       </div>
 

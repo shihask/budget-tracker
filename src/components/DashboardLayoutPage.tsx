@@ -16,9 +16,10 @@ import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 const LOCKED_IDS: string[] = ['hero', 'affordability']
 
 const SECTION_META: Record<DashboardSectionId, { label: string; desc: string }> = {
-  hero:          { label: 'Weekly Overview',       desc: 'Spending vs budget & week summary' },
-  affordability: { label: 'Affordability Checker', desc: 'Can I afford this purchase?' },
-  metrics:       { label: 'Your Money',            desc: 'Balance, savings & key metrics' },
+  hero:            { label: 'Weekly Overview',       desc: 'Spending vs budget & week summary' },
+  affordability:   { label: 'Affordability Checker', desc: 'Can I afford this purchase?' },
+  daily_challenge: { label: 'Daily Challenge',        desc: 'Daily spending target & streak' },
+  metrics:         { label: 'Your Money',             desc: 'Balance, savings & key metrics' },
   commitments:   { label: 'Bills & Obligations',    desc: 'Bills & recurring payments' },
   goals:         { label: 'Goals',                 desc: 'Savings goals & progress tracking' },
   accounts:      { label: 'Accounts',              desc: 'Bank & cash account balances' },

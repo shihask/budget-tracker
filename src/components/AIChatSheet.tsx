@@ -5,6 +5,7 @@ import { parseExpenseWithAI } from '@/lib/gemini'
 import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
+import { computeChallenge } from '@/lib/challenge'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -225,6 +226,18 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
     ? ` | savings-contributed-this-month:₹${savingsContribThisMonth.toLocaleString()} savings-withdrawn-this-month:₹${savingsWithdrawThisMonth.toLocaleString()} (wealth movement, not spending)`
     : ''
 
+  // Daily Challenge context
+  let challengeLine = ''
+  if (state.settings.challenge_enabled) {
+    const diff = state.settings.challenge_difficulty ?? 'medium'
+    const ch = computeChallenge(state, diff)
+    const streak = state.settings.challenge_streak ?? 0
+    const totalDays = state.settings.challenge_total_days ?? 0
+    const successDays = state.settings.challenge_success_days ?? 0
+    const successRate = totalDays >= 3 ? `${Math.round((successDays / totalDays) * 100)}% (${successDays}/${totalDays})` : 'starting'
+    challengeLine = `\nDailyChallenge: enabled difficulty:${diff} target:₹${Math.round(ch.adjustedTarget).toLocaleString()} spent-today:₹${Math.round(ch.spentToday).toLocaleString()} remaining:₹${Math.round(ch.remaining).toLocaleString()} status:${ch.status} streak:${streak}-days success-rate:${successRate} plant:${ch.plantGrowth.milestoneLabel} salary-pace:${ch.survivalStatus} safe-daily:₹${Math.round(ch.safeDailyLimit).toLocaleString()}`
+  }
+
   return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
 Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}${ccLine}
 Budget: weekly ₹${budget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${Math.round(d.weeklySpent / budget * 100)}% used)
@@ -234,7 +247,7 @@ Today(${localDateStr}): total ₹${todaySpend.toLocaleString()} | ${todayStr}
 Categories(month): ${topCats || 'no data'}
 Recurring(90d): ${recurring || 'none'}
 Recent:
-${recent}${borrowingsLine}${goalsLine}${commitmentsLine}${savingsLine}`
+${recent}${borrowingsLine}${goalsLine}${commitmentsLine}${savingsLine}${challengeLine}`
 }
 
 type ParsedEdit =

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.8.16'
+const APP_VERSION = '1.9.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
@@ -43,6 +43,8 @@ import { OnboardingFlow } from '@/components/OnboardingFlow'
 import { UpdateToast } from '@/components/UpdateToast'
 import { InsightCard } from '@/components/InsightCard'
 import { WealthSummaryCard } from '@/components/WealthSummaryCard'
+import { DailyChallengeCard } from '@/components/DailyChallengeCard'
+import { computeChallenge } from '@/lib/challenge'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -125,10 +127,11 @@ function AppContent({ session }: { session: Session }) {
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
+  const [excludePromptTxnId, setExcludePromptTxnId] = useState<string | null>(null)
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
 
@@ -150,11 +153,28 @@ function AppContent({ session }: { session: Session }) {
     return missing.length > 0 ? [...saved, ...missing] : saved
   }, [state.settings.dashboard_sections])
 
+  const safeDailyLimit = useMemo(() => {
+    if (!(state.settings.challenge_enabled)) return 0
+    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium').safeDailyLimit
+  }, [state.accounts, state.commitments, state.settings]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
     const prevPct = d.weeklyPct
-    await addTransaction(form)
+    const newTx = await addTransaction(form)
     setFlash(form.description)
     setTimeout(() => setFlash(null), 2200)
+
+    // Challenge: flag large expenses for optional exclusion
+    if (
+      newTx &&
+      form.transaction_type === 'expense' &&
+      (state.settings.challenge_enabled ?? false) &&
+      safeDailyLimit > 0 &&
+      form.amount > safeDailyLimit * 2
+    ) {
+      setExcludePromptTxnId(newTx.id)
+      setTimeout(() => setExcludePromptTxnId(null), 5000)
+    }
 
     // Budget alert: fire when crossing the 90% threshold
     const isTrackedExpense = form.transaction_type === 'expense' || form.transaction_type === 'commitment'
@@ -233,6 +253,9 @@ function AppContent({ session }: { session: Session }) {
                       break
                     case 'affordability':
                       el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
+                      break
+                    case 'daily_challenge':
+                      el = <DailyChallengeCard state={state} d={d} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} />
                       break
                     case 'metrics':
                       el = <div>
@@ -314,6 +337,29 @@ function AppContent({ session }: { session: Session }) {
                   <Glyph name="check" color="#fff" size={13} />
                 </span>
                 Added "{flash}"
+              </div>
+            )}
+          </div>
+
+          {/* Challenge Exclusion Toast */}
+          <div style={{
+            position: 'fixed',
+            bottom: `calc(${excludePromptTxnId ? 112 : 80}px + env(safe-area-inset-bottom, 0px))`,
+            left: '50%', transform: 'translateX(-50%)',
+            width: `calc(min(100%, ${W}px) - 32px)`,
+            opacity: excludePromptTxnId ? 1 : 0,
+            transition: 'all 0.35s cubic-bezier(0.32,0.72,0,1)',
+            pointerEvents: excludePromptTxnId ? 'auto' : 'none', zIndex: 85,
+          }}>
+            {excludePromptTxnId && (
+              <div style={{ background: c.ink, color: c.bg, borderRadius: 14, padding: '12px 16px', font: '600 13px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+                <span>Large expense — exclude from today's challenge?</span>
+                <button
+                  onClick={() => { excludeChallengeTransaction(excludePromptTxnId); setExcludePromptTxnId(null) }}
+                  style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', flexShrink: 0 }}
+                >
+                  Exclude
+                </button>
               </div>
             )}
           </div>
@@ -447,6 +493,7 @@ function AppContent({ session }: { session: Session }) {
               trackCreditCards={state.settings.track_credit_cards ?? false}
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackSavings={state.settings.track_savings ?? false}
+              challengeEnabled={state.settings.challenge_enabled ?? false}
               autopilotEnabled={state.settings.autopilot_enabled ?? false}
               aiRequestsUsed={state.settings.ai_requests_used ?? 0}
               aiRequestsResetAt={state.settings.ai_requests_reset_at ?? null}
@@ -460,6 +507,7 @@ function AppContent({ session }: { session: Session }) {
               onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
               onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
               onTrackSavings={v => updateSettings({ track_savings: v })}
+              onChallengeEnabled={v => updateSettings({ challenge_enabled: v })}
               onAutopilot={v => updateSettings({ autopilot_enabled: v })}
               onNotificationsEnabled={v => updateSettings({ notifications_enabled: v })}
               onNotifyDailyReminder={v => updateSettings({ notify_daily_reminder: v })}

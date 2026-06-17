@@ -15,7 +15,7 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0 },
   commitments: [],
   borrowings: [],
   transactions: [],
@@ -259,7 +259,7 @@ export function useSupabaseData(userId: string) {
 
   const addTransaction = useCallback(async (
     form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }
-  ) => {
+  ): Promise<Transaction | undefined> => {
     try {
       const isCreditCard = state.credit_cards.some(c => c.id === form.from_account_id)
       const toAccountId = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
@@ -312,6 +312,7 @@ export function useSupabaseData(userId: string) {
           }),
         }))
       }
+      return newTx as Transaction
     } catch (err) { console.error('Failed to save transaction:', err); throw err }
   }, [userId, state.credit_cards])
 
@@ -1040,6 +1041,45 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, credit_cards: s.credit_cards.map(c => c.id === card.id ? { ...c, current_balance: newBalance } : c) }))
   }, [])
 
+  const updateChallengeResult = useCallback(async (
+    result: 'success' | 'miss',
+    savedAmount: number,
+    target: number,
+    todayStr: string
+  ) => {
+    const s = stateRef.current.settings
+    const streak  = s.challenge_streak       ?? 0
+    const total   = s.challenge_total_days   ?? 0
+    const success = s.challenge_success_days ?? 0
+    const isSuccess = result === 'success'
+
+    let newStreak: number
+    let potDelta = 0
+
+    if (isSuccess) {
+      newStreak = streak + 1
+      potDelta = Math.max(0, savedAmount)
+    } else {
+      const overPct = target > 0 ? Math.abs(savedAmount) / target : 1
+      newStreak = overPct < 0.10 ? streak : 0
+    }
+
+    await updateSettings({
+      challenge_streak:       newStreak,
+      challenge_pot:          (s.challenge_pot ?? 0) + potDelta,
+      challenge_last_date:    todayStr,
+      challenge_total_days:   total + 1,
+      challenge_success_days: success + (isSuccess ? 1 : 0),
+    })
+  }, [updateSettings])
+
+  const excludeChallengeTransaction = useCallback(async (txnId: string) => {
+    const existing = stateRef.current.settings.challenge_excluded_txn_ids ?? []
+    if (!existing.includes(txnId)) {
+      await updateSettings({ challenge_excluded_txn_ids: [...existing, txnId] })
+    }
+  }, [updateSettings])
+
   return {
     state, setState, loading, usingSupabase,
     addTransaction, deleteTransaction, updateTransaction, updateSettings,
@@ -1051,5 +1091,6 @@ export function useSupabaseData(userId: string) {
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
     addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout,
+    updateChallengeResult, excludeChallengeTransaction,
   }
 }

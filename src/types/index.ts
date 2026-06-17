@@ -94,6 +94,14 @@ export interface Settings {
   notify_commitments?: boolean
   notify_weekly_summary?: boolean
   track_savings?: boolean
+  challenge_enabled?:           boolean
+  challenge_difficulty?:        'easy' | 'medium' | 'hard'
+  challenge_streak?:            number
+  challenge_pot?:               number
+  challenge_last_date?:         string | null
+  challenge_excluded_txn_ids?:  string[] | null
+  challenge_total_days?:        number
+  challenge_success_days?:      number
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
@@ -189,7 +197,7 @@ export interface CatPoint   { name: string; value: number }
 export type Layout = 'grid' | 'carousel' | 'list'
 
 export type DashboardSectionId =
-  | 'hero' | 'affordability' | 'metrics' | 'commitments' | 'goals'
+  | 'hero' | 'affordability' | 'daily_challenge' | 'metrics' | 'commitments' | 'goals'
   | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns' | 'savings'
 
 export interface DashboardSection {
@@ -201,9 +209,10 @@ export interface DashboardSection {
 }
 
 export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
-  { id: 'hero',          visible: true },
-  { id: 'affordability', visible: true },
-  { id: 'metrics',       visible: true },
+  { id: 'hero',            visible: true },
+  { id: 'affordability',   visible: true },
+  { id: 'daily_challenge', visible: true },
+  { id: 'metrics',         visible: true },
   { id: 'commitments',   visible: true },
   { id: 'goals',         visible: true },
   { id: 'accounts',      visible: true },
