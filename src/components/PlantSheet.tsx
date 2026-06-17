@@ -211,6 +211,7 @@ export function PlantSheet({ open, onClose, state }: Props) {
   const leaves       = settings.challenge_leaves       ?? 0
   const monthLeaves  = settings.challenge_month_leaves ?? 0
   const streak       = settings.challenge_streak       ?? 0
+  const ageDays      = settings.challenge_total_days   ?? 0
   const pot          = settings.challenge_pot          ?? 0
   const enabled      = settings.challenge_enabled      ?? false
 
@@ -298,10 +299,10 @@ export function PlantSheet({ open, onClose, state }: Props) {
           const isCurrent = i === stageIdx
           return (
             <div key={i} style={{
-              padding: '4px 11px', borderRadius: 99, flexShrink: 0,
+              padding: isCurrent ? '6px 16px' : '4px 11px', borderRadius: 99, flexShrink: 0,
               background: isCurrent ? c.accent : isPast ? c.good + '22' : c.surface2,
-              border: `1px solid ${isCurrent ? c.accent : isPast ? c.good + '55' : c.faint}`,
-              font: '600 11px Plus Jakarta Sans',
+              border: `1.5px solid ${isCurrent ? c.accent : isPast ? c.good + '55' : c.faint}`,
+              font: isCurrent ? '700 13px Plus Jakarta Sans' : '600 11px Plus Jakarta Sans',
               color: isCurrent ? '#fff' : isPast ? c.good : c.muted,
             }}>
               {isPast ? `✓ ${label}` : label}
@@ -310,11 +311,12 @@ export function PlantSheet({ open, onClose, state }: Props) {
         })}
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '12px 20px 0' }}>
+      {/* Stats grid — 2×2 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '12px 20px 0' }}>
         {[
           { label: 'Total Leaves', value: `${leaves}` },
           { label: 'Streak',       value: `${streak} days` },
+          { label: 'Age',          value: `${ageDays} days` },
           { label: 'This Month',   value: `+${monthLeaves}` },
         ].map(({ label, value }) => (
           <div key={label} style={{
@@ -376,6 +378,17 @@ export function PlantSheet({ open, onClose, state }: Props) {
           <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>
             {NEXT_STAGE_REWARDS[stageIdx]}
           </div>
+          {calc && (
+            <div style={{
+              marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}`,
+              font: '600 12px Plus Jakarta Sans',
+              color: calc.status === 'exceeded' ? c.muted : c.accent,
+            }}>
+              {calc.status === 'exceeded'
+                ? `Try again tomorrow to grow toward ${STAGE_LABELS[stageIdx + 1]}.`
+                : `Complete today's Daily Growth Goal to unlock ${STAGE_LABELS[stageIdx + 1]} tomorrow.`}
+            </div>
+          )}
         </div>
       )}
 
