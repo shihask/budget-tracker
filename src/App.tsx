@@ -222,7 +222,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen) ? 'none' : 'block',
           }}>
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} />
           </div>
@@ -427,7 +427,7 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen) ? 0.4 * (1 - swipePct) : 0})`,
             pointerEvents: 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
@@ -521,7 +521,7 @@ function AppContent({ session }: { session: Session }) {
           </>
         )}
 
-        <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} />
+        {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
 
         <BottomSheet open={emergencyEditOpen} onClose={() => setEmergencyEditOpen(false)} zIndex={300}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Emergency Fund</div>
