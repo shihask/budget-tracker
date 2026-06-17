@@ -38,11 +38,12 @@ interface TransactionsPageProps {
   onReversePayment: (t: Transaction) => Promise<void>
   initialEditTx?: Transaction | null
   onAdd?: () => void
+  onToggleChallengeExclusion?: (txnId: string) => Promise<void>
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, initialEditTx, onAdd }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, initialEditTx, onAdd, onToggleChallengeExclusion }: TransactionsPageProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
 
@@ -492,6 +493,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                           )
                         }
                         {accLabel && <span style={{ font: '600 10px Plus Jakarta Sans', color: accColor, background: accColor + '18', borderRadius: 999, padding: '2px 7px' }}>{accLabel}</span>}
+                        {(state.settings.challenge_excluded_txn_ids ?? []).includes(t.id) && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px', border: `1px dashed ${c.faint}` }}>excl. challenge</span>
+                        )}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -651,7 +655,34 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            {/* Challenge exclusion toggle — only for expenses when challenge is active */}
+            {editingTx && editForm?.transaction_type === 'expense' && (state.settings.challenge_enabled ?? false) && onToggleChallengeExclusion && (() => {
+              const isExcluded = (state.settings.challenge_excluded_txn_ids ?? []).includes(editingTx.id)
+              return (
+                <div style={{ marginTop: 16, background: c.surface2, borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink }}>Exclude from Daily Challenge</div>
+                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                      {isExcluded ? "This transaction won't count toward today's goal" : "This transaction counts toward today's spending goal"}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onToggleChallengeExclusion(editingTx.id)}
+                    style={{
+                      flexShrink: 0, padding: '6px 14px', borderRadius: 99, cursor: 'pointer',
+                      font: '700 12px Plus Jakarta Sans',
+                      background: isExcluded ? c.good + '22' : c.surface,
+                      color: isExcluded ? c.good : c.muted,
+                      border: `1.5px solid ${isExcluded ? c.good + '55' : c.faint}`,
+                    }}
+                  >
+                    {isExcluded ? 'Excluded' : 'Exclude'}
+                  </button>
+                </div>
+              )
+            })()}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button
                 onClick={closeEdit}
                 style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}

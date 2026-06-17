@@ -1176,6 +1176,16 @@ export function useSupabaseData(userId: string) {
     }
   }, [updateSettings])
 
+  const toggleChallengeExclusion = useCallback(async (txnId: string) => {
+    const existing = stateRef.current.settings.challenge_excluded_txn_ids ?? []
+    const isExcluded = existing.includes(txnId)
+    await updateSettings({
+      challenge_excluded_txn_ids: isExcluded
+        ? existing.filter(id => id !== txnId)
+        : [...existing, txnId],
+    })
+  }, [updateSettings])
+
   return {
     state, setState, loading, usingSupabase,
     addTransaction, deleteTransaction, updateTransaction, updateSettings,
@@ -1187,6 +1197,6 @@ export function useSupabaseData(userId: string) {
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
     addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout,
-    updateChallengeResult, excludeChallengeTransaction,
+    updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion,
   }
 }

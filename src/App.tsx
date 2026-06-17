@@ -133,7 +133,7 @@ function AppContent({ session }: { session: Session }) {
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
 
@@ -433,7 +433,7 @@ function AppContent({ session }: { session: Session }) {
           }} />
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onReversePayment={reversePayment} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onReversePayment={reversePayment} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} />
           )}
 
           {borrowingOpen && (
