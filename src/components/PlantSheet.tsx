@@ -144,6 +144,16 @@ function PlantSVG({ stageIdx, opacity = 1 }: { stageIdx: number; opacity?: numbe
 
 const STAGE_LABELS = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing', 'Mature', 'Blooming']
 
+const STAGE_MESSAGES = [
+  'Your MoneyPlant is waiting.\nComplete today\'s goal to sprout your first stem.',
+  'Your first sprout emerged.\nKeep going to grow your first leaf.',
+  'Your plant has its first leaves.\nConsistency is making it real.',
+  'Young and establishing.\nYour plant is finding its shape.',
+  'Growing strong.\nYour consistent habits are showing.',
+  'Mature and flourishing.\nYou\'ve built real financial consistency.',
+  'Blooming.\nYou\'ve grown your MoneyPlant.',
+]
+
 export function PlantSheet({ open, onClose, state }: Props) {
   const c = useTheme()
   const settings = state.settings
@@ -249,43 +259,69 @@ export function PlantSheet({ open, onClose, state }: Props) {
         <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} opacity={1} />
       </div>
 
-      {/* Ghost preview label */}
-      {canGrowToday && (
-        <div style={{ textAlign: 'center', padding: '0 24px 4px' }}>
-          <span style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
-            Complete today's challenge to grow a new leaf
-          </span>
-        </div>
-      )}
+      {/* Stage message */}
+      <div style={{ textAlign: 'center', padding: '4px 28px 0' }}>
+        {STAGE_MESSAGES[stageIdx].split('\n').map((line, i) => (
+          <div key={i} style={{
+            font: i === 0 ? '600 14px Plus Jakarta Sans' : '500 13px Plus Jakarta Sans',
+            color: i === 0 ? c.ink : c.muted,
+            marginTop: i === 0 ? 0 : 3,
+            lineHeight: 1.5,
+          }}>
+            {line}
+          </div>
+        ))}
+      </div>
 
-      {/* Today's Opportunity */}
-      {calc && calc.status !== 'exceeded' && (
+      {/* Today's Opportunity — remaining budget is the hero number */}
+      {calc && calc.status !== 'exceeded' && leavesIfSuccess > 0 && (
         <div style={{
           margin: '16px 20px 0',
           background: c.surface, border: `1px solid ${c.faint}`,
           borderRadius: 16, padding: '14px 16px',
         }}>
-          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 10 }}>
             Today's Opportunity
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ font: '500 13px Plus Jakarta Sans', color: c.sub }}>
-                Stay under {fmt(Math.round(calc.adjustedTarget))} today
-              </div>
-              <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-                {fmt(calc.spentToday)} spent so far
-              </div>
+              {calc.spentToday > 0 ? (
+                <>
+                  <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink }}>
+                    {fmt(Math.max(0, Math.round(calc.remaining)))}
+                  </div>
+                  <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                    left in today's goal
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: c.sub }}>
+                    Nothing spent yet today
+                  </div>
+                  <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                    Goal: {fmt(Math.round(calc.adjustedTarget))}
+                  </div>
+                </>
+              )}
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ font: '700 15px Plus Jakarta Sans', color: c.good }}>
-                +{leavesIfSuccess} {leavesIfSuccess === 1 ? 'leaf' : 'leaves'}
+            <div style={{
+              background: c.good + '18', border: `1px solid ${c.good}40`,
+              borderRadius: 12, padding: '10px 14px', textAlign: 'center',
+            }}>
+              <div style={{ font: '800 18px Plus Jakarta Sans', color: c.good }}>
+                +{leavesIfSuccess}
               </div>
-              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-                if you complete it
+              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.good, marginTop: 1 }}>
+                {leavesIfSuccess === 1 ? 'leaf' : 'leaves'}
               </div>
             </div>
           </div>
+          {calc.spentToday > 0 && calc.remaining > 0 && (
+            <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
+              Stay within {fmt(Math.round(calc.remaining))} more today to earn your {leavesIfSuccess === 1 ? 'leaf' : 'leaves'}
+            </div>
+          )}
         </div>
       )}
 
