@@ -3,10 +3,11 @@ import type { AppState } from '@/types'
 
 export interface PlantGrowth {
   leaves: number
-  milestone: 'seedling' | 'sprout' | 'sapling' | 'tree' | 'blooming'
+  milestone: 'seed' | 'sprout' | 'first_leaf' | 'young' | 'growing' | 'mature' | 'blooming'
   milestoneLabel: string
   nextGoal: number
   streakBonus: boolean
+  stageIdx: number   // 0-6, for SVG rendering
 }
 
 export interface ChallengeCalc {
@@ -36,11 +37,13 @@ export interface ChallengeCalc {
 }
 
 const PLANT_MILESTONES: Array<{ threshold: number; label: string; key: PlantGrowth['milestone'] }> = [
-  { threshold: 0,   label: 'Seedling',  key: 'seedling'  },
-  { threshold: 10,  label: 'Sprouting', key: 'sprout'    },
-  { threshold: 50,  label: 'Sapling',   key: 'sapling'   },
-  { threshold: 100, label: 'Growing',   key: 'tree'      },
-  { threshold: 365, label: 'Blooming',  key: 'blooming'  },
+  { threshold: 0,   label: 'Seed',         key: 'seed'       },
+  { threshold: 1,   label: 'Sprout',       key: 'sprout'     },
+  { threshold: 5,   label: 'First Leaves', key: 'first_leaf' },
+  { threshold: 15,  label: 'Young Plant',  key: 'young'      },
+  { threshold: 30,  label: 'Growing',      key: 'growing'    },
+  { threshold: 60,  label: 'Mature',       key: 'mature'     },
+  { threshold: 100, label: 'Blooming',     key: 'blooming'   },
 ]
 
 function computeCycleDays(salaryDate: number): number {
@@ -65,8 +68,7 @@ function daysUntilMonthEnd(): number {
   return Math.max(1, Math.round((lastDay.getTime() - todayMid.getTime()) / 86400000) + 1)
 }
 
-function getPlantGrowth(pot: number, streak: number): PlantGrowth {
-  const leaves = Math.floor(pot / 100)
+function getPlantGrowth(leaves: number, streak: number): PlantGrowth {
   let milestoneIdx = 0
   for (let i = PLANT_MILESTONES.length - 1; i >= 0; i--) {
     if (leaves >= PLANT_MILESTONES[i].threshold) { milestoneIdx = i; break }
@@ -79,6 +81,7 @@ function getPlantGrowth(pot: number, streak: number): PlantGrowth {
     milestoneLabel: `${current.label} — ${leaves} ${leaves === 1 ? 'leaf' : 'leaves'}`,
     nextGoal: next ? next.threshold - leaves : 0,
     streakBonus: streak >= 7,
+    stageIdx: milestoneIdx,
   }
 }
 
@@ -182,10 +185,10 @@ export function computeChallenge(
   // Today's Win
   const todaysWin = getTodaysWin(transactions, excluded, spentToday, yesterdaySpent, todayStr, thirtyDaysAgo, status)
 
-  // Plant Growth
-  const pot = settings.challenge_pot ?? 0
+  // Plant Growth (behavior-based: leaves earned from completions, not money)
+  const leaves = settings.challenge_leaves ?? 0
   const streak = settings.challenge_streak ?? 0
-  const plantGrowth = getPlantGrowth(pot, streak)
+  const plantGrowth = getPlantGrowth(leaves, streak)
 
   // Success Rate
   const totalDays = settings.challenge_total_days ?? 0

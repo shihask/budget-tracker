@@ -10,6 +10,7 @@ interface Props {
   onUpdateSettings: (patch: Partial<AppState['settings']>) => Promise<void>
   updateChallengeResult: (result: 'success' | 'miss', savedAmount: number, target: number, date: string) => Promise<void>
   onOpenSalaryDateEdit: () => void
+  onOpenPlant: () => void
 }
 
 const DIFFICULTY_OPTS: Array<{ key: 'easy' | 'medium' | 'hard'; label: string }> = [
@@ -44,7 +45,7 @@ function ChevronRightIcon({ color }: { color: string }) {
   )
 }
 
-export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallengeResult, onOpenSalaryDateEdit }: Props) {
+export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallengeResult, onOpenSalaryDateEdit, onOpenPlant }: Props) {
   const c = useTheme()
   const settings = state.settings
   const enabled = settings.challenge_enabled ?? false
@@ -142,9 +143,11 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
 
   // ── Plant milestone color ──────────────────────────────────────────────────
   const plantColor = calc.plantGrowth.milestone === 'blooming' ? '#E879F9'
-    : calc.plantGrowth.milestone === 'tree' ? '#34D399'
-    : calc.plantGrowth.milestone === 'sapling' ? c.good
-    : calc.plantGrowth.milestone === 'sprout' ? c.accent
+    : calc.plantGrowth.milestone === 'mature'  ? '#34D399'
+    : calc.plantGrowth.milestone === 'growing' ? '#34D399'
+    : calc.plantGrowth.milestone === 'young'   ? c.good
+    : calc.plantGrowth.milestone === 'first_leaf' ? c.good
+    : calc.plantGrowth.milestone === 'sprout'  ? c.accent
     : c.muted
 
   return (
@@ -312,30 +315,35 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
         )}
       </div>
 
-      {/* Plant Growth */}
+      {/* Plant Growth row + View My Plant */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: c.surface2, borderRadius: 12, padding: '9px 12px',
+        background: c.surface2, borderRadius: 12, padding: '10px 12px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <SeedlingIcon color={plantColor} size={15} />
-          <span style={{ font: '700 13px Plus Jakarta Sans', color: plantColor }}>
-            {calc.plantGrowth.milestoneLabel}
-          </span>
-          {calc.plantGrowth.streakBonus && (
-            <span style={{
-              font: '600 11px Plus Jakarta Sans', color: '#E879F9',
-              background: '#E879F922', padding: '2px 6px', borderRadius: 99,
-            }}>
-              7-day bloom
-            </span>
-          )}
+          <div>
+            <div style={{ font: '700 13px Plus Jakarta Sans', color: plantColor }}>
+              {calc.plantGrowth.milestoneLabel}
+            </div>
+            {calc.plantGrowth.nextGoal > 0 && (
+              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+                {calc.plantGrowth.nextGoal} more to next stage
+              </div>
+            )}
+          </div>
         </div>
-        {calc.plantGrowth.nextGoal > 0 && (
-          <span style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>
-            {calc.plantGrowth.nextGoal} more to next
-          </span>
-        )}
+        <button
+          onClick={onOpenPlant}
+          style={{
+            background: c.accent + '18', border: `1px solid ${c.accent}40`,
+            borderRadius: 10, padding: '6px 12px', cursor: 'pointer',
+            font: '700 12px Plus Jakarta Sans', color: c.accent,
+            flexShrink: 0,
+          }}
+        >
+          View My Plant
+        </button>
       </div>
     </div>
   )

@@ -44,6 +44,7 @@ import { UpdateToast } from '@/components/UpdateToast'
 import { InsightCard } from '@/components/InsightCard'
 import { WealthSummaryCard } from '@/components/WealthSummaryCard'
 import { DailyChallengeCard } from '@/components/DailyChallengeCard'
+import { PlantSheet } from '@/components/PlantSheet'
 import { computeChallenge } from '@/lib/challenge'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
@@ -128,6 +129,7 @@ function AppContent({ session }: { session: Session }) {
   const [savingEmergency, setSavingEmergency] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [excludePromptTxnId, setExcludePromptTxnId] = useState<string | null>(null)
+  const [plantSheetOpen, setPlantSheetOpen] = useState(false)
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
 
@@ -255,7 +257,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
                       break
                     case 'daily_challenge':
-                      el = <DailyChallengeCard state={state} d={d} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} />
+                      el = <DailyChallengeCard state={state} d={d} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} />
                       break
                     case 'metrics':
                       el = <div>
@@ -518,6 +520,8 @@ function AppContent({ session }: { session: Session }) {
             />
           </>
         )}
+
+        <PlantSheet open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} />
 
         <BottomSheet open={emergencyEditOpen} onClose={() => setEmergencyEditOpen(false)} zIndex={300}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Emergency Fund</div>

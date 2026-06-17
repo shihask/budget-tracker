@@ -15,7 +15,7 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0 },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0 },
   commitments: [],
   borrowings: [],
   transactions: [],
@@ -1129,21 +1129,43 @@ export function useSupabaseData(userId: string) {
 
     let newStreak: number
     let potDelta = 0
+    let leafDelta = 0
+    let isGrace = false
 
     if (isSuccess) {
       newStreak = streak + 1
       potDelta = Math.max(0, savedAmount)
+      leafDelta = 2
     } else {
       const overPct = target > 0 ? Math.abs(savedAmount) / target : 1
-      newStreak = overPct < 0.10 ? streak : 0
+      if (overPct < 0.10) {
+        newStreak = streak   // grace pass: streak preserved, not incremented
+        leafDelta = 1
+        isGrace = true
+      } else {
+        newStreak = 0
+        leafDelta = 0
+      }
     }
+
+    // Streak milestone bonuses (fire when streak crosses the threshold)
+    if (newStreak === 7)  leafDelta += 3
+    if (newStreak === 30) leafDelta += 10
+    if (newStreak === 90) leafDelta += 25
+
+    // Monthly leaf counter: reset when calendar month changes
+    const currentMonth = todayStr.substring(0, 7)
+    const lastMonth = (s.challenge_last_date ?? '').substring(0, 7)
+    const monthLeaves = lastMonth === currentMonth ? (s.challenge_month_leaves ?? 0) : 0
 
     await updateSettings({
       challenge_streak:       newStreak,
       challenge_pot:          (s.challenge_pot ?? 0) + potDelta,
+      challenge_leaves:       (s.challenge_leaves ?? 0) + leafDelta,
+      challenge_month_leaves: monthLeaves + leafDelta,
       challenge_last_date:    todayStr,
       challenge_total_days:   total + 1,
-      challenge_success_days: success + (isSuccess ? 1 : 0),
+      challenge_success_days: success + (isSuccess && !isGrace ? 1 : 0),
     })
   }, [updateSettings])
 

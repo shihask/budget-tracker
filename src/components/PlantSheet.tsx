@@ -1,0 +1,309 @@
+import { useTheme } from '@/lib/theme-context'
+import { fmt } from '@/lib/utils'
+import { computeChallenge } from '@/lib/challenge'
+import type { AppState } from '@/types'
+
+interface Props {
+  open: boolean
+  onClose: () => void
+  state: AppState
+}
+
+// ── SVG plant: 7 stages ───────────────────────────────────────────────────────
+interface LeafProps { x: number; y: number; angle: number; rx?: number; ry?: number; color: string }
+function Leaf({ x, y, angle, rx = 15, ry = 6, color }: LeafProps) {
+  return <ellipse cx={x} cy={y} rx={rx} ry={ry} transform={`rotate(${angle},${x},${y})`} fill={color} />
+}
+
+function Pot() {
+  return (
+    <>
+      <path d="M73,252 L68,285 L132,285 L127,252 Z" fill="#B5581A" />
+      <rect x="70" y="244" width="60" height="10" rx="5" fill="#D4784F" />
+      <ellipse cx="100" cy="254" rx="27" ry="6" fill="#5C3C1E" />
+    </>
+  )
+}
+
+function Stem({ topY, bend = 0 }: { topY: number; bend?: number }) {
+  const midY = (254 + topY) / 2
+  return (
+    <path
+      d={`M100,254 C${100 + bend},${midY} ${100 - bend},${midY * 0.7 + topY * 0.3} 100,${topY}`}
+      stroke="#4E7A40" strokeWidth="3.5" fill="none" strokeLinecap="round"
+    />
+  )
+}
+
+const G1 = '#C5E8A0'   // lightest — newest growth
+const G2 = '#8CC96A'
+const G3 = '#5B9E4A'
+const G4 = '#3D7A30'   // darkest — oldest growth
+
+function PlantSVG({ stageIdx, opacity = 1 }: { stageIdx: number; opacity?: number }) {
+  return (
+    <svg viewBox="0 0 200 300" width="200" height="300" style={{ opacity, display: 'block' }}>
+      <Pot />
+
+      {/* Stage 0 – Seed */}
+      {stageIdx === 0 && (
+        <ellipse cx="100" cy="242" rx="8" ry="5" fill="#7B5E2A" />
+      )}
+
+      {/* Stage 1 – Sprout (1–4 leaves) */}
+      {stageIdx >= 1 && (
+        <>
+          <Stem topY={226} />
+          <Leaf x={112} y={230} angle={-38} rx={10} ry={4.5} color={G1} />
+        </>
+      )}
+
+      {/* Stage 2 – First Leaves (5–14 leaves) */}
+      {stageIdx >= 2 && (
+        <>
+          <Stem topY={200} />
+          <Leaf x={86} y={237} angle={40} rx={14} ry={6} color={G2} />
+          <Leaf x={114} y={218} angle={-40} rx={14} ry={6} color={G2} />
+          <Leaf x={108} y={200} angle={-22} rx={10} ry={4.5} color={G1} />
+        </>
+      )}
+
+      {/* Stage 3 – Young Plant (15–29 leaves) */}
+      {stageIdx >= 3 && (
+        <>
+          <Stem topY={168} bend={4} />
+          <Leaf x={84} y={238} angle={42} rx={16} ry={6.5} color={G3} />
+          <Leaf x={116} y={220} angle={-42} rx={16} ry={6.5} color={G3} />
+          <Leaf x={83} y={198} angle={38} rx={14} ry={5.5} color={G2} />
+          <Leaf x={117} y={180} angle={-38} rx={14} ry={5.5} color={G2} />
+          <Leaf x={105} y={167} angle={-18} rx={10} ry={4} color={G1} />
+        </>
+      )}
+
+      {/* Stage 4 – Growing (30–59 leaves) */}
+      {stageIdx >= 4 && (
+        <>
+          <Stem topY={132} bend={5} />
+          <Leaf x={82} y={238} angle={44} rx={17} ry={7} color={G4} />
+          <Leaf x={118} y={220} angle={-44} rx={17} ry={7} color={G3} />
+          <Leaf x={80} y={200} angle={40} rx={15} ry={6} color={G3} />
+          <Leaf x={120} y={182} angle={-40} rx={15} ry={6} color={G2} />
+          <Leaf x={82} y={162} angle={36} rx={14} ry={5.5} color={G2} />
+          <Leaf x={118} y={145} angle={-36} rx={13} ry={5} color={G1} />
+          <Leaf x={104} y={132} angle={-14} rx={10} ry={4} color={G1} />
+        </>
+      )}
+
+      {/* Stage 5 – Mature (60–99 leaves) */}
+      {stageIdx >= 5 && (
+        <>
+          <Stem topY={96} bend={6} />
+          <path d="M100,175 C88,168 78,158 70,148" stroke="#4E7A40" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <path d="M100,148 C112,141 122,131 130,121" stroke="#4E7A40" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <Leaf x={82} y={238} angle={44} rx={18} ry={7.5} color={G4} />
+          <Leaf x={118} y={218} angle={-44} rx={18} ry={7.5} color={G4} />
+          <Leaf x={79} y={198} angle={40} rx={16} ry={6.5} color={G3} />
+          <Leaf x={121} y={178} angle={-40} rx={16} ry={6.5} color={G3} />
+          <Leaf x={68} y={148} angle={50} rx={14} ry={5.5} color={G3} />
+          <Leaf x={62} y={138} angle={40} rx={12} ry={5} color={G2} />
+          <Leaf x={130} y={120} angle={-50} rx={14} ry={5.5} color={G2} />
+          <Leaf x={82} y={155} angle={38} rx={14} ry={5.5} color={G2} />
+          <Leaf x={118} y={135} angle={-38} rx={13} ry={5} color={G2} />
+          <Leaf x={104} y={96} angle={-12} rx={10} ry={4} color={G1} />
+        </>
+      )}
+
+      {/* Stage 6 – Blooming (100+ leaves) */}
+      {stageIdx >= 6 && (
+        <>
+          <Stem topY={68} bend={6} />
+          <path d="M100,110 C86,104 76,94 68,84" stroke="#4E7A40" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <Leaf x={82} y={238} angle={44} rx={18} ry={7.5} color={G4} />
+          <Leaf x={118} y={218} angle={-44} rx={18} ry={7.5} color={G4} />
+          <Leaf x={79} y={198} angle={40} rx={16} ry={6.5} color={G4} />
+          <Leaf x={121} y={178} angle={-40} rx={16} ry={6.5} color={G3} />
+          <Leaf x={68} y={148} angle={50} rx={14} ry={5.5} color={G3} />
+          <Leaf x={62} y={138} angle={40} rx={12} ry={5} color={G3} />
+          <Leaf x={130} y={120} angle={-50} rx={14} ry={5.5} color={G2} />
+          <Leaf x={82} y={155} angle={38} rx={14} ry={5.5} color={G2} />
+          <Leaf x={118} y={135} angle={-38} rx={13} ry={5} color={G2} />
+          <Leaf x={66} y={84} angle={50} rx={13} ry={5} color={G2} />
+          <Leaf x={104} y={68} angle={-12} rx={10} ry={4} color={G1} />
+          {/* Flowers */}
+          <circle cx="100" cy="58" r="8" fill="#FFD970" opacity="0.92" />
+          <circle cx="88" cy="54" r="6" fill="#FFB347" opacity="0.85" />
+          <circle cx="112" cy="56" r="6" fill="#FFD970" opacity="0.82" />
+          <circle cx="100" cy="58" r="3.5" fill="#E07020" />
+          <circle cx="88" cy="54" r="2.5" fill="#E07020" />
+          <circle cx="112" cy="56" r="2.5" fill="#E07020" />
+        </>
+      )}
+    </svg>
+  )
+}
+
+const STAGE_LABELS = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing', 'Mature', 'Blooming']
+
+export function PlantSheet({ open, onClose, state }: Props) {
+  const c = useTheme()
+  const settings = state.settings
+
+  if (!open) return null
+
+  const leaves       = settings.challenge_leaves       ?? 0
+  const monthLeaves  = settings.challenge_month_leaves ?? 0
+  const streak       = settings.challenge_streak       ?? 0
+  const pot          = settings.challenge_pot          ?? 0
+  const enabled      = settings.challenge_enabled      ?? false
+
+  const difficulty = settings.challenge_difficulty ?? 'medium'
+  const calc = enabled ? computeChallenge(state, difficulty) : null
+
+  const stageIdx     = calc ? calc.plantGrowth.stageIdx : (() => {
+    const ms = [0, 1, 5, 15, 30, 60, 100]
+    let idx = 0
+    for (let i = ms.length - 1; i >= 0; i--) { if (leaves >= ms[i]) { idx = i; break } }
+    return idx
+  })()
+
+  const nextGoal     = calc?.plantGrowth.nextGoal ?? 0
+  const canGrowToday = calc !== null && calc.status !== 'exceeded' && nextGoal > 0
+  const ghostStage   = Math.min(6, stageIdx + 1) as 0|1|2|3|4|5|6
+
+  // Today's opportunity: how many leaves can be earned today
+  const leavesIfSuccess = calc && calc.status !== 'exceeded' ? 2 + (streak + 1 === 7 ? 3 : streak + 1 === 30 ? 10 : streak + 1 === 90 ? 25 : 0) : 0
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: c.bg, overflowY: 'auto',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Top bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '16px 20px 0',
+        position: 'sticky', top: 0, background: c.bg, zIndex: 1,
+      }}>
+        <span style={{ font: '700 18px Plus Jakarta Sans', color: c.ink }}>Your MoneyPlant</span>
+        <button
+          onClick={onClose}
+          style={{
+            background: c.surface2, border: 'none', cursor: 'pointer',
+            borderRadius: 99, width: 36, height: 36,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.sub} strokeWidth="2.5" strokeLinecap="round">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Stage pill */}
+      <div style={{ padding: '10px 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{
+          font: '700 13px Plus Jakarta Sans', color: c.accent,
+          background: c.accent + '18', padding: '4px 12px', borderRadius: 99,
+        }}>
+          {STAGE_LABELS[stageIdx]}
+        </span>
+        {streak >= 7 && (
+          <span style={{
+            font: '600 12px Plus Jakarta Sans', color: '#E879F9',
+            background: '#E879F922', padding: '4px 10px', borderRadius: 99,
+          }}>
+            7-day streak bonus active
+          </span>
+        )}
+      </div>
+
+      {/* Stats row */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+        gap: 8, padding: '14px 20px 0',
+      }}>
+        {[
+          { label: 'Total Leaves', value: `${leaves}` },
+          { label: 'Streak',       value: `${streak} days` },
+          { label: 'This Month',   value: `+${monthLeaves}` },
+        ].map(({ label, value }) => (
+          <div key={label} style={{
+            background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 14,
+            padding: '10px 0', textAlign: 'center',
+          }}>
+            <div style={{ font: '700 17px Plus Jakarta Sans', color: c.ink }}>{value}</div>
+            <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Plant visualization */}
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0 8px', position: 'relative' }}>
+        {/* Ghost preview: next stage at 15% opacity */}
+        {canGrowToday && stageIdx < 6 && (
+          <div style={{ position: 'absolute', top: 24 }}>
+            <PlantSVG stageIdx={ghostStage as 0|1|2|3|4|5|6} opacity={0.15} />
+          </div>
+        )}
+        <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} opacity={1} />
+      </div>
+
+      {/* Ghost preview label */}
+      {canGrowToday && (
+        <div style={{ textAlign: 'center', padding: '0 24px 4px' }}>
+          <span style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+            Complete today's challenge to grow a new leaf
+          </span>
+        </div>
+      )}
+
+      {/* Today's Opportunity */}
+      {calc && calc.status !== 'exceeded' && (
+        <div style={{
+          margin: '16px 20px 0',
+          background: c.surface, border: `1px solid ${c.faint}`,
+          borderRadius: 16, padding: '14px 16px',
+        }}>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>
+            Today's Opportunity
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ font: '500 13px Plus Jakarta Sans', color: c.sub }}>
+                Stay under {fmt(Math.round(calc.adjustedTarget))} today
+              </div>
+              <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                {fmt(calc.spentToday)} spent so far
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ font: '700 15px Plus Jakarta Sans', color: c.good }}>
+                +{leavesIfSuccess} {leavesIfSuccess === 1 ? 'leaf' : 'leaves'}
+              </div>
+              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                if you complete it
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Challenge Impact */}
+      {pot > 0 && (
+        <div style={{
+          margin: '12px 20px 0',
+          background: c.surface2, borderRadius: 14, padding: '12px 16px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span style={{ font: '500 13px Plus Jakarta Sans', color: c.sub }}>Challenge Impact</span>
+          <span style={{ font: '700 14px Plus Jakarta Sans', color: c.accent }}>
+            {fmt(Math.round(pot))} below target
+          </span>
+        </div>
+      )}
+
+      <div style={{ height: 40 }} />
+    </div>
+  )
+}

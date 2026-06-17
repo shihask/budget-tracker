@@ -114,6 +114,8 @@ export interface Settings {
   challenge_difficulty?:        'easy' | 'medium' | 'hard'
   challenge_streak?:            number
   challenge_pot?:               number
+  challenge_leaves?:            number
+  challenge_month_leaves?:      number
   challenge_last_date?:         string | null
   challenge_excluded_txn_ids?:  string[] | null
   challenge_total_days?:        number
