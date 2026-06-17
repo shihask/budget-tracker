@@ -445,15 +445,15 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {isAutoMode ? ([
+              {(isAutoMode ? [
                 { title: 'Budget Remaining', desc: 'Your free money minus everything spent in the budget scope since your last salary date. Negative means over budget.' },
                 { title: 'Safe Daily Spend', desc: 'Budget remaining ÷ days left in the cycle. Recalculates every day automatically.' },
                 { title: 'Safe Weekly Spend', desc: 'Budget remaining ÷ weeks left in the cycle. Useful for planning the week ahead.' },
-              ] as const) : ([
+              ] : [
                 { title: `${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} spending limit`, desc: activePeriod === 'daily' ? 'Your budget for today. Resets at midnight.' : activePeriod === 'monthly' ? 'Your spending budget for the current month.' : 'Your free money is divided by the weeks left in your salary cycle to give a per-week allowance.' },
                 { title: `This ${activePeriod === 'daily' ? 'day' : activePeriod === 'monthly' ? 'month' : 'week'}'s spend`, desc: `${activePeriod === 'daily' ? 'Expenses today' : activePeriod === 'monthly' ? 'Expenses this month' : 'Expenses from Monday to Sunday'} under: ${scopeLabel(settings.weekly_budget_scope, categories)}. Configure in budget settings.` },
                 { title: 'Salary cycle', desc: 'Set your salary date so the tracker resets each month and calculates the right weekly slice.' },
-              ] as const)}.map((item, i) => (
+              ]).map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   <div style={{ width: 30, height: 30, borderRadius: 9, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>
