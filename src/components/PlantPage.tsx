@@ -36,14 +36,27 @@ const PLANT_ANIM_STYLE = `
   from { opacity: 0; transform: scale(0.93) translateY(6px); }
   to   { opacity: 1; transform: scale(1)    translateY(0);    }
 }
-@keyframes leafPop {
-  0%   { transform: scale(0.7); opacity: 0; }
-  60%  { transform: scale(1.08); }
-  100% { transform: scale(1); opacity: 1; }
+@keyframes fadeOutScale {
+  0%   { opacity: 1; transform: scale(1)    translateY(0); }
+  100% { opacity: 0; transform: scale(0.86) translateY(-10px); }
+}
+@keyframes plantGrowFrom {
+  0%   { opacity: 0; transform: scale(0.72) translateY(18px); }
+  55%  { transform: scale(1.06) translateY(-4px); }
+  100% { opacity: 1; transform: scale(1)    translateY(0); }
+}
+@keyframes leafFloat {
+  0%   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);   }
+  20%  { opacity: 1; transform: translateX(-50%) translateY(-12px) scale(1.1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-72px) scale(0.85); }
 }
 @keyframes celebFadeIn {
   from { opacity: 0; transform: scale(0.94) translateY(16px); }
   to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+@keyframes bloomPulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.04); }
 }
 `
 
@@ -73,17 +86,36 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
     return idx
   })()
 
-  // ── Stage-unlock celebration ──────────────────────────────────────────────────
+  // ── Celebration / transition / float state ───────────────────────────────────
   const [celebrateStage, setCelebrateStage] = useState<number | null>(null)
+  const [transitionFrom, setTransitionFrom] = useState<number | null>(null)
+  const [floatLeavesCount, setFloatLeavesCount] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) return
     try {
-      const stored = parseInt(localStorage.getItem('mp_plant_celebrated_stage') || '-1')
-      if (stageIdx > stored && stageIdx > 0) {
+      // Stage-unlock celebration (fires once per stage)
+      const celebrated = parseInt(localStorage.getItem('mp_plant_celebrated_stage') || '-1')
+      if (stageIdx > celebrated && stageIdx > 0) {
         setCelebrateStage(stageIdx)
         localStorage.setItem('mp_plant_celebrated_stage', String(stageIdx))
       }
+
+      // Stage transition animation
+      const prevStage = parseInt(localStorage.getItem('mp_plant_prev_stage') || String(stageIdx))
+      if (stageIdx > prevStage) {
+        setTransitionFrom(prevStage)
+        setTimeout(() => setTransitionFrom(null), 750)
+      }
+      localStorage.setItem('mp_plant_prev_stage', String(stageIdx))
+
+      // Floating leaf reward (only when same stage, new leaves earned)
+      const prevLeaves = parseInt(localStorage.getItem('mp_plant_last_leaves') || String(leaves))
+      if (leaves > prevLeaves && stageIdx === prevStage) {
+        setFloatLeavesCount(leaves - prevLeaves)
+        setTimeout(() => setFloatLeavesCount(null), 2400)
+      }
+      localStorage.setItem('mp_plant_last_leaves', String(leaves))
     } catch { /* localStorage unavailable */ }
     setPlantAnimKey(k => k + 1)
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -274,16 +306,45 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
 
       {/* ── HERO: Plant (big, centered) ────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 12px 0', position: 'relative', minHeight: 300 }}>
-        {canGrowToday && stageIdx < 6 && (
+        {/* Ghost preview of next stage — hide during transition */}
+        {canGrowToday && stageIdx < 6 && transitionFrom === null && (
           <div style={{ position: 'absolute', top: 16, left: 12, right: 12 }}>
             <PlantSVG stageIdx={ghostStage} viewBoxOverride={sharedViewBox} opacity={0.13}
               style={{ maxWidth: 320, margin: '0 auto' }} />
           </div>
         )}
-        <div key={plantAnimKey} style={{ width: '100%', maxWidth: 320, animation: 'plantEntry 0.55s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+
+        {/* Old stage fading out during transition */}
+        {transitionFrom !== null && (
+          <div style={{ position: 'absolute', top: 16, left: 12, right: 12, zIndex: 1 }}>
+            <PlantSVG stageIdx={transitionFrom as 0|1|2|3|4|5|6} viewBoxOverride={STAGE_VIEWBOX[stageIdx]}
+              style={{ maxWidth: 320, margin: '0 auto', animation: 'fadeOutScale 0.5s ease forwards' }} />
+          </div>
+        )}
+
+        {/* Current stage — normal entry or grow-from animation */}
+        <div key={plantAnimKey} style={{
+          width: '100%', maxWidth: 320, position: 'relative', zIndex: 2,
+          animation: transitionFrom !== null
+            ? 'plantGrowFrom 0.7s cubic-bezier(0.34,1.56,0.64,1) 0.25s both'
+            : 'plantEntry 0.55s cubic-bezier(0.34,1.56,0.64,1) both',
+        }}>
           <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} viewBoxOverride={sharedViewBox}
             style={{ maxWidth: 320, margin: '0 auto' }} />
         </div>
+
+        {/* Floating leaf reward */}
+        {floatLeavesCount !== null && (
+          <div style={{
+            position: 'absolute', top: '28%', left: '50%', zIndex: 5,
+            font: '800 20px Plus Jakarta Sans', color: c.good,
+            animation: 'leafFloat 2.4s ease forwards',
+            pointerEvents: 'none', whiteSpace: 'nowrap',
+            textShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          }}>
+            +{floatLeavesCount} 🍃
+          </div>
+        )}
       </div>
 
       {/* ── Stage summary (compact, under plant) ──────────────────────────────── */}
@@ -477,41 +538,77 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
 
       {/* ── Stage-unlock celebration modal ────────────────────────────────────── */}
       {celebrateStage !== null && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 16px 32px' }}
-          onClick={() => setCelebrateStage(null)}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: c.surface, borderRadius: 24, padding: '28px 24px 24px', width: '100%', maxWidth: 400,
-              animation: 'celebFadeIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ font: '500 28px', marginBottom: 6 }}>🎉</div>
-            <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginBottom: 4 }}>
-              New Growth!
+        celebrateStage === 6 ? (
+          /* ── Blooming: full-screen special celebration ── */
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: `linear-gradient(160deg, #0f2414 0%, #1a3d20 50%, #2d5a1b 100%)`,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '40px 24px', overflow: 'hidden',
+            animation: 'celebFadeIn 0.5s ease both',
+          }}>
+            {/* Background glow */}
+            <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: 300, height: 300, borderRadius: 999, background: '#16C98A', opacity: 0.08, filter: 'blur(60px)', pointerEvents: 'none' }} />
+
+            <div style={{ font: '500 40px', marginBottom: 8, animation: 'bloomPulse 2s ease infinite' }}>🌺</div>
+            <div style={{ font: '800 24px Plus Jakarta Sans', color: '#fff', letterSpacing: '-0.02em', textAlign: 'center', marginBottom: 6 }}>
+              Your MoneyPlant Has Bloomed
             </div>
-            <div style={{ font: '600 14px Plus Jakarta Sans', color: c.accent, marginBottom: 8 }}>
-              {STAGE_LABELS_RICH[celebrateStage]}
+            <div style={{ font: '500 14px Plus Jakarta Sans', color: 'rgba(255,255,255,0.65)', textAlign: 'center', marginBottom: 28, lineHeight: 1.6 }}>
+              You built a real habit. That's rare.
             </div>
-            <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
-              {STAGE_MESSAGES[celebrateStage].split('\n')[0]}
+
+            <div style={{ width: '100%', maxWidth: 200, marginBottom: 24, animation: 'plantEntry 0.8s cubic-bezier(0.34,1.56,0.64,1) 0.2s both' }}>
+              <PlantSVG stageIdx={6} style={{ maxWidth: 200, margin: '0 auto' }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-              <div style={{ width: 140 }}>
-                <PlantSVG stageIdx={celebrateStage as 0|1|2|3|4|5|6} style={{ maxWidth: 140, margin: '0 auto', animation: 'plantEntry 0.6s cubic-bezier(0.34,1.56,0.64,1) both' }} />
-              </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, width: '100%', maxWidth: 360, marginBottom: 28 }}>
+              {[
+                { label: 'Age', value: `${ageDays}d` },
+                { label: 'Leaves', value: `${leaves}` },
+                { label: 'Growth Days', value: `${settings.challenge_success_days ?? 0}` },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: '12px 8px', textAlign: 'center' }}>
+                  <div style={{ font: '800 18px Plus Jakarta Sans', color: '#fff' }}>{value}</div>
+                  <div style={{ font: '500 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>{label}</div>
+                </div>
+              ))}
             </div>
+
             <button
               onClick={() => setCelebrateStage(null)}
-              style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: c.accent, border: 'none', cursor: 'pointer', font: '700 15px Plus Jakarta Sans', color: '#fff' }}
+              style={{ width: '100%', maxWidth: 360, padding: '15px 0', borderRadius: 16, background: '#16C98A', border: 'none', cursor: 'pointer', font: '700 16px Plus Jakarta Sans', color: '#fff' }}
             >
               Keep Growing
             </button>
           </div>
-        </div>
+        ) : (
+          /* ── Regular stage unlock: bottom sheet ── */
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 16px 32px' }}
+            onClick={() => setCelebrateStage(null)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: c.surface, borderRadius: 24, padding: '28px 24px 24px', width: '100%', maxWidth: 400, animation: 'celebFadeIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both', textAlign: 'center' }}
+            >
+              <div style={{ font: '500 28px', marginBottom: 6 }}>🎉</div>
+              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginBottom: 4 }}>New Growth!</div>
+              <div style={{ font: '600 14px Plus Jakarta Sans', color: c.accent, marginBottom: 8 }}>{STAGE_LABELS_RICH[celebrateStage]}</div>
+              <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
+                {STAGE_MESSAGES[celebrateStage].split('\n')[0]}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+                <div style={{ width: 140 }}>
+                  <PlantSVG stageIdx={celebrateStage as 0|1|2|3|4|5|6} style={{ maxWidth: 140, margin: '0 auto', animation: 'plantGrowFrom 0.7s cubic-bezier(0.34,1.56,0.64,1) both' }} />
+                </div>
+              </div>
+              <button onClick={() => setCelebrateStage(null)} style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: c.accent, border: 'none', cursor: 'pointer', font: '700 15px Plus Jakarta Sans', color: '#fff' }}>
+                Keep Growing
+              </button>
+            </div>
+          </div>
+        )
       )}
     </div>
   )
