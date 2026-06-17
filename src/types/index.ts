@@ -1,12 +1,25 @@
 export type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet'
 export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment' | 'savings_contribution' | 'savings_withdrawal'
 
+export type GroupType =
+  | 'income'
+  | 'transfer'
+  | 'savings'
+  | 'borrowing'
+  | 'adjustment'
+  | 'discretionary'
+  | 'essential'
+  | 'commitment'
+
 export interface Group {
   id: string
   name: string
   user_id?: string
   is_visible?: boolean
   is_system?: boolean
+  is_editable?: boolean
+  is_deletable?: boolean
+  type?: GroupType
 }
 
 export interface Category {
@@ -15,6 +28,7 @@ export interface Category {
   group_name: string
   user_id?: string
   is_visible?: boolean
+  is_system?: boolean
 }
 
 export interface Account {
@@ -94,6 +108,8 @@ export interface Settings {
   notify_commitments?: boolean
   notify_weekly_summary?: boolean
   track_savings?: boolean
+  budget_mode?: 'auto' | 'manual'
+  hero_mode?: 'remaining' | 'budget'
   challenge_enabled?:           boolean
   challenge_difficulty?:        'easy' | 'medium' | 'hard'
   challenge_streak?:            number
@@ -184,10 +200,18 @@ export interface DerivedMetrics {
   availableBalance: number
   remainingCommitments: number
   realFreeMoney: number
+  // Period-based (manual mode + analytics)
   weeklyBudget: number
   weeklySpent: number
   weeklyRemaining: number
   weeklyPct: number
+  // Salary-cycle-based (auto mode)
+  cycleSpent: number
+  cycleRemaining: number
+  safeDailySpend: number
+  safeWeeklySpend: number
+  cycleDaysLeft: number
+  cycleWeeksLeft: number
 }
 
 export interface TrendPoint { label: string; date: string; value: number }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, Savings } from '@/types'
-import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
+import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 const delta = (type: TransactionType, amount: number) =>
   type === 'income' ? amount : -amount
@@ -15,7 +15,7 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0 },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0 },
   commitments: [],
   borrowings: [],
   transactions: [],
@@ -25,37 +25,81 @@ const EMPTY_STATE: AppState = {
 
 const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false }
 
-const DEFAULT_GROUPS: { name: string; is_system?: boolean }[] = [
-  { name: 'Lifestyle' },
-  { name: 'Commitment' },
-  { name: 'Renovation' },
-  { name: 'Family' },
-  { name: 'Transfer',  is_system: true },
-  { name: 'Income',    is_system: true },
+const DEFAULT_GROUPS: { name: string; is_system?: boolean; is_editable?: boolean; is_deletable?: boolean; type?: string }[] = [
+  { name: 'Lifestyle',   type: 'discretionary' },
+  { name: 'Utilities',   type: 'essential' },
+  { name: 'Transport',   type: 'essential' },
+  { name: 'Health',      type: 'essential' },
+  { name: 'Family',      type: 'essential' },
+  { name: 'Obligations', type: 'commitment' },
+  { name: 'Other',       type: 'discretionary' },
+  { name: TRANSFER_GROUP,   is_system: true, is_editable: false, is_deletable: false, type: 'transfer' },
+  { name: INCOME_GROUP,     is_system: true, is_editable: false, is_deletable: false, type: 'income' },
+  { name: ADJUSTMENT_GROUP, is_system: true, is_editable: false, is_deletable: false, type: 'adjustment' },
 ]
 
-const DEFAULT_CATEGORIES: { name: string; group_name: string }[] = [
-  { name: 'Food',          group_name: 'Lifestyle' },
-  { name: 'Tea & Snacks', group_name: 'Lifestyle' },
-  { name: 'Groceries',     group_name: 'Lifestyle' },
-  { name: 'Fuel',          group_name: 'Lifestyle' },
-  { name: 'Shopping',      group_name: 'Lifestyle' },
-  { name: 'Medical',       group_name: 'Lifestyle' },
-  { name: 'Utilities',     group_name: 'Lifestyle' },
-  { name: 'Loan EMI',      group_name: 'Commitment' },
-  { name: 'Gold Scheme',   group_name: 'Commitment' },
-  { name: 'SIP',           group_name: 'Commitment' },
-  { name: 'Renovation',    group_name: 'Renovation' },
-  { name: 'Family',        group_name: 'Family' },
-  { name: 'Transfer',      group_name: 'Transfer' },
-  { name: 'Salary',        group_name: 'Income' },
-  { name: 'Freelance',     group_name: 'Income' },
-  { name: 'Refund',        group_name: 'Income' },
-  { name: 'Other Income',  group_name: 'Income' },
+const DEFAULT_CATEGORIES: { name: string; group_name: string; is_system?: boolean }[] = [
+  // Lifestyle
+  { name: 'Food',                 group_name: 'Lifestyle' },
+  { name: 'Tea & Snacks',         group_name: 'Lifestyle' },
+  { name: 'Groceries',            group_name: 'Lifestyle' },
+  { name: 'Shopping',             group_name: 'Lifestyle' },
+  { name: 'Entertainment',        group_name: 'Lifestyle' },
+  // Utilities
+  { name: 'Electricity',          group_name: 'Utilities' },
+  { name: 'Water',                group_name: 'Utilities' },
+  { name: 'Internet',             group_name: 'Utilities' },
+  { name: 'Mobile Recharge',      group_name: 'Utilities' },
+  { name: 'Cooking Gas',          group_name: 'Utilities' },
+  { name: 'Subscription',         group_name: 'Utilities' },
+  // Transport
+  { name: 'Fuel',                 group_name: 'Transport' },
+  { name: 'Bus',                  group_name: 'Transport' },
+  { name: 'Train',                group_name: 'Transport' },
+  { name: 'Taxi / Auto',          group_name: 'Transport' },
+  { name: 'Parking',              group_name: 'Transport' },
+  { name: 'Vehicle Maintenance',  group_name: 'Transport' },
+  // Health
+  { name: 'Medical',              group_name: 'Health' },
+  { name: 'Pharmacy',             group_name: 'Health' },
+  { name: 'Doctor Consultation',  group_name: 'Health' },
+  { name: 'Lab Test',             group_name: 'Health' },
+  // Family
+  { name: 'Child Care',           group_name: 'Family' },
+  { name: 'Diapers',              group_name: 'Family' },
+  { name: 'Education',            group_name: 'Family' },
+  { name: 'Gifts',                group_name: 'Family' },
+  { name: 'Family Expense',       group_name: 'Family' },
+  // Obligations
+  { name: 'Loan EMI',             group_name: 'Obligations' },
+  { name: 'Credit Card Payment',  group_name: 'Obligations' },
+  { name: 'Insurance Premium',    group_name: 'Obligations' },
+  { name: 'Rent',                 group_name: 'Obligations' },
+  { name: 'School Fees',          group_name: 'Obligations' },
+  // Other
+  { name: 'Other Expense',        group_name: 'Other' },
+  // System categories
+  { name: 'Transfer',             group_name: TRANSFER_GROUP,   is_system: true },
+  { name: 'Salary',               group_name: INCOME_GROUP,     is_system: true },
+  { name: 'Freelance',            group_name: INCOME_GROUP,     is_system: true },
+  { name: 'Refund',               group_name: INCOME_GROUP,     is_system: true },
+  { name: 'Other Income',         group_name: INCOME_GROUP,     is_system: true },
+  { name: 'Opening Balance',      group_name: ADJUSTMENT_GROUP, is_system: true },
+  { name: 'Balance Adjustment',   group_name: ADJUSTMENT_GROUP, is_system: true },
 ]
 
 const DEFAULT_INCOME_CATEGORIES = ['Salary', 'Freelance', 'Refund', 'Other Income']
 const BORROWING_CATEGORIES = ['Lent Money', 'Lent Repayment', 'Borrowed Money', 'Borrow Repayment']
+const ADJUSTMENT_CATEGORIES = ['Opening Balance', 'Balance Adjustment']
+
+// Metadata applied to system groups on load/migration
+const SYSTEM_GROUP_META: Record<string, { type: string; is_editable: boolean; is_deletable: boolean }> = {
+  [INCOME_GROUP]:     { type: 'income',     is_editable: false, is_deletable: false },
+  [TRANSFER_GROUP]:   { type: 'transfer',   is_editable: false, is_deletable: false },
+  [BORROWING_GROUP]:  { type: 'borrowing',  is_editable: false, is_deletable: false },
+  [SAVINGS_GROUP]:    { type: 'savings',    is_editable: false, is_deletable: false },
+  [ADJUSTMENT_GROUP]: { type: 'adjustment', is_editable: false, is_deletable: false },
+}
 
 const SAVINGS_TYPE_LABEL: Record<string, string> = {
   sip:     'SIP / Mutual Fund',
@@ -157,22 +201,42 @@ export function useSupabaseData(userId: string) {
         }
         userGroups = dedupedGroups
 
-        // Migration: ensure Income group exists and is marked system
+        // Migration: ensure Income group exists with system metadata
         const existingIncomeGroup = userGroups.find(g => g.name === INCOME_GROUP)
         if (!existingIncomeGroup) {
           const { data: newGroup } = await supabase
-            .from('groups').insert({ name: INCOME_GROUP, user_id: userId, is_system: true }).select('*').single()
+            .from('groups').insert({ name: INCOME_GROUP, user_id: userId, is_system: true, is_editable: false, is_deletable: false, type: 'income' }).select('*').single()
           if (newGroup) userGroups = [...userGroups, newGroup as Group]
         } else if (!existingIncomeGroup.is_system) {
-          await supabase.from('groups').update({ is_system: true }).eq('id', existingIncomeGroup.id)
-          userGroups = userGroups.map(g => g.id === existingIncomeGroup.id ? { ...g, is_system: true } : g)
+          await supabase.from('groups').update({ is_system: true, is_editable: false, is_deletable: false, type: 'income' }).eq('id', existingIncomeGroup.id)
+          userGroups = userGroups.map(g => g.id === existingIncomeGroup.id ? { ...g, is_system: true, is_editable: false, is_deletable: false, type: 'income' as const } : g)
         }
 
-        // Migration: ensure Transfer group is marked system
+        // Migration: ensure Transfer group is marked system with metadata
         const existingTransferGroup = userGroups.find(g => g.name === TRANSFER_GROUP)
-        if (existingTransferGroup && !existingTransferGroup.is_system) {
-          await supabase.from('groups').update({ is_system: true }).eq('id', existingTransferGroup.id)
-          userGroups = userGroups.map(g => g.id === existingTransferGroup.id ? { ...g, is_system: true } : g)
+        if (existingTransferGroup && (!existingTransferGroup.is_system || existingTransferGroup.is_editable !== false)) {
+          await supabase.from('groups').update({ is_system: true, is_editable: false, is_deletable: false, type: 'transfer' }).eq('id', existingTransferGroup.id)
+          userGroups = userGroups.map(g => g.id === existingTransferGroup.id ? { ...g, is_system: true, is_editable: false, is_deletable: false, type: 'transfer' as const } : g)
+        }
+
+        // Migration: ensure Adjustment group exists (always a system group)
+        const existingAdjustmentGroup = userGroups.find(g => g.name === ADJUSTMENT_GROUP)
+        if (!existingAdjustmentGroup) {
+          const { data: newGroup } = await supabase
+            .from('groups').insert({ name: ADJUSTMENT_GROUP, user_id: userId, is_system: true, is_editable: false, is_deletable: false, is_visible: false, type: 'adjustment' }).select('*').single()
+          if (newGroup) userGroups = [...userGroups, newGroup as Group]
+        } else if (!existingAdjustmentGroup.is_system) {
+          await supabase.from('groups').update({ is_system: true, is_editable: false, is_deletable: false, type: 'adjustment' }).eq('id', existingAdjustmentGroup.id)
+          userGroups = userGroups.map(g => g.id === existingAdjustmentGroup.id ? { ...g, is_system: true, is_editable: false, is_deletable: false, type: 'adjustment' as const } : g)
+        }
+
+        // Migration: apply type/is_editable/is_deletable to any known system group that's missing them
+        for (const [groupName, meta] of Object.entries(SYSTEM_GROUP_META)) {
+          const g = userGroups.find(x => x.name === groupName)
+          if (g && g.is_system && g.type == null) {
+            await supabase.from('groups').update(meta).eq('id', g.id)
+            userGroups = userGroups.map(x => x.id === g.id ? { ...x, ...meta } as Group : x)
+          }
         }
 
         // Dedup ALL categories by (name, group_name) — same in-memory approach
@@ -201,13 +265,24 @@ export function useSupabaseData(userId: string) {
         }
         userCategories = dedupedCats
 
-        // Ensure Income categories exist
+        // Ensure Income categories exist (always seeded, is_system=true)
         const existingIncomeNames = userCategories.filter(c => c.group_name === INCOME_GROUP).map(c => c.name)
         const incomeCatsToAdd = DEFAULT_INCOME_CATEGORIES.filter(n => !existingIncomeNames.includes(n))
         if (incomeCatsToAdd.length > 0) {
           const { data: newCats } = await supabase
             .from('categories')
-            .insert(incomeCatsToAdd.map(name => ({ name, group_name: INCOME_GROUP, user_id: userId })))
+            .insert(incomeCatsToAdd.map(name => ({ name, group_name: INCOME_GROUP, user_id: userId, is_system: true })))
+            .select('*')
+          if (newCats) userCategories = [...userCategories, ...(newCats as Category[])]
+        }
+
+        // Ensure Adjustment categories exist (always seeded, is_system=true)
+        const existingAdjustmentNames = userCategories.filter(c => c.group_name === ADJUSTMENT_GROUP).map(c => c.name)
+        const adjustmentCatsToAdd = ADJUSTMENT_CATEGORIES.filter(n => !existingAdjustmentNames.includes(n))
+        if (adjustmentCatsToAdd.length > 0) {
+          const { data: newCats } = await supabase
+            .from('categories')
+            .insert(adjustmentCatsToAdd.map(name => ({ name, group_name: ADJUSTMENT_GROUP, user_id: userId, is_system: true })))
             .select('*')
           if (newCats) userCategories = [...userCategories, ...(newCats as Category[])]
         }
@@ -217,19 +292,18 @@ export function useSupabaseData(userId: string) {
           const existingBorrowingGroup = userGroups.find(g => g.name === BORROWING_GROUP)
           if (!existingBorrowingGroup) {
             const { data: newGroup } = await supabase
-              .from('groups').insert({ name: BORROWING_GROUP, user_id: userId, is_system: true }).select('*').single()
+              .from('groups').insert({ name: BORROWING_GROUP, user_id: userId, is_system: true, is_editable: false, is_deletable: false, type: 'borrowing' }).select('*').single()
             if (newGroup) userGroups = [...userGroups, newGroup as Group]
           } else if (!existingBorrowingGroup.is_system) {
-            // Migration: mark existing Borrowing group as system
-            await supabase.from('groups').update({ is_system: true }).eq('id', existingBorrowingGroup.id)
-            userGroups = userGroups.map(g => g.id === existingBorrowingGroup.id ? { ...g, is_system: true } : g)
+            await supabase.from('groups').update({ is_system: true, is_editable: false, is_deletable: false, type: 'borrowing' }).eq('id', existingBorrowingGroup.id)
+            userGroups = userGroups.map(g => g.id === existingBorrowingGroup.id ? { ...g, is_system: true, is_editable: false, is_deletable: false, type: 'borrowing' as const } : g)
           }
           const existingBorrowingNames = userCategories.filter(c => c.group_name === BORROWING_GROUP).map(c => c.name)
           const borrowingCatsToAdd = BORROWING_CATEGORIES.filter(n => !existingBorrowingNames.includes(n))
           if (borrowingCatsToAdd.length > 0) {
             const { data: newCats } = await supabase
               .from('categories')
-              .insert(borrowingCatsToAdd.map(name => ({ name, group_name: BORROWING_GROUP, user_id: userId })))
+              .insert(borrowingCatsToAdd.map(name => ({ name, group_name: BORROWING_GROUP, user_id: userId, is_system: true })))
               .select('*')
             if (newCats) userCategories = [...userCategories, ...(newCats as Category[])]
           }
@@ -899,11 +973,11 @@ export function useSupabaseData(userId: string) {
         const existingSavingsGroup = newGroups.find(g => g.name === SAVINGS_GROUP)
         if (!existingSavingsGroup) {
           const { data: newGroup } = await supabase
-            .from('groups').insert({ name: SAVINGS_GROUP, user_id: userId, is_system: true }).select('*').single()
+            .from('groups').insert({ name: SAVINGS_GROUP, user_id: userId, is_system: true, is_editable: false, is_deletable: false, type: 'savings' }).select('*').single()
           if (newGroup) newGroups = [...newGroups, newGroup as Group]
         } else if (!existingSavingsGroup.is_system) {
-          await supabase.from('groups').update({ is_system: true }).eq('id', existingSavingsGroup.id)
-          newGroups = newGroups.map(g => g.id === existingSavingsGroup.id ? { ...g, is_system: true } : g)
+          await supabase.from('groups').update({ is_system: true, is_editable: false, is_deletable: false, type: 'savings' }).eq('id', existingSavingsGroup.id)
+          newGroups = newGroups.map(g => g.id === existingSavingsGroup.id ? { ...g, is_system: true, is_editable: false, is_deletable: false, type: 'savings' as const } : g)
         }
 
         // Skip creating categories that already exist under any group (avoids duplicates for existing users)
@@ -913,7 +987,7 @@ export function useSupabaseData(userId: string) {
         if (savingsCatsToAdd.length > 0) {
           const { data: seededCats } = await supabase
             .from('categories')
-            .insert(savingsCatsToAdd.map(name => ({ name, group_name: SAVINGS_GROUP, user_id: userId })))
+            .insert(savingsCatsToAdd.map(name => ({ name, group_name: SAVINGS_GROUP, user_id: userId, is_system: true })))
             .select('*')
           if (seededCats) newCategories = [...newCategories, ...(seededCats as Category[])]
         }
@@ -928,11 +1002,11 @@ export function useSupabaseData(userId: string) {
         const existingBorrowingGroup = newGroups.find(g => g.name === BORROWING_GROUP)
         if (!existingBorrowingGroup) {
           const { data: newGroup } = await supabase
-            .from('groups').insert({ name: BORROWING_GROUP, user_id: userId, is_system: true }).select('*').single()
+            .from('groups').insert({ name: BORROWING_GROUP, user_id: userId, is_system: true, is_editable: false, is_deletable: false, type: 'borrowing' }).select('*').single()
           if (newGroup) newGroups = [...newGroups, newGroup as Group]
         } else if (!existingBorrowingGroup.is_system) {
-          await supabase.from('groups').update({ is_system: true }).eq('id', existingBorrowingGroup.id)
-          newGroups = newGroups.map(g => g.id === existingBorrowingGroup.id ? { ...g, is_system: true } : g)
+          await supabase.from('groups').update({ is_system: true, is_editable: false, is_deletable: false, type: 'borrowing' }).eq('id', existingBorrowingGroup.id)
+          newGroups = newGroups.map(g => g.id === existingBorrowingGroup.id ? { ...g, is_system: true, is_editable: false, is_deletable: false, type: 'borrowing' as const } : g)
         }
 
         const existingBorrowingNames = newCategories.filter(c => c.group_name === BORROWING_GROUP).map(c => c.name)
@@ -940,7 +1014,7 @@ export function useSupabaseData(userId: string) {
         if (borrowingCatsToAdd.length > 0) {
           const { data: seededCats } = await supabase
             .from('categories')
-            .insert(borrowingCatsToAdd.map(name => ({ name, group_name: BORROWING_GROUP, user_id: userId })))
+            .insert(borrowingCatsToAdd.map(name => ({ name, group_name: BORROWING_GROUP, user_id: userId, is_system: true })))
             .select('*')
           if (seededCats) newCategories = [...newCategories, ...(seededCats as Category[])]
         }
