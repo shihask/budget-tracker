@@ -2,6 +2,7 @@ import { useMemo, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, iso, addDays, TODAY } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
+import { PlantSVG, STAGE_THRESHOLDS } from './PlantSVG'
 import type { AppState, DerivedMetrics } from '@/types'
 
 interface Props {
@@ -100,6 +101,15 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
     evaluatePastDays()
   }, [enabled, settings.challenge_last_date]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const leaves = settings.challenge_leaves ?? 0
+  const stageIdx = (() => {
+    let idx = 0
+    for (let i = STAGE_THRESHOLDS.length - 1; i >= 0; i--) {
+      if (leaves >= STAGE_THRESHOLDS[i]) { idx = i; break }
+    }
+    return idx
+  })()
+
   const cardStyle: React.CSSProperties = {
     borderRadius: 20,
     padding: 18,
@@ -151,7 +161,12 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
     : c.muted
 
   return (
-    <div style={cardStyle}>
+    <div style={{ ...cardStyle, position: 'relative', overflow: 'hidden' }}>
+      {/* Watermark */}
+      <div style={{ position: 'absolute', bottom: -24, right: -16, width: 130, pointerEvents: 'none', opacity: 0.07, zIndex: 0 }}>
+        <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} viewBoxOverride="6 45 188 260" />
+      </div>
+
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
