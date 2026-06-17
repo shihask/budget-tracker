@@ -228,19 +228,6 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
         </p>
       )}
 
-      {/* Recovery Mission */}
-      {calc.recoveryAmount > 0 && (
-        <div style={{
-          background: c.warnSoft, borderRadius: 10, padding: '8px 12px',
-          marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.warn }}>Recovery Mission</span>
-          <span style={{ font: '700 12px Plus Jakarta Sans', color: c.warn }}>
-            -{fmt(Math.round(calc.recoveryAmount))}/day for {calc.daysRemaining - 1} days
-          </span>
-        </div>
-      )}
-
       {/* Progress bar */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'baseline' }}>
