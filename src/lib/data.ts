@@ -64,9 +64,35 @@ const remainingCommitments = state.commitments
   const weeklyRemaining = weeklyBudget - weeklySpent
   const weeklyPct = weeklyBudget ? (weeklySpent / weeklyBudget) * 100 : 0
 
+  // Salary-cycle-based metrics (auto budget mode)
+  const salaryDate = state.settings.salary_date
+  let cycleSpent = 0, cycleRemaining = realFreeMoney
+  let safeDailySpend = 0, safeWeeklySpend = 0
+  let cycleDaysLeft = 0, cycleWeeksLeft = 0
+
+  if (salaryDate && salaryDate >= 1 && salaryDate <= 31) {
+    const t = new Date()
+    const y = t.getFullYear(), m = t.getMonth(), day = t.getDate()
+    const cycleStart = day >= salaryDate
+      ? new Date(y, m, salaryDate)
+      : new Date(y, m - 1, salaryDate)
+    const cycleEnd = new Date(cycleStart.getFullYear(), cycleStart.getMonth() + 1, salaryDate - 1)
+    const todayMid = new Date(y, m, day)
+    cycleDaysLeft = Math.max(1, Math.round((cycleEnd.getTime() - todayMid.getTime()) / 86400000) + 1)
+    cycleWeeksLeft = cycleDaysLeft / 7
+
+    cycleSpent = state.transactions
+      .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= cycleStart)
+      .reduce((s, tx) => s + tx.amount, 0)
+    cycleRemaining = realFreeMoney - cycleSpent
+    safeDailySpend  = cycleRemaining / cycleDaysLeft
+    safeWeeklySpend = cycleRemaining / cycleWeeksLeft
+  }
+
   return {
     actualBalance, emergencyFund, availableBalance, remainingCommitments,
     realFreeMoney, weeklyBudget, weeklySpent, weeklyRemaining, weeklyPct,
+    cycleSpent, cycleRemaining, safeDailySpend, safeWeeklySpend, cycleDaysLeft, cycleWeeksLeft,
   }
 }
 
