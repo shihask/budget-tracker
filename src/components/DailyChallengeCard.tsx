@@ -247,8 +247,8 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
         ) : (
           <p style={{ font: '600 12px Plus Jakarta Sans', color: statusColor, margin: 0 }}>
             {isOver
-              ? `⚠ Over challenge by ${fmt(Math.abs(remaining))}`
-              : `✓ ${fmt(remaining)} under target`}
+              ? `Over challenge by ${fmt(Math.abs(remaining))}`
+              : `${fmt(remaining)} under target`}
           </p>
         )}
       </div>
