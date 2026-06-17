@@ -9,6 +9,8 @@ import { computeChallenge } from '@/lib/challenge'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
+const CHART_COLORS = ['#16C98A', '#F97316', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B']
+
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
 type EditPrompt = {
   transaction: Transaction
@@ -19,7 +21,64 @@ type EditPrompt = {
   newCategoryName?: string
 }
 type DeletePrompt = { transaction: Transaction }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt }
+type ChartItem = { name: string; amount: number; pct: number; color: string }
+type ChartData =
+  | { type: 'categories'; items: ChartItem[]; total: number }
+  | { type: 'budget'; spent: number; budget: number }
+  | { type: 'monthly'; thisMonth: number; lastMonth: number; income: number }
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData }
+
+function shouldShowChart(question: string): 'categories' | 'budget' | 'monthly' | null {
+  const q = question.toLowerCase()
+  if (/\b(last month|compare|this month vs)\b/.test(q)) return 'monthly'
+  if (/\b(budget|weekly budget|overspend|recovery|on track)\b/.test(q)) return 'budget'
+  if (/\b(categor|breakdown|story|summary|where did|spending|happened|balance low|where.?my|what drove)\b/.test(q)) return 'categories'
+  return null
+}
+
+function buildCategoryChart(state: AppState): ChartData {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const catTotals: Record<string, number> = {}
+  state.transactions
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense')
+    .forEach(t => {
+      const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
+      catTotals[name] = (catTotals[name] ?? 0) + t.amount
+    })
+  const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 6)
+  const total = sorted.reduce((s, [, v]) => s + v, 0)
+  return {
+    type: 'categories',
+    total,
+    items: sorted.map(([name, amount], i) => ({
+      name, amount,
+      pct: total > 0 ? Math.round((amount / total) * 100) : 0,
+      color: CHART_COLORS[i % CHART_COLORS.length],
+    })),
+  }
+}
+
+function buildBudgetChart(d: DerivedMetrics): ChartData {
+  return { type: 'budget', spent: d.weeklySpent, budget: d.weeklyBudget }
+}
+
+function buildMonthlyChart(state: AppState): ChartData {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+  const thisMonth = state.transactions
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense')
+    .reduce((s, t) => s + t.amount, 0)
+  const lastMonth = state.transactions
+    .filter(t => { const dt = new Date(t.transaction_date); return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense' })
+    .reduce((s, t) => s + t.amount, 0)
+  const income = state.transactions
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income')
+    .reduce((s, t) => s + t.amount, 0)
+  return { type: 'monthly', thisMonth, lastMonth, income }
+}
 
 function guessTransactionType(text: string): 'income' | 'expense' {
   const lower = text.toLowerCase()
@@ -58,7 +117,33 @@ function classifyIntent(text: string): 'question' | 'edit' | 'delete' | 'transac
   return 'question'
 }
 
-function buildContext(state: AppState, d: DerivedMetrics): string {
+// Intent selects which context modules get sent to the AI.
+// Hard caps on list lengths keep token cost fixed regardless of transaction history size.
+type ContextIntent = 'spending' | 'budget' | 'financial_health' | 'networth' | 'goals' | 'borrowings' | 'investments' | 'general'
+
+// Module token budgets — these caps are what keep context size stable as data grows.
+const CTX_LIMITS = {
+  categories: 5,   // top N spending categories
+  recurring: 3,    // top N recurring patterns
+  recent: 4,       // most recent transactions
+  goals: 3,        // active goals shown
+  borrowers: 5,    // people in lent/owed lists (each side)
+}
+
+function classifyContextIntent(text: string): ContextIntent {
+  const q = text.toLowerCase()
+  if (/\b(invest|sip|mutual fund|portfolio|gold|chit|kuri|ppf|nps|rd|fd|fixed deposit|recurring deposit)\b/.test(q)) return 'investments'
+  if (/\b(goal|target|save for|saving up|wedding|trip|house|plan for)\b/.test(q)) return 'goals'
+  if (/\b(who owes|owe me|lent to|borrowed from|cc bill|outstanding dues?)\b/.test(q)) return 'borrowings'
+  if (/\b(net worth|total wealth|how much do i have)\b/.test(q)) return 'networth'
+  // financial_health: situational questions that need the full picture but not category drill-down
+  if (/\b(how am i doing|am i doing (ok|well|good)|good position|afford|can i buy|current situation|financial health|overall|real situation|position right now|safe to|is it ok to)\b/.test(q)) return 'financial_health'
+  if (/\b(budget|weekly|overspend|daily limit|challenge|on track|recovery|free money|free cash)\b/.test(q)) return 'budget'
+  if (/\b(spend|spent|spending|categor|summary|where did|breakdown|expense|this month|last month|compare|story|happened|balance low)\b/.test(q)) return 'spending'
+  return 'general'
+}
+
+function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent = 'general'): string {
   const activeAccs = state.accounts.filter(a => a.is_active)
   const totalBalance = activeAccs.reduce((s, a) => s + a.current_balance, 0)
 
@@ -71,17 +156,7 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
   const isBorrowingTx = (t: Transaction) =>
     t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment'
 
-  const todayTxns = state.transactions.filter(t =>
-    t.transaction_date === localDateStr && t.transaction_type === 'expense'
-  )
-  const todaySpend = todayTxns.reduce((s, t) => s + t.amount, 0)
-  const todayLines = todayTxns.length > 0
-    ? todayTxns.map(t => {
-        const catName = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
-        return `  • ${t.description}: ₹${t.amount.toLocaleString()} (${catName})`
-      }).join('\n')
-    : '  (none yet)'
-
+  // ── Pre-compute aggregates used across multiple modules ──
   const thisMonthTxns = state.transactions.filter(t =>
     new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense'
   )
@@ -89,165 +164,206 @@ function buildContext(state: AppState, d: DerivedMetrics): string {
     const dt = new Date(t.transaction_date)
     return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense'
   })
-  const thisMonthIncomeTxns = state.transactions.filter(t =>
-    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income'
-  )
-  const thisMonthTransferTxns = state.transactions.filter(t =>
-    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'transfer'
-  )
-  const savingsContribThisMonth = state.transactions
+  const thisMonthIncome = state.transactions
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income')
+    .reduce((s, t) => s + t.amount, 0)
+  const thisMonthTransfers = state.transactions
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'transfer')
+    .reduce((s, t) => s + t.amount, 0)
+  const savingsContrib = state.transactions
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'savings_contribution')
     .reduce((s, t) => s + t.amount, 0)
-  const savingsWithdrawThisMonth = state.transactions
+  const savingsWithdraw = state.transactions
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'savings_withdrawal')
     .reduce((s, t) => s + t.amount, 0)
 
   const monthlySpend = thisMonthTxns.reduce((s, t) => s + t.amount, 0)
   const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + t.amount, 0)
-  const thisMonthIncome = thisMonthIncomeTxns.reduce((s, t) => s + t.amount, 0)
-  const thisMonthTransfers = thisMonthTransferTxns.reduce((s, t) => s + t.amount, 0)
-  // Approximate what balance was at start of month (before this month's income/spend)
   const monthStartBalance = Math.round(totalBalance + monthlySpend - thisMonthIncome)
-  const trackingDaysThisMonth = new Set(thisMonthTxns.map(t => t.transaction_date)).size
-  const trackingCountThisMonth = thisMonthTxns.length
-  const budget = d.weeklyBudget
+  const trackingDays = new Set(thisMonthTxns.map(t => t.transaction_date)).size
+  const trackingCount = thisMonthTxns.length
 
-  // Category breakdown this month (exclude borrowing transactions)
-  const catTotalsMonth: Record<string, number> = {}
-  thisMonthTxns.forEach(t => {
-    const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
-    catTotalsMonth[name] = (catTotalsMonth[name] ?? 0) + t.amount
-  })
-  const topCats = Object.entries(catTotalsMonth)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([n, v]) => `${n}: ₹${v.toLocaleString()}`)
-    .join(', ')
+  const transferNote = thisMonthTransfers > 0 ? ` | transfers:₹${thisMonthTransfers.toLocaleString()} (internal)` : ''
+  const savingsNote = (savingsContrib > 0 || savingsWithdraw > 0)
+    ? ` | savings-contrib:₹${savingsContrib.toLocaleString()} savings-withdraw:₹${savingsWithdraw.toLocaleString()}`
+    : ''
 
-  // Recurring pattern detection — descriptions appearing 3+ times in last 90 days (exclude borrowing)
-  const ninetyDaysAgo = new Date(now)
-  ninetyDaysAgo.setDate(now.getDate() - 90)
-  const descCount: Record<string, { count: number; total: number }> = {}
-  state.transactions
-    .filter(t => new Date(t.transaction_date) >= ninetyDaysAgo && t.transaction_type === 'expense')
-    .forEach(t => {
-      const key = t.description.toLowerCase().trim()
-      if (!descCount[key]) descCount[key] = { count: 0, total: 0 }
-      descCount[key].count++
-      descCount[key].total += t.amount
+  // ── MODULE: Core (always sent) ──
+  const parts: string[] = []
+  parts.push(
+    `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}` +
+    `\nAccounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}` +
+    `\nSpend: this-month ₹${monthlySpend.toLocaleString()} | income ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transferNote}${savingsNote}` +
+    `\nTracking: ${trackingCount} transactions across ${trackingDays} days this month`
+  )
+
+  // ── MODULE: Spending breakdown ──
+  // spending: full detail (categories, recurring, recent) capped at CTX_LIMITS
+  // general: same but also shown as a broad fallback
+  // financial_health / budget: NOT included — those don't need category drill-down
+  if (['spending', 'general'].includes(intent)) {
+    const todayTxns = state.transactions.filter(t =>
+      t.transaction_date === localDateStr && t.transaction_type === 'expense'
+    )
+    const todaySpend = todayTxns.reduce((s, t) => s + t.amount, 0)
+    const todayStr = todayTxns.length > 0
+      ? todayTxns.map(t => `${t.description} ₹${t.amount.toLocaleString()} (${state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'})`).join(' | ')
+      : 'none'
+
+    const catTotals: Record<string, number> = {}
+    thisMonthTxns.forEach(t => {
+      const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
+      catTotals[name] = (catTotals[name] ?? 0) + t.amount
     })
-  const recurring = Object.entries(descCount)
-    .filter(([, v]) => v.count >= 3)
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 5)
-    .map(([name, v]) => `${name} (${v.count}x, avg ₹${Math.round(v.total / v.count).toLocaleString()})`)
-    .join(', ')
+    const topCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, CTX_LIMITS.categories)
+      .map(([n, v]) => `${n}: ₹${v.toLocaleString()}`).join(', ')
 
-  const recent = state.transactions.slice(0, 5).map(t => {
-    const catName = state.categories.find(c => c.id === t.category_id)?.name ?? ''
-    const tag = isBorrowingTx(t) ? 'balance-sheet' : t.transaction_type
-    return `${t.transaction_date} ${t.description} ₹${t.amount} ${catName} [${tag}]`
-  }).join('\n')
+    const ninetyDaysAgo = new Date(now); ninetyDaysAgo.setDate(now.getDate() - 90)
+    const descCount: Record<string, { count: number; total: number }> = {}
+    state.transactions
+      .filter(t => new Date(t.transaction_date) >= ninetyDaysAgo && t.transaction_type === 'expense')
+      .forEach(t => {
+        const key = t.description.toLowerCase().trim()
+        if (!descCount[key]) descCount[key] = { count: 0, total: 0 }
+        descCount[key].count++; descCount[key].total += t.amount
+      })
+    const recurring = Object.entries(descCount).filter(([, v]) => v.count >= 3)
+      .sort((a, b) => b[1].total - a[1].total).slice(0, CTX_LIMITS.recurring)
+      .map(([name, v]) => `${name} (${v.count}x, avg ₹${Math.round(v.total / v.count).toLocaleString()})`).join(', ')
 
-  // Compact borrowings — rules live in the system prompt, not here
-  let borrowingsLine = ''
+    const recent = state.transactions.slice(0, CTX_LIMITS.recent).map(t => {
+      const catName = state.categories.find(c => c.id === t.category_id)?.name ?? ''
+      return `${t.transaction_date} ${t.description} ₹${t.amount} ${catName} [${isBorrowingTx(t) ? 'balance-sheet' : t.transaction_type}]`
+    }).join('\n')
+
+    parts.push(
+      `Today(${localDateStr}): ₹${todaySpend.toLocaleString()} | ${todayStr}` +
+      `\nCategories(month): ${topCats || 'no data'}` +
+      `\nRecurring(90d): ${recurring || 'none'}` +
+      `\nRecent:\n${recent}`
+    )
+  }
+
+  // ── MODULE: Budget & challenge ──
+  // spending gets just the budget line (no challenge detail — not relevant to category analysis)
+  // budget / financial_health / general get the full challenge block
+  if (['budget', 'spending', 'financial_health', 'general'].includes(intent)) {
+    const pct = Math.round(d.weeklySpent / d.weeklyBudget * 100)
+    parts.push(`Budget: weekly ₹${d.weeklyBudget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${pct}% used)`)
+
+    if (state.settings.challenge_enabled && intent !== 'spending') {
+      const diff = state.settings.challenge_difficulty ?? 'medium'
+      const ch = computeChallenge(state, diff)
+      const streak = state.settings.challenge_streak ?? 0
+      const totalDays = state.settings.challenge_total_days ?? 0
+      const successDays = state.settings.challenge_success_days ?? 0
+      const successRate = totalDays >= 3 ? `${Math.round((successDays / totalDays) * 100)}% (${successDays}/${totalDays})` : 'starting'
+      parts.push(`DailyChallenge: difficulty:${diff} target:₹${Math.round(ch.adjustedTarget).toLocaleString()} spent-today:₹${Math.round(ch.spentToday).toLocaleString()} remaining:₹${Math.round(ch.remaining).toLocaleString()} status:${ch.status} streak:${streak}-days success-rate:${successRate} plant:${ch.plantGrowth.milestoneLabel} salary-pace:${ch.survivalStatus} safe-daily:₹${Math.round(ch.safeDailyLimit).toLocaleString()}`)
+    }
+  }
+
+  // ── MODULE: Credit cards ──
+  // NOT sent for spending or budget (they don't need CC details)
+  if (['borrowings', 'networth', 'financial_health', 'general'].includes(intent)) {
+    const activeCCs = (state.credit_cards ?? []).filter(cc => cc.is_active)
+    if (activeCCs.length > 0) {
+      parts.push(`CreditCards: ${activeCCs.map(cc => {
+        const last = cc.last_four ? ` •${cc.last_four}` : ''
+        return `${cc.name}${last} outstanding ₹${Math.round(cc.current_balance).toLocaleString('en-IN')} / limit ₹${Math.round(cc.credit_limit).toLocaleString('en-IN')}`
+      }).join(' | ')}`)
+    }
+  }
+
+  // ── MODULE: Borrowings ──
+  // borrowings / networth: full per-person list (capped at CTX_LIMITS.borrowers each side)
+  // financial_health / general: totals only — enough for situational awareness
+  // spending / budget: omitted — category drill-down doesn't need balance-sheet data
   if (state.settings.track_borrowings) {
     const lent = state.borrowings.filter(b => b.direction === 'lent' && b.remaining_amount > 0)
     const borrowed = state.borrowings.filter(b => b.direction === 'borrowed' && b.remaining_amount > 0)
     const totalLent = lent.reduce((s, b) => s + b.remaining_amount, 0)
     const totalOwed = borrowed.reduce((s, b) => s + b.remaining_amount, 0)
-    const lentStr = lent.map(b => `${b.person_name} ₹${b.remaining_amount.toLocaleString()}`).join(', ') || 'none'
-    const owedStr = borrowed.map(b => `${b.person_name} ₹${b.remaining_amount.toLocaleString()}`).join(', ') || 'none'
-    borrowingsLine = `\nBorrowings[balance-sheet]: owed-to-you: ${lentStr} (₹${totalLent.toLocaleString()}) | you-owe: ${owedStr} (₹${totalOwed.toLocaleString()})`
+
+    if (['borrowings', 'networth'].includes(intent)) {
+      const lentStr = lent.slice(0, CTX_LIMITS.borrowers).map(b => `${b.person_name} ₹${b.remaining_amount.toLocaleString()}`).join(', ') || 'none'
+      const owedStr = borrowed.slice(0, CTX_LIMITS.borrowers).map(b => `${b.person_name} ₹${b.remaining_amount.toLocaleString()}`).join(', ') || 'none'
+      parts.push(`Borrowings[balance-sheet]: owed-to-you: ${lentStr} (₹${totalLent.toLocaleString()}) | you-owe: ${owedStr} (₹${totalOwed.toLocaleString()})`)
+    } else if (['financial_health', 'general'].includes(intent) && (totalLent > 0 || totalOwed > 0)) {
+      parts.push(`Borrowings[balance-sheet]: owed-to-you:₹${totalLent.toLocaleString()} you-owe:₹${totalOwed.toLocaleString()} (recoverable, not real spend)`)
+    }
   }
 
-  const todayStr = todayTxns.length > 0
-    ? todayTxns.map(t => {
-        const cat = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
-        return `${t.description} ₹${t.amount.toLocaleString()} (${cat})`
-      }).join(' | ')
-    : 'none'
+  // ── MODULE: Bills & obligations ──
+  // spending intent omitted — bills are commitments, not category spend
+  if (['budget', 'goals', 'financial_health', 'general'].includes(intent)) {
+    const activeCommitments = (state.commitments ?? []).filter(c => c.is_active)
+    if (activeCommitments.length > 0) {
+      parts.push(`BillsAndObligations: ${activeCommitments.map(c => {
+        const paid = c.remaining < c.amount
+        const dueStr = c.due_day ? ` due-day:${c.due_day}` : ''
+        return `${c.name} ₹${c.amount.toLocaleString()}${dueStr} [${paid ? 'paid' : 'unpaid'}]`
+      }).join(' | ')} | remaining-unpaid: ₹${d.remainingCommitments.toLocaleString()}`)
+    }
+  }
 
-  const activeCCs = (state.credit_cards ?? []).filter(cc => cc.is_active)
-  const ccLine = activeCCs.length > 0
-    ? `\nCreditCards: ${activeCCs.map(cc => {
-        const last = cc.last_four ? ` •${cc.last_four}` : ''
-        const used = Math.round(cc.current_balance)
-        const limit = Math.round(cc.credit_limit)
-        return `${cc.name}${last} outstanding ₹${used.toLocaleString('en-IN')} / limit ₹${limit.toLocaleString('en-IN')}`
-      }).join(' | ')}`
-    : ''
-
-  const activeGoals = (state.goals ?? []).filter(g => g.is_active)
-  const goalsLine = activeGoals.length > 0
-    ? `\nGoals: ${activeGoals.map(g => {
+  // ── MODULE: Goals ──
+  // financial_health gets goals too — needed to answer "can I afford X" questions
+  if (['goals', 'financial_health', 'general'].includes(intent)) {
+    const activeGoals = (state.goals ?? []).filter(g => g.is_active)
+    if (activeGoals.length > 0) {
+      parts.push(`Goals: ${activeGoals.slice(0, CTX_LIMITS.goals).map(g => {
         const pct = g.goal_amount > 0 ? Math.round((g.current_saved / g.goal_amount) * 100) : 0
         const tDate = new Date(g.target_date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
         return `${g.name}(${g.goal_type}) ${pct}% · ₹${g.current_saved.toLocaleString()}/${g.goal_amount.toLocaleString()} by ${tDate}`
-      }).join(' | ')}`
-    : ''
+      }).join(' | ')}`)
+    }
+  }
 
-  const activeCommitments = (state.commitments ?? []).filter(c => c.is_active)
-  const commitmentsLine = activeCommitments.length > 0
-    ? `\nBillsAndObligations: ${activeCommitments.map(c => {
-        const paid = c.remaining < c.amount
-        const dueStr = c.due_day ? ` due-day:${c.due_day}` : ''
-        const status = paid ? 'paid' : 'unpaid'
-        return `${c.name} ₹${c.amount.toLocaleString()}${dueStr} [${status}]`
-      }).join(' | ')} | remaining-unpaid: ₹${d.remainingCommitments.toLocaleString()}`
-    : ''
-
+  // ── MODULE: Savings & investments ──
+  // investments / goals / networth: full per-instrument detail
+  // financial_health / general: summary totals only
+  // spending / budget: omitted
   const activeSavings = (state.savings ?? []).filter(s => s.is_active)
-  let savingsLine = ''
   if (activeSavings.length > 0) {
     const totalMonthly = activeSavings.filter(s => s.is_recurring && s.frequency === 'monthly').reduce((a, s) => a + s.amount, 0)
     const totalContributed = activeSavings.reduce((a, s) => a + s.current_installment * s.amount, 0)
     const totalPortfolio = activeSavings.filter(s => s.current_value > 0).reduce((a, s) => a + s.current_value, 0)
-    const items = activeSavings.map(s => {
-      const contributed = s.current_installment * s.amount
-      const progress = s.total_installments ? `${s.current_installment}/${s.total_installments}` : `${s.current_installment} done`
-      const valueStr = s.current_value > 0 ? ` current-value:₹${s.current_value.toLocaleString()}` : ''
-      const prizedStr = s.type === 'chit'
-        ? s.is_prized
-          ? ` [prized at month ${s.prize_month ?? '?'} of ${s.total_installments ?? '?'} prize-received:₹${s.current_value.toLocaleString()}${s.total_installments && s.current_installment < s.total_installments ? ` remaining:${s.total_installments - s.current_installment}-installments=₹${((s.total_installments - s.current_installment) * s.amount).toLocaleString()}` : ''}]`
-          : ` [unprized]`
-        : ''
-      const dueStr = s.due_day ? ` due-day:${s.due_day}` : ''
-      return `${s.name}(${s.type}) ₹${s.amount.toLocaleString()}/${s.frequency ?? 'one-time'} contributed:₹${contributed.toLocaleString()} [${progress}]${valueStr}${prizedStr}${dueStr}`
-    }).join(' | ')
-    const portfolioStr = totalPortfolio > 0 ? ` | portfolio-value:₹${totalPortfolio.toLocaleString()}` : ''
-    savingsLine = `\nSavingsAndInvestments: monthly-commitment:₹${totalMonthly.toLocaleString()} total-contributed:₹${totalContributed.toLocaleString()}${portfolioStr} | ${items}`
+
+    if (['investments', 'goals', 'networth'].includes(intent)) {
+      const portfolioStr = totalPortfolio > 0 ? ` | portfolio-value:₹${totalPortfolio.toLocaleString()}` : ''
+      const items = activeSavings.map(s => {
+        const contributed = s.current_installment * s.amount
+        const progress = s.total_installments ? `${s.current_installment}/${s.total_installments}` : `${s.current_installment} done`
+        const valueStr = s.current_value > 0 ? ` current-value:₹${s.current_value.toLocaleString()}` : ''
+        const prizedStr = s.type === 'chit'
+          ? s.is_prized
+            ? ` [prized at month ${s.prize_month ?? '?'} prize-received:₹${s.current_value.toLocaleString()}${s.total_installments && s.current_installment < s.total_installments ? ` remaining:${s.total_installments - s.current_installment}-installments=₹${((s.total_installments - s.current_installment) * s.amount).toLocaleString()}` : ''}]`
+            : ` [unprized]`
+          : ''
+        const dueStr = s.due_day ? ` due-day:${s.due_day}` : ''
+        return `${s.name}(${s.type}) ₹${s.amount.toLocaleString()}/${s.frequency ?? 'one-time'} contributed:₹${contributed.toLocaleString()} [${progress}]${valueStr}${prizedStr}${dueStr}`
+      }).join(' | ')
+      parts.push(`SavingsAndInvestments: monthly-commitment:₹${totalMonthly.toLocaleString()} total-contributed:₹${totalContributed.toLocaleString()}${portfolioStr} | ${items}`)
+    } else if (['financial_health', 'general'].includes(intent)) {
+      const portfolioStr = totalPortfolio > 0 ? ` portfolio-value:₹${totalPortfolio.toLocaleString()}` : ''
+      parts.push(`Savings: monthly-commitment:₹${totalMonthly.toLocaleString()} total-contributed:₹${totalContributed.toLocaleString()}${portfolioStr}`)
+    }
   }
 
-  const transfersLine = thisMonthTransfers > 0
-    ? ` | transfers-this-month:₹${thisMonthTransfers.toLocaleString()} (internal moves, not spending)`
-    : ''
-  const savingsActivityLine = (savingsContribThisMonth > 0 || savingsWithdrawThisMonth > 0)
-    ? ` | savings-contributed-this-month:₹${savingsContribThisMonth.toLocaleString()} savings-withdrawn-this-month:₹${savingsWithdrawThisMonth.toLocaleString()} (wealth movement, not spending)`
-    : ''
-
-  // Daily Challenge context
-  let challengeLine = ''
-  if (state.settings.challenge_enabled) {
-    const diff = state.settings.challenge_difficulty ?? 'medium'
-    const ch = computeChallenge(state, diff)
-    const streak = state.settings.challenge_streak ?? 0
-    const totalDays = state.settings.challenge_total_days ?? 0
-    const successDays = state.settings.challenge_success_days ?? 0
-    const successRate = totalDays >= 3 ? `${Math.round((successDays / totalDays) * 100)}% (${successDays}/${totalDays})` : 'starting'
-    challengeLine = `\nDailyChallenge: enabled difficulty:${diff} target:₹${Math.round(ch.adjustedTarget).toLocaleString()} spent-today:₹${Math.round(ch.spentToday).toLocaleString()} remaining:₹${Math.round(ch.remaining).toLocaleString()} status:${ch.status} streak:${streak}-days success-rate:${successRate} plant:${ch.plantGrowth.milestoneLabel} salary-pace:${ch.survivalStatus} safe-daily:₹${Math.round(ch.safeDailyLimit).toLocaleString()}`
+  // ── Hard ceiling for 'general' intent ──
+  // ~1600 chars ≈ 400 tokens. Drop lowest-priority modules first so current
+  // liabilities (budget, credit cards, borrowings) are always preserved.
+  if (intent === 'general') {
+    const MAX_CHARS = 1600
+    const dropOrder = ['Goals:', 'Savings:', 'BillsAndObligations:']
+    for (const prefix of dropOrder) {
+      if (parts.join('\n').length <= MAX_CHARS) break
+      const idx = parts.findIndex(p => p.startsWith(prefix))
+      if (idx !== -1) parts.splice(idx, 1)
+    }
   }
 
-  return `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}
-Accounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}${ccLine}
-Budget: weekly ₹${budget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${Math.round(d.weeklySpent / budget * 100)}% used)
-Spend: this-month ₹${monthlySpend.toLocaleString()} | income-this-month ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transfersLine}${savingsActivityLine}
-Tracking: ${trackingCountThisMonth} transactions logged across ${trackingDaysThisMonth} days this month
-Today(${localDateStr}): total ₹${todaySpend.toLocaleString()} | ${todayStr}
-Categories(month): ${topCats || 'no data'}
-Recurring(90d): ${recurring || 'none'}
-Recent:
-${recent}${borrowingsLine}${goalsLine}${commitmentsLine}${savingsLine}${challengeLine}`
+  return parts.join('\n')
 }
 
 type ParsedEdit =
@@ -660,7 +776,8 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
     }
 
     // No amount found — treat as Q&A (streamed)
-    const context = buildContext(state, d)
+    const contextIntent = classifyContextIntent(text)
+    const context = buildContext(state, d, contextIntent)
     abortRef.current = new AbortController()
 
     // Insert empty placeholder that tokens will fill in
@@ -681,6 +798,18 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
         },
       )
       if (used != null) onUpdateSettings?.({ ai_requests_used: used })
+
+      const chartType = shouldShowChart(text)
+      if (chartType) {
+        const chartData = chartType === 'categories' ? buildCategoryChart(state)
+          : chartType === 'budget' ? buildBudgetChart(d)
+          : buildMonthlyChart(state)
+        setMessages(m => {
+          const copy = [...m]
+          copy[copy.length - 1] = { ...copy[copy.length - 1], chartData }
+          return copy
+        })
+      }
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === 'AbortError'
       if (!isAbort) {
@@ -892,6 +1021,82 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                   >
                     Cancel
                   </button>
+                </div>
+              )}
+              {m.chartData && (
+                <div style={{ maxWidth: '92%', background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '12px 14px' }}>
+                  {m.chartData.type === 'categories' && (() => {
+                    const cd = m.chartData as Extract<ChartData, { type: 'categories' }>
+                    return (
+                    <>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        Spending this month · ₹{cd.total.toLocaleString()}
+                      </div>
+                      {cd.items.map((item, idx) => (
+                        <div key={idx} style={{ marginBottom: idx < cd.items.length - 1 ? 9 : 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>{item.name}</span>
+                            <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>₹{item.amount.toLocaleString()}</span>
+                          </div>
+                          <div style={{ height: 5, background: c.faint, borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${item.pct}%`, background: item.color, borderRadius: 3 }} />
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                    )
+                  })()}
+                  {m.chartData.type === 'budget' && (() => {
+                    const pct = m.chartData.budget > 0 ? Math.round((m.chartData.spent / m.chartData.budget) * 100) : 0
+                    const over = m.chartData.spent > m.chartData.budget
+                    return (
+                      <>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Weekly Budget</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>Spent</span>
+                          <span style={{ font: '700 12px Plus Jakarta Sans', color: over ? '#EF4444' : c.ink }}>₹{m.chartData.spent.toLocaleString()} / ₹{m.chartData.budget.toLocaleString()}</span>
+                        </div>
+                        <div style={{ height: 8, background: c.faint, borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: over ? '#EF4444' : '#16C98A', borderRadius: 4, transition: 'width 0.4s ease' }} />
+                        </div>
+                        <div style={{ font: '500 11px Plus Jakarta Sans', color: over ? '#EF4444' : c.muted, marginTop: 5, textAlign: 'right' }}>
+                          {pct}% used{over ? ` · ₹${(m.chartData.spent - m.chartData.budget).toLocaleString()} over` : ''}
+                        </div>
+                      </>
+                    )
+                  })()}
+                  {m.chartData.type === 'monthly' && (() => {
+                    const max = Math.max(m.chartData.thisMonth, m.chartData.lastMonth, m.chartData.income, 1)
+                    const diff = m.chartData.lastMonth > 0 ? Math.round(((m.chartData.thisMonth - m.chartData.lastMonth) / m.chartData.lastMonth) * 100) : null
+                    const rows = [
+                      { label: 'This month', amount: m.chartData.thisMonth, color: '#3B82F6' },
+                      { label: 'Last month', amount: m.chartData.lastMonth, color: '#94A3B8' },
+                      ...(m.chartData.income > 0 ? [{ label: 'Income (this month)', amount: m.chartData.income, color: '#16C98A' }] : []),
+                    ]
+                    return (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Monthly Comparison</span>
+                          {diff !== null && (
+                            <span style={{ font: '600 11px Plus Jakarta Sans', color: diff > 0 ? '#EF4444' : '#16C98A' }}>
+                              {diff > 0 ? '+' : ''}{diff}% vs last month
+                            </span>
+                          )}
+                        </div>
+                        {rows.map((row, idx) => (
+                          <div key={idx} style={{ marginBottom: idx < rows.length - 1 ? 9 : 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>{row.label}</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>₹{row.amount.toLocaleString()}</span>
+                            </div>
+                            <div style={{ height: 5, background: c.faint, borderRadius: 3, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${Math.round((row.amount / max) * 100)}%`, background: row.color, borderRadius: 3 }} />
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )
+                  })()}
                 </div>
               )}
             </div>
