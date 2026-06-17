@@ -273,29 +273,31 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
       </div>
 
       {/* ── HERO: Plant (big, centered) ────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '18px 24px 0', position: 'relative', minHeight: 240 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 12px 0', position: 'relative', minHeight: 300 }}>
         {canGrowToday && stageIdx < 6 && (
-          <div style={{ position: 'absolute', top: 18, left: 24, right: 24 }}>
+          <div style={{ position: 'absolute', top: 16, left: 12, right: 12 }}>
             <PlantSVG stageIdx={ghostStage} viewBoxOverride={sharedViewBox} opacity={0.13}
-              style={{ maxWidth: 280, margin: '0 auto' }} />
+              style={{ maxWidth: 320, margin: '0 auto' }} />
           </div>
         )}
-        <div key={plantAnimKey} style={{ width: '100%', maxWidth: 280, animation: 'plantEntry 0.55s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+        <div key={plantAnimKey} style={{ width: '100%', maxWidth: 320, animation: 'plantEntry 0.55s cubic-bezier(0.34,1.56,0.64,1) both' }}>
           <PlantSVG stageIdx={stageIdx as 0|1|2|3|4|5|6} viewBoxOverride={sharedViewBox}
-            style={{ maxWidth: 280, margin: '0 auto' }} />
+            style={{ maxWidth: 320, margin: '0 auto' }} />
         </div>
       </div>
 
-      {/* ── Stage name + message ───────────────────────────────────────────────── */}
-      <div style={{ textAlign: 'center', padding: '8px 28px 0' }}>
+      {/* ── Stage summary (compact, under plant) ──────────────────────────────── */}
+      <div style={{ textAlign: 'center', padding: '10px 24px 0' }}>
         <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>
           {STAGE_LABELS_RICH[stageIdx]}
         </div>
-        {STAGE_MESSAGES[stageIdx].split('\n').map((line, i) => (
-          <div key={i} style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, marginTop: i === 0 ? 4 : 2, lineHeight: 1.5 }}>
-            {line}
-          </div>
-        ))}
+        <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>
+          Age: {ageDays} {ageDays === 1 ? 'day' : 'days'}
+          {stageIdx < 6 && nextGoal > 0 && (
+            <> · Next: {STAGE_LABELS_RICH[stageIdx + 1]} — {nextGoal} {nextGoal === 1 ? 'leaf' : 'leaves'} needed</>
+          )}
+          {stageIdx === 6 && <> · Fully bloomed</>}
+        </div>
       </div>
 
       {/* ── Compact stats row ─────────────────────────────────────────────────── */}
@@ -316,81 +318,80 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
         ))}
       </div>
 
-      {/* ── Today's Opportunity (redesigned) ──────────────────────────────────── */}
+      {/* ── Today's Opportunity ───────────────────────────────────────────────── */}
       {calc && (
         <div style={{ margin: '14px 20px 0', background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink }}>Today's Opportunity</div>
-            <span style={{
-              font: '700 11px Plus Jakarta Sans', borderRadius: 99, padding: '3px 9px',
-              background: isMissed ? c.bad + '18' : isOnTrack ? c.good + '18' : c.surface2,
-              color: isMissed ? c.bad : isOnTrack ? c.good : c.muted,
-            }}>
-              {isMissed ? 'Missed' : isOnTrack ? 'On Track' : 'Not Started'}
-            </span>
-          </div>
+          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, marginBottom: 12 }}>Today's Opportunity</div>
 
-          {/* Goal vs spend row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div>
-              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>Daily Goal</div>
-              <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(Math.round(calc.adjustedTarget))}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>Today's Spend</div>
-              <div style={{ font: '700 15px Plus Jakarta Sans', color: isMissed ? c.bad : c.ink, marginTop: 2 }}>{fmt(Math.round(calc.spentToday))}</div>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div style={{ height: 6, borderRadius: 99, background: c.surface2, overflow: 'hidden', marginBottom: 10 }}>
-            <div style={{
-              height: '100%', borderRadius: 99,
-              width: `${spendPct}%`,
-              background: isMissed ? c.bad : isOnTrack ? c.good : c.accent,
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-
-          {/* Action text */}
-          <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginBottom: 12 }}>
-            {isMissed
-              ? `Over by ${fmt(Math.round(calc.spentToday - calc.adjustedTarget))} today. Try again tomorrow.`
-              : notStarted
-              ? `Track your spending to stay within ${fmt(Math.round(calc.adjustedTarget))} today.`
-              : calc.remaining > 0
-              ? `Stay within ${fmt(Math.round(calc.remaining))} more today to earn your leaves.`
-              : 'Daily goal complete — waiting for day end to confirm.'}
-          </div>
-
-          {/* Earn reward box */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: isMissed ? c.surface2 : c.good + '12',
-            border: `1px solid ${isMissed ? c.faint : c.good + '33'}`,
-            borderRadius: 12, padding: '10px 14px',
-          }}>
-            <div>
-              <div style={{ font: '700 13px Plus Jakarta Sans', color: isMissed ? c.muted : c.good }}>
-                {isMissed ? 'Next chance tomorrow' : `Complete today to earn`}
-              </div>
-              {stageIdx < 6 && (
-                <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-                  {isMissed
-                    ? `${nextGoal} ${nextGoal === 1 ? 'leaf' : 'leaves'} away from ${STAGE_LABELS_PLAIN[stageIdx + 1]}`
-                    : `Toward: ${STAGE_LABELS_PLAIN[stageIdx + 1]}`}
+          {isMissed ? (
+            /* ── Missed: encouraging, not punishing ── */
+            <>
+              <div style={{ textAlign: 'center', padding: '4px 0 12px' }}>
+                <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
+                  Not a growth day
                 </div>
-              )}
-            </div>
-            <div style={{ textAlign: 'center', minWidth: 52 }}>
-              <div style={{ font: '800 20px Plus Jakarta Sans', color: isMissed ? c.muted : c.good }}>
-                {isMissed ? '--' : `+${leavesIfSuccess}`}
+                <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                  Tomorrow starts fresh.
+                </div>
+                {stageIdx < 6 && nextGoal > 0 && (
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: c.accent, marginTop: 6 }}>
+                    {nextGoal} {nextGoal === 1 ? 'leaf' : 'leaves'} away from {STAGE_LABELS_RICH[stageIdx + 1]}
+                  </div>
+                )}
               </div>
-              <div style={{ font: '500 10px Plus Jakarta Sans', color: isMissed ? c.muted : c.good, marginTop: 1 }}>
-                {isMissed ? 'leaves' : leavesIfSuccess === 1 ? 'leaf' : 'leaves'}
+              {/* Collapsed numbers — visible but de-emphasised */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
+                <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>
+                  Goal: {fmt(Math.round(calc.adjustedTarget))}
+                </div>
+                <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>
+                  Spent: {fmt(Math.round(calc.spentToday))}
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          ) : (
+            /* ── On track / not started ── */
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div>
+                  <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>Daily Goal</div>
+                  <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(Math.round(calc.adjustedTarget))}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>Today's Spend</div>
+                  <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(Math.round(calc.spentToday))}</div>
+                </div>
+              </div>
+              <div style={{ height: 6, borderRadius: 99, background: c.surface2, overflow: 'hidden', marginBottom: 10 }}>
+                <div style={{ height: '100%', borderRadius: 99, width: `${spendPct}%`, background: isOnTrack ? c.good : c.accent, transition: 'width 0.4s ease' }} />
+              </div>
+              <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginBottom: 12 }}>
+                {notStarted
+                  ? `Track your spending to stay within ${fmt(Math.round(calc.adjustedTarget))} today.`
+                  : calc.remaining > 0
+                  ? `Stay within ${fmt(Math.round(calc.remaining))} more today to earn your leaves.`
+                  : 'Daily goal complete — great work today.'}
+              </div>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: c.good + '12', border: `1px solid ${c.good + '33'}`,
+                borderRadius: 12, padding: '10px 14px',
+              }}>
+                <div>
+                  <div style={{ font: '700 13px Plus Jakarta Sans', color: c.good }}>Complete today to earn</div>
+                  {stageIdx < 6 && (
+                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                      Toward: {STAGE_LABELS_PLAIN[stageIdx + 1]}
+                    </div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'center', minWidth: 52 }}>
+                  <div style={{ font: '800 20px Plus Jakarta Sans', color: c.good }}>+{leavesIfSuccess}</div>
+                  <div style={{ font: '500 10px Plus Jakarta Sans', color: c.good, marginTop: 1 }}>{leavesIfSuccess === 1 ? 'leaf' : 'leaves'}</div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -416,10 +417,9 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
           {STAGE_LABELS_RICH.map((label, i) => {
             const isReached  = i < stageIdx
             const isCurrent  = i === stageIdx
-            const isFuture   = i > stageIdx
             const threshold  = STAGE_THRESHOLDS[i]
-            const nextThr    = STAGE_THRESHOLDS[i + 1] ?? null
-            const leavesNeeded = nextThr !== null ? nextThr - leaves : 0
+            // leaves needed to ENTER this stage (not to leave it)
+            const leavesNeeded = Math.max(0, threshold - leaves)
 
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, position: 'relative' }}>
@@ -451,7 +451,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
                   </div>
                   <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
                     {isReached
-                      ? `Reached at ${threshold} ${threshold === 1 ? 'leaf' : 'leaves'}`
+                      ? `Reached at ${threshold === 0 ? 'start' : `${threshold} ${threshold === 1 ? 'leaf' : 'leaves'}`}`
                       : isCurrent
                       ? `${leaves} ${leaves === 1 ? 'leaf' : 'leaves'} · current stage`
                       : leavesNeeded > 0
