@@ -446,7 +446,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {(isAutoMode ? [
-                { title: 'Budget Remaining', desc: 'Your free money minus everything spent in the budget scope since your last salary date. Negative means over budget.' },
+                { title: 'Budget Remaining', desc: 'Your current free money — what\'s left to spend for the rest of this salary cycle after emergency fund and obligations.' },
                 { title: 'Safe Daily Spend', desc: 'Budget remaining ÷ days left in the cycle. Recalculates every day automatically.' },
                 { title: 'Safe Weekly Spend', desc: 'Budget remaining ÷ weeks left in the cycle. Useful for planning the week ahead.' },
               ] : [
@@ -496,6 +496,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   cycleForDisplay ? (
                     <>
                       <div style={{ height: 1, background: c.faint }} />
+                      <Row label="Cycle budget" value={fmt(d.realFreeMoney + d.cycleSpent)} muted />
                       <Row label="Cycle spent" value={`− ${fmt(d.cycleSpent)}`} muted />
                       <div style={{ height: 1, background: c.faint }} />
                       <Row label="Budget remaining" value={fmt(d.cycleRemaining)} accent={d.cycleRemaining >= 0} bad={d.cycleRemaining < 0} bold />
@@ -801,11 +802,11 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   <div style={{ height: 1, background: c.faint }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Safe Daily Spend</span>
-                    <span style={{ font: '800 14px Plus Jakarta Sans', color: c.accent }}>{fmt(Math.round(d.realFreeMoney / cycle.daysRemaining))}<span style={{ font: '600 11px' }}>/day</span></span>
+                    <span style={{ font: '800 14px Plus Jakarta Sans', color: c.accent }}>{fmt(Math.round(d.safeDailySpend))}<span style={{ font: '600 11px' }}>/day</span></span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Safe Weekly Spend</span>
-                    <span style={{ font: '800 14px Plus Jakarta Sans', color: c.accent }}>{fmt(Math.round(d.realFreeMoney / cycle.weeksRemaining))}<span style={{ font: '600 11px' }}>/week</span></span>
+                    <span style={{ font: '800 14px Plus Jakarta Sans', color: c.accent }}>{fmt(Math.round(d.safeWeeklySpend))}<span style={{ font: '600 11px' }}>/week</span></span>
                   </div>
                 </div>
               </div>

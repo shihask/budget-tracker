@@ -84,9 +84,9 @@ const remainingCommitments = state.commitments
     cycleSpent = state.transactions
       .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= cycleStart)
       .reduce((s, tx) => s + tx.amount, 0)
-    cycleRemaining = realFreeMoney - cycleSpent
-    safeDailySpend  = cycleRemaining / cycleDaysLeft
-    safeWeeklySpend = cycleRemaining / cycleWeeksLeft
+    cycleRemaining = realFreeMoney
+    safeDailySpend  = realFreeMoney / cycleDaysLeft
+    safeWeeklySpend = realFreeMoney / cycleWeeksLeft
   }
 
   return {

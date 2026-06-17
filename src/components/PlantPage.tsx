@@ -202,6 +202,8 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
   const canGrowToday  = calc !== null && calc.status !== 'exceeded' && nextGoal > 0
   const ghostStage    = Math.min(6, stageIdx + 1) as 0|1|2|3|4|5|6
   const sharedViewBox = canGrowToday && stageIdx < 6 ? STAGE_VIEWBOX[ghostStage] : STAGE_VIEWBOX[stageIdx]
+  const [,, vbW, vbH] = sharedViewBox.trim().split(/\s+/).map(Number)
+  const plantAreaH = Math.round(320 * vbH / vbW) + 32
 
   const curThreshold  = STAGE_THRESHOLDS[stageIdx] ?? 0
   const nextThreshold = STAGE_THRESHOLDS[stageIdx + 1] ?? null
@@ -306,7 +308,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
       </div>
 
       {/* ── HERO: Plant (big, centered) ────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 12px 0', position: 'relative', minHeight: 300 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 12px 0', position: 'relative', minHeight: plantAreaH }}>
         {/* Ghost preview of next stage — hide during transition */}
         {canGrowToday && stageIdx < 6 && transitionFrom === null && (
           <div style={{ position: 'absolute', top: 16, left: 12, right: 12 }}>
