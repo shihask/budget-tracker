@@ -60,13 +60,18 @@ export function AuthPage() {
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
     if (password !== confirm) { setError('Passwords do not match'); return }
     setLoading(true); clearError()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: name.trim() } },
     })
-    if (error) setError(error.message)
-    else setMode('check-email')
+    if (error) {
+      setError(error.message)
+    } else if ((data.user?.identities?.length ?? 0) === 0) {
+      setError('An account with this email already exists. Try signing in with Google instead.')
+    } else {
+      setMode('check-email')
+    }
     setLoading(false)
   }
 
