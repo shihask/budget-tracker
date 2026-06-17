@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
@@ -42,7 +43,7 @@ const G4 = '#3D7A30'   // darkest — oldest growth
 
 function PlantSVG({ stageIdx, opacity = 1 }: { stageIdx: number; opacity?: number }) {
   return (
-    <svg viewBox="0 0 200 300" width="200" height="300" style={{ opacity, display: 'block' }}>
+    <svg viewBox={STAGE_VIEWBOX[stageIdx]} style={{ opacity, display: 'block', width: '100%', maxWidth: 220, height: 'auto' }}>
       <Pot />
 
       {/* Stage 0 – Seed */}
@@ -142,6 +143,17 @@ function PlantSVG({ stageIdx, opacity = 1 }: { stageIdx: number; opacity?: numbe
   )
 }
 
+// Crop viewBox per stage so seed/sprout don't leave a blank sky above them
+const STAGE_VIEWBOX = [
+  '30 228 140 70',    // 0 Seed        — pot only
+  '30 210 140 88',    // 1 Sprout      — pot + short stem
+  '22 185 156 118',   // 2 First Leaves
+  '16 150 168 155',   // 3 Young Plant
+  '12 115 176 190',   // 4 Growing
+  ' 6  75 188 230',   // 5 Mature
+  ' 6  45 188 260',   // 6 Blooming
+]
+
 const STAGE_LABELS = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing', 'Mature', 'Blooming']
 
 const STAGE_MESSAGES = [
@@ -157,8 +169,32 @@ const STAGE_MESSAGES = [
 export function PlantSheet({ open, onClose, state }: Props) {
   const c = useTheme()
   const settings = state.settings
+  const touchStartY = useRef(0)
+  const [dragDelta, setDragDelta] = useState(0)
+
+  // Lock body scroll while open
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [open])
 
   if (!open) return null
+
+  // Swipe-down-to-close handlers (on drag handle only)
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY
+    setDragDelta(0)
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    const delta = Math.max(0, e.touches[0].clientY - touchStartY.current)
+    setDragDelta(delta)
+  }
+  const onTouchEnd = () => {
+    if (dragDelta > 80) onClose()
+    setDragDelta(0)
+  }
 
   const leaves       = settings.challenge_leaves       ?? 0
   const monthLeaves  = settings.challenge_month_leaves ?? 0
@@ -184,16 +220,36 @@ export function PlantSheet({ open, onClose, state }: Props) {
   const leavesIfSuccess = calc && calc.status !== 'exceeded' ? 2 + (streak + 1 === 7 ? 3 : streak + 1 === 30 ? 10 : streak + 1 === 90 ? 25 : 0) : 0
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      background: c.bg, overflowY: 'auto',
-      display: 'flex', flexDirection: 'column',
-    }}>
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: c.bg, overflowY: 'auto', overscrollBehavior: 'none',
+        display: 'flex', flexDirection: 'column',
+        transform: dragDelta > 0 ? `translateY(${dragDelta * 0.4}px)` : undefined,
+        transition: dragDelta === 0 ? 'transform 0.25s ease' : undefined,
+      }}
+    >
+      {/* Drag handle — swipe down here to close */}
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 16px)',
+          paddingBottom: 8,
+          display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
+          cursor: 'grab', background: c.bg,
+          position: 'sticky', top: 0, zIndex: 2,
+        }}
+      >
+        <div style={{ width: 36, height: 4, borderRadius: 99, background: c.muted, opacity: 0.4 }} />
+      </div>
+
       {/* Top bar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '16px 20px 0',
-        position: 'sticky', top: 0, background: c.bg, zIndex: 1,
+        padding: '4px 20px 0',
+        position: 'sticky', top: 'calc(env(safe-area-inset-top, 16px) + 20px)', background: c.bg, zIndex: 1,
       }}>
         <span style={{ font: '700 18px Plus Jakarta Sans', color: c.ink }}>Your MoneyPlant</span>
         <button
@@ -249,10 +305,10 @@ export function PlantSheet({ open, onClose, state }: Props) {
       </div>
 
       {/* Plant visualization */}
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0 8px', position: 'relative' }}>
-        {/* Ghost preview: next stage at 15% opacity */}
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 40px 8px', position: 'relative' }}>
+        {/* Ghost preview: next stage at 15% opacity, same crop as current so it aligns */}
         {canGrowToday && stageIdx < 6 && (
-          <div style={{ position: 'absolute', top: 24 }}>
+          <div style={{ position: 'absolute', top: 20, left: 40, right: 40 }}>
             <PlantSVG stageIdx={ghostStage as 0|1|2|3|4|5|6} opacity={0.15} />
           </div>
         )}
