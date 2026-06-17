@@ -789,7 +789,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.accent, marginBottom: 10 }}>
                   MoneyPlant calculates automatically
                 </div>
-                <div style={{ display: 'flex', gap: 0, flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Free Money</span>
                     <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(d.realFreeMoney)}</span>
