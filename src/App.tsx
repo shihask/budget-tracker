@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.12.1'
+const APP_VERSION = '1.14.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
+import { fmt } from '@/lib/utils'
 import type { Layout, DashboardSectionId } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 
@@ -136,6 +137,7 @@ function AppContent({ session }: { session: Session }) {
   const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
+  const [challengeWin, setChallengeWin] = useState<{ amount: number } | null>(null)
 
   useEffect(() => {
     if (!loading && state.accounts.length > 0) {
@@ -257,7 +259,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
                       break
                     case 'daily_challenge':
-                      el = <DailyChallengeCard state={state} d={d} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} />
+                      el = <DailyChallengeCard state={state} d={d} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onSuccessDay={(amount) => setChallengeWin({ amount })} />
                       break
                     case 'metrics':
                       el = <div>
@@ -286,6 +288,7 @@ function AppContent({ session }: { session: Session }) {
                     case 'goals':
                       el = <GoalsSection
                         goals={state.goals}
+                        contributions={state.goal_contributions}
                         d={d}
                         transactions={state.transactions}
                         settings={state.settings}
@@ -522,6 +525,78 @@ function AppContent({ session }: { session: Session }) {
         )}
 
         {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
+
+        {/* Daily Challenge → Goal Contribution modal */}
+        <BottomSheet open={!!challengeWin} onClose={() => setChallengeWin(null)} zIndex={500}>
+          {challengeWin && (() => {
+            const activeGoals = state.goals.filter(g => g.is_active && g.current_saved < g.goal_amount)
+            return (
+              <>
+                <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                  <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                    Great job today!
+                  </div>
+                  <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+                    You stayed{' '}
+                    <span style={{ color: c.good, fontWeight: 700 }}>{fmt(Math.round(challengeWin.amount))}</span>{' '}
+                    below today's target.
+                  </div>
+                </div>
+                {activeGoals.length > 0 ? (
+                  <>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                      Add to a goal?
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                      {activeGoals.slice(0, 4).map(goal => {
+                        const cfg = { purchase: '#EF4444', savings: '#10B981', event: '#F59E0B' }[goal.goal_type]
+                        return (
+                          <button
+                            key={goal.id}
+                            onClick={async () => {
+                              await addGoalSavings(goal.id, Math.round(challengeWin.amount), 'daily_challenge')
+                              setChallengeWin(null)
+                            }}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              background: cfg + '10', border: `1.5px solid ${cfg}30`,
+                              borderRadius: 14, padding: '12px 16px',
+                              font: '700 14px Plus Jakarta Sans', color: c.ink,
+                              cursor: 'pointer', textAlign: 'left',
+                            }}
+                          >
+                            <span>{goal.name}</span>
+                            <span style={{ font: '600 13px Plus Jakarta Sans', color: cfg }}>
+                              +{fmt(Math.round(challengeWin.amount))}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5, textAlign: 'center' }}>
+                      Create your first goal to turn good habits into progress.
+                    </div>
+                    <button
+                      onClick={() => setChallengeWin(null)}
+                      style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', marginBottom: 10 }}
+                    >
+                      Create Goal
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => setChallengeWin(null)}
+                  style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '12px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}
+                >
+                  Not Now
+                </button>
+              </>
+            )
+          })()}
+        </BottomSheet>
 
         <BottomSheet open={emergencyEditOpen} onClose={() => setEmergencyEditOpen(false)} zIndex={300}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Emergency Fund</div>

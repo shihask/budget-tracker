@@ -183,6 +183,16 @@ export interface Goal {
   is_active: boolean
 }
 
+export interface GoalContribution {
+  id: string
+  user_id?: string
+  goal_id: string
+  amount: number
+  source: 'manual' | 'daily_challenge'
+  note?: string | null
+  created_at: string
+}
+
 export interface AppState {
   accounts: Account[]
   categories: Category[]
@@ -193,6 +203,7 @@ export interface AppState {
   borrowings: Borrowing[]
   transactions: Transaction[]
   goals: Goal[]
+  goal_contributions: GoalContribution[]
   savings: Savings[]
 }
 

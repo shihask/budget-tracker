@@ -15,6 +15,7 @@ interface Props {
   updateChallengeResult: (result: 'success' | 'miss', savedAmount: number, target: number, date: string) => Promise<void>
   onOpenSalaryDateEdit: () => void
   onOpenPlant: () => void
+  onSuccessDay?: (savedAmount: number) => void
 }
 
 const DIFFICULTY_OPTS: Array<{ key: 'easy' | 'medium' | 'hard'; label: string }> = [
@@ -49,7 +50,7 @@ function ChevronRightIcon({ color }: { color: string }) {
   )
 }
 
-export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallengeResult, onOpenSalaryDateEdit, onOpenPlant }: Props) {
+export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallengeResult, onOpenSalaryDateEdit, onOpenPlant, onSuccessDay }: Props) {
   const c = useTheme()
   const settings = state.settings
   const enabled = settings.challenge_enabled ?? false
@@ -96,6 +97,9 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
         const savedAmt = dayTarget - daySpent
         const result = daySpent <= dayTarget ? 'success' : 'miss'
         await updateChallengeResult(result, savedAmt, dayTarget, dateStr)
+        if (result === 'success' && savedAmt > 0 && dateStr === yesterdayStr) {
+          onSuccessDay?.(savedAmt)
+        }
         cursor.setDate(cursor.getDate() + 1)
       }
       evaluatingRef.current = false

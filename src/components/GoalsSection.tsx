@@ -3,7 +3,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { goalProgressInsightWithAI } from '@/lib/gemini'
-import type { Goal, GoalType, DerivedMetrics, Settings, Transaction } from '@/types'
+import type { Goal, GoalType, GoalContribution, DerivedMetrics, Settings, Transaction } from '@/types'
 
 interface PrefillData {
   name: string
@@ -15,6 +15,7 @@ interface PrefillData {
 
 interface Props {
   goals: Goal[]
+  contributions: GoalContribution[]
   d: DerivedMetrics
   transactions: Transaction[]
   settings: Settings
@@ -22,7 +23,7 @@ interface Props {
   onAddGoal: (g: Omit<Goal, 'id' | 'user_id' | 'created_at'>) => Promise<void>
   onUpdateGoal: (id: string, patch: Partial<Goal>) => Promise<void>
   onDeleteGoal: (id: string) => Promise<void>
-  onAddSavings: (id: string, amount: number) => Promise<void>
+  onAddSavings: (id: string, amount: number, source?: 'manual' | 'daily_challenge') => Promise<void>
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   prefillGoal?: PrefillData | null
   onPrefillConsumed?: () => void
@@ -60,7 +61,6 @@ const TYPE_CFG: Record<GoalType, { label: string; color: string; icon: (stroke: 
   },
 }
 
-// Tinted icon badge — matches AccountsSection style (color+'22' bg, colored icon)
 function GoalIcon({ type, size = 40 }: { type: GoalType; size?: number }) {
   const cfg = TYPE_CFG[type]
   return (
@@ -70,8 +70,9 @@ function GoalIcon({ type, size = 40 }: { type: GoalType; size?: number }) {
   )
 }
 
+const MS_MONTH = 1000 * 60 * 60 * 24 * 30.44
+
 function calcGoalStatus(goal: Goal) {
-  const MS_MONTH = 1000 * 60 * 60 * 24 * 30
   const now = Date.now()
   const created = new Date(goal.created_at).getTime()
   const target = new Date(goal.target_date + 'T00:00:00').getTime()
@@ -81,15 +82,63 @@ function calcGoalStatus(goal: Goal) {
   const diff = goal.current_saved - expectedSaved
   const pct = goal.goal_amount > 0 ? Math.min(100, Math.round((goal.current_saved / goal.goal_amount) * 100)) : 0
   const isComplete = goal.current_saved >= goal.goal_amount
-  if (isComplete) return { pct: 100, monthsRemaining: 0, isComplete: true }
+  if (isComplete) return { pct: 100, monthsRemaining: 0, isComplete: true, health: 'complete' as const }
   if (diff >= 0) {
     const daysAhead = goal.monthly_target > 0 ? Math.round((diff / goal.monthly_target) * 30) : 0
-    return { pct, daysAhead, monthsRemaining, isComplete: false }
+    return { pct, daysAhead, monthsRemaining, isComplete: false, health: 'on_track' as const }
   }
   const shortfall = Math.abs(diff)
   const extraNeeded = monthsRemaining > 0 ? Math.round(shortfall / monthsRemaining) : Math.round(shortfall)
   const daysBehind = goal.monthly_target > 0 ? Math.round((shortfall / goal.monthly_target) * 30) : 0
-  return { pct, daysBehind, extraNeeded, monthsRemaining, isComplete: false }
+  return { pct, daysBehind, extraNeeded, monthsRemaining, isComplete: false, health: 'needs_attention' as const }
+}
+
+function calcGoalForecast(goal: Goal) {
+  const now = Date.now()
+  const created = new Date(goal.created_at).getTime()
+  const target = new Date(goal.target_date + 'T00:00:00').getTime()
+  const monthsElapsed = (now - created) / MS_MONTH
+  const monthsRemaining = Math.max(0, (target - now) / MS_MONTH)
+  const remaining = Math.max(0, goal.goal_amount - goal.current_saved)
+
+  const currentPace = monthsElapsed >= 0.5
+    ? goal.current_saved / monthsElapsed
+    : goal.monthly_target
+
+  const monthsToComplete = currentPace > 0 ? remaining / currentPace : null
+  let forecastLabel: string | null = null
+  if (monthsToComplete !== null) {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() + Math.ceil(monthsToComplete))
+    forecastLabel = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+  }
+
+  const requiredPace = monthsRemaining > 0 ? remaining / monthsRemaining : null
+  const monthlyGap = requiredPace !== null ? Math.round(requiredPace - currentPace) : null
+
+  return {
+    currentPace: Math.round(currentPace),
+    forecastLabel,
+    requiredPace: requiredPace !== null ? Math.round(requiredPace) : null,
+    monthlyGap,
+    monthsToComplete: monthsToComplete !== null ? Math.ceil(monthsToComplete) : null,
+  }
+}
+
+function calcGoalMomentum(goalId: string, contributions: GoalContribution[]) {
+  const currentMonth = new Date().toISOString().substring(0, 7)
+  const goalContribs = contributions.filter(c => c.goal_id === goalId)
+  const thisMonth = goalContribs.filter(c => c.created_at.substring(0, 7) === currentMonth)
+  const daysSinceLast = goalContribs[0]
+    ? Math.floor((Date.now() - new Date(goalContribs[0].created_at).getTime()) / (1000 * 60 * 60 * 24))
+    : null
+  return {
+    thisMonthCount: thisMonth.length,
+    thisMonthTotal: thisMonth.reduce((s, c) => s + c.amount, 0),
+    daysSinceLast,
+    recentContribs: goalContribs.slice(0, 8),
+  }
 }
 
 function calcTargetInfo(goalAmount: number, currentSaved: number, monthlyTarget: number) {
@@ -108,7 +157,7 @@ function calcTargetInfo(goalAmount: number, currentSaved: number, monthlyTarget:
 const EMPTY_FORM = { name: '', goalType: 'purchase' as GoalType, goalAmount: '', currentSaved: '', monthlyTarget: '', targetDate: '' }
 
 export function GoalsSection({
-  goals, d, transactions, settings, autopilotEnabled,
+  goals, contributions, d, transactions, settings, autopilotEnabled,
   onAddGoal, onUpdateGoal, onDeleteGoal, onAddSavings,
   onUpdateSettings, prefillGoal, onPrefillConsumed,
 }: Props) {
@@ -153,7 +202,7 @@ export function GoalsSection({
     const nowMs = Date.now()
     if (targetMs <= nowMs) return
     const needed = Math.max(0, goalAmt - curSaved)
-    const monthsLeft = (targetMs - nowMs) / (1000 * 60 * 60 * 24 * 30.44)
+    const monthsLeft = (targetMs - nowMs) / MS_MONTH
     if (monthsLeft <= 0) return
     setForm(f => ({ ...f, monthlyTarget: String(Math.ceil(needed / monthsLeft)) }))
   }, [form.targetDate, form.goalAmount, form.currentSaved])
@@ -197,7 +246,7 @@ export function GoalsSection({
     if (isNaN(amt) || amt <= 0) return
     setSavingsAdding(true)
     try {
-      await onAddSavings(detailGoal.id, amt)
+      await onAddSavings(detailGoal.id, amt, 'manual')
       setDetailGoal(g => g ? { ...g, current_saved: g.current_saved + amt } : g)
       setSavingsInput('')
     } catch (e) {
@@ -466,12 +515,27 @@ export function GoalsSection({
         {detailGoal && (() => {
           const goal = detailGoal
           const st = calcGoalStatus(goal)
+          const forecast = calcGoalForecast(goal)
+          const momentum = calcGoalMomentum(goal.id, contributions)
           const cfg = TYPE_CFG[goal.goal_type]
           const tDate = new Date(goal.target_date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
           const tShort = new Date(goal.target_date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
           const remaining = Math.max(0, goal.goal_amount - goal.current_saved)
           const aiInsight = goalAI[goal.id]
           const aiLoading = goalAILoading === goal.id
+
+          // Goal Health config
+          const healthCfg = st.health === 'complete'
+            ? { label: 'Goal Reached', color: '#059669', bg: '#DCFCE7', border: '#10B98130', icon: (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l5 5L20 4"/></svg>
+              ) }
+            : st.health === 'on_track'
+            ? { label: 'On Track', color: '#059669', bg: '#DCFCE7', border: '#10B98130', icon: (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7"/></svg>
+              ) }
+            : { label: 'Needs Attention', color: '#D97706', bg: '#FEF3C7', border: '#F59E0B30', icon: (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill="#D97706"/><path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/></svg>
+              ) }
 
           return (
             <>
@@ -486,7 +550,7 @@ export function GoalsSection({
               </div>
 
               {/* Big progress */}
-              <div style={{ marginBottom: 18 }}>
+              <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
                   <div>
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Saved</div>
@@ -497,7 +561,6 @@ export function GoalsSection({
                     <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(goal.goal_amount)}</div>
                   </div>
                 </div>
-
                 <div style={{ height: 12, borderRadius: 999, background: c.surface2, overflow: 'hidden', marginBottom: 6 }}>
                   <div style={{ height: '100%', width: `${st.pct}%`, background: cfg.color, borderRadius: 999, transition: 'width 0.5s' }} />
                 </div>
@@ -506,6 +569,97 @@ export function GoalsSection({
                   {!st.isComplete && <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>{fmt(remaining)} remaining</span>}
                 </div>
               </div>
+
+              {/* Goal Health badge */}
+              <div style={{
+                padding: '10px 14px', borderRadius: 12, marginBottom: 14,
+                background: healthCfg.bg, border: `1px solid ${healthCfg.border}`,
+                display: 'flex', flexDirection: 'column', gap: 4,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: 6, background: healthCfg.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {healthCfg.icon}
+                  </div>
+                  <span style={{ font: '700 13px Plus Jakarta Sans', color: healthCfg.color }}>{healthCfg.label}</span>
+                </div>
+                {st.health === 'on_track' && !st.isComplete && st.daysAhead != null && st.daysAhead > 0 && (
+                  <span style={{ font: '500 12px Plus Jakarta Sans', color: healthCfg.color, paddingLeft: 28 }}>
+                    Ahead by {st.daysAhead} {st.daysAhead === 1 ? 'day' : 'days'}. Keep it up.
+                  </span>
+                )}
+                {st.health === 'needs_attention' && st.extraNeeded != null && (
+                  <span style={{ font: '500 12px Plus Jakarta Sans', color: healthCfg.color, paddingLeft: 28 }}>
+                    Add {fmt(st.extraNeeded)}/month more to stay on target.
+                    {st.daysBehind != null && st.daysBehind > 0 ? ` Behind by ${st.daysBehind} ${st.daysBehind === 1 ? 'day' : 'days'}.` : ''}
+                  </span>
+                )}
+                {st.health === 'complete' && (
+                  <span style={{ font: '500 12px Plus Jakarta Sans', color: healthCfg.color, paddingLeft: 28 }}>
+                    Goal successfully completed.
+                  </span>
+                )}
+              </div>
+
+              {/* Forecast section */}
+              {!st.isComplete && (
+                <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>Forecast</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                    <div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current Pace</div>
+                      <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(forecast.currentPace)}/mo</div>
+                    </div>
+                    <div>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>At This Pace</div>
+                      <div style={{ font: '700 14px Plus Jakarta Sans', color: forecast.forecastLabel ? c.ink : c.muted, marginTop: 2 }}>
+                        {forecast.forecastLabel ?? '—'}
+                      </div>
+                    </div>
+                    {forecast.requiredPace !== null && (
+                      <div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Required Pace</div>
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(forecast.requiredPace)}/mo</div>
+                      </div>
+                    )}
+                    {forecast.monthlyGap !== null && forecast.monthlyGap > 0 && (
+                      <div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly Gap</div>
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: '#D97706', marginTop: 2 }}>+{fmt(forecast.monthlyGap)}/mo</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Goal Momentum */}
+              {momentum.daysSinceLast !== null ? (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 12, marginBottom: 14,
+                  background: momentum.daysSinceLast > 21
+                    ? '#FEF3C714'
+                    : '#DCFCE714',
+                  border: `1px solid ${momentum.daysSinceLast > 21 ? '#F59E0B30' : '#10B98130'}`,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>{momentum.daysSinceLast > 21 ? '⚠' : '🔥'}</span>
+                  <div>
+                    {momentum.daysSinceLast > 21 ? (
+                      <span style={{ font: '600 12px Plus Jakarta Sans', color: '#D97706' }}>
+                        No contributions in {momentum.daysSinceLast} days
+                      </span>
+                    ) : momentum.thisMonthCount > 0 ? (
+                      <span style={{ font: '600 12px Plus Jakarta Sans', color: '#059669' }}>
+                        {momentum.thisMonthCount} contribution{momentum.thisMonthCount !== 1 ? 's' : ''} this month
+                        {momentum.thisMonthTotal > 0 ? ` · ${fmt(momentum.thisMonthTotal)} added` : ''}
+                      </span>
+                    ) : (
+                      <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                        Last contribution {momentum.daysSinceLast === 0 ? 'today' : `${momentum.daysSinceLast} ${momentum.daysSinceLast === 1 ? 'day' : 'days'} ago`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Stats grid */}
               <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
@@ -527,32 +681,36 @@ export function GoalsSection({
                 </div>
               </div>
 
-              {/* Ahead / behind badge */}
-              {!st.isComplete && (
-                <div style={{
-                  padding: '8px 12px', borderRadius: 10, marginBottom: 14,
-                  background: st.daysAhead != null ? '#DCFCE7' : '#FEF3C7',
-                  border: `1px solid ${st.daysAhead != null ? '#10B98130' : '#F59E0B30'}`,
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 6, background: st.daysAhead != null ? '#10B98118' : '#F59E0B18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {st.daysAhead != null ? (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7"/></svg>
-                    ) : (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill="#D97706"/><path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/></svg>
-                    )}
+              {/* Contribution History */}
+              {momentum.recentContribs.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Contribution History</div>
+                  <div style={{ background: c.surface2, borderRadius: 14, overflow: 'hidden' }}>
+                    {momentum.recentContribs.map((contrib, i) => {
+                      const d = new Date(contrib.created_at)
+                      const dateLabel = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                      return (
+                        <div
+                          key={contrib.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '9px 14px',
+                            borderBottom: i < momentum.recentContribs.length - 1 ? `1px solid ${c.faint}` : 'none',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, minWidth: 44 }}>{dateLabel}</span>
+                            {contrib.source === 'daily_challenge' && (
+                              <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accent + '18', borderRadius: 6, padding: '2px 6px' }}>
+                                Challenge
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ font: '700 13px Plus Jakarta Sans', color: cfg.color }}>{fmt(contrib.amount)}</span>
+                        </div>
+                      )
+                    })}
                   </div>
-                  <span style={{ font: '600 12px Plus Jakarta Sans', color: st.daysAhead != null ? '#059669' : '#D97706', lineHeight: 1.4 }}>
-                    {st.daysAhead != null
-                      ? `Ahead of schedule by ${st.daysAhead} days. Keep it up.`
-                      : `Behind by ${st.daysBehind} days. Save ${fmt(st.extraNeeded ?? 0)}/month extra to catch up.`}
-                  </span>
-                </div>
-              )}
-
-              {st.isComplete && (
-                <div style={{ padding: '10px 14px', borderRadius: 12, marginBottom: 14, background: '#DCFCE7', border: '1px solid #10B98130', textAlign: 'center' }}>
-                  <div style={{ font: '700 13px Plus Jakarta Sans', color: '#059669' }}>Goal Reached! Congratulations.</div>
                 </div>
               )}
 

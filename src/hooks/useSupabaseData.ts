@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, Savings } from '@/types'
+import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings } from '@/types'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 const delta = (type: TransactionType, amount: number) =>
@@ -20,6 +20,7 @@ const EMPTY_STATE: AppState = {
   borrowings: [],
   transactions: [],
   goals: [],
+  goal_contributions: [],
   savings: [],
 }
 
@@ -133,6 +134,7 @@ export function useSupabaseData(userId: string) {
           { data: commitments },
           { data: transactions },
           { data: goals },
+          { data: goalContribs },
           { data: savingsRows },
         ] = await Promise.all([
           supabase.from('settings').select('*').eq('user_id', userId).limit(1).single(),
@@ -149,6 +151,7 @@ export function useSupabaseData(userId: string) {
             .order('created_at', { ascending: false })
             .limit(200),
           supabase.from('goals').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
+          supabase.from('goal_contributions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(200),
           supabase.from('savings').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
         ])
 
@@ -319,6 +322,7 @@ export function useSupabaseData(userId: string) {
           borrowings: borrowings || [],
           transactions: (transactions as Transaction[]) || [],
           goals: (goals as Goal[]) || [],
+          goal_contributions: (goalContribs as GoalContribution[]) || [],
           savings: (savingsRows as Savings[]) || [],
         })
         setUsingSupabase(true)
@@ -814,13 +818,24 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, goals: s.goals.filter(g => g.id !== id) }))
   }, [])
 
-  const addGoalSavings = useCallback(async (id: string, amount: number) => {
+  const addGoalSavings = useCallback(async (id: string, amount: number, source: 'manual' | 'daily_challenge' = 'manual') => {
     const goal = stateRef.current.goals.find(g => g.id === id)
     if (!goal) return
     const newSaved = goal.current_saved + amount
     await supabase.from('goals').update({ current_saved: newSaved }).eq('id', id)
-    setState(s => ({ ...s, goals: s.goals.map(g => g.id === id ? { ...g, current_saved: newSaved } : g) }))
-  }, [])
+    const { data: contrib } = await supabase
+      .from('goal_contributions')
+      .insert({ goal_id: id, user_id: userId, amount, source })
+      .select('*')
+      .single()
+    setState(s => ({
+      ...s,
+      goals: s.goals.map(g => g.id === id ? { ...g, current_saved: newSaved } : g),
+      goal_contributions: contrib
+        ? [contrib as GoalContribution, ...s.goal_contributions]
+        : s.goal_contributions,
+    }))
+  }, [userId])
 
   // ── Savings CRUD ─────────────────────────────────────────────────────────────
 
