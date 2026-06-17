@@ -5,6 +5,8 @@ import { computeChallenge } from '@/lib/challenge'
 import { PlantSVG, STAGE_THRESHOLDS } from './PlantSVG'
 import type { AppState, DerivedMetrics } from '@/types'
 
+const STAGE_LABELS = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing', 'Mature', 'Blooming']
+
 interface Props {
   state: AppState
   d: DerivedMetrics
@@ -168,7 +170,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
       </div>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <SeedlingIcon color={c.accent} size={18} />
           <span style={{ font: '700 15px Plus Jakarta Sans', color: c.ink }}>Daily Challenge</span>
@@ -181,35 +183,57 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
         )}
       </div>
 
-      {/* Horizon & planning mode */}
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-          <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
-            {calc.planningMode === 'salary_cycle'
-              ? `${calc.daysRemaining} days until salary`
-              : `${calc.daysRemaining} days until month end`}
-          </span>
-          <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>·</span>
-          <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>{fmt(calc.availableSpendable)} available</span>
-          {calc.planningMode === 'month_end' && (
-            <>
-              <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>·</span>
-              <button
-                onClick={onOpenSalaryDateEdit}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                  font: '600 12px Plus Jakarta Sans', color: c.accent,
-                  display: 'flex', alignItems: 'center', gap: 2,
-                }}
-              >
-                Set salary date <ChevronRightIcon color={c.accent} />
-              </button>
-            </>
-          )}
+      {/* Hero stats: Safe Today + Available */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        <div style={{
+          flex: 1, background: c.accent + '12', borderRadius: 14, padding: '10px 14px',
+          border: `1px solid ${c.accent}30`,
+        }}>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.accent, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Safe Today
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+            <span style={{ font: '800 26px Plus Jakarta Sans', color: c.accent, lineHeight: 1 }}>
+              {fmt(Math.round(calc.safeDailyLimit))}
+            </span>
+            <span style={{ font: '600 13px Plus Jakarta Sans', color: c.accent + 'aa' }}>/day</span>
+          </div>
         </div>
-        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>
-          To reach salary day: {fmt(Math.round(calc.safeDailyLimit))}/day
+        <div style={{
+          flex: 1, background: c.surface2, borderRadius: 14, padding: '10px 14px',
+          border: `1px solid ${c.faint}`,
+        }}>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Available
+          </div>
+          <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, lineHeight: 1 }}>
+            {fmt(calc.availableSpendable)}
+          </div>
         </div>
+      </div>
+
+      {/* Horizon row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
+          {calc.planningMode === 'salary_cycle'
+            ? `${calc.daysRemaining} days until salary`
+            : `${calc.daysRemaining} days until month end`}
+        </span>
+        {calc.planningMode === 'month_end' && (
+          <>
+            <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>·</span>
+            <button
+              onClick={onOpenSalaryDateEdit}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                font: '600 12px Plus Jakarta Sans', color: c.accent,
+                display: 'flex', alignItems: 'center', gap: 2,
+              }}
+            >
+              Set salary date <ChevronRightIcon color={c.accent} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Difficulty chips */}
@@ -249,12 +273,11 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
       {/* Progress bar */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'baseline' }}>
-          <span style={{ font: '800 20px Plus Jakarta Sans', color: barColor }}>
-            {fmt(calc.spentToday)}
-          </span>
-          <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>
-            of {fmt(Math.round(calc.adjustedTarget))}
-          </span>
+          <div>
+            <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Today's spending  </span>
+            <span style={{ font: '700 16px Plus Jakarta Sans', color: barColor }}>{fmt(calc.spentToday)}</span>
+            <span style={{ font: '500 13px Plus Jakarta Sans', color: c.muted }}> / {fmt(Math.round(calc.adjustedTarget))}</span>
+          </div>
         </div>
         <div style={{ height: 8, borderRadius: 99, background: c.surface2, overflow: 'hidden' }}>
           <div style={{
@@ -267,9 +290,20 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
       </div>
 
       {/* Status message */}
-      <p style={{ font: '500 13px Plus Jakarta Sans', color: c.sub, margin: '0 0 14px', lineHeight: 1.45 }}>
-        {calc.message}
-      </p>
+      {(() => {
+        const nextGoal = calc.plantGrowth.nextGoal
+        const nextStageName = calc.plantGrowth.stageIdx < STAGE_LABELS.length - 1
+          ? STAGE_LABELS[calc.plantGrowth.stageIdx + 1] : null
+        const exceededMsg = nextGoal > 0 && nextStageName
+          ? `Not a growth day. Tomorrow starts fresh. ${nextGoal} ${nextGoal === 1 ? 'leaf' : 'leaves'} away from ${nextStageName}.`
+          : 'Not a growth day. Tomorrow starts fresh.'
+        const msg = calc.status === 'exceeded' ? exceededMsg : calc.message
+        return (
+          <p style={{ font: '500 13px Plus Jakarta Sans', color: c.sub, margin: '0 0 14px', lineHeight: 1.45 }}>
+            {msg}
+          </p>
+        )
+      })()}
 
       {/* Salary Survival */}
       <div style={{
@@ -330,31 +364,83 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
         )}
       </div>
 
+      {/* Growth teaser */}
+      {calc.plantGrowth.nextGoal > 0 && (() => {
+        const nextGoal = calc.plantGrowth.nextGoal
+        const nextStageName = calc.plantGrowth.stageIdx < STAGE_LABELS.length - 1
+          ? STAGE_LABELS[calc.plantGrowth.stageIdx + 1] : null
+        if (!nextStageName) return null
+        const isClose = nextGoal === 1
+        const teaserColor = isClose ? c.accent : c.good
+        return (
+          <div style={{
+            background: teaserColor + '10', border: `1px solid ${teaserColor}30`,
+            borderRadius: 12, padding: '9px 12px', marginBottom: 10,
+            display: 'flex', alignItems: 'flex-start', gap: 8,
+          }}>
+            <SeedlingIcon color={teaserColor} size={14} />
+            <div>
+              <div style={{ font: '700 12px Plus Jakarta Sans', color: teaserColor, marginBottom: 2 }}>
+                {isClose ? 'Growth Opportunity' : 'Growth Progress'}
+              </div>
+              <div style={{ font: '500 12px Plus Jakarta Sans', color: c.sub, lineHeight: 1.4 }}>
+                {isClose
+                  ? `Complete tomorrow's challenge to unlock ${nextStageName}.`
+                  : `${nextGoal} ${nextGoal === 1 ? 'leaf' : 'leaves'} away from ${nextStageName}.`}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Plant Growth row + View My Plant */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background: c.surface2, borderRadius: 12, padding: '10px 12px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <SeedlingIcon color={plantColor} size={15} />
-          <div>
-            <div style={{ font: '700 13px Plus Jakarta Sans', color: plantColor }}>
-              {calc.plantGrowth.milestoneLabel}
-            </div>
-            {calc.plantGrowth.nextGoal > 0 && (
-              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-                {calc.plantGrowth.nextGoal} more to next stage
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          {/* Current stage */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <SeedlingIcon color={plantColor} size={15} />
+            <div>
+              <div style={{ font: '700 12px Plus Jakarta Sans', color: plantColor }}>
+                {STAGE_LABELS[calc.plantGrowth.stageIdx]}
               </div>
-            )}
+              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>
+                {calc.plantGrowth.leaves} {calc.plantGrowth.leaves === 1 ? 'leaf' : 'leaves'}
+              </div>
+            </div>
           </div>
+
+          {/* Arrow → Next stage */}
+          {calc.plantGrowth.nextGoal > 0 && calc.plantGrowth.stageIdx < STAGE_LABELS.length - 1 && (
+            <>
+              <span style={{ font: '500 14px Plus Jakarta Sans', color: c.muted, margin: '0 4px' }}>→</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 1 }}>Next</div>
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.sub }}>
+                    {STAGE_LABELS[calc.plantGrowth.stageIdx + 1]}
+                  </div>
+                  <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>
+                    {calc.plantGrowth.nextGoal} {calc.plantGrowth.nextGoal === 1 ? 'leaf' : 'leaves'} needed
+                  </div>
+                </div>
+                <SeedlingIcon color={c.muted} size={15} />
+              </div>
+            </>
+          )}
+          {calc.plantGrowth.nextGoal === 0 && (
+            <div style={{ font: '700 11px Plus Jakarta Sans', color: plantColor, background: plantColor + '18', padding: '3px 8px', borderRadius: 99 }}>
+              Max Stage
+            </div>
+          )}
         </div>
         <button
           onClick={onOpenPlant}
           style={{
-            background: c.accent + '18', border: `1px solid ${c.accent}40`,
-            borderRadius: 10, padding: '6px 12px', cursor: 'pointer',
+            width: '100%', background: c.accent + '18', border: `1px solid ${c.accent}40`,
+            borderRadius: 10, padding: '7px 12px', cursor: 'pointer',
             font: '700 12px Plus Jakarta Sans', color: c.accent,
-            flexShrink: 0,
           }}
         >
           View My Plant
