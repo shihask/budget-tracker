@@ -304,7 +304,7 @@ function Screen({ children }: { children: React.ReactNode }) {
     <div style={{
       minHeight: '100svh', width: '100%',
       background: '#EDE7DD',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'Plus Jakarta Sans, sans-serif',
       padding: 'calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))',
       boxSizing: 'border-box',
