@@ -164,29 +164,34 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
       </div>
 
       {/* Horizon & planning mode */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
-          {calc.planningMode === 'salary_cycle'
-            ? `${calc.daysRemaining} days until salary`
-            : `${calc.daysRemaining} days until month end`}
-        </span>
-        <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>·</span>
-        <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>{fmt(calc.availableSpendable)} available</span>
-        {calc.planningMode === 'month_end' && (
-          <>
-            <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>·</span>
-            <button
-              onClick={onOpenSalaryDateEdit}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                font: '600 12px Plus Jakarta Sans', color: c.accent,
-                display: 'flex', alignItems: 'center', gap: 2,
-              }}
-            >
-              Set salary date <ChevronRightIcon color={c.accent} />
-            </button>
-          </>
-        )}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+          <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
+            {calc.planningMode === 'salary_cycle'
+              ? `${calc.daysRemaining} days until salary`
+              : `${calc.daysRemaining} days until month end`}
+          </span>
+          <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>·</span>
+          <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>{fmt(calc.availableSpendable)} available</span>
+          {calc.planningMode === 'month_end' && (
+            <>
+              <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>·</span>
+              <button
+                onClick={onOpenSalaryDateEdit}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                  font: '600 12px Plus Jakarta Sans', color: c.accent,
+                  display: 'flex', alignItems: 'center', gap: 2,
+                }}
+              >
+                Set salary date <ChevronRightIcon color={c.accent} />
+              </button>
+            </>
+          )}
+        </div>
+        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>
+          To reach salary day: {fmt(Math.round(calc.safeDailyLimit))}/day
+        </div>
       </div>
 
       {/* Difficulty chips */}
@@ -270,6 +275,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 2 }}>Salary Survival</div>
           <div style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
             Your pace {fmt(Math.round(calc.currentPace))}/day
+            <span style={{ font: '400 11px Plus Jakarta Sans', color: c.muted }}> (last 7 days)</span>
             {' · '}Safe {fmt(Math.round(calc.safeDailyLimit))}/day
           </div>
         </div>
@@ -282,17 +288,21 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
       </div>
 
       {/* Today's Win */}
-      {calc.todaysWin && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: c.goodSoft, borderRadius: 10, padding: '8px 12px', marginBottom: 12,
-        }}>
-          <SeedlingIcon color={c.good} size={14} />
-          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.good }}>
-            Today's Win — {calc.todaysWin}
-          </span>
-        </div>
-      )}
+      {calc.todaysWin && (() => {
+        const missed = calc.status === 'exceeded'
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: missed ? c.surface2 : c.goodSoft,
+            borderRadius: 10, padding: '8px 12px', marginBottom: 12,
+          }}>
+            <SeedlingIcon color={missed ? c.muted : c.good} size={14} />
+            <span style={{ font: '600 12px Plus Jakarta Sans', color: missed ? c.sub : c.good }}>
+              Today's Win — {calc.todaysWin}
+            </span>
+          </div>
+        )
+      })()}
 
       {/* Footer row: streak + success rate */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>

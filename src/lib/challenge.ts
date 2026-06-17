@@ -130,9 +130,9 @@ export function computeChallenge(
   const safeDailyLimit = availableSpendable / daysRemaining
 
   const targets = {
-    easy:   safeDailyLimit * 0.9,
-    medium: safeDailyLimit * 0.7,
-    hard:   safeDailyLimit * 0.5,
+    easy:   safeDailyLimit * 1.0,
+    medium: safeDailyLimit * 0.85,
+    hard:   safeDailyLimit * 0.70,
   }
 
   // Auto-difficulty from last 30 days average
@@ -180,7 +180,7 @@ export function computeChallenge(
   else survivalStatus = 'at_risk'
 
   // Today's Win
-  const todaysWin = getTodaysWin(transactions, excluded, spentToday, yesterdaySpent, todayStr, thirtyDaysAgo)
+  const todaysWin = getTodaysWin(transactions, excluded, spentToday, yesterdaySpent, todayStr, thirtyDaysAgo, status)
 
   // Plant Growth
   const pot = settings.challenge_pot ?? 0
@@ -208,8 +208,8 @@ export function getChallengeMessage(pctUsed: number, remaining: number, target: 
   if (pctUsed <= 95) return `₹${over} left — one mindful choice completes today.`
   if (pctUsed <= 100) return 'Right at the edge. Hold steady.'
   if (target > 0 && Math.abs(remaining) / target < 0.10) return `Just ₹${over} above target. Streak preserved.`
-  if (pctUsed <= 115) return `Just ₹${over} above today's target. Tomorrow is a fresh start.`
-  return `Challenge missed by ₹${over}. Small miss — tomorrow is yours.`
+  if (pctUsed <= 150) return "Today's spending was higher than the challenge target. Tomorrow is a fresh start."
+  return "Today included significant spending. Focus on tomorrow's challenge instead of trying to recover everything at once."
 }
 
 function getTodaysWin(
@@ -218,7 +218,8 @@ function getTodaysWin(
   spentToday: number,
   yesterdaySpent: number,
   todayStr: string,
-  thirtyDaysAgo: string
+  thirtyDaysAgo: string,
+  status: ChallengeCalc['status']
 ): string | null {
   // Win 1: less than yesterday
   if (spentToday > 0 && yesterdaySpent > 0 && spentToday < yesterdaySpent) {
@@ -246,7 +247,7 @@ function getTodaysWin(
 
   // Win 3: at least 1 transaction logged
   const hasAny = transactions.some(t => t.transaction_type === 'expense' && t.transaction_date === todayStr && !excluded.includes(t.id))
-  if (hasAny) return 'Every expense tracked today'
+  if (hasAny) return status === 'exceeded' ? 'You still tracked every expense today' : 'Every expense tracked today'
 
   return null
 }
