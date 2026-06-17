@@ -44,7 +44,7 @@ import { UpdateToast } from '@/components/UpdateToast'
 import { InsightCard } from '@/components/InsightCard'
 import { WealthSummaryCard } from '@/components/WealthSummaryCard'
 import { DailyChallengeCard } from '@/components/DailyChallengeCard'
-import { PlantSheet } from '@/components/PlantSheet'
+import { PlantPage } from '@/components/PlantPage'
 import { computeChallenge } from '@/lib/challenge'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
@@ -521,7 +521,7 @@ function AppContent({ session }: { session: Session }) {
           </>
         )}
 
-        <PlantSheet open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} />
+        <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} />
 
         <BottomSheet open={emergencyEditOpen} onClose={() => setEmergencyEditOpen(false)} zIndex={300}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Emergency Fund</div>
