@@ -133,10 +133,16 @@ function calcGoalMomentum(goalId: string, contributions: GoalContribution[]) {
   const daysSinceLast = goalContribs[0]
     ? Math.floor((Date.now() - new Date(goalContribs[0].created_at).getTime()) / (1000 * 60 * 60 * 24))
     : null
+  const challengeTotal = goalContribs.filter(c => c.source === 'daily_challenge').reduce((s, c) => s + c.amount, 0)
+  const manualTotal = goalContribs.filter(c => c.source === 'manual').reduce((s, c) => s + c.amount, 0)
   return {
     thisMonthCount: thisMonth.length,
     thisMonthTotal: thisMonth.reduce((s, c) => s + c.amount, 0),
     daysSinceLast,
+    challengeTotal,
+    manualTotal,
+    totalContribs: goalContribs.length,
+    challengeCount: goalContribs.filter(c => c.source === 'daily_challenge').length,
     recentContribs: goalContribs.slice(0, 8),
   }
 }
@@ -537,9 +543,11 @@ export function GoalsSection({
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill="#D97706"/><path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/></svg>
               ) }
 
+          const monthsToComplete = Math.round((Date.now() - new Date(goal.created_at).getTime()) / MS_MONTH)
+
           return (
             <>
-              {/* Header */}
+              {/* Header row — always shown */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                 <GoalIcon type={goal.goal_type} size={42} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -549,234 +557,332 @@ export function GoalsSection({
                 <button onClick={() => { setDetailGoal(null); setDeleteConfirm(false) }} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', font: '700 13px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>✕</button>
               </div>
 
-              {/* Big progress */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
-                  <div>
-                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Saved</div>
-                    <div style={{ font: '800 26px Plus Jakarta Sans', color: cfg.color, letterSpacing: '-0.02em', marginTop: 2 }}>{fmt(goal.current_saved)}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Goal</div>
-                    <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(goal.goal_amount)}</div>
-                  </div>
-                </div>
-                <div style={{ height: 12, borderRadius: 999, background: c.surface2, overflow: 'hidden', marginBottom: 6 }}>
-                  <div style={{ height: '100%', width: `${st.pct}%`, background: cfg.color, borderRadius: 999, transition: 'width 0.5s' }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ font: '700 13px Plus Jakarta Sans', color: cfg.color }}>{st.pct}% complete</span>
-                  {!st.isComplete && <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>{fmt(remaining)} remaining</span>}
-                </div>
-              </div>
-
-              {/* Goal Health badge */}
-              <div style={{
-                padding: '10px 14px', borderRadius: 12, marginBottom: 14,
-                background: healthCfg.bg, border: `1px solid ${healthCfg.border}`,
-                display: 'flex', flexDirection: 'column', gap: 4,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 6, background: healthCfg.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {healthCfg.icon}
-                  </div>
-                  <span style={{ font: '700 13px Plus Jakarta Sans', color: healthCfg.color }}>{healthCfg.label}</span>
-                </div>
-                {st.health === 'on_track' && !st.isComplete && st.daysAhead != null && st.daysAhead > 0 && (
-                  <span style={{ font: '500 12px Plus Jakarta Sans', color: healthCfg.color, paddingLeft: 28 }}>
-                    Ahead by {st.daysAhead} {st.daysAhead === 1 ? 'day' : 'days'}. Keep it up.
-                  </span>
-                )}
-                {st.health === 'needs_attention' && st.extraNeeded != null && (
-                  <span style={{ font: '500 12px Plus Jakarta Sans', color: healthCfg.color, paddingLeft: 28 }}>
-                    Add {fmt(st.extraNeeded)}/month more to stay on target.
-                    {st.daysBehind != null && st.daysBehind > 0 ? ` Behind by ${st.daysBehind} ${st.daysBehind === 1 ? 'day' : 'days'}.` : ''}
-                  </span>
-                )}
-                {st.health === 'complete' && (
-                  <span style={{ font: '500 12px Plus Jakarta Sans', color: healthCfg.color, paddingLeft: 28 }}>
-                    Goal successfully completed.
-                  </span>
-                )}
-              </div>
-
-              {/* Forecast section */}
-              {!st.isComplete && (
-                <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
-                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>Forecast</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
-                    <div>
-                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current Pace</div>
-                      <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(forecast.currentPace)}/mo</div>
+              {st.isComplete ? (
+                /* ── COMPLETION EXPERIENCE ─────────────────────────── */
+                <>
+                  {/* Trophy */}
+                  <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                    <div style={{
+                      width: 64, height: 64, borderRadius: 20, margin: '0 auto 12px',
+                      background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6 9H4a2 2 0 000 4h2"/><path d="M18 9h2a2 2 0 010 4h-2"/>
+                        <path d="M6 4h12v10a6 6 0 01-12 0V4z"/>
+                        <path d="M9 21h6"/><path d="M12 17v4"/>
+                      </svg>
                     </div>
-                    <div>
-                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>At This Pace</div>
-                      <div style={{ font: '700 14px Plus Jakarta Sans', color: forecast.forecastLabel ? c.ink : c.muted, marginTop: 2 }}>
-                        {forecast.forecastLabel ?? '—'}
-                      </div>
+                    <div style={{ font: '800 22px Plus Jakarta Sans', color: '#059669', letterSpacing: '-0.02em', marginBottom: 4 }}>
+                      Goal Achieved!
                     </div>
-                    {forecast.requiredPace !== null && (
-                      <div>
-                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Required Pace</div>
-                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(forecast.requiredPace)}/mo</div>
-                      </div>
-                    )}
-                    {forecast.monthlyGap !== null && forecast.monthlyGap > 0 && (
-                      <div>
-                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly Gap</div>
-                        <div style={{ font: '700 14px Plus Jakarta Sans', color: '#D97706', marginTop: 2 }}>+{fmt(forecast.monthlyGap)}/mo</div>
-                      </div>
-                    )}
+                    <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>
+                      {goal.name}
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {/* Goal Momentum */}
-              {momentum.daysSinceLast !== null ? (
-                <div style={{
-                  padding: '10px 14px', borderRadius: 12, marginBottom: 14,
-                  background: momentum.daysSinceLast > 21
-                    ? '#FEF3C714'
-                    : '#DCFCE714',
-                  border: `1px solid ${momentum.daysSinceLast > 21 ? '#F59E0B30' : '#10B98130'}`,
-                  display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <span style={{ fontSize: 16, lineHeight: 1 }}>{momentum.daysSinceLast > 21 ? '⚠' : '🔥'}</span>
-                  <div>
-                    {momentum.daysSinceLast > 21 ? (
-                      <span style={{ font: '600 12px Plus Jakarta Sans', color: '#D97706' }}>
-                        No contributions in {momentum.daysSinceLast} days
-                      </span>
-                    ) : momentum.thisMonthCount > 0 ? (
-                      <span style={{ font: '600 12px Plus Jakarta Sans', color: '#059669' }}>
-                        {momentum.thisMonthCount} contribution{momentum.thisMonthCount !== 1 ? 's' : ''} this month
-                        {momentum.thisMonthTotal > 0 ? ` · ${fmt(momentum.thisMonthTotal)} added` : ''}
-                      </span>
-                    ) : (
-                      <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
-                        Last contribution {momentum.daysSinceLast === 0 ? 'today' : `${momentum.daysSinceLast} ${momentum.daysSinceLast === 1 ? 'day' : 'days'} ago`}
-                      </span>
-                    )}
+                  {/* Achievement stats */}
+                  <div style={{ background: '#DCFCE7', border: '1px solid #10B98130', borderRadius: 16, padding: '16px', marginBottom: 14 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
+                      <div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: '#059669', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Target</div>
+                        <div style={{ font: '800 18px Plus Jakarta Sans', color: '#059669', marginTop: 2 }}>{fmt(goal.goal_amount)}</div>
+                      </div>
+                      <div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: '#059669', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completed in</div>
+                        <div style={{ font: '800 18px Plus Jakarta Sans', color: '#059669', marginTop: 2 }}>
+                          {monthsToComplete < 1 ? 'Under a month' : `${monthsToComplete} month${monthsToComplete !== 1 ? 's' : ''}`}
+                        </div>
+                      </div>
+                      {momentum.totalContribs > 0 && (
+                        <div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: '#059669', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Contributions</div>
+                          <div style={{ font: '800 18px Plus Jakarta Sans', color: '#059669', marginTop: 2 }}>{momentum.totalContribs}</div>
+                        </div>
+                      )}
+                      {momentum.challengeCount > 0 && (
+                        <div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: '#059669', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Challenge wins</div>
+                          <div style={{ font: '800 18px Plus Jakarta Sans', color: '#059669', marginTop: 2 }}>{momentum.challengeCount}</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : null}
 
-              {/* Stats grid */}
-              <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
-                  <div>
-                    <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly Target</div>
-                    <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(goal.monthly_target)}</div>
-                  </div>
-                  <div>
-                    <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Target Date</div>
-                    <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{tDate}</div>
-                  </div>
-                  {!st.isComplete && st.monthsRemaining != null && (
-                    <div>
-                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Months Left</div>
-                      <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{Math.ceil(st.monthsRemaining)}</div>
+                  {/* Source breakdown — only shown if challenge contributions exist */}
+                  {momentum.challengeTotal > 0 && (
+                    <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+                      <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>How you saved it</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Manual contributions</span>
+                          <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(momentum.manualTotal)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>From challenge wins</span>
+                          <span style={{ font: '700 13px Plus Jakarta Sans', color: c.accent }}>{fmt(momentum.challengeTotal)}</span>
+                        </div>
+                        <div style={{ height: 1, background: c.faint, margin: '2px 0' }} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>Total saved</span>
+                          <span style={{ font: '700 14px Plus Jakarta Sans', color: cfg.color }}>{fmt(goal.current_saved)}</span>
+                        </div>
+                      </div>
                     </div>
                   )}
-                </div>
-              </div>
 
-              {/* Contribution History */}
-              {momentum.recentContribs.length > 0 && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Contribution History</div>
-                  <div style={{ background: c.surface2, borderRadius: 14, overflow: 'hidden' }}>
-                    {momentum.recentContribs.map((contrib, i) => {
-                      const d = new Date(contrib.created_at)
-                      const dateLabel = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                      return (
-                        <div
-                          key={contrib.id}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            padding: '9px 14px',
-                            borderBottom: i < momentum.recentContribs.length - 1 ? `1px solid ${c.faint}` : 'none',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, minWidth: 44 }}>{dateLabel}</span>
-                            {contrib.source === 'daily_challenge' && (
-                              <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accent + '18', borderRadius: 6, padding: '2px 6px' }}>
-                                Challenge
-                              </span>
-                            )}
-                          </div>
-                          <span style={{ font: '700 13px Plus Jakarta Sans', color: cfg.color }}>{fmt(contrib.amount)}</span>
+                  {/* Contribution history */}
+                  {momentum.recentContribs.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Contribution History</div>
+                      <div style={{ background: c.surface2, borderRadius: 14, overflow: 'hidden' }}>
+                        {momentum.recentContribs.map((contrib, i) => {
+                          const dLabel = new Date(contrib.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                          return (
+                            <div key={contrib.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 14px', borderBottom: i < momentum.recentContribs.length - 1 ? `1px solid ${c.faint}` : 'none' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, minWidth: 44 }}>{dLabel}</span>
+                                {contrib.source === 'daily_challenge' && (
+                                  <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accent + '18', borderRadius: 6, padding: '2px 6px' }}>Challenge</span>
+                                )}
+                              </div>
+                              <span style={{ font: '700 13px Plus Jakarta Sans', color: cfg.color }}>{fmt(contrib.amount)}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* ── ACTIVE GOAL DETAIL ────────────────────────────── */
+                <>
+                  {/* Big progress */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
+                      <div>
+                        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Saved</div>
+                        <div style={{ font: '800 26px Plus Jakarta Sans', color: cfg.color, letterSpacing: '-0.02em', marginTop: 2 }}>{fmt(goal.current_saved)}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Goal</div>
+                        <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(goal.goal_amount)}</div>
+                      </div>
+                    </div>
+                    <div style={{ height: 12, borderRadius: 999, background: c.surface2, overflow: 'hidden', marginBottom: 6 }}>
+                      <div style={{ height: '100%', width: `${st.pct}%`, background: cfg.color, borderRadius: 999, transition: 'width 0.5s' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ font: '700 13px Plus Jakarta Sans', color: cfg.color }}>{st.pct}% complete</span>
+                      <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>{fmt(remaining)} remaining</span>
+                    </div>
+                  </div>
+
+                  {/* Goal Health badge */}
+                  <div style={{ padding: '10px 14px', borderRadius: 12, marginBottom: 14, background: healthCfg.bg, border: `1px solid ${healthCfg.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 6, background: healthCfg.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {healthCfg.icon}
+                      </div>
+                      <span style={{ font: '700 13px Plus Jakarta Sans', color: healthCfg.color }}>{healthCfg.label}</span>
+                    </div>
+                    {st.health === 'on_track' && st.daysAhead != null && st.daysAhead > 0 && (
+                      <span style={{ font: '500 12px Plus Jakarta Sans', color: healthCfg.color, paddingLeft: 28 }}>
+                        Ahead by {st.daysAhead} {st.daysAhead === 1 ? 'day' : 'days'}. Keep it up.
+                      </span>
+                    )}
+                    {st.health === 'needs_attention' && st.extraNeeded != null && (
+                      <span style={{ font: '500 12px Plus Jakarta Sans', color: healthCfg.color, paddingLeft: 28 }}>
+                        Add {fmt(st.extraNeeded)}/month more to stay on target.
+                        {st.daysBehind != null && st.daysBehind > 0 ? ` Behind by ${st.daysBehind} ${st.daysBehind === 1 ? 'day' : 'days'}.` : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Source breakdown — shown when challenge contributions exist */}
+                  {momentum.challengeTotal > 0 && (
+                    <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+                      <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>How you're saving</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Manual contributions</span>
+                          <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(momentum.manualTotal)}</span>
                         </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>From challenge wins</span>
+                          <span style={{ font: '700 13px Plus Jakarta Sans', color: c.accent }}>{fmt(momentum.challengeTotal)}</span>
+                        </div>
+                        <div style={{ height: 1, background: c.faint, margin: '2px 0' }} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>Total saved</span>
+                          <span style={{ font: '700 14px Plus Jakarta Sans', color: cfg.color }}>{fmt(goal.current_saved)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-              {/* Mint AI */}
-              {autopilotEnabled && !aiInsight && !aiLoading && !st.isComplete && (
-                <button
-                  onClick={() => handleGetAI(goal)}
-                  style={{ width: '100%', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, background: 'linear-gradient(135deg,#6366F114,#8B5CF614)', border: '1px solid #6366F130', borderRadius: 14, padding: '11px', font: '700 13px Plus Jakarta Sans', color: '#6366F1', cursor: 'pointer' }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                  Ask Mint for Insight
-                </button>
-              )}
-              {autopilotEnabled && aiLoading && (
-                <div style={{ marginBottom: 14, borderRadius: 14, padding: '12px 14px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F122' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 6, background: '#6366F122', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  {/* Forecast section */}
+                  <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+                    <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>Forecast</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                      <div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current Pace</div>
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(forecast.currentPace)}/mo</div>
+                      </div>
+                      <div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>At This Pace</div>
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: forecast.forecastLabel ? c.ink : c.muted, marginTop: 2 }}>
+                          {forecast.forecastLabel ?? '—'}
+                        </div>
+                      </div>
+                      {forecast.requiredPace !== null && (
+                        <div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Required Pace</div>
+                          <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(forecast.requiredPace)}/mo</div>
+                        </div>
+                      )}
+                      {forecast.monthlyGap !== null && forecast.monthlyGap > 0 && (
+                        <div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly Gap</div>
+                          <div style={{ font: '700 14px Plus Jakarta Sans', color: '#D97706', marginTop: 2 }}>+{fmt(forecast.monthlyGap)}/mo</div>
+                        </div>
+                      )}
                     </div>
-                    <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint is thinking…</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {[100, 75].map(w => <div key={w} style={{ height: 9, borderRadius: 999, background: '#6366F118', width: `${w}%` }} />)}
-                  </div>
-                </div>
-              )}
-              {autopilotEnabled && aiInsight && (
-                <div style={{ marginBottom: 14, borderRadius: 14, padding: '12px 14px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F130' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 6, background: '#6366F122', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    </div>
-                    <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint Insight</span>
-                  </div>
-                  <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6 }}>{aiInsight}</div>
-                </div>
-              )}
 
-              {/* Add savings */}
-              {!st.isComplete && (
-                <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
-                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>Add Savings</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', font: '700 13px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
-                      <input
-                        type="number" inputMode="decimal"
-                        value={savingsInput}
-                        onChange={e => setSavingsInput(e.target.value)}
-                        onFocus={e => e.target.select()}
-                        placeholder="Amount"
-                        style={{ ...inp, paddingLeft: 24 }}
-                      />
+                  {/* Goal Momentum */}
+                  {momentum.daysSinceLast !== null && (
+                    <div style={{
+                      padding: '10px 14px', borderRadius: 12, marginBottom: 14,
+                      background: momentum.daysSinceLast > 21 ? '#FEF3C714' : '#DCFCE714',
+                      border: `1px solid ${momentum.daysSinceLast > 21 ? '#F59E0B30' : '#10B98130'}`,
+                      display: 'flex', alignItems: 'center', gap: 10,
+                    }}>
+                      <span style={{ fontSize: 16, lineHeight: 1 }}>{momentum.daysSinceLast > 21 ? '⚠' : '🔥'}</span>
+                      <div>
+                        {momentum.daysSinceLast > 21 ? (
+                          <span style={{ font: '600 12px Plus Jakarta Sans', color: '#D97706' }}>
+                            No contributions in {momentum.daysSinceLast} days
+                          </span>
+                        ) : momentum.thisMonthCount > 0 ? (
+                          <span style={{ font: '600 12px Plus Jakarta Sans', color: '#059669' }}>
+                            {momentum.thisMonthCount} contribution{momentum.thisMonthCount !== 1 ? 's' : ''} this month
+                            {momentum.thisMonthTotal > 0 ? ` · ${fmt(momentum.thisMonthTotal)} added` : ''}
+                          </span>
+                        ) : (
+                          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                            Last contribution {momentum.daysSinceLast === 0 ? 'today' : `${momentum.daysSinceLast} ${momentum.daysSinceLast === 1 ? 'day' : 'days'} ago`}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                  )}
+
+                  {/* Stats grid */}
+                  <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
+                      <div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly Target</div>
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(goal.monthly_target)}</div>
+                      </div>
+                      <div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Target Date</div>
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{tDate}</div>
+                      </div>
+                      {st.monthsRemaining != null && (
+                        <div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Months Left</div>
+                          <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{Math.ceil(st.monthsRemaining)}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Contribution History */}
+                  {momentum.recentContribs.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Contribution History</div>
+                      <div style={{ background: c.surface2, borderRadius: 14, overflow: 'hidden' }}>
+                        {momentum.recentContribs.map((contrib, i) => {
+                          const dLabel = new Date(contrib.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                          return (
+                            <div key={contrib.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 14px', borderBottom: i < momentum.recentContribs.length - 1 ? `1px solid ${c.faint}` : 'none' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, minWidth: 44 }}>{dLabel}</span>
+                                {contrib.source === 'daily_challenge' && (
+                                  <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accent + '18', borderRadius: 6, padding: '2px 6px' }}>Challenge</span>
+                                )}
+                              </div>
+                              <span style={{ font: '700 13px Plus Jakarta Sans', color: cfg.color }}>{fmt(contrib.amount)}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mint AI */}
+                  {autopilotEnabled && !aiInsight && !aiLoading && (
                     <button
-                      onClick={handleAddSavings}
-                      disabled={savingsAdding || !savingsInput || parseFloat(savingsInput) <= 0}
-                      style={{ background: cfg.color, color: '#fff', border: 'none', borderRadius: 11, padding: '10px 18px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', flexShrink: 0, opacity: (savingsAdding || !savingsInput || parseFloat(savingsInput) <= 0) ? 0.5 : 1 }}
+                      onClick={() => handleGetAI(goal)}
+                      style={{ width: '100%', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, background: 'linear-gradient(135deg,#6366F114,#8B5CF614)', border: '1px solid #6366F130', borderRadius: 14, padding: '11px', font: '700 13px Plus Jakarta Sans', color: '#6366F1', cursor: 'pointer' }}
                     >
-                      {savingsAdding ? '…' : 'Add'}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                      Ask Mint for Insight
                     </button>
+                  )}
+                  {autopilotEnabled && aiLoading && (
+                    <div style={{ marginBottom: 14, borderRadius: 14, padding: '12px 14px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F122' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 6, background: '#6366F122', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        </div>
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint is thinking…</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {[100, 75].map(w => <div key={w} style={{ height: 9, borderRadius: 999, background: '#6366F118', width: `${w}%` }} />)}
+                      </div>
+                    </div>
+                  )}
+                  {autopilotEnabled && aiInsight && (
+                    <div style={{ marginBottom: 14, borderRadius: 14, padding: '12px 14px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F130' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 6, background: '#6366F122', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        </div>
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: '#6366F1' }}>Mint Insight</span>
+                      </div>
+                      <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6 }}>{aiInsight}</div>
+                    </div>
+                  )}
+
+                  {/* Add savings */}
+                  <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+                    <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>Add Savings</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', font: '700 13px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
+                        <input
+                          type="number" inputMode="decimal"
+                          value={savingsInput}
+                          onChange={e => setSavingsInput(e.target.value)}
+                          onFocus={e => e.target.select()}
+                          placeholder="Amount"
+                          style={{ ...inp, paddingLeft: 24 }}
+                        />
+                      </div>
+                      <button
+                        onClick={handleAddSavings}
+                        disabled={savingsAdding || !savingsInput || parseFloat(savingsInput) <= 0}
+                        style={{ background: cfg.color, color: '#fff', border: 'none', borderRadius: 11, padding: '10px 18px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', flexShrink: 0, opacity: (savingsAdding || !savingsInput || parseFloat(savingsInput) <= 0) ? 0.5 : 1 }}
+                      >
+                        {savingsAdding ? '…' : 'Add'}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
-              {/* Delete */}
+              {/* Delete — always accessible */}
               {!deleteConfirm ? (
                 <button onClick={() => setDeleteConfirm(true)} style={{ width: '100%', background: 'none', color: c.bad, border: `1px solid ${c.bad}30`, borderRadius: 12, padding: '10px', font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}>
                   Delete Goal

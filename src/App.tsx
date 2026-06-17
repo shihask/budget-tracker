@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.14.0'
+const APP_VERSION = '1.14.2'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
@@ -138,6 +138,7 @@ function AppContent({ session }: { session: Session }) {
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
   const [challengeWin, setChallengeWin] = useState<{ amount: number } | null>(null)
+  const [challengeWinInput, setChallengeWinInput] = useState('')
 
   useEffect(() => {
     if (!loading && state.accounts.length > 0) {
@@ -259,7 +260,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
                       break
                     case 'daily_challenge':
-                      el = <DailyChallengeCard state={state} d={d} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onSuccessDay={(amount) => setChallengeWin({ amount })} />
+                      el = <DailyChallengeCard state={state} d={d} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onSuccessDay={(amount) => { setChallengeWin({ amount }); setChallengeWinInput(String(Math.round(amount))) }} />
                       break
                     case 'metrics':
                       el = <div>
@@ -530,6 +531,8 @@ function AppContent({ session }: { session: Session }) {
         <BottomSheet open={!!challengeWin} onClose={() => setChallengeWin(null)} zIndex={500}>
           {challengeWin && (() => {
             const activeGoals = state.goals.filter(g => g.is_active && g.current_saved < g.goal_amount)
+            const inputAmt = parseFloat(challengeWinInput)
+            const validAmt = !isNaN(inputAmt) && inputAmt > 0 ? Math.round(inputAmt) : Math.round(challengeWin.amount)
             return (
               <>
                 <div style={{ textAlign: 'center', marginBottom: 18 }}>
@@ -542,10 +545,31 @@ function AppContent({ session }: { session: Session }) {
                     below today's target.
                   </div>
                 </div>
+
+                {/* Editable amount */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Amount to contribute</div>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
+                    <input
+                      type="number" inputMode="decimal"
+                      value={challengeWinInput}
+                      onChange={e => setChallengeWinInput(e.target.value)}
+                      onFocus={e => e.target.select()}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        background: c.surface2, border: `1.5px solid ${c.faint}`,
+                        borderRadius: 11, padding: '11px 12px 11px 28px',
+                        font: '700 16px Plus Jakarta Sans', color: c.ink, outline: 'none',
+                      }}
+                    />
+                  </div>
+                </div>
+
                 {activeGoals.length > 0 ? (
                   <>
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
-                      Add to a goal?
+                      Add to a goal
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
                       {activeGoals.slice(0, 4).map(goal => {
@@ -554,7 +578,7 @@ function AppContent({ session }: { session: Session }) {
                           <button
                             key={goal.id}
                             onClick={async () => {
-                              await addGoalSavings(goal.id, Math.round(challengeWin.amount), 'daily_challenge')
+                              await addGoalSavings(goal.id, validAmt, 'daily_challenge')
                               setChallengeWin(null)
                             }}
                             style={{
@@ -566,8 +590,8 @@ function AppContent({ session }: { session: Session }) {
                             }}
                           >
                             <span>{goal.name}</span>
-                            <span style={{ font: '600 13px Plus Jakarta Sans', color: cfg }}>
-                              +{fmt(Math.round(challengeWin.amount))}
+                            <span style={{ font: '700 13px Plus Jakarta Sans', color: cfg }}>
+                              +{fmt(validAmt)}
                             </span>
                           </button>
                         )
@@ -575,17 +599,9 @@ function AppContent({ session }: { session: Session }) {
                     </div>
                   </>
                 ) : (
-                  <>
-                    <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5, textAlign: 'center' }}>
-                      Create your first goal to turn good habits into progress.
-                    </div>
-                    <button
-                      onClick={() => setChallengeWin(null)}
-                      style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', marginBottom: 10 }}
-                    >
-                      Create Goal
-                    </button>
-                  </>
+                  <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5, textAlign: 'center' }}>
+                    Create your first goal to turn good habits into progress.
+                  </div>
                 )}
                 <button
                   onClick={() => setChallengeWin(null)}
