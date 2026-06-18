@@ -1,7 +1,7 @@
 // All seed data removed — everything loads from Supabase.
 // This file only contains pure calculation functions (no data).
 
-import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData, JourneyMilestone } from '@/types'
+import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData, JourneyMilestone, JourneyReplayEvent, JourneyHealthItem } from '@/types'
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 
 export const catById = (categories: AppState['categories']) =>
@@ -303,6 +303,65 @@ export function journeyData(state: AppState): JourneyData {
   if (completedGoals >= 1)
     milestones.push({ emoji: '🌺', text: `${completedGoals} goal${completedGoals > 1 ? 's' : ''} achieved this cycle!`, section: 'flower' })
 
+  // Story line — one human sentence
+  const brief = (n: number) => '₹' + (n >= 100000 ? +(n / 100000).toFixed(1) + 'L' : n >= 1000 ? Math.round(n / 1000) + 'k' : n)
+  const storyOutcomes: string[] = []
+  if (totalWealth > 0) storyOutcomes.push(`${brief(totalWealth)} of wealth`)
+  if (challengeEnabled && successDays > 0) storyOutcomes.push(`${successDays} challenge win${successDays !== 1 ? 's' : ''}`)
+  if (activeGoals > 0) storyOutcomes.push(`${activeGoals} active goal${activeGoals !== 1 ? 's' : ''}`)
+  let storyLine: string
+  if (totalIncome === 0) {
+    storyLine = 'Your journey is just beginning. Log income to see your story grow.'
+  } else if (storyOutcomes.length === 0) {
+    storyLine = rootsTotal > 0
+      ? `Your seed of ${brief(totalIncome)} is building roots — ${brief(rootsTotal)} directed to your future.`
+      : `Your seed of ${brief(totalIncome)} is planted. Start building roots to grow.`
+  } else {
+    const joined = storyOutcomes.length === 1 ? storyOutcomes[0]
+      : storyOutcomes.slice(0, -1).join(', ') + ' and ' + storyOutcomes[storyOutcomes.length - 1]
+    storyLine = `Your seed of ${brief(totalIncome)} grew into ${joined}.`
+  }
+
+  // Health score (0–100)
+  const healthBreakdown: JourneyHealthItem[] = []
+  const savingsScore = rootsPct >= 30 ? 35 : rootsPct >= 20 ? 25 : rootsPct >= 10 ? 15 : rootsPct > 0 ? 8 : 0
+  healthBreakdown.push({ label: 'Savings Rate', score: savingsScore, max: 35 })
+  const challengeScore = challengeEnabled && totalDays > 0
+    ? successRate >= 80 ? 30 : successRate >= 60 ? 22 : successRate >= 40 ? 14 : successRate >= 20 ? 7 : 0 : 0
+  healthBreakdown.push({ label: 'Challenge', score: challengeScore, max: 30 })
+  const avgGoalPct = goalItems.length > 0 ? goalItems.reduce((s, g) => s + g.pct, 0) / goalItems.length : 0
+  const goalScore = avgGoalPct >= 75 ? 20 : avgGoalPct >= 50 ? 15 : avgGoalPct >= 25 ? 10 : avgGoalPct > 0 ? 5 : 0
+  healthBreakdown.push({ label: 'Goal Momentum', score: goalScore, max: 20 })
+  const wealthScore = totalWealth >= 100000 ? 15 : totalWealth >= 50000 ? 12 : totalWealth >= 10000 ? 8 : totalWealth > 0 ? 5 : 0
+  healthBreakdown.push({ label: 'Wealth Growth', score: wealthScore, max: 15 })
+  const healthScore = savingsScore + challengeScore + goalScore + wealthScore
+  const healthLabel = healthScore >= 85 ? 'Thriving' : healthScore >= 70 ? 'Growing Strong' : healthScore >= 55 ? 'Building' : healthScore >= 40 ? 'Sprouting' : 'Just Planted'
+
+  // Replay events — chronological log of financial actions this cycle
+  const replayEvents: JourneyReplayEvent[] = []
+  const replayEmoji: Record<string, string> = { income: '🌰', commitment: '🌱', savings_contribution: '🌳' }
+  state.transactions
+    .filter(t => Object.keys(replayEmoji).includes(t.transaction_type) && new Date(t.transaction_date) >= cycleStart)
+    .forEach(t => replayEvents.push({
+      date: t.transaction_date,
+      emoji: replayEmoji[t.transaction_type],
+      title: t.description,
+      subtitle: catMap[t.category_id ?? '']?.name,
+      amount: t.amount,
+    }))
+  state.goal_contributions
+    .filter(gc => new Date(gc.created_at) >= cycleStart)
+    .forEach(gc => replayEvents.push({
+      date: gc.created_at.slice(0, 10),
+      emoji: '🌺',
+      title: state.goals.find(g => g.id === gc.goal_id)?.name ?? 'Goal funded',
+      amount: gc.amount,
+    }))
+  replayEvents.sort((a, b) => a.date.localeCompare(b.date))
+
+  // Growth efficiency = rootsTotal as % of totalIncome
+  const efficiencyPct = totalIncome > 0 ? Math.round((rootsTotal / totalIncome) * 100) : 0
+
   // Previous cycle — for comparison
   const prevCycleEnd = new Date(cycleStart.getTime() - 86400000)
   let prevCycleStart: Date
@@ -334,6 +393,10 @@ export function journeyData(state: AppState): JourneyData {
     goalItems, activeGoals, completedGoals,
     heroValue, heroLabel,
     milestones,
+    storyLine,
+    healthScore, healthLabel, healthBreakdown,
+    replayEvents,
+    efficiencyPct,
     prevRootsTotal, prevSavingsContributed, hasPrevData,
     cycleLabel,
   }

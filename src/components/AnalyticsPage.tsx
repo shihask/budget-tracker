@@ -70,6 +70,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const [insightError, setInsightError] = useState<string | null>(null)
   const [timelineView, setTimelineView] = useState<'day' | 'category' | 'group'>('day')
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const [replayExpanded, setReplayExpanded] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Swipe-back gesture
@@ -516,51 +517,91 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         )}
 
         {/* ── Journey ───────────────────────────────────────── */}
-        {tab === 'journey' && (
+        {tab === 'journey' && (() => {
+          const healthColor = journey.healthScore >= 85 ? J.branch : journey.healthScore >= 70 ? J.roots : journey.healthScore >= 55 ? J.stem : J.seed
+          const treeStages = [
+            { emoji: '🌺', label: 'Flowers', value: journey.activeGoals > 0 ? `${journey.activeGoals} active` : '—', color: J.flower, has: journey.activeGoals > 0 },
+            { emoji: '🌳', label: 'Branches', value: journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—', color: J.branch, has: journey.totalWealth > 0 },
+            { emoji: '🌿', label: 'Stem', value: journey.challengeEnabled && journey.successDays > 0 ? `${journey.successDays} wins` : '—', color: J.stem, has: journey.challengeEnabled && journey.successDays > 0 },
+            { emoji: '🌱', label: 'Roots', value: journey.rootsTotal > 0 ? fmt(journey.rootsTotal) : '—', color: J.roots, has: journey.rootsTotal > 0 },
+            { emoji: '🌰', label: 'Seed', value: journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—', color: J.seed, has: journey.totalIncome > 0 },
+          ]
+          return (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
             {/* Header */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
-                {journey.cycleLabel} Journey
+              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{journey.cycleLabel} Journey</div>
+            </div>
+
+            {/* ── Animated Growth Tree ── */}
+            <div style={{ background: c.surface, borderRadius: 20, padding: '20px 20px 18px', boxShadow: c.cardShadow, border: `1px solid ${c.faint}`, marginBottom: 14 }}>
+              {treeStages.map((stage, i, arr) => (
+                <div key={stage.emoji}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, animation: `growUp 0.4s ease ${(arr.length - 1 - i) * 120}ms both`, opacity: stage.has ? 1 : 0.3 }}>
+                    <span style={{ fontSize: 26, lineHeight: 1, width: 32, textAlign: 'center', flexShrink: 0 }}>{stage.emoji}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stage.label}</div>
+                      <div style={{ font: '800 15px Plus Jakarta Sans', color: stage.has ? stage.color : c.muted, letterSpacing: '-0.01em' }}>{stage.value}</div>
+                    </div>
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div style={{ paddingLeft: 15, animation: `growUp 0.3s ease ${(arr.length - 1.5 - i) * 120}ms both` }}>
+                      <div style={{ width: 2, height: 20, background: `linear-gradient(to bottom,${stage.color},${arr[i + 1].color})`, opacity: (stage.has || arr[i + 1].has) ? 0.45 : 0.15, borderRadius: 1 }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* ── Story Mode ── */}
+            <div style={{ background: c.surface2, borderRadius: 16, padding: '13px 16px', marginBottom: 14 }}>
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.65 }}>{journey.storyLine}</div>
+            </div>
+
+            {/* ── Journey Health Score ── */}
+            <div style={{ background: c.surface, borderRadius: 18, padding: '16px', boxShadow: c.cardShadow, border: `1px solid ${c.faint}`, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Journey Health</div>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: healthColor }}>🌱 {journey.healthLabel}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ font: '800 30px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em', lineHeight: 1 }}>{journey.healthScore}</div>
+                  <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>/ 100</div>
+                </div>
               </div>
-              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-                Where did your money grow?
+              <div style={{ height: 6, background: c.faint, borderRadius: 999, overflow: 'hidden', marginBottom: 12 }}>
+                <div style={{ height: '100%', width: `${journey.healthScore}%`, background: `linear-gradient(to right,${J.roots},${J.branch})`, borderRadius: 999, transition: 'width 1s ease' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 14px' }}>
+                {journey.healthBreakdown.map(b => (
+                  <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ flex: 1, height: 3, background: c.faint, borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(b.score / b.max) * 100}%`, background: J.roots, borderRadius: 999 }} />
+                    </div>
+                    <span style={{ font: '500 9px Plus Jakarta Sans', color: c.muted, flexShrink: 0, minWidth: 62 }}>{b.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Hero metric — one big number */}
-            <div style={{ background: `linear-gradient(135deg, ${J.branch}12, ${J.flower}12)`, borderRadius: 20, padding: '18px 18px 16px', marginBottom: 20, border: `1px solid ${J.branch}1E` }}>
-              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 6 }}>
-                {journey.heroLabel}
-              </div>
-              <div style={{ font: '800 36px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em', lineHeight: 1 }}>
-                {journey.heroValue > 0 ? fmt(journey.heroValue) : '—'}
+            {/* ── Hero metric ── */}
+            <div style={{ background: `linear-gradient(135deg,${J.branch}12,${J.flower}12)`, borderRadius: 18, padding: '16px 18px', marginBottom: 20, border: `1px solid ${J.branch}1E` }}>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 5 }}>{journey.heroLabel}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+                <div style={{ font: '800 34px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                  {journey.heroValue > 0 ? fmt(journey.heroValue) : '—'}
+                </div>
+                {journey.efficiencyPct > 0 && journey.heroValue !== journey.totalIncome && (
+                  <div style={{ font: '700 13px Plus Jakarta Sans', color: J.roots }}>
+                    {journey.efficiencyPct}% efficiency
+                  </div>
+                )}
               </div>
               {journey.heroValue > 0 && journey.totalIncome > 0 && journey.heroValue !== journey.totalIncome && (
-                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 7 }}>
-                  from {fmt(journey.totalIncome)} income this cycle
-                </div>
+                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 6 }}>from {fmt(journey.totalIncome)} income this cycle</div>
               )}
-            </div>
-
-            {/* Mini flow strip */}
-            <div style={{ background: c.surface2, borderRadius: 14, padding: '10px 8px', marginBottom: 22, display: 'flex', alignItems: 'center' }}>
-              {([
-                { e: '🌰', v: journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—', color: J.seed },
-                { e: '🌱', v: journey.rootsTotal > 0 ? `${journey.rootsPct}%` : '—', color: J.roots },
-                { e: '🌿', v: journey.challengeEnabled ? `${journey.streak}d` : '—', color: J.stem },
-                { e: '🌳', v: journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—', color: J.branch },
-                { e: '🌺', v: journey.activeGoals > 0 ? `${journey.activeGoals}` : '—', color: J.flower },
-              ] as const).map((item, i, arr) => (
-                <>
-                  <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-                    <div style={{ fontSize: 16, lineHeight: '1.2' }}>{item.e}</div>
-                    <div style={{ font: '700 9px ui-monospace,monospace', color: item.color, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.v}</div>
-                  </div>
-                  {i < arr.length - 1 && <div key={`a${i}`} style={{ font: '600 9px Plus Jakarta Sans', color: c.faint, flexShrink: 0 }}>›</div>}
-                </>
-              ))}
             </div>
 
             {/* ===== SEED ===== */}
@@ -807,8 +848,45 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
               </div>
             )}
 
+            {/* ── Journey Replay ── */}
+            {journey.replayEvents.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <button
+                  onClick={() => setReplayExpanded(v => !v)}
+                  style={{ width: '100%', background: c.surface2, border: 'none', borderRadius: 14, padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                >
+                  <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>▶ Replay {journey.cycleLabel}</div>
+                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    {replayExpanded ? <polyline points="18 15 12 9 6 15" /> : <polyline points="6 9 12 15 18 9" />}
+                  </svg>
+                </button>
+                {replayExpanded && (
+                  <div style={{ background: c.surface, borderRadius: 16, padding: '14px', marginTop: 6, boxShadow: c.cardShadow }}>
+                    {journey.replayEvents.map((ev, i, arr) => (
+                      <div key={`${ev.date}-${i}`} style={{ display: 'flex', gap: 12 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 28, flexShrink: 0 }}>
+                          <span style={{ fontSize: 16, lineHeight: 1, marginTop: 2 }}>{ev.emoji}</span>
+                          {i < arr.length - 1 && <div style={{ width: 1.5, flex: 1, marginTop: 4, background: c.faint, borderRadius: 1 }} />}
+                        </div>
+                        <div style={{ flex: 1, paddingBottom: i < arr.length - 1 ? 12 : 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
+                            {ev.amount != null && <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, flexShrink: 0 }}>{fmt(ev.amount)}</div>}
+                          </div>
+                          <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+                            {ev.subtitle ? `${ev.subtitle} · ` : ''}{new Date(ev.date + 'T12:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
-        )}
+          )
+        })()}
 
         {/* ── Mint Analytics AI ─────────────────────────────── */}
         {(state.settings.autopilot_enabled ?? false) && tab !== 'journey' && (
@@ -917,7 +995,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         )}
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} } .tab-scroll::-webkit-scrollbar{display:none}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes growUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}} .tab-scroll::-webkit-scrollbar{display:none}`}</style>
     </div>,
     document.body
   )
