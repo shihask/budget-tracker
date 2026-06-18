@@ -6,6 +6,7 @@ import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 import { computeChallenge } from '@/lib/challenge'
+import { getStrategyPcts, getCategoryBucket } from './BudgetStrategyCard'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -138,7 +139,7 @@ function classifyContextIntent(text: string): ContextIntent {
   if (/\b(net worth|total wealth|how much do i have)\b/.test(q)) return 'networth'
   // financial_health: situational questions that need the full picture but not category drill-down
   if (/\b(how am i doing|am i doing (ok|well|good)|good position|afford|can i buy|current situation|financial health|overall|real situation|position right now|safe to|is it ok to)\b/.test(q)) return 'financial_health'
-  if (/\b(budget|weekly|overspend|daily limit|challenge|on track|recovery|free money|free cash)\b/.test(q)) return 'budget'
+  if (/\b(budget|weekly|overspend|daily limit|challenge|on track|recovery|free money|free cash|strategy|needs|wants|50.30|60.20|allocation)\b/.test(q)) return 'budget'
   if (/\b(spend|spent|spending|categor|summary|where did|breakdown|expense|this month|last month|compare|story|happened|balance low)\b/.test(q)) return 'spending'
   return 'general'
 }
@@ -347,6 +348,48 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     } else if (['financial_health', 'general'].includes(intent)) {
       const portfolioStr = totalPortfolio > 0 ? ` portfolio-value:₹${totalPortfolio.toLocaleString()}` : ''
       parts.push(`Savings: monthly-commitment:₹${totalMonthly.toLocaleString()} total-contributed:₹${totalContributed.toLocaleString()}${portfolioStr}`)
+    }
+  }
+
+  // ── MODULE: Budget Strategy ──
+  // Relevant for financial_health / budget / general
+  if (['financial_health', 'budget', 'general'].includes(intent)) {
+    const stratPcts = getStrategyPcts(state.settings)
+    if (stratPcts) {
+      const sd = state.settings.salary_date
+      let stratStart: Date
+      if (sd && sd >= 1 && sd <= 31) {
+        const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
+        stratStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
+      } else {
+        stratStart = monthStart
+      }
+      const stratIncome = state.transactions
+        .filter(t => t.transaction_type === 'income' && new Date(t.transaction_date) >= stratStart)
+        .reduce((s, t) => s + t.amount, 0)
+      const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
+      const actuals: Record<string, number> = { needs: 0, wants: 0, savings: 0 }
+      for (const t of state.transactions) {
+        if (new Date(t.transaction_date) < stratStart) continue
+        if (t.transaction_type !== 'expense' && t.transaction_type !== 'commitment' && t.transaction_type !== 'savings_contribution') continue
+        const cat = catMap[t.category_id ?? '']
+        if (!cat) continue
+        const bucket = t.transaction_type === 'savings_contribution' ? 'savings' : getCategoryBucket(cat, state.groups)
+        if (!bucket) continue
+        actuals[bucket] += t.amount
+      }
+      const targets = {
+        needs:   Math.round(stratIncome * stratPcts.needs   / 100),
+        wants:   Math.round(stratIncome * stratPcts.wants   / 100),
+        savings: Math.round(stratIncome * stratPcts.savings / 100),
+      }
+      const pctUsed = (actual: number, target: number) => target > 0 ? `${Math.round(actual / target * 100)}%` : 'no-target'
+      parts.push(
+        `BudgetStrategy: ${stratPcts.label} | income:₹${stratIncome.toLocaleString()} | ` +
+        `needs:₹${actuals.needs.toLocaleString()}/₹${targets.needs.toLocaleString()}(${pctUsed(actuals.needs, targets.needs)}) ` +
+        `wants:₹${actuals.wants.toLocaleString()}/₹${targets.wants.toLocaleString()}(${pctUsed(actuals.wants, targets.wants)}) ` +
+        `savings:₹${actuals.savings.toLocaleString()}/₹${targets.savings.toLocaleString()}(${pctUsed(actuals.savings, targets.savings)})`
+      )
     }
   }
 

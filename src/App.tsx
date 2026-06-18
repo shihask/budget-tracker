@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.14.2'
+const APP_VERSION = '1.22.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import { fmt } from '@/lib/utils'
+import { fmt, iso, TODAY } from '@/lib/utils'
 import type { Layout, DashboardSectionId } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 
@@ -46,6 +46,9 @@ import { InsightCard } from '@/components/InsightCard'
 import { WealthSummaryCard } from '@/components/WealthSummaryCard'
 import { DailyChallengeCard } from '@/components/DailyChallengeCard'
 import { PlantPage } from '@/components/PlantPage'
+import { BudgetStrategyCard } from '@/components/BudgetStrategyCard'
+import { CategoryBucketMapper } from '@/components/CategoryBucketMapper'
+import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { computeChallenge } from '@/lib/challenge'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
@@ -131,10 +134,12 @@ function AppContent({ session }: { session: Session }) {
   const [flash, setFlash] = useState<string | null>(null)
   const [excludePromptTxnId, setExcludePromptTxnId] = useState<string | null>(null)
   const [plantSheetOpen, setPlantSheetOpen] = useState(false)
+  const [reflectionOpen, setReflectionOpen] = useState(false)
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
+  const [strategyMapperOpen, setStrategyMapperOpen] = useState(false)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
   const [challengeWin, setChallengeWin] = useState<{ amount: number } | null>(null)
@@ -162,6 +167,12 @@ function AppContent({ session }: { session: Session }) {
     if (!(state.settings.challenge_enabled)) return 0
     return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium').safeDailyLimit
   }, [state.accounts, state.commitments, state.settings]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const todayStr = iso(TODAY)
+  const yesterdayStr = iso(new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - 1))
+  const showReflectionBanner = !loading &&
+    state.settings.last_reflection_date !== todayStr &&
+    state.transactions.some(t => t.transaction_date === yesterdayStr && t.transaction_type === 'expense')
 
   const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
     const prevPct = d.weeklyPct
@@ -243,6 +254,40 @@ function AppContent({ session }: { session: Session }) {
 
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {showReflectionBanner && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  background: c.surface,
+                  border: `1px solid #16C98A33`,
+                  borderLeft: '3px solid #16C98A',
+                  borderRadius: 14, padding: '11px 14px',
+                  cursor: 'pointer',
+                }}
+                  onClick={() => { setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
+                >
+                  <div style={{ width: 32, height: 32, borderRadius: 9, background: '#16C98A18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16C98A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Yesterday's Reflection</div>
+                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>See how yesterday went and grow today</div>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                  <button
+                    onClick={e => { e.stopPropagation(); updateSettings({ last_reflection_date: todayStr }) }}
+                    style={{ width: 26, height: 26, borderRadius: 999, background: c.surface2, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                    aria-label="Dismiss"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
               <InsightCard state={state} d={d} />
               {dashboardSections
                 .filter(s => s.visible)
@@ -254,7 +299,7 @@ function AppContent({ session }: { session: Session }) {
                   }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
-                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} /></>
+                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{(state.settings.budget_strategy ?? 'none') !== 'none' && <BudgetStrategyCard state={state} />}</>
                       break
                     case 'affordability':
                       el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
@@ -479,6 +524,14 @@ function AppContent({ session }: { session: Session }) {
             <AnalyticsPage state={state} d={d} onClose={() => setAnalyticsOpen(false)} onUpdateSettings={updateSettings} />
           )}
 
+          <DailyReflectionSheet
+            open={reflectionOpen}
+            onClose={() => setReflectionOpen(false)}
+            state={state}
+            d={d}
+            onGoalContribution={async (goalId, amount) => { await addGoalSavings(goalId, amount, 'daily_challenge') }}
+          />
+
           {layoutOpen && (
             <DashboardLayoutPage
               sections={dashboardSections}
@@ -508,6 +561,20 @@ function AppContent({ session }: { session: Session }) {
               notifyBudgetAlert={state.settings.notify_budget_alert ?? true}
               notifyCommitments={state.settings.notify_commitments ?? true}
               notifyWeeklySummary={state.settings.notify_weekly_summary ?? true}
+              budgetStrategy={state.settings.budget_strategy ?? 'none'}
+              customNeedsPct={state.settings.custom_needs_pct ?? 50}
+              customWantsPct={state.settings.custom_wants_pct ?? 30}
+              customSavingsPct={state.settings.custom_savings_pct ?? 20}
+              onBudgetStrategy={async (strategy, customPcts) => {
+                const patch: Parameters<typeof updateSettings>[0] = { budget_strategy: strategy }
+                if (customPcts) {
+                  patch.custom_needs_pct = customPcts.needs
+                  patch.custom_wants_pct = customPcts.wants
+                  patch.custom_savings_pct = customPcts.savings
+                }
+                await updateSettings(patch)
+              }}
+              onMapCategories={() => setStrategyMapperOpen(true)}
               onAccent={setAccent} onDark={setDark} onLayout={setLayout}
               onSalaryDate={v => updateSettings({ salary_date: v })}
               onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
@@ -524,6 +591,14 @@ function AppContent({ session }: { session: Session }) {
             />
           </>
         )}
+
+        <CategoryBucketMapper
+          open={strategyMapperOpen}
+          onClose={() => setStrategyMapperOpen(false)}
+          categories={state.categories}
+          groups={state.groups}
+          onUpdateBucket={updateCategoryBucket}
+        />
 
         {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
 

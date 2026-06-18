@@ -1,4 +1,6 @@
 export type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet'
+export type BudgetBucket = 'needs' | 'wants' | 'savings'
+export type BudgetStrategyType = 'none' | 'balanced' | 'stable' | 'growth' | 'custom'
 export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment' | 'savings_contribution' | 'savings_withdrawal'
 
 export type GroupType =
@@ -29,6 +31,7 @@ export interface Category {
   user_id?: string
   is_visible?: boolean
   is_system?: boolean
+  budget_bucket?: BudgetBucket | null
 }
 
 export interface Account {
@@ -120,6 +123,11 @@ export interface Settings {
   challenge_excluded_txn_ids?:  string[] | null
   challenge_total_days?:        number
   challenge_success_days?:      number
+  budget_strategy?:             BudgetStrategyType
+  custom_needs_pct?:            number
+  custom_wants_pct?:            number
+  custom_savings_pct?:          number
+  last_reflection_date?:        string | null
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)

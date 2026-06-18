@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings } from '@/types'
+import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, BudgetBucket } from '@/types'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 const delta = (type: TransactionType, amount: number) =>
@@ -15,7 +15,7 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0 },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, budget_strategy: 'none', custom_needs_pct: 50, custom_wants_pct: 30, custom_savings_pct: 20, last_reflection_date: null },
   commitments: [],
   borrowings: [],
   transactions: [],
@@ -563,6 +563,11 @@ export function useSupabaseData(userId: string) {
   const toggleCategoryVisibility = useCallback(async (id: string, visible: boolean) => {
     await supabase.from('categories').update({ is_visible: visible }).eq('id', id)
     setState(s => ({ ...s, categories: s.categories.map(c => c.id === id ? { ...c, is_visible: visible } : c) }))
+  }, [])
+
+  const updateCategoryBucket = useCallback(async (id: string, bucket: BudgetBucket | null) => {
+    await supabase.from('categories').update({ budget_bucket: bucket }).eq('id', id)
+    setState(s => ({ ...s, categories: s.categories.map(c => c.id === id ? { ...c, budget_bucket: bucket } : c) }))
   }, [])
 
   const addBorrowing = useCallback(async (
@@ -1206,7 +1211,7 @@ export function useSupabaseData(userId: string) {
     addTransaction, deleteTransaction, updateTransaction, updateSettings,
     addAccount, deleteAccount, updateAccount,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
-    addCategory, updateCategory, deleteCategory, toggleCategoryVisibility,
+    addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,
     addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, updateCreditCardBalance,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,

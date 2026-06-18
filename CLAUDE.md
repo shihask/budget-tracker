@@ -34,6 +34,37 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `autopilot_enabled` | boolean | false | AI categorization, opt-in |
 | `dashboard_sections` | json\|null | null | Section order/visibility |
 | `track_savings` | boolean | false | Savings & Investments tracker, opt-in |
+| `budget_strategy` | 'none'\|'balanced'\|'stable'\|'growth'\|'custom' | 'none' | Budget Strategy framework |
+| `custom_needs_pct` | number | 50 | Custom strategy needs % |
+| `custom_wants_pct` | number | 30 | Custom strategy wants % |
+| `custom_savings_pct` | number | 20 | Custom strategy savings % |
+
+## Budget Strategy system
+Two independent budgeting systems coexist:
+1. **Spending Budget** (existing) — Daily/Weekly/Monthly limit on tracked expense categories
+2. **Budget Strategy** (new) — Allocate income across Needs/Wants/Savings per a financial framework
+
+### Key files
+| File | Purpose |
+|------|---------|
+| `src/components/BudgetStrategyCard.tsx` | Card shown on dashboard when strategy ≠ none; also exports `getStrategyPcts`, `getCategoryBucket` |
+| `src/components/CategoryBucketMapper.tsx` | BottomSheet for mapping "Other" group categories to budget buckets |
+
+### Bucket derivation (`getCategoryBucket`)
+- Group type `essential` or `commitment` → **needs**
+- Group type `savings` → **savings**
+- Group type `discretionary`, name ≠ "Other" → **wants**
+- Group name "Other" → uses `category.budget_bucket` from DB (user-defined)
+- System groups (income, transfer, borrowing, adjustment) → null (excluded)
+
+### SQL migrations needed
+```sql
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS budget_strategy text DEFAULT 'none';
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS custom_needs_pct integer DEFAULT 50;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS custom_wants_pct integer DEFAULT 30;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS custom_savings_pct integer DEFAULT 20;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS budget_bucket text DEFAULT NULL;
+```
 
 ## Auto-categorize in QuickAdd (three-tier)
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  
