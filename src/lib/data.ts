@@ -1,7 +1,7 @@
 // All seed data removed — everything loads from Supabase.
 // This file only contains pure calculation functions (no data).
 
-import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData } from '@/types'
+import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData, JourneyMilestone } from '@/types'
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 
 export const catById = (categories: AppState['categories']) =>
@@ -275,12 +275,66 @@ export function journeyData(state: AppState): JourneyData {
   const completedGoals = goalItems.filter(g => g.completed).length
   const activeGoals = goalItems.length
 
+  // Hero — single most impressive number
+  let heroValue: number, heroLabel: string
+  if (totalWealth > 0 && totalWealth >= rootsTotal) {
+    heroValue = totalWealth; heroLabel = 'Future Wealth Built'
+  } else if (rootsTotal > 0) {
+    heroValue = rootsTotal; heroLabel = 'Growth This Cycle'
+  } else {
+    heroValue = totalIncome; heroLabel = 'Seed Received'
+  }
+
+  // Milestones — inline achievements per section
+  const milestones: JourneyMilestone[] = []
+  if (totalIncome > 0 && rootsPct >= 30)
+    milestones.push({ emoji: '🌱', text: `${rootsPct}% of income invested — strong roots!`, section: 'roots' })
+  else if (rootsTotal > 0 && rootsPct > 0)
+    milestones.push({ emoji: '🌱', text: `${rootsPct}% of income directed to the future`, section: 'roots' })
+  if (challengeEnabled) {
+    if (streak >= 14) milestones.push({ emoji: '🔥', text: `${streak}-day streak — unstoppable!`, section: 'stem' })
+    else if (streak >= 7) milestones.push({ emoji: '🌿', text: `${streak}-day streak — keep going!`, section: 'stem' })
+    else if (successDays === 1) milestones.push({ emoji: '🌿', text: 'First challenge win this cycle!', section: 'stem' })
+  }
+  if (totalWealth >= 100000)
+    milestones.push({ emoji: '🌳', text: 'Wealth crossed ₹1 lakh!', section: 'branch' })
+  else if (totalWealth >= 50000)
+    milestones.push({ emoji: '🌳', text: 'Wealth crossed ₹50,000!', section: 'branch' })
+  if (completedGoals >= 1)
+    milestones.push({ emoji: '🌺', text: `${completedGoals} goal${completedGoals > 1 ? 's' : ''} achieved this cycle!`, section: 'flower' })
+
+  // Previous cycle — for comparison
+  const prevCycleEnd = new Date(cycleStart.getTime() - 86400000)
+  let prevCycleStart: Date
+  if (salaryDate && salaryDate >= 1 && salaryDate <= 31) {
+    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, salaryDate)
+  } else {
+    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, 1)
+  }
+  const prevRootsTotal = state.transactions
+    .filter(t => ['commitment', 'savings_contribution'].includes(t.transaction_type) &&
+      new Date(t.transaction_date) >= prevCycleStart &&
+      new Date(t.transaction_date) <= prevCycleEnd)
+    .reduce((s, t) => s + t.amount, 0)
+    + state.goal_contributions
+      .filter(gc => { const d = new Date(gc.created_at); return d >= prevCycleStart && d <= prevCycleEnd })
+      .reduce((s, gc) => s + gc.amount, 0)
+  const prevSavingsContributed = state.transactions
+    .filter(t => t.transaction_type === 'savings_contribution' &&
+      new Date(t.transaction_date) >= prevCycleStart &&
+      new Date(t.transaction_date) <= prevCycleEnd)
+    .reduce((s, t) => s + t.amount, 0)
+  const hasPrevData = prevRootsTotal > 0 || prevSavingsContributed > 0
+
   return {
     totalIncome, incomeItems,
     commitmentsPaid, savingsContributed, goalsContributed, rootsTotal, rootsPct,
     challengeEnabled, successDays, totalDays, leavesEarned, streak, successRate,
     wealthItems, totalWealth,
     goalItems, activeGoals, completedGoals,
+    heroValue, heroLabel,
+    milestones,
+    prevRootsTotal, prevSavingsContributed, hasPrevData,
     cycleLabel,
   }
 }

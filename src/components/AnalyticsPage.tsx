@@ -6,7 +6,7 @@ import { CAT_COLORS } from '@/lib/tokens'
 import { weeklyTrend, weeklyBars, categorySplit, monthTimeline, journeyData } from '@/lib/data'
 import { AreaTrend } from './Charts'
 import { analyticsInsightWithAI } from '@/lib/gemini'
-import type { AppState, DerivedMetrics } from '@/types'
+import type { AppState, DerivedMetrics, JourneyMilestone } from '@/types'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell as PieCell,
@@ -26,6 +26,21 @@ interface Props {
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
 }
 
+
+function JourneyMilestones({ items, section, color }: { items: JourneyMilestone[]; section: JourneyMilestone['section']; color: string }) {
+  const relevant = items.filter(m => m.section === section)
+  if (relevant.length === 0) return null
+  return (
+    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {relevant.map(m => (
+        <div key={m.text} style={{ display: 'flex', alignItems: 'center', gap: 8, background: color + '14', borderRadius: 10, padding: '7px 10px' }}>
+          <span style={{ fontSize: 14, lineHeight: 1 }}>{m.emoji}</span>
+          <span style={{ font: '600 11px Plus Jakarta Sans', color }}>{m.text}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function TimelineDayRuler({ daysInMonth, todayDay, mutedColor, accentColor }: { daysInMonth: number; todayDay: number; mutedColor: string; accentColor: string }) {
   const markers: number[] = []
@@ -505,17 +520,32 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
             {/* Header */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
                 {journey.cycleLabel} Journey
               </div>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
                 Where did your money grow?
               </div>
             </div>
 
-            {/* Flow summary strip */}
-            <div style={{ background: c.surface2, borderRadius: 14, padding: '10px 8px', marginBottom: 24, display: 'flex', alignItems: 'center' }}>
+            {/* Hero metric — one big number */}
+            <div style={{ background: `linear-gradient(135deg, ${J.branch}12, ${J.flower}12)`, borderRadius: 20, padding: '18px 18px 16px', marginBottom: 20, border: `1px solid ${J.branch}1E` }}>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 6 }}>
+                {journey.heroLabel}
+              </div>
+              <div style={{ font: '800 36px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                {journey.heroValue > 0 ? fmt(journey.heroValue) : '—'}
+              </div>
+              {journey.heroValue > 0 && journey.totalIncome > 0 && journey.heroValue !== journey.totalIncome && (
+                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 7 }}>
+                  from {fmt(journey.totalIncome)} income this cycle
+                </div>
+              )}
+            </div>
+
+            {/* Mini flow strip */}
+            <div style={{ background: c.surface2, borderRadius: 14, padding: '10px 8px', marginBottom: 22, display: 'flex', alignItems: 'center' }}>
               {([
                 { e: '🌰', v: journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—', color: J.seed },
                 { e: '🌱', v: journey.rootsTotal > 0 ? `${journey.rootsPct}%` : '—', color: J.roots },
@@ -525,10 +555,10 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
               ] as const).map((item, i, arr) => (
                 <>
                   <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-                    <div style={{ fontSize: 18, lineHeight: '1.2' }}>{item.e}</div>
+                    <div style={{ fontSize: 16, lineHeight: '1.2' }}>{item.e}</div>
                     <div style={{ font: '700 9px ui-monospace,monospace', color: item.color, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.v}</div>
                   </div>
-                  {i < arr.length - 1 && <div key={`a${i}`} style={{ font: '600 10px Plus Jakarta Sans', color: c.faint, flexShrink: 0 }}>›</div>}
+                  {i < arr.length - 1 && <div key={`a${i}`} style={{ font: '600 9px Plus Jakarta Sans', color: c.faint, flexShrink: 0 }}>›</div>}
                 </>
               ))}
             </div>
@@ -554,17 +584,26 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                   </div>
                 : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No income logged this cycle yet</div>
               }
+              <JourneyMilestones items={journey.milestones} section="seed" color={J.seed} />
             </div>
 
-            {/* Connector → Roots */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0', gap: 2 }}>
-              <div style={{ width: 2, height: 12, background: J.seed, opacity: 0.3, borderRadius: 1 }} />
-              {journey.rootsPct > 0 && (
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '2px 10px' }}>
-                  {journey.rootsPct}% directed to future
+            {/* Connector → Roots (shows flow quantities) */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0' }}>
+              <div style={{ width: 2, height: 8, background: J.seed, opacity: 0.35, borderRadius: 1 }} />
+              <div style={{ background: c.surface2, borderRadius: 14, padding: '9px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, margin: '2px 0', minWidth: 170 }}>
+                <div style={{ font: '700 11px ui-monospace, monospace', color: J.seed }}>
+                  🌰 {journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—'}
                 </div>
-              )}
-              <div style={{ width: 2, height: 12, background: J.roots, opacity: 0.3, borderRadius: 1 }} />
+                <div style={{ width: 1.5, height: 8, background: `linear-gradient(to bottom,${J.seed},${J.roots})`, opacity: 0.45, borderRadius: 1 }} />
+                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>
+                  {journey.rootsPct > 0 ? `${journey.rootsPct}% directed to future` : '↓'}
+                </div>
+                <div style={{ width: 1.5, height: 8, background: `linear-gradient(to bottom,${J.seed},${J.roots})`, opacity: 0.45, borderRadius: 1 }} />
+                <div style={{ font: '700 11px ui-monospace, monospace', color: J.roots }}>
+                  🌱 {journey.rootsTotal > 0 ? fmt(journey.rootsTotal) : '—'}
+                </div>
+              </div>
+              <div style={{ width: 2, height: 8, background: J.roots, opacity: 0.35, borderRadius: 1 }} />
             </div>
 
             {/* ===== ROOTS ===== */}
@@ -596,6 +635,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                   </div>
                 : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No roots built yet this cycle</div>
               }
+              <JourneyMilestones items={journey.milestones} section="roots" color={J.roots} />
             </div>
 
             {/* Connector → Stem */}
@@ -641,6 +681,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                         </div>
                       ))}
                     </div>
+                    <JourneyMilestones items={journey.milestones} section="stem" color={J.stem} />
                   </>
               }
             </div>
@@ -676,6 +717,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                     ))}
                   </div>
               }
+              <JourneyMilestones items={journey.milestones} section="branch" color={J.branch} />
             </div>
 
             {/* Connector → Flowers */}
@@ -719,9 +761,51 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                         {journey.completedGoals} goal{journey.completedGoals > 1 ? 's' : ''} bloomed this cycle
                       </div>
                     )}
+                    <JourneyMilestones items={journey.milestones} section="flower" color={J.flower} />
                   </>
               }
             </div>
+
+            {/* ===== CYCLE COMPARISON ===== */}
+            {journey.hasPrevData && (
+              <div style={{ marginTop: 16, background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid ${c.faint}` }}>
+                <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 12 }}>Compared to Last Cycle</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    { label: 'Roots',   curr: journey.rootsTotal,        prev: journey.prevRootsTotal,        color: J.roots  },
+                    { label: 'Savings', curr: journey.savingsContributed, prev: journey.prevSavingsContributed, color: J.branch },
+                  ].filter(row => row.prev > 0 || row.curr > 0).map(row => {
+                    const diff = row.prev > 0 ? Math.round(((row.curr - row.prev) / row.prev) * 100) : null
+                    return (
+                      <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: 2, background: row.color, flexShrink: 0 }} />
+                        <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{row.label}</span>
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(row.curr)}</span>
+                        {diff !== null && (
+                          <span style={{
+                            font: '700 11px Plus Jakarta Sans',
+                            color: diff >= 0 ? '#16A34A' : '#EF4444',
+                            background: diff >= 0 ? '#16A34A18' : '#EF444418',
+                            borderRadius: 6, padding: '2px 8px', minWidth: 44, textAlign: 'center', flexShrink: 0,
+                          }}>
+                            {diff >= 0 ? '+' : ''}{diff}%
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {journey.activeGoals > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: 2, background: J.flower, flexShrink: 0 }} />
+                      <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>Flowers</span>
+                      <span style={{ font: '600 11px Plus Jakarta Sans', color: J.flower }}>
+                        {journey.activeGoals} active{journey.completedGoals > 0 ? ` · ${journey.completedGoals} bloomed` : ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
           </div>
         )}

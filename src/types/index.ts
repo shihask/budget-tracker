@@ -259,6 +259,7 @@ export interface MonthTimelineData {
 export interface JourneyIncomeItem  { name: string; amount: number }
 export interface JourneyWealthItem  { name: string; type: string; value: number }
 export interface JourneyGoalItem    { name: string; target: number; current: number; pct: number; completed: boolean }
+export interface JourneyMilestone   { emoji: string; text: string; section: 'seed' | 'roots' | 'stem' | 'branch' | 'flower' }
 
 export interface JourneyData {
   // Seed
@@ -284,6 +285,15 @@ export interface JourneyData {
   goalItems: JourneyGoalItem[]
   activeGoals: number
   completedGoals: number
+  // Hero
+  heroValue: number
+  heroLabel: string
+  // Milestones
+  milestones: JourneyMilestone[]
+  // Cycle comparison
+  prevRootsTotal: number
+  prevSavingsContributed: number
+  hasPrevData: boolean
   // Meta
   cycleLabel: string
 }
