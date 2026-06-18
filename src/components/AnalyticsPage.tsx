@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
-import { weeklyTrend, weeklyBars, categorySplit, monthTimeline } from '@/lib/data'
+import { weeklyTrend, weeklyBars, categorySplit, monthTimeline, journeyData } from '@/lib/data'
 import { AreaTrend } from './Charts'
 import { analyticsInsightWithAI } from '@/lib/gemini'
 import type { AppState, DerivedMetrics } from '@/types'
@@ -12,11 +12,12 @@ import {
   PieChart, Pie, Cell as PieCell,
 } from 'recharts'
 
-type Tab = 'trend' | 'weeks' | 'category' | 'timeline'
-const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline']]
+type Tab = 'trend' | 'weeks' | 'category' | 'timeline' | 'journey'
+const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline'], ['journey', '🌱 Journey']]
 const GROUP_PALETTE = ['#F59E0B', '#10B981', '#7C3AED', '#0EA5E9', '#EF4444', '#F97316', '#EC4899', '#6366F1']
 const BAR_MAX_H = 72
 const DAY_W = 32
+const J = { seed: '#D97706', roots: '#059669', stem: '#16A34A', branch: '#0D9488', flower: '#D946EF' }
 
 interface Props {
   state: AppState
@@ -119,6 +120,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const cats     = useMemo(() => categorySplit(state), [state])
   const timeline = useMemo(() => monthTimeline(state), [state])
   const maxDayTotal = useMemo(() => Math.max(...timeline.byDay.map(d => d.total), 1), [timeline])
+  const journey  = useMemo(() => journeyData(state), [state])
 
   useEffect(() => {
     if (tab === 'timeline' && timelineView === 'day' && scrollRef.current) {
@@ -167,8 +169,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   }
 
   const tabStyle = (k: Tab): React.CSSProperties => ({
-    flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '7px 0',
-    font: '700 11px Plus Jakarta Sans', transition: 'all 0.2s',
+    flexShrink: 0, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '7px 10px',
+    font: '700 11px Plus Jakarta Sans', transition: 'all 0.2s', whiteSpace: 'nowrap',
     background: tab === k ? c.surface : 'transparent',
     color: tab === k ? c.ink : c.muted,
     boxShadow: tab === k ? c.cardShadow : 'none',
@@ -220,7 +222,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
       <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 16px calc(32px + env(safe-area-inset-bottom, 0px))' }}>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, background: c.surface2, borderRadius: 12, padding: 4, marginBottom: 20 }}>
+        <div className="tab-scroll" style={{ display: 'flex', gap: 4, background: c.surface2, borderRadius: 12, padding: 4, marginBottom: 20, overflowX: 'auto', scrollbarWidth: 'none' as any }}>
           {TABS.map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} style={tabStyle(k)}>{l}</button>
           ))}
@@ -498,8 +500,234 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
           </div>
         )}
 
+        {/* ── Journey ───────────────────────────────────────── */}
+        {tab === 'journey' && (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+            {/* Header */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>
+                {journey.cycleLabel} Journey
+              </div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                Where did your money grow?
+              </div>
+            </div>
+
+            {/* Flow summary strip */}
+            <div style={{ background: c.surface2, borderRadius: 14, padding: '10px 8px', marginBottom: 24, display: 'flex', alignItems: 'center' }}>
+              {([
+                { e: '🌰', v: journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—', color: J.seed },
+                { e: '🌱', v: journey.rootsTotal > 0 ? `${journey.rootsPct}%` : '—', color: J.roots },
+                { e: '🌿', v: journey.challengeEnabled ? `${journey.streak}d` : '—', color: J.stem },
+                { e: '🌳', v: journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—', color: J.branch },
+                { e: '🌺', v: journey.activeGoals > 0 ? `${journey.activeGoals}` : '—', color: J.flower },
+              ] as const).map((item, i, arr) => (
+                <>
+                  <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                    <div style={{ fontSize: 18, lineHeight: '1.2' }}>{item.e}</div>
+                    <div style={{ font: '700 9px ui-monospace,monospace', color: item.color, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.v}</div>
+                  </div>
+                  {i < arr.length - 1 && <div key={`a${i}`} style={{ font: '600 10px Plus Jakarta Sans', color: c.faint, flexShrink: 0 }}>›</div>}
+                </>
+              ))}
+            </div>
+
+            {/* ===== SEED ===== */}
+            <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid ${J.seed}22` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: journey.incomeItems.length > 0 ? 12 : 0 }}>
+                <span style={{ fontSize: 26, lineHeight: '1' }}>🌰</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: J.seed }}>Seed</div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Income this cycle</div>
+                </div>
+                <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>{journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—'}</div>
+              </div>
+              {journey.incomeItems.length > 0
+                ? <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {journey.incomeItems.map(item => (
+                      <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>{item.name}</span>
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(item.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No income logged this cycle yet</div>
+              }
+            </div>
+
+            {/* Connector → Roots */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0', gap: 2 }}>
+              <div style={{ width: 2, height: 12, background: J.seed, opacity: 0.3, borderRadius: 1 }} />
+              {journey.rootsPct > 0 && (
+                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '2px 10px' }}>
+                  {journey.rootsPct}% directed to future
+                </div>
+              )}
+              <div style={{ width: 2, height: 12, background: J.roots, opacity: 0.3, borderRadius: 1 }} />
+            </div>
+
+            {/* ===== ROOTS ===== */}
+            <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid ${J.roots}22` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 26, lineHeight: '1' }}>🌱</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: J.roots }}>Roots</div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Future wealth directed</div>
+                </div>
+                <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>{journey.rootsTotal > 0 ? fmt(journey.rootsTotal) : '—'}</div>
+              </div>
+              {[
+                { label: 'Commitments', amt: journey.commitmentsPaid },
+                { label: 'Savings',     amt: journey.savingsContributed },
+                { label: 'Goals',       amt: journey.goalsContributed },
+              ].some(r => r.amt > 0)
+                ? <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {[
+                      { label: 'Commitments', amt: journey.commitmentsPaid },
+                      { label: 'Savings',     amt: journey.savingsContributed },
+                      { label: 'Goals',       amt: journey.goalsContributed },
+                    ].filter(r => r.amt > 0).map(r => (
+                      <div key={r.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>{r.label}</span>
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(r.amt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No roots built yet this cycle</div>
+              }
+            </div>
+
+            {/* Connector → Stem */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '3px 0' }}>
+              <div style={{ width: 2, height: 28, background: `linear-gradient(to bottom,${J.roots},${J.stem})`, opacity: 0.35, borderRadius: 1 }} />
+            </div>
+
+            {/* ===== STEM ===== */}
+            <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid ${J.stem}22` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: journey.challengeEnabled ? 12 : 0 }}>
+                <span style={{ fontSize: 26, lineHeight: '1' }}>🌿</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: J.stem }}>Stem</div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Daily habits & discipline</div>
+                </div>
+                {journey.challengeEnabled && journey.streak > 0 && (
+                  <div style={{ font: '800 14px Plus Jakarta Sans', color: J.stem }}>{journey.streak}d streak</div>
+                )}
+              </div>
+              {!journey.challengeEnabled
+                ? <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Enable the Daily Challenge to grow your stem</div>
+                : <>
+                    {journey.totalDays > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                          <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Success rate</span>
+                          <span style={{ font: '700 11px Plus Jakarta Sans', color: c.ink }}>{journey.successDays} / {journey.totalDays} days · {journey.successRate}%</span>
+                        </div>
+                        <div style={{ height: 5, background: c.faint, borderRadius: 999, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${journey.successRate}%`, background: J.stem, borderRadius: 999, transition: 'width 0.6s ease' }} />
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {[
+                        { label: 'Leaves', value: journey.leavesEarned },
+                        { label: 'Streak', value: `${journey.streak}d` },
+                        ...(journey.successRate > 0 ? [{ label: 'Success', value: `${journey.successRate}%` }] : []),
+                      ].map(item => (
+                        <div key={item.label} style={{ flex: 1, background: c.surface2, borderRadius: 10, padding: '9px 6px', textAlign: 'center' }}>
+                          <div style={{ font: '800 15px Plus Jakarta Sans', color: J.stem }}>{item.value}</div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{item.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+              }
+            </div>
+
+            {/* Connector → Branches */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '3px 0' }}>
+              <div style={{ width: 2, height: 28, background: `linear-gradient(to bottom,${J.stem},${J.branch})`, opacity: 0.35, borderRadius: 1 }} />
+            </div>
+
+            {/* ===== BRANCHES ===== */}
+            <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid ${J.branch}22` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: journey.wealthItems.length > 0 ? 12 : 0 }}>
+                <span style={{ fontSize: 26, lineHeight: '1' }}>🌳</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: J.branch }}>Branches</div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Wealth growing</div>
+                </div>
+                {journey.totalWealth > 0 && <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>{fmt(journey.totalWealth)}</div>}
+              </div>
+              {journey.wealthItems.length === 0
+                ? <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                    {state.settings.track_savings ? 'No active investments yet' : 'Enable savings tracking to see your branches'}
+                  </div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {journey.wealthItems.map(item => (
+                      <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+                          <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{item.type}</div>
+                        </div>
+                        <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, flexShrink: 0 }}>{fmt(item.value)}</div>
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+
+            {/* Connector → Flowers */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '3px 0' }}>
+              <div style={{ width: 2, height: 28, background: `linear-gradient(to bottom,${J.branch},${J.flower})`, opacity: 0.35, borderRadius: 1 }} />
+            </div>
+
+            {/* ===== FLOWERS ===== */}
+            <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid ${J.flower}22` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: journey.goalItems.length > 0 ? 12 : 0 }}>
+                <span style={{ fontSize: 26, lineHeight: '1' }}>🌺</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: J.flower }}>Flowers</div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Goals & milestones</div>
+                </div>
+                {journey.activeGoals > 0 && <div style={{ font: '800 14px Plus Jakarta Sans', color: c.ink }}>{journey.activeGoals} active</div>}
+              </div>
+              {journey.goalItems.length === 0
+                ? <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                    Set a goal to see your first flower bloom
+                  </div>
+                : <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {journey.goalItems.map(g => (
+                        <div key={g.name}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                            <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</span>
+                            {g.completed
+                              ? <span style={{ font: '700 10px Plus Jakarta Sans', color: J.flower, background: J.flower + '18', borderRadius: 6, padding: '2px 8px', flexShrink: 0 }}>🌺 Bloomed</span>
+                              : <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, flexShrink: 0 }}>{g.pct}%</span>
+                            }
+                          </div>
+                          <div style={{ height: 5, background: c.faint, borderRadius: 999, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${g.pct}%`, background: g.completed ? J.flower : J.flower + 'AA', borderRadius: 999, transition: 'width 0.6s ease' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {journey.completedGoals > 0 && (
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: J.flower, textAlign: 'center', marginTop: 12 }}>
+                        {journey.completedGoals} goal{journey.completedGoals > 1 ? 's' : ''} bloomed this cycle
+                      </div>
+                    )}
+                  </>
+              }
+            </div>
+
+          </div>
+        )}
+
         {/* ── Mint Analytics AI ─────────────────────────────── */}
-        {(state.settings.autopilot_enabled ?? false) && (
+        {(state.settings.autopilot_enabled ?? false) && tab !== 'journey' && (
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: `1px solid ${c.faint}` }}>
 
           {!insight && !loadingInsight && (
@@ -605,7 +833,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         )}
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } } @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} } .tab-scroll::-webkit-scrollbar{display:none}`}</style>
     </div>,
     document.body
   )

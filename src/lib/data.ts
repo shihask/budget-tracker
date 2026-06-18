@@ -1,7 +1,7 @@
 // All seed data removed — everything loads from Supabase.
 // This file only contains pure calculation functions (no data).
 
-import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData } from '@/types'
+import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData } from '@/types'
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 
 export const catById = (categories: AppState['categories']) =>
@@ -198,5 +198,89 @@ export function monthTimeline(state: AppState): MonthTimelineData {
     byDay, byCategory, byGroup,
     daysInMonth, todayDay, monthLabel,
     totalSpent: monthTxns.reduce((s, t) => s + t.amount, 0),
+  }
+}
+
+const SAVINGS_TYPE_LABEL: Record<string, string> = {
+  sip: 'Mutual Funds', gold: 'Gold', rd: 'Recurring Deposit',
+  fd: 'Fixed Deposit', ppf_nps: 'PPF / NPS', chit: 'Chit Fund', custom: 'Investment',
+}
+
+export function journeyData(state: AppState): JourneyData {
+  const now = TODAY
+  const salaryDate = state.settings.salary_date
+  let cycleStart: Date
+  if (salaryDate && salaryDate >= 1 && salaryDate <= 31) {
+    const day = now.getDate()
+    cycleStart = day >= salaryDate
+      ? new Date(now.getFullYear(), now.getMonth(), salaryDate)
+      : new Date(now.getFullYear(), now.getMonth() - 1, salaryDate)
+  } else {
+    cycleStart = getMonthStart(now)
+  }
+  const cycleLabel = cycleStart.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  const catMap = catById(state.categories)
+
+  // Seed — income in this cycle
+  const incomeTxns = state.transactions.filter(
+    t => t.transaction_type === 'income' && new Date(t.transaction_date) >= cycleStart
+  )
+  const incomeByCat: Record<string, number> = {}
+  incomeTxns.forEach(t => {
+    const name = catMap[t.category_id ?? '']?.name || 'Income'
+    incomeByCat[name] = (incomeByCat[name] || 0) + t.amount
+  })
+  const incomeItems = Object.entries(incomeByCat)
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount)
+  const totalIncome = incomeTxns.reduce((s, t) => s + t.amount, 0)
+
+  // Roots — commitments paid + savings contributed + goal contributions
+  const commitmentsPaid = state.transactions
+    .filter(t => t.transaction_type === 'commitment' && new Date(t.transaction_date) >= cycleStart)
+    .reduce((s, t) => s + t.amount, 0)
+  const savingsContributed = state.transactions
+    .filter(t => t.transaction_type === 'savings_contribution' && new Date(t.transaction_date) >= cycleStart)
+    .reduce((s, t) => s + t.amount, 0)
+  const goalsContributed = state.goal_contributions
+    .filter(gc => new Date(gc.created_at) >= cycleStart)
+    .reduce((s, gc) => s + gc.amount, 0)
+  const rootsTotal = commitmentsPaid + savingsContributed + goalsContributed
+  const rootsPct = totalIncome > 0 ? Math.round((rootsTotal / totalIncome) * 100) : 0
+
+  // Stem — challenge habit metrics
+  const st = state.settings
+  const challengeEnabled = st.challenge_enabled ?? false
+  const successDays = st.challenge_success_days ?? 0
+  const totalDays = st.challenge_total_days ?? 0
+  const leavesEarned = st.challenge_month_leaves ?? st.challenge_leaves ?? 0
+  const streak = st.challenge_streak ?? 0
+  const successRate = totalDays > 0 ? Math.round((successDays / totalDays) * 100) : 0
+
+  // Branches — active savings/investment current values
+  const wealthItems = state.savings
+    .filter(sv => sv.is_active && sv.current_value > 0)
+    .sort((a, b) => b.current_value - a.current_value)
+    .map(sv => ({ name: sv.name, type: SAVINGS_TYPE_LABEL[sv.type] || sv.type, value: sv.current_value }))
+  const totalWealth = wealthItems.reduce((s, w) => s + w.value, 0)
+
+  // Flowers — active goals and their progress
+  const goalItems = state.goals
+    .filter(g => g.is_active)
+    .map(g => {
+      const pct = g.goal_amount > 0 ? Math.min(100, Math.round((g.current_saved / g.goal_amount) * 100)) : 0
+      return { name: g.name, target: g.goal_amount, current: g.current_saved, pct, completed: pct >= 100 }
+    })
+    .sort((a, b) => b.pct - a.pct)
+  const completedGoals = goalItems.filter(g => g.completed).length
+  const activeGoals = goalItems.length
+
+  return {
+    totalIncome, incomeItems,
+    commitmentsPaid, savingsContributed, goalsContributed, rootsTotal, rootsPct,
+    challengeEnabled, successDays, totalDays, leavesEarned, streak, successRate,
+    wealthItems, totalWealth,
+    goalItems, activeGoals, completedGoals,
+    cycleLabel,
   }
 }

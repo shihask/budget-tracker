@@ -256,6 +256,38 @@ export interface MonthTimelineData {
   totalSpent: number
 }
 
+export interface JourneyIncomeItem  { name: string; amount: number }
+export interface JourneyWealthItem  { name: string; type: string; value: number }
+export interface JourneyGoalItem    { name: string; target: number; current: number; pct: number; completed: boolean }
+
+export interface JourneyData {
+  // Seed
+  totalIncome: number
+  incomeItems: JourneyIncomeItem[]
+  // Roots
+  commitmentsPaid: number
+  savingsContributed: number
+  goalsContributed: number
+  rootsTotal: number
+  rootsPct: number
+  // Stem
+  challengeEnabled: boolean
+  successDays: number
+  totalDays: number
+  leavesEarned: number
+  streak: number
+  successRate: number
+  // Branches
+  wealthItems: JourneyWealthItem[]
+  totalWealth: number
+  // Flowers
+  goalItems: JourneyGoalItem[]
+  activeGoals: number
+  completedGoals: number
+  // Meta
+  cycleLabel: string
+}
+
 export type Layout = 'grid' | 'carousel' | 'list'
 
 export type DashboardSectionId =
