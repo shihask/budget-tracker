@@ -1,7 +1,7 @@
 // All seed data removed — everything loads from Supabase.
 // This file only contains pure calculation functions (no data).
 
-import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint } from '@/types'
+import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData } from '@/types'
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 
 export const catById = (categories: AppState['categories']) =>
@@ -130,4 +130,73 @@ export function categorySplit(state: AppState): CatPoint[] {
       if (name) map[name] = (map[name] || 0) + t.amount
     })
   return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+}
+
+export function monthTimeline(state: AppState): MonthTimelineData {
+  const now = TODAY
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const daysInMonth = new Date(y, m + 1, 0).getDate()
+  const todayDay = now.getDate()
+  const monthLabel = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const prefix = `${y}-${pad(m + 1)}`
+
+  const catMap = catById(state.categories)
+  const monthTxns = state.transactions.filter(
+    t => t.transaction_type === 'expense' && t.transaction_date.startsWith(prefix)
+  )
+
+  const byDay: TimelineDayPoint[] = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1
+    const isoDate = `${prefix}-${pad(day)}`
+    const dayTxns = monthTxns.filter(t => t.transaction_date === isoDate)
+    return {
+      day,
+      isoDate,
+      total: dayTxns.reduce((s, t) => s + t.amount, 0),
+      isFuture: day > todayDay,
+      transactions: dayTxns,
+    }
+  })
+
+  const catAcc: Record<string, { name: string; group: string; total: number; days: Record<string, number> }> = {}
+  monthTxns.forEach(t => {
+    const cat = catMap[t.category_id ?? '']
+    if (!cat) return
+    if (!catAcc[cat.name]) catAcc[cat.name] = { name: cat.name, group: cat.group_name, total: 0, days: {} }
+    catAcc[cat.name].total += t.amount
+    catAcc[cat.name].days[t.transaction_date] = (catAcc[cat.name].days[t.transaction_date] || 0) + t.amount
+  })
+  const byCategory: TimelineLane[] = Object.values(catAcc)
+    .sort((a, b) => b.total - a.total)
+    .map(c => ({
+      name: c.name, group: c.group, total: c.total,
+      days: Object.entries(c.days).map(([isoDate, amount]) => ({
+        day: parseInt(isoDate.split('-')[2]), isoDate, amount,
+      })).sort((a, b) => a.day - b.day),
+    }))
+
+  const grpAcc: Record<string, { name: string; total: number; days: Record<string, number> }> = {}
+  monthTxns.forEach(t => {
+    const cat = catMap[t.category_id ?? '']
+    const group = cat?.group_name || 'Uncategorized'
+    if (!grpAcc[group]) grpAcc[group] = { name: group, total: 0, days: {} }
+    grpAcc[group].total += t.amount
+    grpAcc[group].days[t.transaction_date] = (grpAcc[group].days[t.transaction_date] || 0) + t.amount
+  })
+  const byGroup: TimelineLane[] = Object.values(grpAcc)
+    .sort((a, b) => b.total - a.total)
+    .map(g => ({
+      name: g.name, total: g.total,
+      days: Object.entries(g.days).map(([isoDate, amount]) => ({
+        day: parseInt(isoDate.split('-')[2]), isoDate, amount,
+      })).sort((a, b) => a.day - b.day),
+    }))
+
+  return {
+    byDay, byCategory, byGroup,
+    daysInMonth, todayDay, monthLabel,
+    totalSpent: monthTxns.reduce((s, t) => s + t.amount, 0),
+  }
 }

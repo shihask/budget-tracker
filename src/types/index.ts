@@ -231,6 +231,31 @@ export interface TrendPoint { label: string; date: string; value: number }
 export interface BarPoint   { label: string; value: number }
 export interface CatPoint   { name: string; value: number }
 
+export interface TimelineDayPoint {
+  day: number
+  isoDate: string
+  total: number
+  isFuture: boolean
+  transactions: Transaction[]
+}
+
+export interface TimelineLane {
+  name: string
+  group?: string
+  total: number
+  days: Array<{ day: number; isoDate: string; amount: number }>
+}
+
+export interface MonthTimelineData {
+  byDay: TimelineDayPoint[]
+  byCategory: TimelineLane[]
+  byGroup: TimelineLane[]
+  daysInMonth: number
+  todayDay: number
+  monthLabel: string
+  totalSpent: number
+}
+
 export type Layout = 'grid' | 'carousel' | 'list'
 
 export type DashboardSectionId =

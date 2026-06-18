@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
-import { weeklyTrend, weeklyBars, categorySplit } from '@/lib/data'
+import { weeklyTrend, weeklyBars, categorySplit, monthTimeline } from '@/lib/data'
 import { AreaTrend } from './Charts'
 import { analyticsInsightWithAI } from '@/lib/gemini'
 import type { AppState, DerivedMetrics } from '@/types'
@@ -12,8 +12,11 @@ import {
   PieChart, Pie, Cell as PieCell,
 } from 'recharts'
 
-type Tab = 'trend' | 'weeks' | 'category'
-const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category']]
+type Tab = 'trend' | 'weeks' | 'category' | 'timeline'
+const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline']]
+const GROUP_PALETTE = ['#F59E0B', '#10B981', '#7C3AED', '#0EA5E9', '#EF4444', '#F97316', '#EC4899', '#6366F1']
+const BAR_MAX_H = 72
+const DAY_W = 32
 
 interface Props {
   state: AppState
@@ -23,12 +26,35 @@ interface Props {
 }
 
 
+function TimelineDayRuler({ daysInMonth, todayDay, mutedColor, accentColor }: { daysInMonth: number; todayDay: number; mutedColor: string; accentColor: string }) {
+  const markers: number[] = []
+  for (let d = 1; d <= daysInMonth; d += 5) markers.push(d)
+  if (markers[markers.length - 1] !== daysInMonth) markers.push(daysInMonth)
+  return (
+    <div style={{ position: 'relative', height: 18, marginTop: 6 }}>
+      {markers.map(d => (
+        <div key={d} style={{
+          position: 'absolute',
+          left: `${((d - 0.5) / daysInMonth) * 100}%`,
+          transform: 'translateX(-50%)',
+          font: '500 9px ui-monospace, monospace',
+          color: d === todayDay ? accentColor : mutedColor,
+          opacity: 0.7,
+        }}>{d}</div>
+      ))}
+    </div>
+  )
+}
+
 export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>('trend')
   const [insight, setInsight] = useState<string | null>(null)
   const [loadingInsight, setLoadingInsight] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
+  const [timelineView, setTimelineView] = useState<'day' | 'category' | 'group'>('day')
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   // Swipe-back gesture
   const [dragX, setDragX] = useState(0)
@@ -88,9 +114,18 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
     }
   }
 
-  const trend = useMemo(() => weeklyTrend(state), [state])
-  const bars  = useMemo(() => weeklyBars(state), [state])
-  const cats  = useMemo(() => categorySplit(state), [state])
+  const trend    = useMemo(() => weeklyTrend(state), [state])
+  const bars     = useMemo(() => weeklyBars(state), [state])
+  const cats     = useMemo(() => categorySplit(state), [state])
+  const timeline = useMemo(() => monthTimeline(state), [state])
+  const maxDayTotal = useMemo(() => Math.max(...timeline.byDay.map(d => d.total), 1), [timeline])
+
+  useEffect(() => {
+    if (tab === 'timeline' && timelineView === 'day' && scrollRef.current) {
+      const containerW = scrollRef.current.clientWidth
+      scrollRef.current.scrollLeft = (timeline.todayDay - 1) * DAY_W - containerW / 2 + DAY_W / 2
+    }
+  }, [tab, timelineView, timeline.todayDay])
 
   const trendTotal = trend.reduce((s, x) => s + x.value, 0)
   const catTotal   = cats.reduce((s, x) => s + x.value, 0)
@@ -132,8 +167,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   }
 
   const tabStyle = (k: Tab): React.CSSProperties => ({
-    flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '8px 0',
-    font: '700 12.5px Plus Jakarta Sans', transition: 'all 0.2s',
+    flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '7px 0',
+    font: '700 11px Plus Jakarta Sans', transition: 'all 0.2s',
     background: tab === k ? c.surface : 'transparent',
     color: tab === k ? c.ink : c.muted,
     boxShadow: tab === k ? c.cardShadow : 'none',
@@ -298,6 +333,169 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
               </div>
             </div>
           )
+        )}
+
+        {/* ── Timeline ──────────────────────────────────────── */}
+        {tab === 'timeline' && (
+          <div>
+            {/* Month total */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 14 }}>
+              <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink }}>{fmt(timeline.totalSpent)}</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>{timeline.monthLabel}</div>
+            </div>
+
+            {/* Sub-toggle */}
+            <div style={{ display: 'flex', gap: 3, background: c.surface2, borderRadius: 10, padding: 3, marginBottom: 20 }}>
+              {(['day', 'category', 'group'] as const).map(v => (
+                <button key={v} onClick={() => { setTimelineView(v); setSelectedDay(null) }} style={{
+                  flex: 1, border: 'none', cursor: 'pointer', borderRadius: 8, padding: '6px 0',
+                  font: '700 11px Plus Jakarta Sans', transition: 'all 0.18s',
+                  background: timelineView === v ? c.surface : 'transparent',
+                  color: timelineView === v ? c.ink : c.muted,
+                  boxShadow: timelineView === v ? c.cardShadow : 'none',
+                }}>
+                  {v === 'day' ? 'By Day' : v === 'category' ? 'By Category' : 'By Group'}
+                </button>
+              ))}
+            </div>
+
+            {/* ── By Day ── */}
+            {timelineView === 'day' && (
+              <div>
+                <div ref={scrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', minWidth: timeline.daysInMonth * DAY_W }}>
+                    {timeline.byDay.map(d => {
+                      const isToday = d.day === timeline.todayDay
+                      const isSel   = selectedDay === d.day
+                      const barH    = d.total > 0 ? Math.max(4, Math.round((d.total / maxDayTotal) * BAR_MAX_H)) : 0
+                      return (
+                        <div key={d.day} data-day={d.day}
+                          onClick={() => !d.isFuture && setSelectedDay(isSel ? null : d.day)}
+                          style={{ width: DAY_W, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: d.isFuture ? 'default' : 'pointer', opacity: d.isFuture ? 0.28 : 1 }}>
+                          {/* bar column */}
+                          <div style={{ height: BAR_MAX_H + 4, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', width: '100%' }}>
+                            {barH > 0
+                              ? <div style={{ width: 18, height: barH, borderRadius: '5px 5px 2px 2px', background: isSel ? c.accent : isToday ? c.accent : c.barDim, opacity: isSel || isToday ? 1 : 0.75, transition: 'height 0.3s ease' }} />
+                              : <div style={{ width: 2, height: 2, borderRadius: '50%', background: c.faint }} />
+                            }
+                          </div>
+                          {/* day number */}
+                          <div style={{ font: `${isToday ? '800' : '500'} 9px ui-monospace, monospace`, color: isToday ? c.accent : isSel ? c.ink : c.muted, marginTop: 3 }}>
+                            {d.day}
+                          </div>
+                          {/* today dot */}
+                          <div style={{ height: 5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {isToday && <div style={{ width: 3, height: 3, borderRadius: '50%', background: c.accent }} />}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Selected day detail */}
+                {selectedDay !== null && (() => {
+                  const dayData = timeline.byDay.find(d => d.day === selectedDay)
+                  if (!dayData) return null
+                  return (
+                    <div style={{ marginTop: 14, background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>
+                          {new Date(dayData.isoDate + 'T12:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </div>
+                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(dayData.total)}</div>
+                      </div>
+                      {dayData.transactions.length === 0
+                        ? <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No expenses</div>
+                        : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {dayData.transactions.map(t => {
+                              const theCat = state.categories.find(cc => cc.id === t.category_id)
+                              const dotColor = theCat ? (CAT_COLORS[theCat.name] || c.accent) : c.muted
+                              return (
+                                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <span style={{ width: 7, height: 7, borderRadius: 2, background: dotColor, flexShrink: 0 }} />
+                                  <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{t.description}</span>
+                                  <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(t.amount)}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                      }
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
+            {/* ── By Category ── */}
+            {timelineView === 'category' && (
+              timeline.byCategory.length === 0
+                ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No expenses this month yet.</div>
+                : <div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {timeline.byCategory.map(lane => {
+                        const maxAmt   = Math.max(...lane.days.map(d => d.amount), 1)
+                        const laneColor = colorOf(lane.name)
+                        return (
+                          <div key={lane.name}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: 2, background: laneColor, flexShrink: 0 }} />
+                              <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{lane.name}</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(lane.total)}</span>
+                            </div>
+                            <div style={{ position: 'relative', height: 18, background: c.faint, borderRadius: 999 }}>
+                              {/* today line */}
+                              <div style={{ position: 'absolute', left: `${(timeline.todayDay / timeline.daysInMonth) * 100}%`, top: -3, bottom: -3, width: 1.5, background: c.accent, borderRadius: 1, opacity: 0.5 }} />
+                              {lane.days.map(d => {
+                                const left = ((d.day - 0.5) / timeline.daysInMonth) * 100
+                                const size = Math.max(7, Math.min(15, Math.round((d.amount / maxAmt) * 10) + 6))
+                                return (
+                                  <div key={d.day} style={{ position: 'absolute', left: `${left}%`, top: '50%', transform: 'translate(-50%,-50%)', width: size, height: size, borderRadius: '50%', background: laneColor, opacity: 0.85, zIndex: 1 }} />
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <TimelineDayRuler daysInMonth={timeline.daysInMonth} todayDay={timeline.todayDay} mutedColor={c.muted} accentColor={c.accent} />
+                  </div>
+            )}
+
+            {/* ── By Group ── */}
+            {timelineView === 'group' && (
+              timeline.byGroup.length === 0
+                ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No expenses this month yet.</div>
+                : <div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {timeline.byGroup.map((lane, gi) => {
+                        const maxAmt    = Math.max(...lane.days.map(d => d.amount), 1)
+                        const laneColor = GROUP_PALETTE[gi % GROUP_PALETTE.length]
+                        return (
+                          <div key={lane.name}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: 2, background: laneColor, flexShrink: 0 }} />
+                              <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{lane.name}</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(lane.total)}</span>
+                            </div>
+                            <div style={{ position: 'relative', height: 18, background: c.faint, borderRadius: 999 }}>
+                              <div style={{ position: 'absolute', left: `${(timeline.todayDay / timeline.daysInMonth) * 100}%`, top: -3, bottom: -3, width: 1.5, background: c.accent, borderRadius: 1, opacity: 0.5 }} />
+                              {lane.days.map(d => {
+                                const left = ((d.day - 0.5) / timeline.daysInMonth) * 100
+                                const size = Math.max(7, Math.min(15, Math.round((d.amount / maxAmt) * 10) + 6))
+                                return (
+                                  <div key={d.day} style={{ position: 'absolute', left: `${left}%`, top: '50%', transform: 'translate(-50%,-50%)', width: size, height: size, borderRadius: '50%', background: laneColor, opacity: 0.85, zIndex: 1 }} />
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <TimelineDayRuler daysInMonth={timeline.daysInMonth} todayDay={timeline.todayDay} mutedColor={c.muted} accentColor={c.accent} />
+                  </div>
+            )}
+          </div>
         )}
 
         {/* ── Mint Analytics AI ─────────────────────────────── */}
