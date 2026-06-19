@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { useAppDialog } from './AppDialog'
 import { fmt, fmtDate } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
@@ -149,6 +150,7 @@ interface RecentTxnsProps {
 
 export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: RecentTxnsProps) {
   const c = useTheme()
+  const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
   const acctById = Object.fromEntries([
     ...state.accounts.map(a => [a.id, a]),
@@ -160,7 +162,7 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
 
   const handleDelete = async (e: React.MouseEvent, t: Transaction) => {
     e.stopPropagation()
-    if (!confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
+    if (!await confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
     setDeleting(t.id)
     await onDelete?.(t)
     setDeleting(null)
@@ -295,6 +297,7 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
           </div>
         </div>
       )}
+      {dialogNode}
     </>
   )
 }

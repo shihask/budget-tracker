@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { useAppDialog } from './AppDialog'
 import { BORROWING_GROUP } from '@/lib/constants'
 import { supabase } from '@/lib/supabase'
 import type { AppState, Group, Category } from '@/types'
@@ -23,6 +24,7 @@ export function CategoriesPage({
   onAddCategory, onUpdateCategory, onDeleteCategory, onToggleCategoryVisibility,
 }: Props) {
   const c = useTheme()
+  const { confirm, alert, dialogNode } = useAppDialog()
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Swipe-back from left edge
@@ -132,11 +134,11 @@ export function CategoriesPage({
     const catIds = cats.map(c => c.id)
     const txnCount = state.transactions.filter(t => t.category_id && catIds.includes(t.category_id)).length
     if (txnCount > 0) {
-      alert(`Cannot delete "${g.name}" — ${txnCount} transaction(s) use categories in this group. Reassign them first.`)
+      await alert(`Cannot delete "${g.name}" — ${txnCount} transaction(s) use categories in this group. Reassign them first.`)
       return
     }
     const catCount = cats.length
-    if (!confirm(`Delete group "${g.name}"?${catCount > 0 ? ` This will also delete ${catCount} categories.` : ''}`)) return
+    if (!await confirm(`Delete group "${g.name}"?${catCount > 0 ? ` This will also delete ${catCount} categories.` : ''}`)) return
     setSaving(true)
     await onDeleteGroup(g.id, g.name)
     if (activeGroup === g.name) setActiveGroup(null)
@@ -178,11 +180,11 @@ export function CategoriesPage({
 
     const commitmentCount = state.commitments.filter(c => c.category_id === cat.id).length
     if (commitmentCount > 0) {
-      alert(`Cannot delete "${cat.name}" — ${commitmentCount} commitment${commitmentCount > 1 ? 's' : ''} use this category. Reassign them first.`)
+      await alert(`Cannot delete "${cat.name}" — ${commitmentCount} commitment${commitmentCount > 1 ? 's' : ''} use this category. Reassign them first.`)
       return
     }
 
-    if (!confirm(`Delete category "${cat.name}"?`)) return
+    if (!await confirm(`Delete category "${cat.name}"?`)) return
     setSaving(true)
     await onDeleteCategory(cat.id)
     setSaving(false)
@@ -475,6 +477,7 @@ export function CategoriesPage({
           </div>
         </div>
       )}
+      {dialogNode}
     </div>
   )
 }

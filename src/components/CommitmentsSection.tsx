@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { useAppDialog } from './AppDialog'
 import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
@@ -49,6 +50,7 @@ interface Props {
 
 export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDelete, onAddCategory }: Props) {
   const c = useTheme()
+  const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
   const accounts = state.accounts.filter(a => a.is_active)
 
@@ -165,7 +167,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this bill / obligation?')) return
+    if (!await confirm('Delete this bill / obligation?')) return
     setDeleting(id)
     try { await onDelete(id) } catch (_) {}
     setDeleting(null)
@@ -690,6 +692,7 @@ export function CommitmentsSection({ state, d, onMarkPaid, onAdd, onUpdate, onDe
           </div>
         </div>
       )}
+      {dialogNode}
     </>
   )
 }

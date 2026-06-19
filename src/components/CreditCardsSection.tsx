@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { useAppDialog } from './AppDialog'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
 import { BottomSheet, HelpText } from './BottomSheet'
@@ -55,6 +56,7 @@ function getCycleSpend(card: CreditCard, transactions: AppState['transactions'])
 
 export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill }: Props) {
   const c = useTheme()
+  const { confirm, dialogNode } = useAppDialog()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<CardForm>(EMPTY_FORM)
@@ -355,7 +357,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{editingId ? 'Edit Card' : 'Add Credit Card'}</div>
               {editingId && (
-                <button onClick={async () => { if (confirm('Delete this card?')) { await onDelete(editingId); closeSheet() } }}
+                <button onClick={async () => { if (await confirm('Delete this card?')) { await onDelete(editingId); closeSheet() } }}
                   style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
@@ -451,6 +453,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
               </button>
             </div>
       </BottomSheet>
+      {dialogNode}
     </>
   )
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { useAppDialog } from './AppDialog'
 import { fmt } from '@/lib/utils'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { CategorySelect } from './CategorySelect'
@@ -133,6 +134,7 @@ interface Props {
 
 export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecordContribution, onUpdateValue, onRecordPayout, onRevertPayout, onAddCategory, startAdd }: Props) {
   const c = useTheme()
+  const { confirm, dialogNode } = useAppDialog()
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -197,7 +199,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this savings entry?')) return
+    if (!await confirm('Delete this savings entry?')) return
     setDeleting(id)
     try { await onDelete(id) } catch (_) {}
     setDeleting(null)
@@ -1010,6 +1012,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           </div>
         </div>
       )}
+      {dialogNode}
     </div>
   )
 }

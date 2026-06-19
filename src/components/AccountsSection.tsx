@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { useAppDialog } from './AppDialog'
 import { fmt } from '@/lib/utils'
 import { ACCOUNT_PALETTE } from '@/lib/tokens'
 import { Card } from './Card'
@@ -29,11 +30,13 @@ interface AccountsSectionProps {
 
 export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDeleteAccount, onAdjustBalance, onAddTransaction }: AccountsSectionProps) {
   const c = useTheme()
+  const { confirm, dialogNode } = useAppDialog()
   const accs = state.accounts.filter(a => a.is_active)
   const totalPos = accs.reduce((s, a) => s + Math.max(0, a.current_balance), 0) || 1
   const total = accs.reduce((s, a) => s + a.current_balance, 0)
 
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [blockSheet, setBlockSheet] = useState<{ name: string; count: number } | null>(null)
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [form, setForm] = useState<AForm>(EMPTY)
@@ -90,7 +93,14 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Remove "${name}"? Its transaction history will be kept.`)) return
+    const txCount = state.transactions.filter(
+      t => t.from_account_id === id || t.to_account_id === id
+    ).length
+    if (txCount > 0) {
+      setBlockSheet({ name, count: txCount })
+      return
+    }
+    if (!await confirm(`Remove "${name}"? This cannot be undone.`, { confirmLabel: 'Remove' })) return
     setDeleting(id)
     try { await onDeleteAccount(id) } catch (_) {}
     setDeleting(null)
@@ -271,6 +281,36 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
               </div>
             </div>
             <button onClick={() => setInfoOpen(false)} style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
+          </div>
+        </div>
+      )}
+
+      {/* Block delete — account has transactions */}
+      {blockSheet && (
+        <div onClick={() => setBlockSheet(null)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 22, width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: c.bad + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.bad} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              </div>
+              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>Cannot delete account</div>
+            </div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 12 }}>
+              <strong style={{ color: c.ink }}>{blockSheet.name}</strong> has {blockSheet.count} transaction{blockSheet.count !== 1 ? 's' : ''} associated with it.
+            </div>
+            <div style={{ background: c.surface2, borderRadius: 12, padding: '12px 14px', marginBottom: 14 }}>
+              <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>To delete this account, first:</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.8 }}>
+                • Move transactions to another account, or<br />
+                • Delete those transactions
+              </div>
+            </div>
+            <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5, marginBottom: 16 }}>
+              Account deletion is only allowed for accounts with no transaction history.
+            </div>
+            <button onClick={() => setBlockSheet(null)} style={{ width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
           </div>
         </div>
       )}
@@ -492,6 +532,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
               </button>
             </div>
       </BottomSheet>
+      {dialogNode}
     </>
   )
 }
