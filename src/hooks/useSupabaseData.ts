@@ -344,93 +344,89 @@ export function useSupabaseData(userId: string) {
     try {
       const isCreditCard = state.credit_cards.some(c => c.id === form.from_account_id)
       const toAccountId = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
-      const { data: newTx, error: txErr } = await supabase
-        .from('transactions')
-        .insert({
-          transaction_date: form.transaction_date,
-          description: form.description,
-          amount: form.amount,
-          transaction_type: form.transaction_type,
-          category_id: form.category_id,
-          from_account_id: isCreditCard ? null : form.from_account_id,
-          credit_card_id: isCreditCard ? form.from_account_id : null,
-          to_account_id: toAccountId,
-          notes: '',
-          user_id: userId,
-        })
-        .select('*, category:categories(*)')
-        .single()
-      if (txErr) throw txErr
-      if (isCreditCard) {
-        // Increase credit card outstanding balance
-        const card = state.credit_cards.find(c => c.id === form.from_account_id)
-        if (card) {
-          const newBalance = card.current_balance + form.amount
-          await supabase.from('credit_cards').update({ current_balance: newBalance }).eq('id', card.id)
-          setState(s => ({
-            ...s,
-            transactions: [newTx as Transaction, ...s.transactions],
-            credit_cards: s.credit_cards.map(c => c.id === card.id ? { ...c, current_balance: newBalance } : c),
-          }))
-        }
-      } else {
-        if (form.from_account_id) {
-          const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', form.from_account_id).single()
-          if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + delta(form.transaction_type, form.amount) }).eq('id', form.from_account_id)
-        }
-        if (toAccountId) {
-          const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', toAccountId).single()
-          if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance + form.amount }).eq('id', toAccountId)
-        }
-        setState(s => ({
-          ...s,
-          transactions: [newTx as Transaction, ...s.transactions],
-          accounts: s.accounts.map(a => {
-            let bal = a.current_balance
-            if (a.id === form.from_account_id) bal += delta(form.transaction_type, form.amount)
-            if (toAccountId && a.id === toAccountId) bal += form.amount
-            return bal !== a.current_balance ? { ...a, current_balance: bal } : a
-          }),
-        }))
+
+      const fromAccountId = isCreditCard ? null : (form.from_account_id ?? null)
+      const creditCardId  = isCreditCard ? form.from_account_id : null
+      const fromDelta     = fromAccountId ? delta(form.transaction_type, form.amount) : null
+      const toDelta       = toAccountId ? form.amount : null
+      const ccDelta       = creditCardId ? form.amount : null  // CC expense: outstanding increases
+
+      const { data, error } = await supabase.rpc('mp_execute_transaction', {
+        p_user_id:          userId,
+        p_transaction_date: form.transaction_date,
+        p_description:      form.description,
+        p_amount:           form.amount,
+        p_transaction_type: form.transaction_type,
+        p_category_id:      form.category_id ?? null,
+        p_from_account_id:  fromAccountId,
+        p_to_account_id:    toAccountId,
+        p_credit_card_id:   creditCardId,
+        p_notes:            '',
+        p_borrowing_id:     (form as any).borrowing_id ?? null,
+        p_savings_id:       null,
+        p_is_credit:        form.is_credit ?? null,
+        p_from_delta:       fromDelta,
+        p_to_delta:         toDelta,
+        p_cc_delta:         ccDelta,
+      })
+      if (error) throw error
+
+      const newTx: Transaction = {
+        ...(data as Transaction),
+        category: stateRef.current.categories.find(c => c.id === form.category_id),
       }
-      return newTx as Transaction
+
+      setState(s => ({
+        ...s,
+        transactions: [newTx, ...s.transactions],
+        accounts: s.accounts.map(a => {
+          let bal = a.current_balance
+          if (a.id === fromAccountId && fromDelta !== null) bal += fromDelta
+          if (a.id === toAccountId  && toDelta  !== null) bal += toDelta
+          return bal !== a.current_balance ? { ...a, current_balance: bal } : a
+        }),
+        credit_cards: creditCardId ? s.credit_cards.map(c =>
+          c.id === creditCardId ? { ...c, current_balance: c.current_balance + (ccDelta ?? 0) } : c
+        ) : s.credit_cards,
+      }))
+      return newTx
     } catch (err) { console.error('Failed to save transaction:', err); throw err }
   }, [userId, state.credit_cards])
 
   const deleteTransaction = useCallback(async (t: Transaction) => {
     try {
-      await supabase.from('transactions').delete().eq('id', t.id)
+      // Compute reversal deltas in TypeScript; RPC applies them atomically
+      // then deletes the row — reversals always run before delete.
+      let fromDelta: number | null = null
+      let toDelta: number | null = null
+
       if (t.from_account_id) {
-        const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
-        if (acc) {
-          let newBal: number
-          if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
-            newBal = t.is_credit
-              ? acc.current_balance - t.amount   // was credit → reverse = debit
-              : acc.current_balance + t.amount   // was debit  → reverse = credit
-          } else {
-            newBal = acc.current_balance - delta(t.transaction_type, t.amount)
-          }
-          await supabase.from('accounts').update({ current_balance: newBal }).eq('id', t.from_account_id)
-        }
+        fromDelta = (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
+          ? (t.is_credit ? -t.amount : t.amount)
+          : -delta(t.transaction_type, t.amount)
       }
       if ((t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'balance_adjustment') && t.to_account_id) {
-        const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', t.to_account_id).single()
-        if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance - t.amount }).eq('id', t.to_account_id)
+        toDelta = -t.amount
       }
+
+      const { error } = await supabase.rpc('mp_delete_transaction', {
+        p_transaction_id:  t.id,
+        p_from_account_id: t.from_account_id ?? null,
+        p_from_delta:      fromDelta,
+        p_to_account_id:   toDelta !== null ? t.to_account_id : null,
+        p_to_delta:        toDelta,
+        p_credit_card_id:  null,
+        p_cc_delta:        null,
+      })
+      if (error) throw error
+
       setState(s => ({
         ...s,
         transactions: s.transactions.filter(tx => tx.id !== t.id),
         accounts: s.accounts.map(a => {
           let bal = a.current_balance
-          if (a.id === t.from_account_id) {
-            if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
-              bal += t.is_credit ? -t.amount : t.amount
-            } else {
-              bal -= delta(t.transaction_type, t.amount)
-            }
-          }
-          if ((t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'balance_adjustment') && a.id === t.to_account_id) bal -= t.amount
+          if (a.id === t.from_account_id && fromDelta !== null) bal += fromDelta
+          if (a.id === t.to_account_id   && toDelta  !== null) bal += toDelta
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
       }))
@@ -442,99 +438,67 @@ export function useSupabaseData(userId: string) {
     form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }
   ) => {
     try {
-      const toAccountId = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
+      const toAccountId   = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
       const isBorrowingTx = !!old.borrowing_id
-      // Compute the new is_credit value: re-derive from the (possibly changed) category if this is
-      // a borrowing transaction; otherwise null. System categories are stable so name lookup is safe.
-      const newIsCredit = isBorrowingTx
+      const newIsCredit   = isBorrowingTx
         ? (['Borrowed Money', 'Lent Repayment'] as string[]).includes(
             stateRef.current.categories.find(c => c.id === form.category_id)?.name ?? ''
           )
         : null
 
-      const { data: updated, error } = await supabase
-        .from('transactions')
-        .update({
-          transaction_date: form.transaction_date,
-          description: form.description,
-          amount: form.amount,
-          transaction_type: form.transaction_type,
-          category_id: form.category_id,
-          from_account_id: form.from_account_id,
-          to_account_id: toAccountId,
-          ...(isBorrowingTx ? { is_credit: newIsCredit } : {}),
-        })
-        .eq('id', old.id)
-        .select('*, category:categories(*)')
-        .single()
-      if (error) throw error
-
-      // delta for a borrowing transaction — reads stored is_credit, no category lookup needed
-      const borrowingDelta = (isCredit: boolean | null | undefined, amount: number) =>
+      // Pre-compute deltas; RPC applies them all atomically
+      const borrowDelta = (isCredit: boolean | null | undefined, amount: number) =>
         isCredit ? amount : -amount
 
-      // Reverse old transaction's balance effects
-      if (old.from_account_id) {
-        const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', old.from_account_id).single()
-        if (acc) {
-          const oldDelta = isBorrowingTx
-            ? borrowingDelta(old.is_credit, old.amount)
-            : delta(old.transaction_type, old.amount)
-          await supabase.from('accounts').update({ current_balance: acc.current_balance - oldDelta }).eq('id', old.from_account_id)
-        }
-      }
-      if (old.transaction_type === 'transfer' && old.to_account_id) {
-        const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', old.to_account_id).single()
-        if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance - old.amount }).eq('id', old.to_account_id)
-      }
-      // Apply new transaction's balance effects
-      if (form.from_account_id) {
-        const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', form.from_account_id).single()
-        if (acc) {
-          const newDelta = isBorrowingTx
-            ? borrowingDelta(newIsCredit, form.amount)
-            : delta(form.transaction_type, form.amount)
-          await supabase.from('accounts').update({ current_balance: acc.current_balance + newDelta }).eq('id', form.from_account_id)
-        }
-      }
-      if (toAccountId) {
-        const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', toAccountId).single()
-        if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance + form.amount }).eq('id', toAccountId)
-      }
+      const oldFromDelta = old.from_account_id
+        ? -(isBorrowingTx ? borrowDelta(old.is_credit, old.amount) : delta(old.transaction_type, old.amount))
+        : null
+      const oldToDelta = old.transaction_type === 'transfer' && old.to_account_id ? -old.amount : null
+      const newFromDelta = form.from_account_id
+        ? (isBorrowingTx ? borrowDelta(newIsCredit, form.amount) : delta(form.transaction_type, form.amount))
+        : null
+      const newToDelta = toAccountId ? form.amount : null
 
-      // Sync linked borrowing record if amount changed
-      let updatedBorrowing: AppState['borrowings'][0] | undefined
-      if (old.borrowing_id && old.amount !== form.amount) {
-        if (old.transaction_type === 'borrowing') {
-          const { data: bData } = await supabase.from('borrowings').update({ total_amount: form.amount }).eq('id', old.borrowing_id).select('*').single()
-          if (bData) updatedBorrowing = bData as AppState['borrowings'][0]
-        } else if (old.transaction_type === 'borrowing_repayment') {
-          const { data: allTxns } = await supabase.from('transactions').select('id, amount').eq('borrowing_id', old.borrowing_id).eq('transaction_type', 'borrowing_repayment')
-          if (allTxns) {
-            const newPaid = allTxns.reduce((sum: number, t: { id: string; amount: number }) => sum + (t.id === old.id ? form.amount : t.amount), 0)
-            const borrowing = stateRef.current.borrowings.find(b => b.id === old.borrowing_id)
-            if (borrowing) {
-              const { data: bData } = await supabase.from('borrowings').update({ paid_amount: Math.min(newPaid, borrowing.total_amount) }).eq('id', old.borrowing_id).select('*').single()
-              if (bData) updatedBorrowing = bData as AppState['borrowings'][0]
-            }
-          }
-        }
+      const { data, error } = await supabase.rpc('mp_update_transaction', {
+        p_transaction_id:      old.id,
+        p_transaction_date:    form.transaction_date,
+        p_description:         form.description,
+        p_amount:              form.amount,
+        p_transaction_type:    form.transaction_type,
+        p_category_id:         form.category_id ?? null,
+        p_from_account_id:     form.from_account_id ?? null,
+        p_to_account_id:       toAccountId,
+        p_is_credit:           newIsCredit,
+        p_old_from_account_id: old.from_account_id ?? null,
+        p_old_from_delta:      oldFromDelta,
+        p_old_to_account_id:   old.transaction_type === 'transfer' ? (old.to_account_id ?? null) : null,
+        p_old_to_delta:        oldToDelta,
+        p_new_from_delta:      newFromDelta,
+        p_new_to_delta:        newToDelta,
+        p_borrowing_id:        old.borrowing_id ?? null,
+        p_old_amount:          old.amount,
+        p_borrowing_type:      old.borrowing_id ? old.transaction_type : null,
+      })
+      if (error) throw error
+
+      const result = data as { transaction: Transaction; borrowing: AppState['borrowings'][0] | null }
+      const updated: Transaction = {
+        ...result.transaction,
+        category: stateRef.current.categories.find(c => c.id === form.category_id),
       }
 
       setState(s => ({
         ...s,
-        transactions: s.transactions.map(t => t.id === old.id ? updated as Transaction : t),
-        borrowings: updatedBorrowing ? s.borrowings.map(b => b.id === old.borrowing_id ? updatedBorrowing! : b) : s.borrowings,
+        transactions: s.transactions.map(t => t.id === old.id ? updated : t),
+        borrowings: result.borrowing
+          ? s.borrowings.map(b => b.id === old.borrowing_id ? result.borrowing! : b)
+          : s.borrowings,
         accounts: s.accounts.map(a => {
           let bal = a.current_balance
-          if (a.id === old.from_account_id) {
-            bal -= isBorrowingTx ? borrowingDelta(old.is_credit, old.amount) : delta(old.transaction_type, old.amount)
-          }
-          if (old.transaction_type === 'transfer' && a.id === old.to_account_id) bal -= old.amount
-          if (a.id === form.from_account_id) {
-            bal += isBorrowingTx ? borrowingDelta(newIsCredit, form.amount) : delta(form.transaction_type, form.amount)
-          }
-          if (toAccountId && a.id === toAccountId) bal += form.amount
+          if (a.id === old.from_account_id  && oldFromDelta !== null) bal += oldFromDelta
+          if (a.id === old.to_account_id    && oldToDelta  !== null) bal += oldToDelta
+          if (a.id === form.from_account_id && newFromDelta !== null) bal += newFromDelta
+          if (a.id === toAccountId          && newToDelta  !== null) bal += newToDelta
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
       }))
@@ -691,176 +655,190 @@ export function useSupabaseData(userId: string) {
     accountId: string | null,
   ) => {
     const today = form.transaction_date || new Date().toISOString().slice(0, 10)
-    const { data, error } = await supabase.from('borrowings').insert({ person_name: form.person_name, total_amount: form.total_amount, paid_amount: form.paid_amount, notes: form.notes, direction: form.direction, user_id: userId }).select('*').single()
-    if (error) throw error
-    const borrowing = data as AppState['borrowings'][0]
 
-    if (addTransaction && accountId && form.direction === 'borrowed') {
-      const borrowedCatId = stateRef.current.categories.find(c => c.name === 'Borrowed Money' && c.group_name === BORROWING_GROUP)?.id ?? null
-      const { data: newTx } = await supabase.from('transactions').insert({
-        transaction_date: today,
-        description: `${form.person_name} – borrowed`,
-        amount: form.total_amount,
-        transaction_type: 'borrowing',
-        category_id: borrowedCatId,
-        from_account_id: accountId,
-        to_account_id: null,
-        notes: '',
-        user_id: userId,
-        borrowing_id: borrowing.id,
-        is_credit: true,  // Borrowed Money → account credited (money came in)
-      }).select('*, category:categories(*)').single()
+    if (addTransaction && accountId) {
+      const isBorrowed  = form.direction === 'borrowed'
+      const catName     = isBorrowed ? 'Borrowed Money' : 'Lent Money'
+      const catId       = stateRef.current.categories.find(c => c.name === catName && c.group_name === BORROWING_GROUP)?.id ?? null
+      const accountDelta = isBorrowed ? form.total_amount : -form.total_amount
+      const description  = `${form.person_name} – ${isBorrowed ? 'borrowed' : 'lent'}`
 
-      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
-      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + form.total_amount }).eq('id', accountId)
+      const { data, error } = await supabase.rpc('mp_add_borrowing', {
+        p_user_id:          userId,
+        p_person_name:      form.person_name,
+        p_total_amount:     form.total_amount,
+        p_paid_amount:      form.paid_amount,
+        p_notes:            form.notes,
+        p_direction:        form.direction,
+        p_transaction_date: today,
+        p_category_id:      catId,
+        p_account_id:       accountId,
+        p_account_delta:    accountDelta,
+        p_is_credit:        isBorrowed,
+        p_description:      description,
+      })
+      if (error) throw error
 
+      const result = data as { borrowing: AppState['borrowings'][0]; transaction: Transaction }
+      const newTx: Transaction = {
+        ...result.transaction,
+        category: stateRef.current.categories.find(c => c.id === catId),
+      }
       setState(s => ({
         ...s,
-        borrowings: [...s.borrowings, borrowing],
-        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
-        accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance + form.total_amount } : a),
-      }))
-    } else if (addTransaction && accountId && form.direction === 'lent') {
-      const lentCatId = stateRef.current.categories.find(c => c.name === 'Lent Money' && c.group_name === BORROWING_GROUP)?.id ?? null
-      const { data: newTx } = await supabase.from('transactions').insert({
-        transaction_date: today,
-        description: `${form.person_name} – lent`,
-        amount: form.total_amount,
-        transaction_type: 'borrowing',
-        category_id: lentCatId,
-        from_account_id: accountId,
-        to_account_id: null,
-        notes: '',
-        user_id: userId,
-        borrowing_id: borrowing.id,
-        is_credit: false,  // Lent Money → account debited (money went out)
-      }).select('*, category:categories(*)').single()
-
-      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
-      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - form.total_amount }).eq('id', accountId)
-
-      setState(s => ({
-        ...s,
-        borrowings: [...s.borrowings, borrowing],
-        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
-        accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - form.total_amount } : a),
+        borrowings: [...s.borrowings, result.borrowing],
+        transactions: [newTx, ...s.transactions],
+        accounts: s.accounts.map(a => a.id === accountId
+          ? { ...a, current_balance: a.current_balance + accountDelta }
+          : a
+        ),
       }))
     } else {
-      setState(s => ({ ...s, borrowings: [...s.borrowings, borrowing] }))
+      // No transaction — just insert the borrowing record
+      const { data: bData, error: bErr } = await supabase
+        .from('borrowings')
+        .insert({ person_name: form.person_name, total_amount: form.total_amount, paid_amount: form.paid_amount, notes: form.notes, direction: form.direction, user_id: userId })
+        .select('*').single()
+      if (bErr) throw bErr
+      setState(s => ({ ...s, borrowings: [...s.borrowings, bData as AppState['borrowings'][0]] }))
     }
   }, [userId])
 
   const updateBorrowing = useCallback(async (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => {
-    const { data, error } = await supabase.from('borrowings').update(form).eq('id', id).select('*').single()
-    if (error) throw error
-
-    const current = stateRef.current
+    const current      = stateRef.current
     const oldBorrowing = current.borrowings.find(b => b.id === id)
-    const initialTx = current.transactions.find(t => t.borrowing_id === id && t.transaction_type === 'borrowing')
+    const nameChanged   = oldBorrowing?.person_name !== form.person_name
+    const amountChanged = oldBorrowing?.total_amount !== form.total_amount
 
-    let updatedTx: Transaction | undefined
-    let balanceDelta: { accountId: string; diff: number } | undefined
-
-    if (initialTx && oldBorrowing && (oldBorrowing.total_amount !== form.total_amount || oldBorrowing.person_name !== form.person_name)) {
-      const newDescription = form.direction === 'lent' ? `${form.person_name} – lent` : `${form.person_name} – borrowed`
-      const { data: txData } = await supabase.from('transactions').update({ amount: form.total_amount, description: newDescription }).eq('id', initialTx.id).select('*, category:categories(*)').single()
-      updatedTx = txData as Transaction
-
-      if (oldBorrowing.total_amount !== form.total_amount && initialTx.from_account_id) {
-        const isCredit = initialTx.is_credit
-        const oldImpact = isCredit ? oldBorrowing.total_amount : -oldBorrowing.total_amount
-        const newImpact = isCredit ? form.total_amount : -form.total_amount
-        const diff = newImpact - oldImpact
-        const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', initialTx.from_account_id).single()
-        if (acc) {
-          await supabase.from('accounts').update({ current_balance: acc.current_balance + diff }).eq('id', initialTx.from_account_id)
-          balanceDelta = { accountId: initialTx.from_account_id, diff }
-        }
+    // Compute account delta if amount changed (RPC finds the linked tx server-side)
+    let accountDelta: number | null = null
+    if (amountChanged && oldBorrowing) {
+      const initialTx = current.transactions.find(t => t.borrowing_id === id && t.transaction_type === 'borrowing')
+      if (initialTx) {
+        const oldImpact = initialTx.is_credit ?  oldBorrowing.total_amount : -oldBorrowing.total_amount
+        const newImpact = initialTx.is_credit ?  form.total_amount         : -form.total_amount
+        accountDelta = newImpact - oldImpact
       }
     }
 
+    const newDescription = nameChanged || amountChanged
+      ? (form.direction === 'lent' ? `${form.person_name} – lent` : `${form.person_name} – borrowed`)
+      : null
+
+    const { data, error } = await supabase.rpc('mp_update_borrowing', {
+      p_user_id:         userId,
+      p_borrowing_id:    id,
+      p_person_name:     form.person_name,
+      p_total_amount:    form.total_amount,
+      p_paid_amount:     form.paid_amount,
+      p_notes:           form.notes,
+      p_direction:       form.direction,
+      p_account_delta:   accountDelta,
+      p_new_description: newDescription,
+    })
+    if (error) throw error
+
+    const result = data as { borrowing: AppState['borrowings'][0]; transaction: Transaction | null }
     setState(s => ({
       ...s,
-      borrowings: s.borrowings.map(b => b.id === id ? data as AppState['borrowings'][0] : b),
-      transactions: updatedTx ? s.transactions.map(t => t.id === updatedTx!.id ? updatedTx! : t) : s.transactions,
-      accounts: balanceDelta
-        ? s.accounts.map(a => a.id === balanceDelta!.accountId ? { ...a, current_balance: a.current_balance + balanceDelta!.diff } : a)
+      borrowings: s.borrowings.map(b => b.id === id ? result.borrowing : b),
+      transactions: result.transaction
+        ? s.transactions.map(t => t.id === result.transaction!.id
+            ? { ...result.transaction!, category: s.categories.find(c => c.id === result.transaction!.category_id) }
+            : t)
+        : s.transactions,
+      accounts: accountDelta
+        ? s.accounts.map(a => {
+            const initialTx = current.transactions.find(t => t.borrowing_id === id && t.transaction_type === 'borrowing')
+            return a.id === initialTx?.from_account_id
+              ? { ...a, current_balance: a.current_balance + accountDelta! }
+              : a
+          })
         : s.accounts,
     }))
-  }, [])
+  }, [userId])
 
   const deleteBorrowing = useCallback(async (id: string, deleteTransactions: boolean) => {
     if (deleteTransactions) {
-      // Get linked transactions and reverse their account impact
-      const { data: txns } = await supabase.from('transactions').select('*').eq('borrowing_id', id)
-      if (txns) {
-        for (const t of txns) {
-          if (t.from_account_id) {
-            const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', t.from_account_id).single()
-            if (acc) {
-              let newBal: number
-              if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
-                newBal = t.is_credit
-                  ? acc.current_balance - t.amount
-                  : acc.current_balance + t.amount
-              } else {
-                newBal = acc.current_balance - delta(t.transaction_type, t.amount)
-              }
-              await supabase.from('accounts').update({ current_balance: newBal }).eq('id', t.from_account_id)
-            }
-          }
-        }
-        await supabase.from('transactions').delete().eq('borrowing_id', id)
-      }
+      // RPC atomically reverses all linked transaction effects in a loop,
+      // then deletes all transactions and the borrowing in one DB transaction.
+      // Previously, any mid-loop failure left partial reversals committed
+      // while all transactions were still deleted.
+      const { data, error } = await supabase.rpc('mp_delete_borrowing', {
+        p_user_id:      userId,
+        p_borrowing_id: id,
+      })
+      if (error) throw error
+
+      const result = data as { deleted_tx_ids: string[] }
+      const deletedSet = new Set(result.deleted_tx_ids)
+      // Reverse account deltas in client state using the transactions we had loaded
+      const linkedTxns = stateRef.current.transactions.filter(t => (t as any).borrowing_id === id)
+      setState(s => ({
+        ...s,
+        borrowings: s.borrowings.filter(b => b.id !== id),
+        transactions: s.transactions.filter(t => !deletedSet.has(t.id)),
+        accounts: s.accounts.map(a => {
+          const affectedTxns = linkedTxns.filter(t => t.from_account_id === a.id)
+          if (affectedTxns.length === 0) return a
+          const reversal = affectedTxns.reduce((sum, t) =>
+            sum + (t.is_credit ? -t.amount : t.amount), 0)
+          return { ...a, current_balance: a.current_balance + reversal }
+        }),
+      }))
+    } else {
+      await supabase.from('borrowings').delete().eq('id', id)
+      setState(s => ({ ...s, borrowings: s.borrowings.filter(b => b.id !== id) }))
     }
-    await supabase.from('borrowings').delete().eq('id', id)
-    setState(s => ({
-      ...s,
-      borrowings: s.borrowings.filter(b => b.id !== id),
-      transactions: deleteTransactions ? s.transactions.filter(t => (t as any).borrowing_id !== id) : s.transactions,
-    }))
-  }, [])
+  }, [userId])
 
   const recordBorrowingPayment = useCallback(async (
     borrowing: AppState['borrowings'][0], payment: number, accountId: string | null,
     incoming: boolean, _categoryId: string | null = null, addTransaction: boolean = true,
   ) => {
-    const today = new Date().toISOString().slice(0, 10)
-    const newPaid = Math.min(borrowing.total_amount, borrowing.paid_amount + payment)
-    await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', borrowing.id)
+    const today          = new Date().toISOString().slice(0, 10)
+    const newPaid        = Math.min(borrowing.total_amount, borrowing.paid_amount + payment)
+    const catName        = incoming ? 'Lent Repayment' : 'Borrow Repayment'
+    const repaymentCatId = stateRef.current.categories.find(c => c.name === catName && c.group_name === BORROWING_GROUP)?.id ?? null
+    const accountDelta   = incoming ? payment : -payment
 
-    // incoming=true → received repayment on a lent → 'Lent Repayment' (credit)
-    // incoming=false → made repayment on borrowed → 'Borrow Repayment' (debit)
-    const repaymentCatName = incoming ? 'Lent Repayment' : 'Borrow Repayment'
-    const repaymentCatId = stateRef.current.categories.find(c => c.name === repaymentCatName && c.group_name === BORROWING_GROUP)?.id ?? null
-
-    let newTx: Transaction | null = null
     if (addTransaction && accountId) {
-      const { data } = await supabase.from('transactions').insert({
-        transaction_date: today,
-        description: `${borrowing.person_name} – ${incoming ? 'received repayment' : 'repayment'}`,
-        amount: payment,
-        transaction_type: 'borrowing_repayment',
-        category_id: repaymentCatId,
-        from_account_id: accountId,
-        to_account_id: null,
-        notes: '',
-        user_id: userId,
-        borrowing_id: borrowing.id,
-        is_credit: incoming,  // Lent Repayment (incoming=true) → credit; Borrow Repayment → debit
-      }).select('*, category:categories(*)').single()
-      newTx = data as Transaction
+      const { data, error } = await supabase.rpc('mp_record_borrowing_payment', {
+        p_user_id:          userId,
+        p_borrowing_id:     borrowing.id,
+        p_new_paid_amount:  newPaid,
+        p_payment:          payment,
+        p_account_id:       accountId,
+        p_account_delta:    accountDelta,
+        p_is_credit:        incoming,
+        p_category_id:      repaymentCatId,
+        p_description:      `${borrowing.person_name} – ${incoming ? 'received repayment' : 'repayment'}`,
+        p_transaction_date: today,
+      })
+      if (error) throw error
 
-      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
-      if (acc) await supabase.from('accounts').update({ current_balance: incoming ? acc.current_balance + payment : acc.current_balance - payment }).eq('id', accountId)
+      const result = data as { transaction: Transaction; borrowing: AppState['borrowings'][0] }
+      const newTx: Transaction = {
+        ...result.transaction,
+        category: stateRef.current.categories.find(c => c.id === repaymentCatId),
+      }
+      setState(s => ({
+        ...s,
+        borrowings: s.borrowings.map(b => b.id === borrowing.id ? result.borrowing : b),
+        transactions: [newTx, ...s.transactions],
+        accounts: s.accounts.map(a => a.id !== accountId ? a : { ...a, current_balance: a.current_balance + accountDelta }),
+      }))
+    } else {
+      // No transaction — just update the borrowing paid amount
+      await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', borrowing.id)
+      setState(s => ({
+        ...s,
+        borrowings: s.borrowings.map(b => b.id === borrowing.id
+          ? { ...b, paid_amount: newPaid, remaining_amount: b.total_amount - newPaid }
+          : b
+        ),
+      }))
     }
-
-    setState(s => ({
-      ...s,
-      borrowings: s.borrowings.map(b => b.id === borrowing.id ? { ...b, paid_amount: newPaid, remaining_amount: b.total_amount - newPaid } : b),
-      transactions: newTx ? [newTx, ...s.transactions] : s.transactions,
-      accounts: (addTransaction && accountId) ? s.accounts.map(a => a.id !== accountId ? a : { ...a, current_balance: a.current_balance + (incoming ? payment : -payment) }) : s.accounts,
-    }))
   }, [userId])
 
   const addCommitment = useCallback(async (form: Omit<Commitment, 'id'>) => {
@@ -881,78 +859,65 @@ export function useSupabaseData(userId: string) {
   }, [])
 
   const markCommitmentPaid = useCallback(async (cm: Commitment, recordExpense: boolean = false, accountId: string | null = null) => {
-    const today = new Date().toISOString().slice(0, 10)
-    const payAmount = cm.amount || cm.remaining || 0
-    const isCreditCard = state.credit_cards.some(c => c.id === cm.from_account_id)
+    const today          = new Date().toISOString().slice(0, 10)
+    const payAmount      = cm.amount || cm.remaining || 0
+    const isCreditCard   = state.credit_cards.some(c => c.id === cm.from_account_id)
     const newInstallment = (cm.current_installment || 0) + 1
-    const isComplete = cm.total_installments ? newInstallment >= cm.total_installments : false
+    const isComplete     = cm.total_installments ? newInstallment >= cm.total_installments : false
+    const newRemaining   = !cm.is_recurring ? Math.max(0, cm.remaining - payAmount) : undefined
 
-    // Update commitment
-    const commitmentUpdate: any = { last_paid_date: today, current_installment: newInstallment }
-    if (!cm.is_recurring) commitmentUpdate.remaining = Math.max(0, cm.remaining - payAmount)
-    if (isComplete) commitmentUpdate.is_active = false
-    await supabase.from('commitments').update(commitmentUpdate).eq('id', cm.id)
+    const commitmentStateUpdate = (s: AppState) =>
+      s.commitments.map(c => c.id === cm.id ? {
+        ...c, last_paid_date: today, current_installment: newInstallment,
+        remaining: newRemaining ?? c.remaining,
+        is_active: isComplete ? false : c.is_active,
+      } : c)
 
-    // CC commitment — record as commitment (same as bank path) + increase card outstanding
-    if (isCreditCard) {
-      const { data: newTx } = await supabase.from('transactions').insert({
-        transaction_date: today, description: cm.name, amount: payAmount,
-        transaction_type: 'commitment', category_id: cm.category_id,
-        from_account_id: null, credit_card_id: cm.from_account_id,
-        to_account_id: null, notes: '', user_id: userId,
-      }).select('*, category:categories(*)').single()
-
-      // Increase card outstanding
-      const card = state.credit_cards.find(c => c.id === cm.from_account_id)
-      if (card) {
-        const newBalance = card.current_balance + payAmount
-        await supabase.from('credit_cards').update({ current_balance: newBalance }).eq('id', card.id)
-      }
-
-      setState(s => ({
-        ...s,
-        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
-        credit_cards: s.credit_cards.map(c => c.id === cm.from_account_id ? { ...c, current_balance: c.current_balance + payAmount } : c),
-        commitments: s.commitments.map(c => c.id === cm.id ? {
-          ...c, last_paid_date: today, current_installment: newInstallment,
-          remaining: commitmentUpdate.remaining ?? c.remaining,
-          is_active: isComplete ? false : c.is_active,
-        } : c),
-      }))
+    // Path A: no balance effects — just update the commitment record
+    if (!isCreditCard && !recordExpense) {
+      await supabase.from('commitments').update({
+        last_paid_date: today, current_installment: newInstallment,
+        ...(newRemaining !== undefined ? { remaining: newRemaining } : {}),
+        ...(isComplete ? { is_active: false } : {}),
+      }).eq('id', cm.id)
+      setState(s => ({ ...s, commitments: commitmentStateUpdate(s) }))
       return
     }
 
-    // Non-CC — record expense if confirmed
-    if (recordExpense && accountId) {
-      const { data: newTx } = await supabase.from('transactions').insert({
-        transaction_date: today, description: cm.name, amount: payAmount,
-        transaction_type: 'commitment', category_id: cm.category_id,
-        from_account_id: accountId, to_account_id: null, notes: '', user_id: userId,
-      }).select('*, category:categories(*)').single()
+    // Path B/C: transaction + balance + commitment update — all atomic via RPC
+    const { data, error } = await supabase.rpc('mp_mark_commitment_paid', {
+      p_user_id:          userId,
+      p_commitment_id:    cm.id,
+      p_transaction_date: today,
+      p_description:      cm.name,
+      p_amount:           payAmount,
+      p_category_id:      cm.category_id ?? null,
+      p_from_account_id:  isCreditCard ? null : accountId,
+      p_credit_card_id:   isCreditCard ? cm.from_account_id : null,
+      p_from_delta:       isCreditCard ? null : -payAmount,
+      p_cc_delta:         isCreditCard ? payAmount : null,
+      p_last_paid_date:   today,
+      p_new_installment:  newInstallment,
+      p_new_remaining:    newRemaining ?? null,
+      p_new_is_active:    isComplete ? false : null,
+    })
+    if (error) throw error
 
-      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
-      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - payAmount }).eq('id', accountId)
-
-      setState(s => ({
-        ...s,
-        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
-        accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - payAmount } : a),
-        commitments: s.commitments.map(c => c.id === cm.id ? {
-          ...c, last_paid_date: today, current_installment: newInstallment,
-          remaining: commitmentUpdate.remaining ?? c.remaining,
-          is_active: isComplete ? false : c.is_active,
-        } : c),
-      }))
-    } else {
-      setState(s => ({
-        ...s,
-        commitments: s.commitments.map(c => c.id === cm.id ? {
-          ...c, last_paid_date: today, current_installment: newInstallment,
-          remaining: commitmentUpdate.remaining ?? c.remaining,
-          is_active: isComplete ? false : c.is_active,
-        } : c),
-      }))
+    const newTx: Transaction = {
+      ...(data as Transaction),
+      category: stateRef.current.categories.find(c => c.id === cm.category_id),
     }
+    setState(s => ({
+      ...s,
+      transactions: [newTx, ...s.transactions],
+      commitments: commitmentStateUpdate(s),
+      accounts: accountId && !isCreditCard
+        ? s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - payAmount } : a)
+        : s.accounts,
+      credit_cards: isCreditCard
+        ? s.credit_cards.map(c => c.id === cm.from_account_id ? { ...c, current_balance: c.current_balance + payAmount } : c)
+        : s.credit_cards,
+    }))
   }, [userId, state.credit_cards])
 
   // ── Goals CRUD ───────────────────────────────────────────────────────────────
@@ -995,53 +960,40 @@ export function useSupabaseData(userId: string) {
   // ── Savings CRUD ─────────────────────────────────────────────────────────────
 
   const addSavings = useCallback(async (form: Omit<Savings, 'id' | 'created_at'>, debitAccountId?: string) => {
-    const { data, error } = await supabase
-      .from('savings').insert({ ...form, user_id: userId }).select('*').single()
-    if (error) throw error
-
     if (debitAccountId) {
+      // Create savings + debit account + create transaction atomically.
+      // Replaces the faulty application-level rollback that existed here before.
       const today = new Date().toISOString().split('T')[0]
-      const { data: acc } = await supabase
-        .from('accounts').select('current_balance').eq('id', debitAccountId).single()
-      if (acc) {
-        await supabase.from('accounts')
-          .update({ current_balance: acc.current_balance - form.amount })
-          .eq('id', debitAccountId)
-      }
-      const { data: newTx, error: txError } = await supabase.from('transactions').insert({
-        user_id: userId,
-        transaction_date: today,
-        description: form.name,
-        amount: form.amount,
-        transaction_type: 'savings_contribution',
-        category_id: form.category_id,
-        from_account_id: debitAccountId,
-        to_account_id: null,
-        notes: savingsContribNote(form.type),
-        savings_id: (data as Savings).id,
-      }).select('*, category:categories(*)').single()
+      const { data: rpcData, error } = await supabase.rpc('mp_add_savings_with_contribution', {
+        p_user_id:      userId,
+        p_savings_data: JSON.parse(JSON.stringify(form)),  // serialise to plain object for jsonb param
+        p_account_id:   debitAccountId,
+        p_amount:       form.amount,
+        p_transaction_date: today,
+        p_description:  form.name,
+        p_category_id:  form.category_id ?? null,
+        p_notes:        savingsContribNote(form.type),
+      })
+      if (error) throw error
 
-      if (txError) {
-        // Revert the account balance deduction so the DB stays consistent
-        if (acc) {
-          await supabase.from('accounts')
-            .update({ current_balance: acc.current_balance })
-            .eq('id', debitAccountId)
-        }
-        // Also remove the savings record that was just created
-        await supabase.from('savings').delete().eq('id', (data as Savings).id)
-        throw txError
+      const result = rpcData as { savings: Savings; transaction: Transaction }
+      const newTx: Transaction = {
+        ...result.transaction,
+        category: stateRef.current.categories.find(c => c.id === form.category_id),
       }
-
       setState(s => ({
         ...s,
-        savings: [data as Savings, ...s.savings],
+        savings: [result.savings, ...s.savings],
         accounts: s.accounts.map(a =>
           a.id === debitAccountId ? { ...a, current_balance: a.current_balance - form.amount } : a
         ),
-        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+        transactions: [newTx, ...s.transactions],
       }))
     } else {
+      // No account debit — direct savings insert is safe without RPC
+      const { data, error } = await supabase
+        .from('savings').insert({ ...form, user_id: userId }).select('*').single()
+      if (error) throw error
       setState(s => ({ ...s, savings: [data as Savings, ...s.savings] }))
     }
   }, [userId])
@@ -1074,40 +1026,38 @@ export function useSupabaseData(userId: string) {
       patch.is_active = false
     }
 
-    await supabase.from('savings').update(patch).eq('id', sv.id)
-
     if (recordExpense && accountId) {
-      // Deduct from account
-      const { data: acc } = await supabase
-        .from('accounts').select('current_balance').eq('id', accountId).single()
-      if (acc) {
-        await supabase.from('accounts')
-          .update({ current_balance: acc.current_balance - sv.amount })
-          .eq('id', accountId)
-      }
-      // Record transaction
-      const { data: newTx } = await supabase.from('transactions').insert({
-        user_id: userId,
-        transaction_date: today,
-        description: sv.name,
-        amount: sv.amount,
-        transaction_type: 'savings_contribution',
-        category_id: sv.category_id,
-        from_account_id: accountId,
-        to_account_id: null,
-        notes: savingsContribNote(sv.type),
-        savings_id: sv.id,
-      }).select('*, category:categories(*)').single()
+      // Savings update + account debit + transaction all atomically via RPC
+      const { data, error } = await supabase.rpc('mp_record_savings_contribution', {
+        p_user_id:                userId,
+        p_savings_id:             sv.id,
+        p_account_id:             accountId,
+        p_amount:                 sv.amount,
+        p_transaction_date:       today,
+        p_description:            sv.name,
+        p_category_id:            sv.category_id ?? null,
+        p_notes:                  savingsContribNote(sv.type),
+        p_new_installment:        newInstallment,
+        p_last_contribution_date: today,
+        p_mark_complete:          !!patch.is_active === false,
+      })
+      if (error) throw error
 
+      const newTx: Transaction = {
+        ...(data as Transaction),
+        category: stateRef.current.categories.find(c => c.id === sv.category_id),
+      }
       setState(s => ({
         ...s,
         savings: s.savings.map(item => item.id === sv.id ? { ...item, ...patch } : item),
         accounts: s.accounts.map(a =>
           a.id === accountId ? { ...a, current_balance: a.current_balance - sv.amount } : a
         ),
-        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+        transactions: [newTx, ...s.transactions],
       }))
     } else {
+      // No balance effects — direct savings update is safe without RPC
+      await supabase.from('savings').update(patch).eq('id', sv.id)
       setState(s => ({
         ...s,
         savings: s.savings.map(item => item.id === sv.id ? { ...item, ...patch } : item),
@@ -1121,66 +1071,53 @@ export function useSupabaseData(userId: string) {
   }, [])
 
   const recordSavingsPayout = useCallback(async (sv: Savings, amount: number, accountId: string) => {
-    const today = new Date().toISOString().split('T')[0]
-    const label = sv.type === 'chit' ? `${sv.name} — Chit Prize` : `${sv.name} — Redemption`
-
-    // Credit the account
-    const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
-    if (acc) {
-      await supabase.from('accounts').update({ current_balance: acc.current_balance + amount }).eq('id', accountId)
-    }
-
-    // Record as savings_withdrawal (not income — doesn't affect budget/earnings)
-    const { data: newTx } = await supabase.from('transactions').insert({
-      user_id: userId,
-      transaction_date: today,
-      description: label,
-      amount,
-      transaction_type: 'savings_withdrawal',
-      category_id: null,
-      from_account_id: null,
-      to_account_id: accountId,
-      notes: savingsWithdrawNote(sv.type, sv.type === 'chit'),
-      savings_id: sv.id,
-    }).select('*, category:categories(*)').single()
-
-    // Clear current_value after payout: chit → 0 (prize is now in tx history); non-chit → reduce by amount
+    const today    = new Date().toISOString().split('T')[0]
+    const label    = sv.type === 'chit' ? `${sv.name} — Chit Prize` : `${sv.name} — Redemption`
     const newValue = sv.type === 'chit' ? 0 : Math.max(0, sv.current_value - amount)
-    const savingsPatch: Partial<Savings> = { current_value: newValue }
-    await supabase.from('savings').update({ current_value: newValue }).eq('id', sv.id)
 
+    const { data, error } = await supabase.rpc('mp_record_savings_payout', {
+      p_user_id:           userId,
+      p_savings_id:        sv.id,
+      p_account_id:        accountId,
+      p_amount:            amount,
+      p_new_current_value: newValue,
+      p_description:       label,
+      p_notes:             savingsWithdrawNote(sv.type, sv.type === 'chit'),
+      p_transaction_date:  today,
+    })
+    if (error) throw error
+
+    const newTx: Transaction = { ...(data as Transaction), category: undefined }
     setState(s => ({
       ...s,
       accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance + amount } : a),
-      transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
-      savings: savingsPatch ? s.savings.map(item => item.id === sv.id ? { ...item, ...savingsPatch } : item) : s.savings,
+      transactions: [newTx, ...s.transactions],
+      savings: s.savings.map(item => item.id === sv.id ? { ...item, current_value: newValue } : item),
     }))
   }, [userId])
 
   const revertSavingsPayout = useCallback(async (sv: Savings) => {
-    // Prefer savings_id FK match; fall back to description patterns for historical transactions
-    const tx = stateRef.current.transactions
-      .filter(t =>
-        t.transaction_type === 'savings_withdrawal' &&
-        (t.savings_id === sv.id || t.description === sv.name || t.description.startsWith(sv.name + ' —'))
-      )
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
-    if (!tx) return
+    // RPC finds the withdrawal server-side (no 200-tx client-state limit),
+    // reverses the account credit, deletes the transaction, and restores
+    // savings.current_value — all in one atomic operation.
+    const { data, error } = await supabase.rpc('mp_revert_savings_payout', {
+      p_user_id:    userId,
+      p_savings_id: sv.id,
+    })
+    if (error) throw error
 
-    if (tx.to_account_id) {
-      const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', tx.to_account_id).single()
-      if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - tx.amount }).eq('id', tx.to_account_id)
-    }
-    await supabase.from('transactions').delete().eq('id', tx.id)
-    await supabase.from('savings').update({ current_value: tx.amount }).eq('id', sv.id)
-
+    const result = data as { deleted_tx_id: string; restored_value: number; account_id: string | null }
     setState(s => ({
       ...s,
-      transactions: s.transactions.filter(t => t.id !== tx.id),
-      accounts: s.accounts.map(a => a.id === tx.to_account_id ? { ...a, current_balance: a.current_balance - tx.amount } : a),
-      savings: s.savings.map(item => item.id === sv.id ? { ...item, current_value: tx.amount } : item),
+      transactions: s.transactions.filter(t => t.id !== result.deleted_tx_id),
+      accounts: result.account_id
+        ? s.accounts.map(a => a.id === result.account_id
+            ? { ...a, current_balance: a.current_balance - result.restored_value }
+            : a)
+        : s.accounts,
+      savings: s.savings.map(item => item.id === sv.id ? { ...item, current_value: result.restored_value } : item),
     }))
-  }, [])
+  }, [userId])
 
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {
@@ -1305,26 +1242,32 @@ export function useSupabaseData(userId: string) {
 
   const payCreditCardBill = useCallback(async (card: CreditCard, amount: number, accountId: string) => {
     const today = new Date().toISOString().slice(0, 10)
-    const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
-    if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - amount }).eq('id', accountId)
-    await supabase.from('credit_cards').update({ current_balance: card.current_balance - amount }).eq('id', card.id)
-    const { data: newTx } = await supabase.from('transactions').insert({
-      transaction_date: today,
-      description: `${card.name} bill payment`,
-      amount,
-      transaction_type: 'credit_card_payment',
-      category_id: null,
-      from_account_id: accountId,
-      to_account_id: null,
-      notes: '',
-      user_id: userId,
-    }).select('*, category:categories(*)').single()
+    const { data, error } = await supabase.rpc('mp_execute_transaction', {
+      p_user_id:          userId,
+      p_transaction_date: today,
+      p_description:      `${card.name} bill payment`,
+      p_amount:           amount,
+      p_transaction_type: 'credit_card_payment',
+      p_category_id:      null,
+      p_from_account_id:  accountId,
+      p_to_account_id:    null,
+      p_credit_card_id:   card.id,   // stored on tx for audit + used for CC balance update
+      p_notes:            '',
+      p_borrowing_id:     null,
+      p_savings_id:       null,
+      p_is_credit:        null,
+      p_from_delta:       -amount,   // bank account debited
+      p_to_delta:         null,
+      p_cc_delta:         -amount,   // CC outstanding reduced
+    })
+    if (error) throw error
 
+    const newTx: Transaction = { ...(data as Transaction), category: undefined }
     setState(s => ({
       ...s,
       credit_cards: s.credit_cards.map(c => c.id === card.id ? { ...c, current_balance: c.current_balance - amount } : c),
       accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - amount } : a),
-      transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+      transactions: [newTx, ...s.transactions],
     }))
   }, [userId])
 
