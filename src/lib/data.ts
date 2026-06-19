@@ -3,6 +3,11 @@
 
 import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData, JourneyMilestone, JourneyReplayEvent, JourneyHealthItem } from '@/types'
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
+import { ADJUSTMENT_GROUP } from '@/lib/constants'
+
+// Opening Balance and Balance Adjustment transactions must never count as real income/expense.
+export const isAdjustmentTx = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
+  catMap[t.category_id ?? '']?.group_name === ADJUSTMENT_GROUP
 
 export const catById = (categories: AppState['categories']) =>
   Object.fromEntries(categories.map(c => [c.id, c]))
@@ -22,6 +27,7 @@ function makeScopeFilter(state: AppState) {
 
   return (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) => {
     if (t.transaction_type !== 'expense') return false
+    if (isAdjustmentTx(t, catMap)) return false   // never count Balance Adjustments as spending
     if (hasTxn && scope!.transactionIds.includes(t.id)) return true
     if (!hasGroupOrCat) return false
     const cat = catMap[t.category_id ?? '']

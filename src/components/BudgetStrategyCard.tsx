@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { BORROWING_CREDIT_CATS } from '@/lib/constants'
+import { BORROWING_CREDIT_CATS, ADJUSTMENT_GROUP } from '@/lib/constants'
 import type { AppState, BudgetBucket, BudgetStrategyType } from '@/types'
 
 interface BudgetStrategyCardProps {
@@ -87,6 +87,9 @@ function useStrategyData(state: AppState) {
       if (new Date(t.transaction_date) < periodStart) continue
       const cat = catMap[t.category_id ?? '']
       if (!cat) continue
+
+      // Opening Balance and Balance Adjustment are never spending
+      if (cat.group_name === ADJUSTMENT_GROUP) continue
 
       let effectiveBucket: BudgetBucket | null = null
 

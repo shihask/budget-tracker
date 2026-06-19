@@ -485,7 +485,31 @@ export function useSupabaseData(userId: string) {
   const addAccount = useCallback(async (form: { name: string; type: string; current_balance: number }) => {
     const { data, error } = await supabase.from('accounts').insert({ ...form, is_active: true, user_id: userId }).select('*').single()
     if (error) throw error
-    setState(s => ({ ...s, accounts: [...s.accounts, data as AppState['accounts'][0]] }))
+    const acc = data as AppState['accounts'][0]
+
+    let openingTx = null
+    if (form.current_balance !== 0) {
+      const openingCatId = stateRef.current.categories.find(c => c.name === 'Opening Balance' && c.group_name === ADJUSTMENT_GROUP)?.id ?? null
+      const today = new Date().toISOString().slice(0, 10)
+      const { data: tx } = await supabase.from('transactions').insert({
+        transaction_date: today,
+        description: 'Opening Balance',
+        amount: Math.abs(form.current_balance),
+        transaction_type: form.current_balance >= 0 ? 'income' : 'expense',
+        category_id: openingCatId,
+        from_account_id: acc.id,
+        to_account_id: null,
+        notes: 'Opening Balance',
+        user_id: userId,
+      }).select('*, category:categories(*)').single()
+      openingTx = tx
+    }
+
+    setState(s => ({
+      ...s,
+      accounts: [...s.accounts, acc],
+      transactions: openingTx ? [openingTx as Transaction, ...s.transactions] : s.transactions,
+    }))
   }, [userId])
 
   const deleteAccount = useCallback(async (accountId: string) => {
@@ -499,6 +523,36 @@ export function useSupabaseData(userId: string) {
       setState(s => ({ ...s, accounts: s.accounts.map(a => a.id === id ? { ...a, name: form.name, type: form.type as import('@/types').AccountType, current_balance: form.current_balance } : a) }))
     } catch (err) { console.error('Failed to update account:', err); throw err }
   }, [])
+
+  const adjustBalance = useCallback(async (accountId: string, actualBalance: number) => {
+    const account = stateRef.current.accounts.find(a => a.id === accountId)
+    if (!account) return
+    const difference = actualBalance - account.current_balance
+    if (difference === 0) return
+
+    const today = new Date().toISOString().slice(0, 10)
+    const adjustCatId = stateRef.current.categories.find(c => c.name === 'Balance Adjustment' && c.group_name === ADJUSTMENT_GROUP)?.id ?? null
+
+    await supabase.from('accounts').update({ current_balance: actualBalance }).eq('id', accountId)
+
+    const { data: tx } = await supabase.from('transactions').insert({
+      transaction_date: today,
+      description: 'Balance Adjustment',
+      amount: Math.abs(difference),
+      transaction_type: difference > 0 ? 'income' : 'expense',
+      category_id: adjustCatId,
+      from_account_id: accountId,
+      to_account_id: null,
+      notes: `Adjusted: ₹${account.current_balance.toLocaleString('en-IN')} → ₹${actualBalance.toLocaleString('en-IN')}`,
+      user_id: userId,
+    }).select('*, category:categories(*)').single()
+
+    setState(s => ({
+      ...s,
+      accounts: s.accounts.map(a => a.id === accountId ? { ...a, current_balance: actualBalance } : a),
+      transactions: tx ? [tx as Transaction, ...s.transactions] : s.transactions,
+    }))
+  }, [userId])
 
   // ── Groups CRUD ──────────────────────────────────────────────────────────────
   const addGroup = useCallback(async (name: string) => {
@@ -1209,7 +1263,7 @@ export function useSupabaseData(userId: string) {
   return {
     state, setState, loading, usingSupabase,
     addTransaction, deleteTransaction, updateTransaction, updateSettings,
-    addAccount, deleteAccount, updateAccount,
+    addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
     addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,
     addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, updateCreditCardBalance,

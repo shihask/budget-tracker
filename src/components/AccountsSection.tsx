@@ -23,9 +23,11 @@ interface AccountsSectionProps {
   onUpdateAccount: (id: string, form: { name: string; type: string; current_balance: number }) => Promise<void>
   onAddAccount: (form: { name: string; type: string; current_balance: number }) => Promise<void>
   onDeleteAccount: (id: string) => Promise<void>
+  onAdjustBalance: (accountId: string, actualBalance: number) => Promise<void>
+  onAddTransaction?: () => void
 }
 
-export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDeleteAccount }: AccountsSectionProps) {
+export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDeleteAccount, onAdjustBalance, onAddTransaction }: AccountsSectionProps) {
   const c = useTheme()
   const accs = state.accounts.filter(a => a.is_active)
   const totalPos = accs.reduce((s, a) => s + Math.max(0, a.current_balance), 0) || 1
@@ -42,6 +44,31 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<AForm>(EMPTY)
   const [saving, setSaving] = useState(false)
+
+  const [adjustSheetOpen, setAdjustSheetOpen] = useState(false)
+  const [adjustAccount, setAdjustAccount] = useState<AppState['accounts'][0] | null>(null)
+  const [adjustInput, setAdjustInput] = useState('')
+  const [adjusting, setAdjusting] = useState(false)
+  const [adjustDone, setAdjustDone] = useState(false)
+
+  const openAdjust = (a: AppState['accounts'][0]) => {
+    setAdjustAccount(a)
+    setAdjustInput(String(a.current_balance))
+    setAdjustDone(false)
+    setAdjustSheetOpen(true)
+  }
+
+  const handleAdjust = async () => {
+    if (!adjustAccount) return
+    const actual = parseFloat(adjustInput)
+    if (isNaN(actual)) return
+    setAdjusting(true)
+    try {
+      await onAdjustBalance(adjustAccount.id, actual)
+      setAdjustDone(true)
+    } catch (_) {}
+    setAdjusting(false)
+  }
 
   const openEditSheet = (a: { id: string; name: string; type: AccountType; current_balance: number }) => {
     setEditingId(a.id)
@@ -170,6 +197,12 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                     <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>
                       {fmt(a.current_balance, { decimals: a.current_balance % 1 ? 2 : 0 })}
                     </div>
+                    <button onClick={() => openAdjust(a)} title="Adjust balance"
+                      style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                      </svg>
+                    </button>
                     <button onClick={() => openEditSheet(a)} title="Edit account"
                       style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -292,6 +325,121 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
+      </BottomSheet>
+
+      {/* Adjust Balance Sheet */}
+      <BottomSheet open={adjustSheetOpen} onClose={() => { setAdjustSheetOpen(false); setAdjustDone(false) }}>
+        {adjustAccount && (() => {
+          const actual = parseFloat(adjustInput)
+          const diff = isNaN(actual) ? null : actual - adjustAccount.current_balance
+          const diffFmt = diff === null ? null
+            : diff === 0 ? 'No change'
+            : (diff > 0 ? '+' : '−') + '₹' + Math.abs(diff).toLocaleString('en-IN')
+          const diffColor = diff === null || diff === 0 ? c.muted : diff > 0 ? c.good : c.bad
+
+          return adjustDone ? (
+            <div style={{ paddingBottom: 8 }}>
+              <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 6, letterSpacing: '-0.01em' }}>Balance updated</div>
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, marginBottom: 20, lineHeight: 1.6 }}>
+                A <strong style={{ color: c.ink }}>Balance Adjustment</strong> transaction was recorded for audit purposes. It won't affect your spending reports or budget strategy.
+              </div>
+              <div style={{ background: c.surface2, borderRadius: 14, padding: '14px 16px', marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>New balance</span>
+                  <span style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>₹{actual.toLocaleString('en-IN')}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Adjustment</span>
+                  <span style={{ font: '700 13px Plus Jakarta Sans', color: diffColor }}>{diffFmt}</span>
+                </div>
+              </div>
+              <button onClick={() => { setAdjustSheetOpen(false); setAdjustDone(false) }}
+                style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>
+                Done
+              </button>
+            </div>
+          ) : (
+            <div style={{ paddingBottom: 8 }}>
+              <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.01em' }}>Adjust Balance</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18, lineHeight: 1.6 }}>
+                Enter the actual balance from your bank statement. A Balance Adjustment transaction will be created for the difference.
+              </div>
+
+              {/* Current vs actual */}
+              <div style={{ background: c.surface2, borderRadius: 14, padding: '14px 16px', marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${c.faint}` }}>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>MoneyPlant balance</span>
+                  <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>₹{adjustAccount.current_balance.toLocaleString('en-IN')}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: diff !== null && diff !== 0 ? 10 : 0 }}>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Actual balance</span>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', font: '700 13px Plus Jakarta Sans', color: c.muted }}>₹</span>
+                    <input
+                      type="number" inputMode="decimal"
+                      value={adjustInput}
+                      onChange={e => setAdjustInput(e.target.value)}
+                      style={{
+                        background: c.surface, border: `1.5px solid ${c.faint}`,
+                        borderRadius: 10, padding: '8px 10px 8px 24px',
+                        font: '700 14px Plus Jakarta Sans', color: c.ink, outline: 'none',
+                        width: 130, textAlign: 'right', boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+                {diff !== null && diff !== 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
+                    <span style={{ font: '700 12px Plus Jakarta Sans', color: c.muted }}>Difference</span>
+                    <span style={{ font: '800 14px Plus Jakarta Sans', color: diffColor }}>{diffFmt}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Two options */}
+              {diff !== null && diff !== 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    How to handle this difference?
+                  </div>
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, padding: '10px 12px', background: c.surface2, borderRadius: 12 }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <strong style={{ color: c.ink }}>Create Balance Adjustment</strong> — Records an adjustment transaction for audit trail. Use when you don't know the cause.
+                    </div>
+                    <div>
+                      <strong style={{ color: c.ink }}>Add Transaction Instead</strong> — If you know what caused the difference (e.g. interest credited, bank charge), record a proper Income or Expense transaction and then return here.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                {diff !== null && diff !== 0 && onAddTransaction && (
+                  <button
+                    onClick={() => { setAdjustSheetOpen(false); onAddTransaction() }}
+                    style={{ flex: 1, padding: '13px', borderRadius: 12, border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted, font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
+                  >
+                    Add Transaction
+                  </button>
+                )}
+                <button
+                  onClick={handleAdjust}
+                  disabled={adjusting || diff === null || diff === 0}
+                  style={{
+                    flex: 2, padding: '13px', borderRadius: 12, border: 'none',
+                    background: diff !== null && diff !== 0 ? c.accent : c.faint,
+                    color: diff !== null && diff !== 0 ? '#fff' : c.muted,
+                    font: '700 13px Plus Jakarta Sans',
+                    cursor: adjusting || diff === null || diff === 0 ? 'not-allowed' : 'pointer',
+                    opacity: adjusting ? 0.7 : 1,
+                  }}
+                >
+                  {adjusting ? 'Adjusting…' : diff === 0 ? 'No change' : 'Create Balance Adjustment'}
+                </button>
+              </div>
+            </div>
+          )
+        })()}
       </BottomSheet>
 
       {/* Add Account Sheet */}

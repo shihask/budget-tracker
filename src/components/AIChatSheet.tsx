@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { parseExpenseWithAI } from '@/lib/gemini'
 import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
-import { INCOME_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
+import { INCOME_GROUP, BORROWING_CREDIT_CATS, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { computeChallenge } from '@/lib/challenge'
 import { getStrategyPcts, getCategoryBucket } from './BudgetStrategyCard'
 
@@ -157,16 +157,19 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   const isBorrowingTx = (t: Transaction) =>
     t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment'
 
+  const catMapAll = Object.fromEntries(state.categories.map(c => [c.id, c]))
+  const isAdjTx = (t: Transaction) => catMapAll[t.category_id ?? '']?.group_name === ADJUSTMENT_GROUP
+
   // ── Pre-compute aggregates used across multiple modules ──
   const thisMonthTxns = state.transactions.filter(t =>
-    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense'
+    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense' && !isAdjTx(t)
   )
   const lastMonthTxns = state.transactions.filter(t => {
     const dt = new Date(t.transaction_date)
-    return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense'
+    return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense' && !isAdjTx(t)
   })
   const thisMonthIncome = state.transactions
-    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income')
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income' && !isAdjTx(t))
     .reduce((s, t) => s + t.amount, 0)
   const thisMonthTransfers = state.transactions
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'transfer')
