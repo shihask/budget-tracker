@@ -365,7 +365,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
   // ── Derived stats for active savings ─────────────────────────────────────────
   const totalMonthly   = active.filter(s => s.is_recurring && s.frequency === 'monthly').reduce((a, s) => a + s.amount, 0)
-  const totalContrib      = active.filter(s => !s.is_prized).reduce((a, s) => a + s.current_installment * s.amount, 0)
+  const totalContrib      = active.filter(s => !s.is_prized).reduce((a, s) => a + (s.is_recurring ? s.current_installment * s.amount : s.amount), 0)
   const totalPortfolio    = active.reduce((a, s) => a + (s.current_value || 0), 0)
   const hasUnvaluedPlans  = active.filter(s => !s.is_prized).some(s => !s.current_value)
 
@@ -454,8 +454,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
         {active.map(sv => {
           const tcfg   = TYPE_CONFIG[sv.type]
           const col    = tcfg.color
-          const contrib = sv.current_installment * sv.amount
-          const target  = sv.total_target ?? (sv.total_installments ? sv.total_installments * sv.amount : null)
+          const contrib = sv.is_recurring ? sv.current_installment * sv.amount : sv.amount
+          const target  = sv.total_target ?? (sv.is_recurring && sv.total_installments ? sv.total_installments * sv.amount : null)
           const pct     = target && target > 0 ? Math.min(100, (contrib / target) * 100) : null
           const returns = sv.current_value > 0 ? sv.current_value - contrib : null
           const isDel   = deleting === sv.id
@@ -537,10 +537,12 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 ) : (
                   <>
                     <div style={{ background: c.surface2, borderRadius: 10, padding: '8px 12px', flex: 1, minWidth: 80 }}>
-                      <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Invested</div>
+                      <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{sv.is_recurring ? 'Invested' : 'Principal'}</div>
                       <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(contrib)}</div>
                       {sv.total_installments && (
-                        <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{sv.current_installment}/{sv.total_installments}</div>
+                        <div style={{ font: '600 9px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+                          {sv.is_recurring ? `${sv.current_installment}/${sv.total_installments}` : `${sv.current_installment} / ${sv.total_installments} mo`}
+                        </div>
                       )}
                     </div>
                     {sv.current_value > 0 && (
