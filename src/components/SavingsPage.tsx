@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt } from '@/lib/utils'
@@ -1127,9 +1128,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           </div>
         </div>
       )}
-      {/* ── Save confirmation ─────────────────────────────────────────────────── */}
-      {saveConfirmPending && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      {/* ── Save confirmation (portal — must sit above BottomSheet portal) ────── */}
+      {saveConfirmPending && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={() => setSaveConfirmPending(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
             {saveConfirmPending.payload.investment_source === 'existing' ? (
@@ -1171,8 +1172,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               </>
             )}
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
 
       {/* ── Delete protection ─────────────────────────────────────────────────── */}
       {deleteProtect && (
