@@ -245,14 +245,13 @@ CREATE OR REPLACE FUNCTION mp_mark_commitment_paid(
   p_transaction_date date,
   p_description      text,
   p_amount           numeric,
+  p_last_paid_date   date,               -- required: must precede any DEFAULT params
+  p_new_installment  int,                -- required: must precede any DEFAULT params
   p_category_id      uuid    DEFAULT NULL,
   p_from_account_id  uuid    DEFAULT NULL,   -- bank account (null for CC)
   p_credit_card_id   uuid    DEFAULT NULL,   -- CC (null for bank)
   p_from_delta       numeric DEFAULT NULL,   -- -amount for bank
   p_cc_delta         numeric DEFAULT NULL,   -- +amount for CC
-  -- Commitment state updates (pre-computed by TypeScript)
-  p_last_paid_date   date,
-  p_new_installment  int,
   p_new_remaining    numeric DEFAULT NULL,
   p_new_is_active    boolean DEFAULT NULL
 )
@@ -310,10 +309,10 @@ CREATE OR REPLACE FUNCTION mp_record_savings_contribution(
   p_amount                 numeric,
   p_transaction_date       date,
   p_description            text,
+  p_new_installment        int,           -- required: must precede any DEFAULT params
+  p_last_contribution_date date,          -- required: must precede any DEFAULT params
   p_category_id            uuid    DEFAULT NULL,
   p_notes                  text    DEFAULT '',
-  p_new_installment        int,
-  p_last_contribution_date date,
   p_mark_complete          boolean DEFAULT false
 )
 RETURNS jsonb
