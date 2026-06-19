@@ -163,6 +163,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
     accountName: string
   } | null>(null)
   const [confirmingSave, setConfirmingSave] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [deleteProtect, setDeleteProtect] = useState<Savings | null>(null)
   const [archiving, setArchiving] = useState<string | null>(null)
 
@@ -215,13 +216,19 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   const handleSaveConfirm = async () => {
     if (!saveConfirmPending) return
     setConfirmingSave(true)
+    setSaveError(null)
     try {
       const { payload, accountId } = saveConfirmPending
       const debit = payload.investment_source === 'new' && accountId ? accountId : undefined
       await onAdd(payload, debit)
       setSaveConfirmPending(null)
       closeSheet()
-    } catch (_) {}
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : 'Failed to save. Please try again.'
+      setSaveError(msg)
+    }
     setConfirmingSave(false)
   }
 
@@ -1133,7 +1140,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
       {/* ── Save confirmation (portal — must sit above BottomSheet portal) ────── */}
       {saveConfirmPending && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setSaveConfirmPending(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div onClick={() => { setSaveConfirmPending(null); setSaveError(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
             {saveConfirmPending.payload.investment_source === 'existing' ? (
               <>
@@ -1145,7 +1152,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   This will NOT affect account balances and will NOT create any transactions.
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => setSaveConfirmPending(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={() => { setSaveConfirmPending(null); setSaveError(null) }} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
                   <button onClick={handleSaveConfirm} disabled={confirmingSave} style={{ flex: 2, background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: confirmingSave ? 'not-allowed' : 'pointer', opacity: confirmingSave ? 0.7 : 1 }}>
                     {confirmingSave ? 'Adding...' : 'Add Investment'}
                   </button>
@@ -1161,12 +1168,17 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   A savings contribution transaction will be created.
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => setSaveConfirmPending(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={() => { setSaveConfirmPending(null); setSaveError(null) }} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
                   <button onClick={handleSaveConfirm} disabled={confirmingSave || !saveConfirmPending.accountId} style={{ flex: 2, background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: (confirmingSave || !saveConfirmPending.accountId) ? 'not-allowed' : 'pointer', opacity: (confirmingSave || !saveConfirmPending.accountId) ? 0.7 : 1 }}>
                     {confirmingSave ? 'Creating...' : 'Create Investment'}
                   </button>
                 </div>
-                {!saveConfirmPending.accountId && (
+                {saveError && (
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: '#EF4444', marginTop: 10, background: 'rgba(239,68,68,0.08)', borderRadius: 10, padding: '8px 12px', lineHeight: 1.5 }}>
+                    {saveError}
+                  </div>
+                )}
+                {!saveConfirmPending.accountId && !saveError && (
                   <div style={{ font: '600 12px Plus Jakarta Sans', color: '#EF4444', marginTop: 10, textAlign: 'center' }}>
                     Select a "Debit from account" in the form to continue.
                   </div>

@@ -987,7 +987,7 @@ export function useSupabaseData(userId: string) {
           .update({ current_balance: acc.current_balance - form.amount })
           .eq('id', debitAccountId)
       }
-      const { data: newTx } = await supabase.from('transactions').insert({
+      const { data: newTx, error: txError } = await supabase.from('transactions').insert({
         user_id: userId,
         transaction_date: today,
         description: form.name,
@@ -998,6 +998,18 @@ export function useSupabaseData(userId: string) {
         to_account_id: null,
         notes: savingsContribNote(form.type),
       }).select('*, category:categories(*)').single()
+
+      if (txError) {
+        // Revert the account balance deduction so the DB stays consistent
+        if (acc) {
+          await supabase.from('accounts')
+            .update({ current_balance: acc.current_balance })
+            .eq('id', debitAccountId)
+        }
+        // Also remove the savings record that was just created
+        await supabase.from('savings').delete().eq('id', (data as Savings).id)
+        throw txError
+      }
 
       setState(s => ({
         ...s,
