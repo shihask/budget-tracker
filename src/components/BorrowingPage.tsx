@@ -14,6 +14,7 @@ type BForm = {
   notes: string
   direction: 'lent' | 'borrowed'
   account_id: string
+  transaction_date: string
 }
 
 type PayForm = {
@@ -25,12 +26,12 @@ type PayForm = {
 
 type SortKey = 'remaining_desc' | 'remaining_asc' | 'amount_desc' | 'amount_asc' | 'name_asc' | 'name_desc'
 
-const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent', account_id: '' }
+const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent', account_id: '', transaction_date: new Date().toISOString().slice(0, 10) }
 const EMPTY_PAY: PayForm = { amount: '', account_id: '', category_id: '', incoming: true }
 
 interface BorrowingPageProps {
   state: AppState
-  onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }, addTransaction: boolean, accountId: string | null) => Promise<void>
+  onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; transaction_date?: string }, addTransaction: boolean, accountId: string | null) => Promise<void>
   onUpdate: (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => Promise<void>
   onDelete: (id: string, deleteTransactions: boolean) => Promise<void>
   onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean, categoryId: string | null, addTransaction: boolean) => Promise<void>
@@ -201,10 +202,10 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   const clearFilters = () => { setSearch(''); setFilterDirection('all'); setFilterStatus('all') }
 
   // ── Add / Edit handlers ───────────────────────────────────────────────────────
-  const openAdd = () => { setEditingId(null); setForm({ ...EMPTY_BFORM, account_id: accounts[0]?.id || '' }); setSheetOpen(true) }
+  const openAdd = () => { setEditingId(null); setForm({ ...EMPTY_BFORM, account_id: accounts[0]?.id || '', transaction_date: new Date().toISOString().slice(0, 10) }); setSheetOpen(true) }
   const openEdit = (b: Borrowing) => {
     setEditingId(b.id)
-    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent', account_id: accounts[0]?.id || '' })
+    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent', account_id: accounts[0]?.id || '', transaction_date: new Date().toISOString().slice(0, 10) })
     setSheetOpen(true)
   }
   const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_BFORM); setAddInfoOpen(false) }
@@ -219,7 +220,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
     const total = parseFloat(form.total_amount)
     const paid = parseFloat(form.paid_amount) || 0
     if (!form.person_name.trim() || isNaN(total) || total <= 0) return
-    const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction }
+    const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction, transaction_date: form.transaction_date || new Date().toISOString().slice(0, 10) }
     if (!editingId) {
       setPendingAddForm(payload)
       setAddConfirm(true)
@@ -577,12 +578,18 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
             </div>
           </div>
           {!editingId && (
-            <div>
-              <Label>{form.direction === 'lent' ? 'Account to deduct from (for expense record)' : 'Account received into (for income record)'}</Label>
-              <select value={form.account_id} onChange={e => setForm(f => ({ ...f, account_id: e.target.value }))} style={inp}>
-                <option value="">No account</option>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <Label>Date</Label>
+                <input type="date" value={form.transaction_date} onChange={e => setForm(f => ({ ...f, transaction_date: e.target.value }))} style={inp} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <Label>{form.direction === 'lent' ? 'Account (deduct from)' : 'Account (received into)'}</Label>
+                <select value={form.account_id} onChange={e => setForm(f => ({ ...f, account_id: e.target.value }))} style={inp}>
+                  <option value="">No account</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
             </div>
           )}
           <div>

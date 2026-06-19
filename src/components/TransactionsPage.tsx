@@ -591,13 +591,12 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     type="number"
                     inputMode="decimal"
                     value={editForm.amount}
-                    onChange={e => !editingTx?.borrowing_id && setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
+                    onChange={e => setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
                     onFocus={e => e.target.select()}
-                    style={{ ...inp, ...(editingTx?.borrowing_id ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+                    style={inp}
                     placeholder="0"
                     min="0"
                     step="0.01"
-                    readOnly={!!editingTx?.borrowing_id}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
