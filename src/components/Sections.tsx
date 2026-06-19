@@ -196,12 +196,15 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
       ) : txns.map((t) => {
         const cat = catMap[t.category_id!]
         const col = (cat && CAT_COLORS[cat.name]) || c.muted
-        const acc = acctById[t.from_account_id!]
+        const acc = acctById[t.from_account_id!] ?? (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'opening_balance' ? acctById[t.to_account_id!] : undefined)
         const toAcc = t.transaction_type === 'transfer' && t.to_account_id ? acctById[t.to_account_id] : null
         const isDeleting = deleting === t.id
+        const typeLabel = t.transaction_type === 'balance_adjustment' ? 'Balance Adjustment'
+          : t.transaction_type === 'opening_balance' ? 'Opening Balance'
+          : cat ? cat.name : 'Other'
         const subLabel = toAcc
           ? `${acc?.name || '?'} → ${toAcc.name}`
-          : `${cat ? cat.name : 'Other'} · ${acc ? acc.name : ''}`
+          : `${typeLabel} · ${acc?.name || ''}`
         return (
           <div
             key={t.id}
