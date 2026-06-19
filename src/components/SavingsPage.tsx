@@ -746,7 +746,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
               <input
-                type="number" inputMode="decimal" onFocus={e => e.target.select()}
+                type="text" inputMode="decimal" onFocus={e => e.target.select()}
                 value={form.amount} onChange={e => set('amount', e.target.value)}
                 placeholder={cfg.placeholder.replace('₹ ', '')} min="0"
                 style={{ ...inp, paddingLeft: 28 }}
@@ -770,7 +770,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Contribution day</label>
                   <HelpText>Day of the month the amount is auto-debited from your account.</HelpText>
-                  <input type="number" value={form.due_day} onChange={e => set('due_day', e.target.value)}
+                  <input type="text" value={form.due_day} onChange={e => set('due_day', e.target.value)}
                     placeholder="e.g. 5" min="1" max="31" style={inp} />
                 </div>
               )}
@@ -785,7 +785,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 ? <HelpText>Tenure is part of the original contract and cannot be changed.</HelpText>
                 : <HelpText>Total duration of this plan. e.g. 5-year RD = 60 months.</HelpText>
               }
-              <input type="number" inputMode="numeric" value={form.total_installments}
+              <input type="text" inputMode="numeric" value={form.total_installments}
                 onChange={e => !editingId && set('total_installments', e.target.value)}
                 placeholder="e.g. 60" min="1"
                 disabled={!!editingId}
@@ -794,7 +794,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div style={{ flex: 1 }}>
               <label style={lbl}>{cfg.isRecurring ? 'Contributions so far' : 'Months elapsed'}</label>
               <HelpText>How many contributions you have already made — used to calculate progress.</HelpText>
-              <input type="number" inputMode="numeric" value={form.current_installment}
+              <input type="text" inputMode="numeric" value={form.current_installment}
                 onChange={e => set('current_installment', e.target.value)} placeholder="0" min="0" style={inp} />
             </div>
           </div>
@@ -814,7 +814,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <HelpText>{form.type === 'chit' ? 'The fixed prize value of this chit fund. Auto-fills from contribution × members.' : form.type === 'fd' ? 'Expected maturity value of this Fixed Deposit.' : 'Total amount you aim to accumulate. Auto-fills from amount × months — you can override it.'}</HelpText>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
-              <input type="number" inputMode="decimal" value={form.total_target}
+              <input type="text" inputMode="decimal" value={form.total_target}
                 onChange={e => set('total_target', e.target.value)} placeholder="e.g. 60,000"
                 min="0" style={{ ...inp, paddingLeft: 28 }} />
             </div>
@@ -834,7 +834,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>Interest rate (% p.a.)</label>
                   <HelpText>Annual interest rate offered by the bank — for reference only, not used in calculations.</HelpText>
-                  <input type="number" inputMode="decimal" value={form.interest_rate}
+                  <input type="text" inputMode="decimal" value={form.interest_rate}
                     onChange={e => set('interest_rate', e.target.value)} placeholder="7.5" min="0" max="100" step="0.01" style={inp} />
                 </div>
               )}
@@ -875,7 +875,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   ? <HelpText>Prize month cannot be changed after payout is recorded.</HelpText>
                   : <HelpText>Which installment number you received the prize at (e.g. 8 of 10).</HelpText>
                 }
-                <input type="number" inputMode="numeric" value={form.prize_month}
+                <input type="text" inputMode="numeric" value={form.prize_month}
                   onChange={e => !prizeMonthLocked && set('prize_month', e.target.value)}
                   placeholder="e.g. 8" min="1"
                   disabled={prizeMonthLocked}
@@ -886,7 +886,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 <HelpText>Actual cash received after deductions (charity, current month, etc.).</HelpText>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
-                  <input type="number" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
+                  <input type="text" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
                     onChange={e => set('current_value', e.target.value || '0')} placeholder="e.g. 43,000"
                     min="0" style={{ ...inp, paddingLeft: 28 }} />
                 </div>
@@ -901,7 +901,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <HelpText>Current market value from your fund app or bank statement. Used to track gains/losses.</HelpText>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
-                <input type="number" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
+                <input type="text" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
                   onChange={e => set('current_value', e.target.value || '0')} placeholder="As per latest NAV"
                   min="0" style={{ ...inp, paddingLeft: 28 }} />
               </div>
@@ -1013,7 +1013,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
                 <input
-                  type="number" inputMode="decimal"
+                  type="text" inputMode="decimal"
                   value={payoutAmount}
                   onChange={e => setPayoutAmount(e.target.value)}
                   onFocus={e => e.target.select()}
@@ -1113,7 +1113,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div style={{ position: 'relative', marginBottom: 16 }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
               <input
-                type="number" inputMode="decimal" value={newValueInput}
+                type="text" inputMode="decimal" value={newValueInput}
                 onChange={e => setNewValueInput(e.target.value)}
                 onFocus={e => e.target.select()}
                 placeholder="Current portfolio value"
