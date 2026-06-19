@@ -2,10 +2,11 @@ import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BORROWING_CREDIT_CATS } from '@/lib/constants'
-import type { AppState, BudgetBucket, BudgetStrategyType } from '@/types'
+import type { AppState, BudgetBucket, BudgetStrategyType, DerivedMetrics } from '@/types'
 
 interface BudgetStrategyCardProps {
   state: AppState
+  d: DerivedMetrics
 }
 
 export const STRATEGY_PRESETS: Record<
@@ -60,10 +61,12 @@ export function getCategoryBucket(cat: AppState['categories'][0], groups: AppSta
   return getAutoBucket(groups, cat.group_name)
 }
 
-function useStrategyData(state: AppState) {
+function useStrategyData(state: AppState, d: DerivedMetrics) {
   return useMemo(() => {
     const pcts = getStrategyPcts(state.settings)
     if (!pcts) return null
+
+    const base = state.settings.budget_strategy_base ?? 'income'
 
     const now = new Date()
     const sd = state.settings.salary_date
@@ -76,9 +79,15 @@ function useStrategyData(state: AppState) {
       periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
     }
 
-    const income = state.transactions
+    const cycleIncome = state.transactions
       .filter(t => t.transaction_type === 'income' && new Date(t.transaction_date) >= periodStart)
       .reduce((s, t) => s + t.amount, 0)
+
+    // 'available_funds' uses account balance (minus emergency fund) as the strategy base.
+    // This lets users with savings-first or pre-funded accounts run the 50/30/20 framework.
+    const income = base === 'available_funds'
+      ? Math.max(0, d.availableBalance)
+      : cycleIncome
 
     const actuals: Record<BudgetBucket, number> = { needs: 0, wants: 0, savings: 0 }
     const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
@@ -124,8 +133,8 @@ function useStrategyData(state: AppState) {
     const savingsScore = targets.savings > 0 ? Math.min(100, Math.round(actuals.savings / targets.savings * 100)) : 0
     const overallScore = Math.round((needsScore + wantsScore + savingsScore) / 3)
 
-    return { pcts, income, actuals, targets, needsScore, wantsScore, savingsScore, overallScore }
-  }, [state])
+    return { pcts, base, income, cycleIncome, actuals, targets, needsScore, wantsScore, savingsScore, overallScore }
+  }, [state, d])
 }
 
 interface BucketRowProps {
@@ -166,13 +175,13 @@ function BucketRow({ label, actual, target, color }: BucketRowProps) {
   )
 }
 
-export function BudgetStrategyCard({ state }: BudgetStrategyCardProps) {
+export function BudgetStrategyCard({ state, d }: BudgetStrategyCardProps) {
   const c = useTheme()
-  const data = useStrategyData(state)
+  const data = useStrategyData(state, d)
   if (!data) return null
 
-  const { pcts, actuals, targets, needsScore, wantsScore, savingsScore, overallScore } = data
-  const noIncome = data.income === 0
+  const { pcts, base, income, cycleIncome, actuals, targets, needsScore, wantsScore, savingsScore, overallScore } = data
+  const noBase = income === 0
 
   return (
     <div style={{
@@ -186,10 +195,10 @@ export function BudgetStrategyCard({ state }: BudgetStrategyCardProps) {
             Budget Strategy
           </div>
           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-            {pcts.label}
+            {pcts.label} · based on {base === 'available_funds' ? 'available funds' : 'income'}
           </div>
         </div>
-        {!noIncome && (
+        {!noBase && (
           <div style={{
             background: overallScore >= 80 ? c.good : overallScore >= 50 ? c.warn : c.bad,
             color: '#fff', borderRadius: 20,
@@ -201,17 +210,45 @@ export function BudgetStrategyCard({ state }: BudgetStrategyCardProps) {
         )}
       </div>
 
-      <BucketRow label="Needs"   actual={actuals.needs}   target={targets.needs}   color="#3B82F6" />
-      <BucketRow label="Wants"   actual={actuals.wants}   target={targets.wants}   color="#F97316" />
-      <BucketRow label="Savings" actual={actuals.savings} target={targets.savings} color={c.accent} />
-
-      {noIncome && (
-        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: -4 }}>
-          Add income this cycle to see targets
+      {noBase ? (
+        /* No income (or no available funds) — show context instead of empty bars */
+        <div style={{ padding: '4px 0 8px' }}>
+          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
+            Budget Strategy analyzes how income is allocated.
+          </div>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16, lineHeight: 1.6 }}>
+            {base === 'income'
+              ? 'No income has been recorded for this cycle yet. Your spending budget (daily/weekly limit) is unaffected — it works from your current balance.'
+              : 'No available funds detected. Check your account balances and emergency fund settings.'}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1, background: c.surface2, borderRadius: 12, padding: '10px 12px' }}>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                Current Balance
+              </div>
+              <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>
+                {fmt(d.actualBalance)}
+              </div>
+            </div>
+            <div style={{ flex: 1, background: c.surface2, borderRadius: 12, padding: '10px 12px' }}>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                {cycleIncome > 0 ? 'Cycle Income' : 'Available to Spend'}
+              </div>
+              <div style={{ font: '800 15px Plus Jakarta Sans', color: cycleIncome > 0 ? c.good : c.ink }}>
+                {fmt(cycleIncome > 0 ? cycleIncome : d.realFreeMoney)}
+              </div>
+            </div>
+          </div>
         </div>
+      ) : (
+        <>
+          <BucketRow label="Needs"   actual={actuals.needs}   target={targets.needs}   color="#3B82F6" />
+          <BucketRow label="Wants"   actual={actuals.wants}   target={targets.wants}   color="#F97316" />
+          <BucketRow label="Savings" actual={actuals.savings} target={targets.savings} color={c.accent} />
+        </>
       )}
 
-      {!noIncome && (
+      {!noBase && (
         <div style={{
           marginTop: 12, paddingTop: 12,
           borderTop: `1px solid ${c.faint}`,

@@ -129,6 +129,7 @@ export interface Settings {
   custom_needs_pct?:            number
   custom_wants_pct?:            number
   custom_savings_pct?:          number
+  budget_strategy_base?:        'income' | 'available_funds'
   last_reflection_date?:        string | null
 }
 

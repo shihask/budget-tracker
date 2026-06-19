@@ -26,7 +26,9 @@ interface SettingsPanelProps {
   customNeedsPct: number
   customWantsPct: number
   customSavingsPct: number
+  budgetStrategyBase: 'income' | 'available_funds'
   onBudgetStrategy: (strategy: BudgetStrategyType, customPcts?: { needs: number; wants: number; savings: number }) => void
+  onBudgetStrategyBase: (v: 'income' | 'available_funds') => void
   onMapCategories: () => void
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
@@ -45,7 +47,7 @@ interface SettingsPanelProps {
   onDashboardLayout: () => void
 }
 
-export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, trackSavings, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, budgetStrategy, customNeedsPct, customWantsPct, customSavingsPct, onBudgetStrategy, onMapCategories, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, trackSavings, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, budgetStrategy, customNeedsPct, customWantsPct, customSavingsPct, budgetStrategyBase, onBudgetStrategy, onBudgetStrategyBase, onMapCategories, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [savingSalary, setSavingSalary] = useState(false)
@@ -291,15 +293,51 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
       )}
 
       {budgetStrategy !== 'none' && (
-        <div style={{ ...rowStyle, cursor: 'pointer' }} onClick={onMapCategories}>
-          <div>
-            <div style={labelStyle}>Map Other categories</div>
-            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Assign Needs / Wants / Savings to custom categories</div>
+        <>
+          <div style={{ ...rowStyle, cursor: 'pointer' }} onClick={onMapCategories}>
+            <div>
+              <div style={labelStyle}>Map Other categories</div>
+              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Assign Needs / Wants / Savings to custom categories</div>
+            </div>
+            <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke={c.muted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M9 6l6 6-6 6" />
+            </svg>
           </div>
-          <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke={c.muted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </div>
+
+          <div style={{ paddingBottom: 10 }}>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>
+              Strategy base — what the Needs/Wants/Savings targets are calculated from
+            </div>
+            {([
+              { value: 'income' as const,          label: 'Income (Recommended)', desc: 'Only income transactions in the current cycle. How 50/30/20 is intended.' },
+              { value: 'available_funds' as const,  label: 'Available Funds',      desc: 'Your account balance minus emergency fund. Useful when using savings or pre-funded accounts.' },
+            ] as const).map(opt => (
+              <div
+                key={opt.value}
+                onClick={() => onBudgetStrategyBase(opt.value)}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  padding: '10px 12px', borderRadius: 12, marginBottom: 6, cursor: 'pointer',
+                  border: `1.5px solid ${budgetStrategyBase === opt.value ? '#3B82F6' : c.faint}`,
+                  background: budgetStrategyBase === opt.value ? '#3B82F610' : 'transparent',
+                }}
+              >
+                <div style={{
+                  width: 16, height: 16, borderRadius: 999, marginTop: 1, flexShrink: 0,
+                  border: `2px solid ${budgetStrategyBase === opt.value ? '#3B82F6' : c.faint}`,
+                  background: budgetStrategyBase === opt.value ? '#3B82F6' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {budgetStrategyBase === opt.value && <div style={{ width: 6, height: 6, borderRadius: 999, background: '#fff' }} />}
+                </div>
+                <div>
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{opt.label}</div>
+                  <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{opt.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>

@@ -299,7 +299,7 @@ function AppContent({ session }: { session: Session }) {
                   }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
-                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{(state.settings.budget_strategy ?? 'none') !== 'none' && <BudgetStrategyCard state={state} />}</>
+                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{(state.settings.budget_strategy ?? 'none') !== 'none' && <BudgetStrategyCard state={state} d={d} />}</>
                       break
                     case 'affordability':
                       el = <><AffordabilityChecker d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
@@ -565,6 +565,8 @@ function AppContent({ session }: { session: Session }) {
               customNeedsPct={state.settings.custom_needs_pct ?? 50}
               customWantsPct={state.settings.custom_wants_pct ?? 30}
               customSavingsPct={state.settings.custom_savings_pct ?? 20}
+              budgetStrategyBase={state.settings.budget_strategy_base ?? 'income'}
+              onBudgetStrategyBase={v => updateSettings({ budget_strategy_base: v })}
               onBudgetStrategy={async (strategy, customPcts) => {
                 const patch: Parameters<typeof updateSettings>[0] = { budget_strategy: strategy }
                 if (customPcts) {
