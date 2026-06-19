@@ -31,7 +31,7 @@ export function CategoryBucketMapper({ open, onClose, categories, groups, onUpda
   const mappableCategories = useMemo(() =>
     categories.filter(cat => {
       const group = groups.find(g => g.name === cat.group_name)
-      return group && !SYSTEM_GROUP_TYPES.has(group.type ?? '') && !cat.is_system
+      return group && !SYSTEM_GROUP_TYPES.has(group.type ?? '')
     }),
     [categories, groups]
   )
