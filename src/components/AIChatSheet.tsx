@@ -371,10 +371,16 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
       const actuals: Record<string, number> = { needs: 0, wants: 0, savings: 0 }
       for (const t of state.transactions) {
         if (new Date(t.transaction_date) < stratStart) continue
-        if (t.transaction_type !== 'expense' && t.transaction_type !== 'commitment' && t.transaction_type !== 'savings_contribution') continue
         const cat = catMap[t.category_id ?? '']
         if (!cat) continue
-        const bucket = t.transaction_type === 'savings_contribution' ? 'savings' : getCategoryBucket(cat, state.groups)
+        let bucket: string | null = null
+        if (t.transaction_type === 'savings_contribution') {
+          bucket = 'savings'
+        } else if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') {
+          bucket = getCategoryBucket(cat, state.groups)
+        } else if (t.transaction_type === 'borrowing_repayment' && !BORROWING_CREDIT_CATS.has(cat.name)) {
+          bucket = cat.budget_bucket ?? 'needs'
+        }
         if (!bucket) continue
         actuals[bucket] += t.amount
       }

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
+import { BORROWING_CREDIT_CATS } from '@/lib/constants'
 import type { AppState, BudgetBucket, BudgetStrategyType } from '@/types'
 
 interface BudgetStrategyCardProps {
@@ -84,13 +85,27 @@ function useStrategyData(state: AppState) {
 
     for (const t of state.transactions) {
       if (new Date(t.transaction_date) < periodStart) continue
-      if (t.transaction_type !== 'expense' && t.transaction_type !== 'commitment' && t.transaction_type !== 'savings_contribution') continue
       const cat = catMap[t.category_id ?? '']
       if (!cat) continue
-      const bucket = getCategoryBucket(cat, state.groups)
-      if (!bucket) continue
-      // savings_contribution transactions count toward savings bucket regardless of category
-      const effectiveBucket: BudgetBucket = t.transaction_type === 'savings_contribution' ? 'savings' : bucket
+
+      let effectiveBucket: BudgetBucket | null = null
+
+      if (t.transaction_type === 'savings_contribution') {
+        effectiveBucket = 'savings'
+      } else if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') {
+        effectiveBucket = getCategoryBucket(cat, state.groups)
+      } else if (t.transaction_type === 'borrowing_repayment') {
+        // Outgoing repayments (paying back borrowed money) → Needs by default.
+        // Incoming repayments (Lent Repayment = someone returning what they owe you)
+        // are credit/income-like and should be excluded.
+        if (!BORROWING_CREDIT_CATS.has(cat.name)) {
+          effectiveBucket = cat.budget_bucket ?? 'needs'
+        }
+      } else {
+        continue
+      }
+
+      if (!effectiveBucket) continue
       actuals[effectiveBucket] += t.amount
     }
 
