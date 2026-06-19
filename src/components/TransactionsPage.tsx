@@ -171,7 +171,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       return 0
     })
     return txns
-  }, [state.transactions, search, filterAccount, filterCategory, filterGroup, filterDateFrom, filterDateTo, sortKey])
+  }, [state.transactions, search, filterAccount, filterCategory, filterGroup, filterDateFrom, filterDateTo, sortKey, showSystemTxns])
 
   const totalFiltered = filtered.reduce((s, t) => s + t.amount, 0)
 
