@@ -9,7 +9,6 @@ import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, Transaction, TransactionType } from '@/types'
-import { BORROWING_CREDIT_CATS } from '@/lib/constants'
 
 type EditForm = {
   description: string
@@ -555,6 +554,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                           t.transaction_type === 'income' ? c.good :
                           t.transaction_type === 'opening_balance' ? c.good :
                           t.transaction_type === 'balance_adjustment' ? (t.to_account_id ? c.good : c.muted) :
+                          t.transaction_type === 'credit_card_payment' ? c.muted :
                           t.transaction_type === 'savings_withdrawal' ? '#10B981' :
                           t.transaction_type === 'savings_contribution' ? '#10B981' :
                           t.transaction_type === 'transfer' ? c.accent :
@@ -562,10 +562,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                           c.bad }}>
                           {(t.transaction_type === 'income' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'opening_balance') ? '+' :
                            t.transaction_type === 'balance_adjustment' ? (t.to_account_id ? '+' : '−') :
+                           t.transaction_type === 'credit_card_payment' ? '⇄' :
                            t.transaction_type === 'savings_contribution' ? '−' :
                            t.transaction_type === 'transfer' ? '⇄' :
                            (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
-                             ? (BORROWING_CREDIT_CATS.has(catMap[t.category_id!]?.name ?? '') ? '+' : '−')
+                             ? (t.is_credit ? '+' : '−')
                              : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
                         </div>
                         <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{fmtTime(t.created_at)}</div>

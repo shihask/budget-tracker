@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { BORROWING_CREDIT_CATS } from '@/lib/constants'
 import type { AppState, BudgetBucket, BudgetStrategyType, DerivedMetrics } from '@/types'
 
 interface BudgetStrategyCardProps {
@@ -98,7 +97,7 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
       if (!cat) continue
 
       // System transactions are never spending
-      if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment') continue
+      if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment' || t.transaction_type === 'credit_card_payment') continue
 
       let effectiveBucket: BudgetBucket | null = null
 
@@ -108,9 +107,8 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
         effectiveBucket = getCategoryBucket(cat, state.groups)
       } else if (t.transaction_type === 'borrowing_repayment') {
         // Outgoing repayments (paying back borrowed money) → Needs by default.
-        // Incoming repayments (Lent Repayment = someone returning what they owe you)
-        // are credit/income-like and should be excluded.
-        if (!BORROWING_CREDIT_CATS.has(cat.name)) {
+        // Incoming repayments (is_credit=true) are credit/income-like and should be excluded.
+        if (!t.is_credit) {
           effectiveBucket = cat.budget_bucket ?? 'needs'
         }
       } else {

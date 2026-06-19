@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { parseExpenseWithAI } from '@/lib/gemini'
 import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
-import { INCOME_GROUP, BORROWING_CREDIT_CATS, ADJUSTMENT_GROUP } from '@/lib/constants'
+import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { computeChallenge } from '@/lib/challenge'
 import { getStrategyPcts, getCategoryBucket } from './BudgetStrategyCard'
 
@@ -378,13 +378,13 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
         const cat = catMap[t.category_id ?? '']
         if (!cat) continue
         let bucket: string | null = null
-        if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment') {
+        if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment' || t.transaction_type === 'credit_card_payment') {
           continue  // system transactions never count toward strategy
         } else if (t.transaction_type === 'savings_contribution') {
           bucket = 'savings'
         } else if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') {
           bucket = getCategoryBucket(cat, state.groups)
-        } else if (t.transaction_type === 'borrowing_repayment' && !BORROWING_CREDIT_CATS.has(cat.name)) {
+        } else if (t.transaction_type === 'borrowing_repayment' && !t.is_credit) {
           bucket = cat.budget_bucket ?? 'needs'
         }
         if (!bucket) continue

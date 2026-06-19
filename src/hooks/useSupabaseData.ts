@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, BudgetBucket } from '@/types'
-import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
+import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 
 const delta = (type: TransactionType, amount: number) => {
   switch (type) {
@@ -12,10 +12,6 @@ const delta = (type: TransactionType, amount: number) => {
       return -amount   // debits the account (expense, commitment, balance_adjustment-debit, etc.)
   }
 }
-
-// 'Borrowed Money' and 'Lent Repayment' are credits (money came in); the other two are debits.
-const borrowingIsCredit = (categoryName: string | undefined) =>
-  BORROWING_CREDIT_CATS.has(categoryName ?? '')
 
 const EMPTY_STATE: AppState = {
   accounts: [],
@@ -409,8 +405,7 @@ export function useSupabaseData(userId: string) {
         if (acc) {
           let newBal: number
           if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
-            const catName = stateRef.current.categories.find(c => c.id === t.category_id)?.name
-            newBal = borrowingIsCredit(catName)
+            newBal = t.is_credit
               ? acc.current_balance - t.amount   // was credit → reverse = debit
               : acc.current_balance + t.amount   // was debit  → reverse = credit
           } else {
@@ -430,8 +425,7 @@ export function useSupabaseData(userId: string) {
           let bal = a.current_balance
           if (a.id === t.from_account_id) {
             if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
-              const catName = s.categories.find(c => c.id === t.category_id)?.name
-              bal += borrowingIsCredit(catName) ? -t.amount : t.amount
+              bal += t.is_credit ? -t.amount : t.amount
             } else {
               bal -= delta(t.transaction_type, t.amount)
             }
@@ -449,28 +443,45 @@ export function useSupabaseData(userId: string) {
   ) => {
     try {
       const toAccountId = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
+      const isBorrowingTx = !!old.borrowing_id
+      // Compute the new is_credit value: re-derive from the (possibly changed) category if this is
+      // a borrowing transaction; otherwise null. System categories are stable so name lookup is safe.
+      const newIsCredit = isBorrowingTx
+        ? (['Borrowed Money', 'Lent Repayment'] as string[]).includes(
+            stateRef.current.categories.find(c => c.id === form.category_id)?.name ?? ''
+          )
+        : null
+
       const { data: updated, error } = await supabase
         .from('transactions')
-        .update({ transaction_date: form.transaction_date, description: form.description, amount: form.amount, transaction_type: form.transaction_type, category_id: form.category_id, from_account_id: form.from_account_id, to_account_id: toAccountId })
+        .update({
+          transaction_date: form.transaction_date,
+          description: form.description,
+          amount: form.amount,
+          transaction_type: form.transaction_type,
+          category_id: form.category_id,
+          from_account_id: form.from_account_id,
+          to_account_id: toAccountId,
+          ...(isBorrowingTx ? { is_credit: newIsCredit } : {}),
+        })
         .eq('id', old.id)
         .select('*, category:categories(*)')
         .single()
       if (error) throw error
 
-      // For borrowing transactions use borrowingIsCredit; otherwise use generic delta
-      const txDelta = (type: TransactionType, amount: number, catId: string | null, isBorrowing: boolean) => {
-        if (isBorrowing) {
-          const catName = stateRef.current.categories.find(c => c.id === catId)?.name
-          return borrowingIsCredit(catName) ? amount : -amount
-        }
-        return delta(type, amount)
-      }
-      const isBorrowingTx = !!old.borrowing_id
+      // delta for a borrowing transaction — reads stored is_credit, no category lookup needed
+      const borrowingDelta = (isCredit: boolean | null | undefined, amount: number) =>
+        isCredit ? amount : -amount
 
       // Reverse old transaction's balance effects
       if (old.from_account_id) {
         const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', old.from_account_id).single()
-        if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance - txDelta(old.transaction_type, old.amount, old.category_id, isBorrowingTx) }).eq('id', old.from_account_id)
+        if (acc) {
+          const oldDelta = isBorrowingTx
+            ? borrowingDelta(old.is_credit, old.amount)
+            : delta(old.transaction_type, old.amount)
+          await supabase.from('accounts').update({ current_balance: acc.current_balance - oldDelta }).eq('id', old.from_account_id)
+        }
       }
       if (old.transaction_type === 'transfer' && old.to_account_id) {
         const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', old.to_account_id).single()
@@ -479,7 +490,12 @@ export function useSupabaseData(userId: string) {
       // Apply new transaction's balance effects
       if (form.from_account_id) {
         const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', form.from_account_id).single()
-        if (acc) await supabase.from('accounts').update({ current_balance: acc.current_balance + txDelta(form.transaction_type, form.amount, form.category_id, isBorrowingTx) }).eq('id', form.from_account_id)
+        if (acc) {
+          const newDelta = isBorrowingTx
+            ? borrowingDelta(newIsCredit, form.amount)
+            : delta(form.transaction_type, form.amount)
+          await supabase.from('accounts').update({ current_balance: acc.current_balance + newDelta }).eq('id', form.from_account_id)
+        }
       }
       if (toAccountId) {
         const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', toAccountId).single()
@@ -511,9 +527,13 @@ export function useSupabaseData(userId: string) {
         borrowings: updatedBorrowing ? s.borrowings.map(b => b.id === old.borrowing_id ? updatedBorrowing! : b) : s.borrowings,
         accounts: s.accounts.map(a => {
           let bal = a.current_balance
-          if (a.id === old.from_account_id) bal -= txDelta(old.transaction_type, old.amount, old.category_id, isBorrowingTx)
+          if (a.id === old.from_account_id) {
+            bal -= isBorrowingTx ? borrowingDelta(old.is_credit, old.amount) : delta(old.transaction_type, old.amount)
+          }
           if (old.transaction_type === 'transfer' && a.id === old.to_account_id) bal -= old.amount
-          if (a.id === form.from_account_id) bal += txDelta(form.transaction_type, form.amount, form.category_id, isBorrowingTx)
+          if (a.id === form.from_account_id) {
+            bal += isBorrowingTx ? borrowingDelta(newIsCredit, form.amount) : delta(form.transaction_type, form.amount)
+          }
           if (toAccountId && a.id === toAccountId) bal += form.amount
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
@@ -688,6 +708,7 @@ export function useSupabaseData(userId: string) {
         notes: '',
         user_id: userId,
         borrowing_id: borrowing.id,
+        is_credit: true,  // Borrowed Money → account credited (money came in)
       }).select('*, category:categories(*)').single()
 
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
@@ -712,6 +733,7 @@ export function useSupabaseData(userId: string) {
         notes: '',
         user_id: userId,
         borrowing_id: borrowing.id,
+        is_credit: false,  // Lent Money → account debited (money went out)
       }).select('*, category:categories(*)').single()
 
       const { data: acc } = await supabase.from('accounts').select('current_balance').eq('id', accountId).single()
@@ -745,8 +767,7 @@ export function useSupabaseData(userId: string) {
       updatedTx = txData as Transaction
 
       if (oldBorrowing.total_amount !== form.total_amount && initialTx.from_account_id) {
-        const catName = current.categories.find(c => c.id === initialTx.category_id)?.name
-        const isCredit = borrowingIsCredit(catName)
+        const isCredit = initialTx.is_credit
         const oldImpact = isCredit ? oldBorrowing.total_amount : -oldBorrowing.total_amount
         const newImpact = isCredit ? form.total_amount : -form.total_amount
         const diff = newImpact - oldImpact
@@ -779,8 +800,7 @@ export function useSupabaseData(userId: string) {
             if (acc) {
               let newBal: number
               if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
-                const catName = stateRef.current.categories.find(c => c.id === t.category_id)?.name
-                newBal = borrowingIsCredit(catName)
+                newBal = t.is_credit
                   ? acc.current_balance - t.amount
                   : acc.current_balance + t.amount
               } else {
@@ -827,6 +847,7 @@ export function useSupabaseData(userId: string) {
         notes: '',
         user_id: userId,
         borrowing_id: borrowing.id,
+        is_credit: incoming,  // Lent Repayment (incoming=true) → credit; Borrow Repayment → debit
       }).select('*, category:categories(*)').single()
       newTx = data as Transaction
 
@@ -872,11 +893,11 @@ export function useSupabaseData(userId: string) {
     if (isComplete) commitmentUpdate.is_active = false
     await supabase.from('commitments').update(commitmentUpdate).eq('id', cm.id)
 
-    // CC commitment — record expense + increase card outstanding
+    // CC commitment — record as commitment (same as bank path) + increase card outstanding
     if (isCreditCard) {
       const { data: newTx } = await supabase.from('transactions').insert({
         transaction_date: today, description: cm.name, amount: payAmount,
-        transaction_type: 'expense', category_id: cm.category_id,
+        transaction_type: 'commitment', category_id: cm.category_id,
         from_account_id: null, credit_card_id: cm.from_account_id,
         to_account_id: null, notes: '', user_id: userId,
       }).select('*, category:categories(*)').single()
@@ -997,6 +1018,7 @@ export function useSupabaseData(userId: string) {
         from_account_id: debitAccountId,
         to_account_id: null,
         notes: savingsContribNote(form.type),
+        savings_id: (data as Savings).id,
       }).select('*, category:categories(*)').single()
 
       if (txError) {
@@ -1074,6 +1096,7 @@ export function useSupabaseData(userId: string) {
         from_account_id: accountId,
         to_account_id: null,
         notes: savingsContribNote(sv.type),
+        savings_id: sv.id,
       }).select('*, category:categories(*)').single()
 
       setState(s => ({
@@ -1118,6 +1141,7 @@ export function useSupabaseData(userId: string) {
       from_account_id: null,
       to_account_id: accountId,
       notes: savingsWithdrawNote(sv.type, sv.type === 'chit'),
+      savings_id: sv.id,
     }).select('*, category:categories(*)').single()
 
     // Clear current_value after payout: chit → 0 (prize is now in tx history); non-chit → reduce by amount
@@ -1134,8 +1158,12 @@ export function useSupabaseData(userId: string) {
   }, [userId])
 
   const revertSavingsPayout = useCallback(async (sv: Savings) => {
+    // Prefer savings_id FK match; fall back to description patterns for historical transactions
     const tx = stateRef.current.transactions
-      .filter(t => t.transaction_type === 'savings_withdrawal' && t.description === sv.name)
+      .filter(t =>
+        t.transaction_type === 'savings_withdrawal' &&
+        (t.savings_id === sv.id || t.description === sv.name || t.description.startsWith(sv.name + ' —'))
+      )
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
     if (!tx) return
 
@@ -1226,8 +1254,7 @@ export function useSupabaseData(userId: string) {
       if (acc) {
         let newBal: number
         if (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') {
-          const catName = stateRef.current.categories.find(c => c.id === t.category_id)?.name
-          newBal = borrowingIsCredit(catName)
+          newBal = t.is_credit
             ? acc.current_balance - t.amount
             : acc.current_balance + t.amount
         } else {
@@ -1242,10 +1269,9 @@ export function useSupabaseData(userId: string) {
       const newPaid = Math.max(0, borrowing.paid_amount - t.amount)
       await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', t.borrowing_id)
       setState(s => {
-        const catName = s.categories.find(c => c.id === t.category_id)?.name
         const isBorrowingType = t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment'
         const balDelta = isBorrowingType
-          ? (borrowingIsCredit(catName) ? -t.amount : t.amount)
+          ? (t.is_credit ? -t.amount : t.amount)
           : -delta(t.transaction_type, t.amount)
         return {
           ...s,
@@ -1286,7 +1312,7 @@ export function useSupabaseData(userId: string) {
       transaction_date: today,
       description: `${card.name} bill payment`,
       amount,
-      transaction_type: 'expense',
+      transaction_type: 'credit_card_payment',
       category_id: null,
       from_account_id: accountId,
       to_account_id: null,

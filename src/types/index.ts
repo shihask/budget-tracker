@@ -1,9 +1,9 @@
 export type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet'
 export type BudgetBucket = 'needs' | 'wants' | 'savings'
 export type BudgetStrategyType = 'none' | 'balanced' | 'stable' | 'growth' | 'custom'
-export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment' | 'savings_contribution' | 'savings_withdrawal' | 'opening_balance' | 'balance_adjustment'
+export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment' | 'savings_contribution' | 'savings_withdrawal' | 'opening_balance' | 'balance_adjustment' | 'credit_card_payment'
 
-export const SYSTEM_TX_TYPES = new Set<TransactionType>(['opening_balance', 'balance_adjustment'])
+export const SYSTEM_TX_TYPES = new Set<TransactionType>(['opening_balance', 'balance_adjustment', 'credit_card_payment'])
 
 export type GroupType =
   | 'income'
@@ -58,6 +58,10 @@ export interface Transaction {
   created_at: string
   borrowing_id?: string | null
   credit_card_id?: string | null
+  // Direction for borrowing/borrowing_repayment: true = account credited, false = debited
+  is_credit?: boolean | null
+  // FK to savings record for savings_contribution/savings_withdrawal
+  savings_id?: string | null
   // joined
   category?: Category
   from_account?: Account

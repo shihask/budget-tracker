@@ -10,6 +10,7 @@ import { ADJUSTMENT_GROUP } from '@/lib/constants'
 export const isSystemTx = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
   t.transaction_type === 'opening_balance' ||
   t.transaction_type === 'balance_adjustment' ||
+  t.transaction_type === 'credit_card_payment' ||
   catMap[t.category_id ?? '']?.group_name === ADJUSTMENT_GROUP
 
 /** @deprecated Use isSystemTx */

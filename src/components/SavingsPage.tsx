@@ -362,8 +362,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   const hasTxHistory = (sv: Savings) =>
     state.transactions.some(t =>
       (t.transaction_type === 'savings_contribution' || t.transaction_type === 'savings_withdrawal') &&
-      t.description !== null &&
-      (t.description === sv.name || t.description.startsWith(sv.name + ' —'))
+      (t.savings_id === sv.id || (t.description !== null && (t.description === sv.name || t.description.startsWith(sv.name + ' —'))))
     )
 
   const editingSv = editingId ? state.savings.find(sv => sv.id === editingId) ?? null : null

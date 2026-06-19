@@ -4,7 +4,6 @@ import { useAppDialog } from './AppDialog'
 import { fmt, fmtDate } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
-import { BORROWING_CREDIT_CATS } from '@/lib/constants'
 import { MONTH_START, catById as buildCatById } from '@/lib/data'
 import type { AppState, DashboardSection, Transaction } from '@/types'
 
@@ -220,13 +219,21 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
               <div style={{ textAlign: 'right' }}>
                 <div style={{ font: '800 14px Plus Jakarta Sans', color:
                   t.transaction_type === 'income' ? c.good :
+                  t.transaction_type === 'opening_balance' ? c.good :
+                  t.transaction_type === 'balance_adjustment' ? (t.to_account_id ? c.good : c.muted) :
+                  t.transaction_type === 'credit_card_payment' ? c.muted :
+                  t.transaction_type === 'savings_withdrawal' ? '#10B981' :
+                  t.transaction_type === 'savings_contribution' ? '#10B981' :
                   t.transaction_type === 'transfer' ? c.accent :
                   (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') ? '#6366F1' :
                   c.bad }}>
-                  {t.transaction_type === 'income' ? '+' :
+                  {(t.transaction_type === 'income' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'opening_balance') ? '+' :
+                   t.transaction_type === 'balance_adjustment' ? (t.to_account_id ? '+' : '−') :
+                   t.transaction_type === 'credit_card_payment' ? '⇄' :
+                   t.transaction_type === 'savings_contribution' ? '−' :
                    t.transaction_type === 'transfer' ? '⇄' :
                    (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
-                     ? (BORROWING_CREDIT_CATS.has(cat?.name ?? '') ? '+' : '−')
+                     ? (t.is_credit ? '+' : '−')
                      : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
                 </div>
                 <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted }}>{fmtDate(t.transaction_date)}</div>
