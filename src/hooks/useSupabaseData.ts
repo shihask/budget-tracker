@@ -973,11 +973,43 @@ export function useSupabaseData(userId: string) {
 
   // ── Savings CRUD ─────────────────────────────────────────────────────────────
 
-  const addSavings = useCallback(async (form: Omit<Savings, 'id' | 'created_at'>) => {
+  const addSavings = useCallback(async (form: Omit<Savings, 'id' | 'created_at'>, debitAccountId?: string) => {
     const { data, error } = await supabase
       .from('savings').insert({ ...form, user_id: userId }).select('*').single()
     if (error) throw error
-    setState(s => ({ ...s, savings: [data as Savings, ...s.savings] }))
+
+    if (debitAccountId) {
+      const today = new Date().toISOString().split('T')[0]
+      const { data: acc } = await supabase
+        .from('accounts').select('current_balance').eq('id', debitAccountId).single()
+      if (acc) {
+        await supabase.from('accounts')
+          .update({ current_balance: acc.current_balance - form.amount })
+          .eq('id', debitAccountId)
+      }
+      const { data: newTx } = await supabase.from('transactions').insert({
+        user_id: userId,
+        transaction_date: today,
+        description: form.name,
+        amount: form.amount,
+        transaction_type: 'savings_contribution',
+        category_id: form.category_id,
+        from_account_id: debitAccountId,
+        to_account_id: null,
+        notes: savingsContribNote(form.type),
+      }).select('*, category:categories(*)').single()
+
+      setState(s => ({
+        ...s,
+        savings: [data as Savings, ...s.savings],
+        accounts: s.accounts.map(a =>
+          a.id === debitAccountId ? { ...a, current_balance: a.current_balance - form.amount } : a
+        ),
+        transactions: newTx ? [newTx as Transaction, ...s.transactions] : s.transactions,
+      }))
+    } else {
+      setState(s => ({ ...s, savings: [data as Savings, ...s.savings] }))
+    }
   }, [userId])
 
   const updateSavings = useCallback(async (id: string, patch: Partial<Omit<Savings, 'id' | 'user_id' | 'created_at'>>) => {

@@ -176,6 +176,7 @@ export interface Savings {
   is_active: boolean
   is_prized: boolean                  // chit: have you received the prize pot yet?
   prize_month: number | null          // chit: which installment number the prize was received at
+  investment_source?: 'existing' | 'new'
   created_at?: string
 }
 

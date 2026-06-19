@@ -50,6 +50,7 @@ type SForm = {
   notes: string
   is_prized: boolean
   prize_month: string
+  investment_source: 'existing' | 'new'
 }
 
 const EMPTY_FORM: SForm = {
@@ -57,6 +58,7 @@ const EMPTY_FORM: SForm = {
   due_day: '', total_installments: '', current_installment: '0',
   total_target: '', current_value: '0', maturity_date: '', interest_rate: '',
   from_account_id: '', category_id: '', notes: '', is_prized: false, prize_month: '',
+  investment_source: 'existing',
 }
 
 function formFromSavings(sv: Savings): SForm {
@@ -78,6 +80,7 @@ function formFromSavings(sv: Savings): SForm {
     notes: sv.notes ?? '',
     is_prized: sv.is_prized ?? false,
     prize_month: sv.prize_month ? String(sv.prize_month) : '',
+    investment_source: sv.investment_source ?? 'existing',
   }
 }
 
@@ -106,6 +109,7 @@ function payloadFromForm(form: SForm): Omit<Savings, 'id' | 'created_at'> {
     is_prized: isChit ? form.is_prized : false,
     prize_month: (isChit && form.is_prized && form.prize_month) ? parseInt(form.prize_month) : null,
     last_contribution_date: null,
+    investment_source: form.investment_source,
   }
 }
 
@@ -119,7 +123,7 @@ const ord = (n: number) => {
 interface Props {
   state: AppState
   onClose: () => void
-  onAdd: (form: Omit<Savings, 'id' | 'created_at'>) => Promise<void>
+  onAdd: (form: Omit<Savings, 'id' | 'created_at'>, debitAccountId?: string) => Promise<void>
   onUpdate: (id: string, patch: Partial<Omit<Savings, 'id' | 'user_id' | 'created_at'>>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onRecordContribution: (sv: Savings, recordExpense: boolean, accountId: string | null) => Promise<void>
@@ -152,6 +156,14 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   const [recordingPayout, setRecordingPayout] = useState<string | null>(null)
   const [revertConfirm, setRevertConfirm] = useState<Savings | null>(null)
   const [reverting, setReverting] = useState<string | null>(null)
+  const [saveConfirmPending, setSaveConfirmPending] = useState<{
+    payload: Omit<Savings, 'id' | 'created_at'>
+    accountId: string
+    accountName: string
+  } | null>(null)
+  const [confirmingSave, setConfirmingSave] = useState(false)
+  const [deleteProtect, setDeleteProtect] = useState<Savings | null>(null)
+  const [archiving, setArchiving] = useState<string | null>(null)
 
   const active = state.savings.filter(s => s.is_active)
   const accounts = state.accounts.filter(a => a.is_active)
@@ -188,17 +200,43 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
   const handleSave = async () => {
     if (!form.name.trim() || !parseFloat(form.amount)) return
-    setSaving(true)
+    if (editingId) {
+      setSaving(true)
+      try { await onUpdate(editingId, payloadFromForm(form)); closeSheet() } catch (_) {}
+      setSaving(false)
+      return
+    }
+    const payload = payloadFromForm(form)
+    const acct = accounts.find(a => a.id === form.from_account_id)
+    setSaveConfirmPending({ payload, accountId: form.from_account_id, accountName: acct?.name ?? '' })
+  }
+
+  const handleSaveConfirm = async () => {
+    if (!saveConfirmPending) return
+    setConfirmingSave(true)
     try {
-      const payload = payloadFromForm(form)
-      if (editingId) await onUpdate(editingId, payload)
-      else await onAdd(payload)
+      const { payload, accountId } = saveConfirmPending
+      const debit = payload.investment_source === 'new' && accountId ? accountId : undefined
+      await onAdd(payload, debit)
+      setSaveConfirmPending(null)
       closeSheet()
     } catch (_) {}
-    setSaving(false)
+    setConfirmingSave(false)
+  }
+
+  const handleArchive = async (sv: Savings) => {
+    setArchiving(sv.id)
+    setDeleteProtect(null)
+    try { await onUpdate(sv.id, { is_active: false }) } catch (_) {}
+    setArchiving(null)
   }
 
   const handleDelete = async (id: string) => {
+    const sv = state.savings.find(s => s.id === id)
+    if (sv && hasTxHistory(sv)) {
+      setDeleteProtect(sv)
+      return
+    }
     if (!await confirm('Delete this savings entry?')) return
     setDeleting(id)
     try { await onDelete(id) } catch (_) {}
@@ -264,7 +302,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   }
 
   const onTouchStart = (e: React.TouchEvent) => {
-    if (closing || sheetOpen || confirmContrib || updateValueId || confirmPayout || revertConfirm) return
+    if (closing || sheetOpen || confirmContrib || updateValueId || confirmPayout || revertConfirm || saveConfirmPending || deleteProtect) return
     const t = e.touches[0]
     if (t.clientX > 28) return
     gestureRef.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now() }
@@ -312,6 +350,17 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   }
 
   const cfg = TYPE_CONFIG[form.type]
+
+  const hasTxHistory = (sv: Savings) =>
+    state.transactions.some(t =>
+      (t.transaction_type === 'savings_contribution' || t.transaction_type === 'savings_withdrawal') &&
+      t.description !== null &&
+      (t.description === sv.name || t.description.startsWith(sv.name + ' —'))
+    )
+
+  const editingSv = editingId ? state.savings.find(sv => sv.id === editingId) ?? null : null
+  const editHasTx = editingSv !== null && hasTxHistory(editingSv)
+  const prizeMonthLocked = editingSv?.is_prized === true && editingSv.current_value === 0
 
   // ── Derived stats for active savings ─────────────────────────────────────────
   const totalMonthly   = active.filter(s => s.is_recurring && s.frequency === 'monthly').reduce((a, s) => a + s.amount, 0)
@@ -598,30 +647,81 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           {editingId ? 'Edit Investment' : 'Add Investment'}
         </div>
 
+        {editHasTx && (
+          <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '10px 14px', marginBottom: 4 }}>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: '#B45309', lineHeight: 1.5 }}>
+              This investment has transaction history. Some fields are locked to preserve data integrity.
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* Type selector */}
           <div>
             <label style={lbl}>Type</label>
-            <HelpText>The kind of investment. Changes which fields are shown below.</HelpText>
+            {editingId
+              ? <HelpText>Investment type cannot be changed after creation.</HelpText>
+              : <HelpText>The kind of investment. Changes which fields are shown below.</HelpText>
+            }
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {TYPE_ORDER.map(t => {
                 const tcfg = TYPE_CONFIG[t]
-                const active = form.type === t
+                const isActive = form.type === t
                 return (
                   <button
                     key={t}
-                    onClick={() => setType(t)}
+                    onClick={() => !editingId && setType(t)}
+                    disabled={!!editingId}
                     style={{
-                      border: `1.5px solid ${active ? tcfg.color : c.faint}`,
-                      background: active ? tcfg.color + '18' : 'transparent',
-                      color: active ? tcfg.color : c.muted,
+                      border: `1.5px solid ${isActive ? tcfg.color : c.faint}`,
+                      background: isActive ? tcfg.color + '18' : 'transparent',
+                      color: isActive ? tcfg.color : c.muted,
                       borderRadius: 10, padding: '7px 12px',
-                      font: `${active ? '700' : '600'} 12px Plus Jakarta Sans`,
-                      cursor: 'pointer', transition: 'all 0.15s',
+                      font: `${isActive ? '700' : '600'} 12px Plus Jakarta Sans`,
+                      cursor: editingId ? 'not-allowed' : 'pointer',
+                      opacity: editingId && !isActive ? 0.4 : 1,
+                      transition: 'all 0.15s',
                     }}
                   >
                     {tcfg.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Investment source */}
+          <div>
+            <label style={lbl}>Investment Source</label>
+            {editingId
+              ? <HelpText>Investment source cannot be changed after creation.</HelpText>
+              : <HelpText>Existing: import without affecting balances. New: deduct from account and create a transaction.</HelpText>
+            }
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { val: 'existing' as const, label: 'Existing Investment', desc: 'Already exists — no balance change' },
+                { val: 'new' as const, label: 'New Investment', desc: 'Being created now — deduct from account' },
+              ]).map(opt => {
+                const isSelected = form.investment_source === opt.val
+                return (
+                  <button
+                    key={opt.val}
+                    onClick={() => !editingId && set('investment_source', opt.val)}
+                    disabled={!!editingId}
+                    style={{
+                      flex: 1,
+                      border: `1.5px solid ${isSelected ? c.accent : c.faint}`,
+                      background: isSelected ? c.accentSoft : 'transparent',
+                      color: isSelected ? c.accent : c.muted,
+                      borderRadius: 12, padding: '10px 12px',
+                      cursor: editingId ? 'not-allowed' : 'pointer',
+                      textAlign: 'left',
+                      opacity: editingId && !isSelected ? 0.4 : 1,
+                    }}
+                  >
+                    <div style={{ font: '700 13px Plus Jakarta Sans' }}>{opt.label}</div>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', marginTop: 2, opacity: 0.8 }}>{opt.desc}</div>
                   </button>
                 )
               })}
@@ -678,9 +778,15 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <label style={lbl}>{cfg.isRecurring ? 'Total months / tenure' : 'Tenure (months)'}</label>
-              <HelpText>Total duration of this plan. e.g. 5-year RD = 60 months.</HelpText>
+              {editingId
+                ? <HelpText>Tenure is part of the original contract and cannot be changed.</HelpText>
+                : <HelpText>Total duration of this plan. e.g. 5-year RD = 60 months.</HelpText>
+              }
               <input type="number" inputMode="numeric" value={form.total_installments}
-                onChange={e => set('total_installments', e.target.value)} placeholder="e.g. 60" min="1" style={inp} />
+                onChange={e => !editingId && set('total_installments', e.target.value)}
+                placeholder="e.g. 60" min="1"
+                disabled={!!editingId}
+                style={{ ...inp, ...(editingId ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={lbl}>{cfg.isRecurring ? 'Contributions so far' : 'Months elapsed'}</label>
@@ -693,7 +799,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           {/* Goal amount */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-              <label style={{ ...lbl, marginBottom: 0 }}>{form.type === 'chit' ? 'Chit Value' : 'Goal amount (optional)'}</label>
+              <label style={{ ...lbl, marginBottom: 0 }}>{form.type === 'chit' ? 'Chit Value' : form.type === 'fd' ? 'Maturity Value (Optional)' : 'Goal amount (optional)'}</label>
               {(() => {
                 const amt = parseFloat(form.amount), months = parseInt(form.total_installments)
                 const autoVal = cfg.isRecurring && amt > 0 && months > 0 ? amt * months : null
@@ -702,7 +808,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   : null
               })()}
             </div>
-            <HelpText>{form.type === 'chit' ? 'The fixed prize value of this chit fund. Auto-fills from contribution × members.' : 'Total amount you aim to accumulate. Auto-fills from amount × months — you can override it.'}</HelpText>
+            <HelpText>{form.type === 'chit' ? 'The fixed prize value of this chit fund. Auto-fills from contribution × members.' : form.type === 'fd' ? 'Expected maturity value of this Fixed Deposit.' : 'Total amount you aim to accumulate. Auto-fills from amount × months — you can override it.'}</HelpText>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
               <input type="number" inputMode="decimal" value={form.total_target}
@@ -762,9 +868,15 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <label style={lbl}>Prize Month</label>
-                <HelpText>Which installment number you received the prize at (e.g. 8 of 10).</HelpText>
+                {prizeMonthLocked
+                  ? <HelpText>Prize month cannot be changed after payout is recorded.</HelpText>
+                  : <HelpText>Which installment number you received the prize at (e.g. 8 of 10).</HelpText>
+                }
                 <input type="number" inputMode="numeric" value={form.prize_month}
-                  onChange={e => set('prize_month', e.target.value)} placeholder="e.g. 8" min="1" style={inp} />
+                  onChange={e => !prizeMonthLocked && set('prize_month', e.target.value)}
+                  placeholder="e.g. 8" min="1"
+                  disabled={prizeMonthLocked}
+                  style={{ ...inp, ...(prizeMonthLocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }} />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={lbl}>Prize Amount Received</label>
@@ -826,8 +938,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
           <button onClick={closeSheet} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving} style={{ flex: 2, background: '#10B981', color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Investment'}
+          <button
+            onClick={handleSave} disabled={saving}
+            style={{ flex: 2, background: '#10B981', color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+          >
+            {saving ? 'Saving...' : editingId ? 'Save Changes' : form.investment_source === 'new' ? 'Review & Create' : 'Review & Add'}
           </button>
         </div>
       </BottomSheet>
@@ -1012,6 +1127,85 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           </div>
         </div>
       )}
+      {/* ── Save confirmation ─────────────────────────────────────────────────── */}
+      {saveConfirmPending && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setSaveConfirmPending(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            {saveConfirmPending.payload.investment_source === 'existing' ? (
+              <>
+                <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Add existing investment?</div>
+                <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 6 }}>
+                  <strong style={{ color: c.ink }}>{saveConfirmPending.payload.name}</strong> will be added to your portfolio.
+                </div>
+                <div style={{ background: 'rgba(16,185,129,0.08)', borderRadius: 10, padding: '10px 14px', marginBottom: 20, font: '600 12px Plus Jakarta Sans', color: '#059669', lineHeight: 1.6 }}>
+                  This will NOT affect account balances and will NOT create any transactions.
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => setSaveConfirmPending(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={handleSaveConfirm} disabled={confirmingSave} style={{ flex: 2, background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: confirmingSave ? 'not-allowed' : 'pointer', opacity: confirmingSave ? 0.7 : 1 }}>
+                    {confirmingSave ? 'Adding...' : 'Add Investment'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Create investment?</div>
+                <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 6 }}>
+                  <strong style={{ color: c.ink }}>{fmt(saveConfirmPending.payload.amount)}</strong> will be deducted from <strong style={{ color: c.ink }}>{saveConfirmPending.accountName || 'your account'}</strong>.
+                </div>
+                <div style={{ background: 'rgba(99,102,241,0.08)', borderRadius: 10, padding: '10px 14px', marginBottom: 20, font: '600 12px Plus Jakarta Sans', color: '#4F46E5', lineHeight: 1.6 }}>
+                  A savings contribution transaction will be created.
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => setSaveConfirmPending(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={handleSaveConfirm} disabled={confirmingSave || !saveConfirmPending.accountId} style={{ flex: 2, background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: (confirmingSave || !saveConfirmPending.accountId) ? 'not-allowed' : 'pointer', opacity: (confirmingSave || !saveConfirmPending.accountId) ? 0.7 : 1 }}>
+                    {confirmingSave ? 'Creating...' : 'Create Investment'}
+                  </button>
+                </div>
+                {!saveConfirmPending.accountId && (
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: '#EF4444', marginTop: 10, textAlign: 'center' }}>
+                    Select a "Debit from account" in the form to continue.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete protection ─────────────────────────────────────────────────── */}
+      {deleteProtect && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setDeleteProtect(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Cannot delete investment</div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              <strong style={{ color: c.ink }}>{deleteProtect.name}</strong> has financial history and cannot be deleted. Archive or mark it as completed instead.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={() => handleArchive(deleteProtect)}
+                disabled={archiving === deleteProtect.id}
+                style={{ width: '100%', background: c.surface2, color: c.ink, border: `1.5px solid ${c.faint}`, borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: archiving === deleteProtect.id ? 0.6 : 1 }}
+              >
+                {archiving === deleteProtect.id ? '...' : 'Archive Investment'}
+              </button>
+              <button
+                onClick={() => handleArchive(deleteProtect)}
+                disabled={archiving === deleteProtect.id}
+                style={{ width: '100%', background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: archiving === deleteProtect.id ? 0.6 : 1 }}
+              >
+                {archiving === deleteProtect.id ? '...' : 'Mark Completed'}
+              </button>
+              <button onClick={() => setDeleteProtect(null)} style={{ width: '100%', background: 'none', color: c.muted, border: 'none', borderRadius: 12, padding: '10px', font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {dialogNode}
     </div>
   )
