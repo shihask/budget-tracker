@@ -24,14 +24,14 @@ export function CategoryBucketMapper({ open, onClose, categories, groups, onUpda
   const c = useTheme()
 
   const expenseGroups = useMemo(() =>
-    groups.filter(g => !SYSTEM_GROUP_TYPES.has(g.type ?? '') && !g.is_system),
+    groups.filter(g => !SYSTEM_GROUP_TYPES.has(g.type ?? '')),
     [groups]
   )
 
   const mappableCategories = useMemo(() =>
     categories.filter(cat => {
       const group = groups.find(g => g.name === cat.group_name)
-      return group && !SYSTEM_GROUP_TYPES.has(group.type ?? '') && !group.is_system && !cat.is_system
+      return group && !SYSTEM_GROUP_TYPES.has(group.type ?? '')
     }),
     [categories, groups]
   )
