@@ -393,7 +393,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         {/* Collapsible filters */}
         <div style={{
           overflow: 'hidden',
-          maxHeight: filtersVisible ? '260px' : '0px',
+          maxHeight: filtersVisible ? '380px' : '0px',
           opacity: filtersVisible ? 1 : 0,
           transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease',
           willChange: 'max-height, opacity',
