@@ -100,7 +100,8 @@ BEGIN
     category_id, from_account_id, to_account_id, credit_card_id, notes,
     borrowing_id, savings_id, is_credit
   ) VALUES (
-    p_user_id, p_transaction_date, p_description, p_amount, p_transaction_type,
+    p_user_id, p_transaction_date, p_description, p_amount,
+    p_transaction_type::transaction_type,
     p_category_id, p_from_account_id, p_to_account_id, p_credit_card_id, p_notes,
     p_borrowing_id, p_savings_id, p_is_credit
   )
@@ -179,7 +180,7 @@ BEGIN
     transaction_date = p_transaction_date,
     description      = p_description,
     amount           = p_amount,
-    transaction_type = p_transaction_type,
+    transaction_type = p_transaction_type::transaction_type,
     category_id      = p_category_id,
     from_account_id  = p_from_account_id,
     to_account_id    = p_to_account_id,
