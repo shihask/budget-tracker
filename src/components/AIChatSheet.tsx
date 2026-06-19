@@ -157,19 +157,20 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   const isBorrowingTx = (t: Transaction) =>
     t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment'
 
-  const catMapAll = Object.fromEntries(state.categories.map(c => [c.id, c]))
-  const isAdjTx = (t: Transaction) => catMapAll[t.category_id ?? '']?.group_name === ADJUSTMENT_GROUP
+  const isSystemTx = (t: Transaction) =>
+    t.transaction_type === 'opening_balance' ||
+    t.transaction_type === 'balance_adjustment'
 
   // ── Pre-compute aggregates used across multiple modules ──
   const thisMonthTxns = state.transactions.filter(t =>
-    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense' && !isAdjTx(t)
+    new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense' && !isSystemTx(t)
   )
   const lastMonthTxns = state.transactions.filter(t => {
     const dt = new Date(t.transaction_date)
-    return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense' && !isAdjTx(t)
+    return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense' && !isSystemTx(t)
   })
   const thisMonthIncome = state.transactions
-    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income' && !isAdjTx(t))
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income' && !isSystemTx(t))
     .reduce((s, t) => s + t.amount, 0)
   const thisMonthTransfers = state.transactions
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'transfer')
@@ -377,7 +378,9 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
         const cat = catMap[t.category_id ?? '']
         if (!cat) continue
         let bucket: string | null = null
-        if (t.transaction_type === 'savings_contribution') {
+        if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment') {
+          continue  // system transactions never count toward strategy
+        } else if (t.transaction_type === 'savings_contribution') {
           bucket = 'savings'
         } else if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') {
           bucket = getCategoryBucket(cat, state.groups)

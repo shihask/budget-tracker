@@ -71,6 +71,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('date_desc')
+  const [showSystemTxns, setShowSystemTxns] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
@@ -149,6 +150,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
   const filtered = useMemo(() => {
     let txns = [...state.transactions]
+    if (!showSystemTxns) txns = txns.filter(t => t.transaction_type !== 'opening_balance' && t.transaction_type !== 'balance_adjustment')
     if (search.trim()) txns = txns.filter(t => t.description.toLowerCase().includes(search.toLowerCase()))
     if (filterAccount !== 'all') txns = txns.filter(t => t.from_account_id === filterAccount || (t as any).credit_card_id === filterAccount)
     if (filterCategory !== 'all') txns = txns.filter(t => t.category_id === filterCategory)
@@ -432,6 +434,26 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>to</span>
               <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
             </div>
+            <button
+              onClick={() => setShowSystemTxns(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: 'none', border: `1.5px solid ${showSystemTxns ? c.accent : c.faint}`,
+                borderRadius: 10, padding: '8px 12px', cursor: 'pointer',
+                font: '600 12px Plus Jakarta Sans',
+                color: showSystemTxns ? c.accent : c.muted,
+                width: '100%',
+              }}
+            >
+              <span style={{
+                width: 16, height: 16, borderRadius: 4, border: `2px solid ${showSystemTxns ? c.accent : c.faint}`,
+                background: showSystemTxns ? c.accent : 'transparent',
+                flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {showSystemTxns && <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"><polyline points="2 6 5 9 10 3"/></svg>}
+              </span>
+              Show system transactions (Opening Balance, Balance Adjustment)
+            </button>
           </div>
         </div>
       </div>

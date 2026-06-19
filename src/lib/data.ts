@@ -5,9 +5,15 @@ import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, Timeline
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ADJUSTMENT_GROUP } from '@/lib/constants'
 
-// Opening Balance and Balance Adjustment transactions must never count as real income/expense.
-export const isAdjustmentTx = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
+// System transactions (opening_balance, balance_adjustment) must never count as real income/expense.
+// Also covers legacy transactions created before the dedicated types existed (category-group fallback).
+export const isSystemTx = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
+  t.transaction_type === 'opening_balance' ||
+  t.transaction_type === 'balance_adjustment' ||
   catMap[t.category_id ?? '']?.group_name === ADJUSTMENT_GROUP
+
+/** @deprecated Use isSystemTx */
+export const isAdjustmentTx = isSystemTx
 
 export const catById = (categories: AppState['categories']) =>
   Object.fromEntries(categories.map(c => [c.id, c]))
@@ -27,7 +33,7 @@ function makeScopeFilter(state: AppState) {
 
   return (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) => {
     if (t.transaction_type !== 'expense') return false
-    if (isAdjustmentTx(t, catMap)) return false   // never count Balance Adjustments as spending
+    if (isSystemTx(t, catMap)) return false   // never count system transactions as spending
     if (hasTxn && scope!.transactionIds.includes(t.id)) return true
     if (!hasGroupOrCat) return false
     const cat = catMap[t.category_id ?? '']

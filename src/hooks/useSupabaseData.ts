@@ -3,8 +3,15 @@ import { supabase } from '@/lib/supabase'
 import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, BudgetBucket } from '@/types'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP, BORROWING_CREDIT_CATS } from '@/lib/constants'
 
-const delta = (type: TransactionType, amount: number) =>
-  type === 'income' ? amount : -amount
+const delta = (type: TransactionType, amount: number) => {
+  switch (type) {
+    case 'income':
+    case 'opening_balance':
+      return amount    // credits the account
+    default:
+      return -amount   // debits the account (expense, commitment, balance_adjustment-debit, etc.)
+  }
+}
 
 // 'Borrowed Money' and 'Lent Repayment' are credits (money came in); the other two are debits.
 const borrowingIsCredit = (categoryName: string | undefined) =>
@@ -412,7 +419,7 @@ export function useSupabaseData(userId: string) {
           await supabase.from('accounts').update({ current_balance: newBal }).eq('id', t.from_account_id)
         }
       }
-      if ((t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal') && t.to_account_id) {
+      if ((t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'balance_adjustment') && t.to_account_id) {
         const { data: toAcc } = await supabase.from('accounts').select('current_balance').eq('id', t.to_account_id).single()
         if (toAcc) await supabase.from('accounts').update({ current_balance: toAcc.current_balance - t.amount }).eq('id', t.to_account_id)
       }
@@ -429,7 +436,7 @@ export function useSupabaseData(userId: string) {
               bal -= delta(t.transaction_type, t.amount)
             }
           }
-          if ((t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal') && a.id === t.to_account_id) bal -= t.amount
+          if ((t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'balance_adjustment') && a.id === t.to_account_id) bal -= t.amount
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
       }))
@@ -489,14 +496,13 @@ export function useSupabaseData(userId: string) {
 
     let openingTx = null
     if (form.current_balance !== 0) {
-      const openingCatId = stateRef.current.categories.find(c => c.name === 'Opening Balance' && c.group_name === ADJUSTMENT_GROUP)?.id ?? null
       const today = new Date().toISOString().slice(0, 10)
       const { data: tx } = await supabase.from('transactions').insert({
         transaction_date: today,
         description: 'Opening Balance',
         amount: Math.abs(form.current_balance),
-        transaction_type: form.current_balance >= 0 ? 'income' : 'expense',
-        category_id: openingCatId,
+        transaction_type: 'opening_balance',
+        category_id: null,
         from_account_id: acc.id,
         to_account_id: null,
         notes: 'Opening Balance',
@@ -531,18 +537,21 @@ export function useSupabaseData(userId: string) {
     if (difference === 0) return
 
     const today = new Date().toISOString().slice(0, 10)
-    const adjustCatId = stateRef.current.categories.find(c => c.name === 'Balance Adjustment' && c.group_name === ADJUSTMENT_GROUP)?.id ?? null
+    const isCredit = difference > 0
 
     await supabase.from('accounts').update({ current_balance: actualBalance }).eq('id', accountId)
 
+    // Credit (positive diff): to_account_id = accountId, from = null
+    // Debit  (negative diff): from_account_id = accountId, to = null
+    // delta('balance_adjustment') = -amount, so debit via from_account subtracts correctly.
     const { data: tx } = await supabase.from('transactions').insert({
       transaction_date: today,
       description: 'Balance Adjustment',
       amount: Math.abs(difference),
-      transaction_type: difference > 0 ? 'income' : 'expense',
-      category_id: adjustCatId,
-      from_account_id: accountId,
-      to_account_id: null,
+      transaction_type: 'balance_adjustment',
+      category_id: null,
+      from_account_id: isCredit ? null : accountId,
+      to_account_id:   isCredit ? accountId : null,
       notes: `Adjusted: ₹${account.current_balance.toLocaleString('en-IN')} → ₹${actualBalance.toLocaleString('en-IN')}`,
       user_id: userId,
     }).select('*, category:categories(*)').single()
