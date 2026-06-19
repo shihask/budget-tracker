@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
+import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate, fmtTime } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
@@ -45,6 +46,7 @@ type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
 export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, initialEditTx, onAdd, onToggleChallengeExclusion }: TransactionsPageProps) {
   const c = useTheme()
+  const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
 
   useEffect(() => {
@@ -178,7 +180,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [borrowingDeleteTarget, setBorrowingDeleteTarget] = useState<Transaction | null>(null)
 
   const handleDelete = async (t: Transaction) => {
-    if (!confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
+    if (!await confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
     // Check if this transaction is linked to a borrowing
     if (t.borrowing_id) {
       setBorrowingDeleteTarget(t)
@@ -503,7 +505,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                         {t.transaction_type === 'savings_withdrawal' && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 999, padding: '2px 7px' }}>Withdrawal</span>
                         )}
-                        {cat && t.transaction_type !== 'savings_contribution' && t.transaction_type !== 'savings_withdrawal'
+                        {(t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment') ? (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px' }}>
+                            {t.transaction_type === 'opening_balance' ? 'Opening Balance' : 'Balance Adjustment'}
+                          </span>
+                        ) : cat && t.transaction_type !== 'savings_contribution' && t.transaction_type !== 'savings_withdrawal'
                           ? <span style={{ font: '600 10px Plus Jakarta Sans', color: col, background: col + '18', borderRadius: 999, padding: '2px 7px' }}>{cat.name}</span>
                           : t.transaction_type !== 'transfer' && t.transaction_type !== 'savings_contribution' && t.transaction_type !== 'savings_withdrawal' && (
                             <span
@@ -524,12 +530,15 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                         <div style={{ font: '800 14px Plus Jakarta Sans', color:
                           t.transaction_type === 'income' ? c.good :
+                          t.transaction_type === 'opening_balance' ? c.good :
+                          t.transaction_type === 'balance_adjustment' ? (t.to_account_id ? c.good : c.muted) :
                           t.transaction_type === 'savings_withdrawal' ? '#10B981' :
                           t.transaction_type === 'savings_contribution' ? '#10B981' :
                           t.transaction_type === 'transfer' ? c.accent :
                           (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') ? '#6366F1' :
                           c.bad }}>
-                          {(t.transaction_type === 'income' || t.transaction_type === 'savings_withdrawal') ? '+' :
+                          {(t.transaction_type === 'income' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'opening_balance') ? '+' :
+                           t.transaction_type === 'balance_adjustment' ? (t.to_account_id ? '+' : '−') :
                            t.transaction_type === 'savings_contribution' ? '−' :
                            t.transaction_type === 'transfer' ? '⇄' :
                            (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
@@ -777,6 +786,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         </div>,
         document.body
       )}
+      {dialogNode}
     </div>
   )
 }
