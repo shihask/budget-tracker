@@ -37,6 +37,7 @@ interface TransactionsPageProps {
   onCategories: () => void
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onReversePayment: (t: Transaction) => Promise<void>
+  onDeleteSavings?: (id: string) => Promise<void>
   initialEditTx?: Transaction | null
   onAdd?: () => void
   onToggleChallengeExclusion?: (txnId: string) => Promise<void>
@@ -44,7 +45,7 @@ interface TransactionsPageProps {
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, initialEditTx, onAdd, onToggleChallengeExclusion }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -178,6 +179,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const totalFiltered = filtered.reduce((s, t) => s + t.amount, 0)
 
   const [borrowingDeleteTarget, setBorrowingDeleteTarget] = useState<Transaction | null>(null)
+  const [savingsDeleteTarget, setSavingsDeleteTarget] = useState<Transaction | null>(null)
 
   const handleDelete = async (t: Transaction) => {
     if (!await confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
@@ -186,8 +188,29 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       setBorrowingDeleteTarget(t)
       return
     }
+    // Check if this is a savings contribution — offer to also remove the savings record
+    if (t.transaction_type === 'savings_contribution' && onDeleteSavings) {
+      const linked = state.savings?.find(sv => sv.name === t.description)
+      if (linked) {
+        setSavingsDeleteTarget(t)
+        return
+      }
+    }
     setDeleting(t.id)
     try { await onDelete(t) } catch (_) {}
+    setDeleting(null)
+  }
+
+  const doDeleteWithSavingsChoice = async (t: Transaction, alsoDeleteSavings: boolean) => {
+    setSavingsDeleteTarget(null)
+    setDeleting(t.id)
+    try {
+      await onDelete(t)
+      if (alsoDeleteSavings && onDeleteSavings) {
+        const linked = state.savings?.find(sv => sv.name === t.description)
+        if (linked) await onDeleteSavings(linked.id)
+      }
+    } catch (_) {}
     setDeleting(null)
   }
 
@@ -785,6 +808,43 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         </div>,
         document.body
       )}
+      {/* Savings-linked delete confirmation */}
+      {savingsDeleteTarget && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setSavingsDeleteTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Savings-linked transaction</div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 6 }}>
+              This transaction is linked to the investment <strong style={{ color: c.ink }}>{savingsDeleteTarget.description}</strong>.
+            </div>
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 20, font: '600 12px Plus Jakarta Sans', color: '#B45309', lineHeight: 1.5 }}>
+              Deleting this transaction will restore your account balance. Do you also want to remove the savings record?
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={() => doDeleteWithSavingsChoice(savingsDeleteTarget, true)}
+                style={{ width: '100%', background: '#EF4444', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Delete transaction + remove savings
+              </button>
+              <button
+                onClick={() => doDeleteWithSavingsChoice(savingsDeleteTarget, false)}
+                style={{ width: '100%', background: c.surface2, color: c.ink, border: `1.5px solid ${c.faint}`, borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Delete transaction only
+              </button>
+              <button
+                onClick={() => setSavingsDeleteTarget(null)}
+                style={{ width: '100%', background: 'none', color: c.muted, border: 'none', borderRadius: 12, padding: '8px', font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {dialogNode}
     </div>
   )
