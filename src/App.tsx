@@ -18,6 +18,7 @@ import { MetricCards } from '@/components/MetricCards'
 import { Analytics } from '@/components/Analytics'
 import { AccountsSection } from '@/components/AccountsSection'
 import { CommitmentsSection } from '@/components/CommitmentsSection'
+import { CommitmentsPage } from '@/components/CommitmentsPage'
 import { BorrowingSection } from '@/components/BorrowingSection'
 import { BorrowingPage } from '@/components/BorrowingPage'
 import { SavingsSection } from '@/components/SavingsSection'
@@ -119,6 +120,8 @@ function AppContent({ session }: { session: Session }) {
   })
   const [showDashboardWelcome, setShowDashboardWelcome] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
+  const [commitmentsOpen, setCommitmentsOpen] = useState(false)
+  const [commitmentsAddOnOpen, setCommitmentsAddOnOpen] = useState(false)
   const [borrowingOpen, setBorrowingOpen] = useState(false)
   const [borrowingAddOnOpen, setBorrowingAddOnOpen] = useState(false)
   const [savingsOpen, setSavingsOpen] = useState(false)
@@ -236,7 +239,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen) ? 'none' : 'block',
           }}>
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} />
           </div>
@@ -320,7 +323,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAdjustBalance={adjustBalance} onAddTransaction={() => setSheetOpen(true)} />
                       break
                     case 'commitments':
-                      el = <CommitmentsSection state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} />
+                      el = <CommitmentsSection state={state} onSeeAll={() => { setCommitmentsAddOnOpen(false); setCommitmentsOpen(true) }} onAdd={() => { setCommitmentsAddOnOpen(true); setCommitmentsOpen(true) }} />
                       break
                     case 'savings':
                       el = (state.settings.track_savings ?? false) ? <SavingsSection state={state} onSeeAll={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onAdd={() => { setSavingsAddOnOpen(true); setSavingsOpen(true) }} /> : null
@@ -476,13 +479,17 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen) ? 0.4 * (1 - swipePct) : 0})`,
             pointerEvents: 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
 
           {txnsOpen && (
             <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} />
+          )}
+
+          {commitmentsOpen && (
+            <CommitmentsPage state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} onClose={() => { setCommitmentsOpen(false); setCommitmentsAddOnOpen(false) }} initialAddOpen={commitmentsAddOnOpen} />
           )}
 
           {borrowingOpen && (
