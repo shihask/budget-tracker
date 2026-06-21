@@ -1,7 +1,7 @@
 // All seed data removed — everything loads from Supabase.
 // This file only contains pure calculation functions (no data).
 
-import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData, JourneyMilestone, JourneyReplayEvent, JourneyHealthItem } from '@/types'
+import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData, JourneyMilestone, JourneyReplayEvent, JourneyHealthItem, JourneyFlowItem } from '@/types'
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ADJUSTMENT_GROUP } from '@/lib/constants'
 
@@ -350,26 +350,65 @@ export function journeyData(state: AppState): JourneyData {
   const healthScore = savingsScore + challengeScore + goalScore + wealthScore
   const healthLabel = healthScore >= 85 ? 'Thriving' : healthScore >= 70 ? 'Growing Strong' : healthScore >= 55 ? 'Building' : healthScore >= 40 ? 'Sprouting' : 'Just Planted'
 
-  // Replay events — chronological log of financial actions this cycle
-  const replayEvents: JourneyReplayEvent[] = []
-  const replayEmoji: Record<string, string> = { income: '🌰', commitment: '🌱', savings_contribution: '🌳' }
+  // Lifestyle spending — regular expenses in the cycle
+  const lifestyleTxns = state.transactions.filter(
+    t => t.transaction_type === 'expense' && new Date(t.transaction_date) >= cycleStart
+  )
+  const lifestyleSpending = lifestyleTxns.reduce((s, t) => s + t.amount, 0)
+  const lifeCatAcc: Record<string, number> = {}
+  lifestyleTxns.forEach(t => {
+    const name = catMap[t.category_id ?? '']?.name || 'Other'
+    lifeCatAcc[name] = (lifeCatAcc[name] || 0) + t.amount
+  })
+  const lifestyleCategories: JourneyFlowItem[] = Object.entries(lifeCatAcc)
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 4)
+  const spendingPct = totalIncome > 0 ? Math.round((lifestyleSpending / totalIncome) * 100) : 0
+
+  // Saved breakdown — individual contributions this cycle grouped by name
+  const savedAcc: Record<string, number> = {}
   state.transactions
-    .filter(t => Object.keys(replayEmoji).includes(t.transaction_type) && new Date(t.transaction_date) >= cycleStart)
-    .forEach(t => replayEvents.push({
-      date: t.transaction_date,
-      emoji: replayEmoji[t.transaction_type],
-      title: t.description,
-      subtitle: catMap[t.category_id ?? '']?.name,
-      amount: t.amount,
-    }))
+    .filter(t => t.transaction_type === 'savings_contribution' && new Date(t.transaction_date) >= cycleStart)
+    .forEach(t => { const n = t.description || 'Savings'; savedAcc[n] = (savedAcc[n] || 0) + t.amount })
+  state.transactions
+    .filter(t => t.transaction_type === 'commitment' && new Date(t.transaction_date) >= cycleStart)
+    .forEach(t => { const n = t.description || 'Commitment'; savedAcc[n] = (savedAcc[n] || 0) + t.amount })
   state.goal_contributions
     .filter(gc => new Date(gc.created_at) >= cycleStart)
-    .forEach(gc => replayEvents.push({
-      date: gc.created_at.slice(0, 10),
-      emoji: '🌺',
-      title: state.goals.find(g => g.id === gc.goal_id)?.name ?? 'Goal funded',
-      amount: gc.amount,
-    }))
+    .forEach(gc => { const n = state.goals.find(g => g.id === gc.goal_id)?.name || 'Goal'; savedAcc[n] = (savedAcc[n] || 0) + gc.amount })
+  const savedBreakdown: JourneyFlowItem[] = Object.entries(savedAcc)
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 4)
+
+  // Replay events — full chronological log with eventType for rendering
+  const expenseCatEmoji = (catName?: string) => {
+    const n = (catName || '').toLowerCase()
+    if (n.includes('food') || n.includes('dining')) return '🍱'
+    if (n.includes('medical') || n.includes('health')) return '🏥'
+    if (n.includes('fuel') || n.includes('transport')) return '⛽'
+    if (n.includes('shopping')) return '🛍️'
+    if (n.includes('utility') || n.includes('electric') || n.includes('bill')) return '💡'
+    return '🛒'
+  }
+  const replayEvents: JourneyReplayEvent[] = []
+  state.transactions
+    .filter(t => t.transaction_type === 'income' && new Date(t.transaction_date) >= cycleStart)
+    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: '💰', title: t.description, subtitle: catMap[t.category_id ?? '']?.name, amount: t.amount, eventType: 'income' }))
+  state.transactions
+    .filter(t => t.transaction_type === 'savings_contribution' && new Date(t.transaction_date) >= cycleStart)
+    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: '📈', title: t.description, amount: t.amount, eventType: 'savings' }))
+  state.transactions
+    .filter(t => t.transaction_type === 'commitment' && new Date(t.transaction_date) >= cycleStart)
+    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: '🌱', title: t.description, amount: t.amount, eventType: 'commitment' }))
+  state.goal_contributions
+    .filter(gc => new Date(gc.created_at) >= cycleStart)
+    .forEach(gc => replayEvents.push({ date: gc.created_at.slice(0, 10), emoji: '🎯', title: state.goals.find(g => g.id === gc.goal_id)?.name ?? 'Goal funded', amount: gc.amount, eventType: 'goal' }))
+  lifestyleTxns.forEach(t => {
+    const catName = catMap[t.category_id ?? '']?.name
+    replayEvents.push({ date: t.transaction_date, emoji: expenseCatEmoji(catName), title: t.description, subtitle: catName, amount: t.amount, eventType: 'expense' })
+  })
   replayEvents.sort((a, b) => a.date.localeCompare(b.date))
 
   // Growth efficiency = rootsTotal as % of totalIncome
@@ -409,6 +448,7 @@ export function journeyData(state: AppState): JourneyData {
     storyLine,
     healthScore, healthLabel, healthBreakdown,
     replayEvents,
+    lifestyleSpending, lifestyleCategories, savedBreakdown, spendingPct,
     efficiencyPct,
     prevRootsTotal, prevSavingsContributed, hasPrevData,
     cycleLabel,

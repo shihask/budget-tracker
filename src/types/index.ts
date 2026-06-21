@@ -276,8 +276,13 @@ export interface JourneyIncomeItem  { name: string; amount: number }
 export interface JourneyWealthItem  { name: string; type: string; value: number }
 export interface JourneyGoalItem    { name: string; target: number; current: number; pct: number; completed: boolean }
 export interface JourneyMilestone   { emoji: string; text: string; section: 'seed' | 'roots' | 'stem' | 'branch' | 'flower' }
-export interface JourneyReplayEvent { date: string; emoji: string; title: string; subtitle?: string; amount?: number }
+export interface JourneyFlowItem    { name: string; amount: number }
 export interface JourneyHealthItem  { label: string; score: number; max: number }
+export type JourneyEventType = 'income' | 'savings' | 'commitment' | 'goal' | 'expense'
+export interface JourneyReplayEvent {
+  date: string; emoji: string; title: string; subtitle?: string; amount?: number
+  eventType: JourneyEventType
+}
 
 export interface JourneyData {
   // Seed
@@ -316,6 +321,11 @@ export interface JourneyData {
   healthBreakdown: JourneyHealthItem[]
   // Replay
   replayEvents: JourneyReplayEvent[]
+  // Lifestyle spending
+  lifestyleSpending: number
+  lifestyleCategories: JourneyFlowItem[]
+  savedBreakdown: JourneyFlowItem[]
+  spendingPct: number
   // Efficiency
   efficiencyPct: number
   // Cycle comparison
