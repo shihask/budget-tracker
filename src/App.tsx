@@ -500,7 +500,7 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen || cashflowOpen) ? 0.4 * (1 - swipePct) : 0})`,
             pointerEvents: 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
@@ -553,7 +553,7 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {cashflowOpen && (
-            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} />
+            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} onSwipeProgress={setSwipePct} />
           )}
 
           <CashFlowForecastSetup open={cashflowSetupOpen} onClose={() => setCashflowSetupOpen(false)} state={state} onUpdateSettings={updateSettings} />
