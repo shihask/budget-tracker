@@ -49,15 +49,31 @@ function nextDueDate(dueDay: number, from: Date): Date {
   return mk(from.getFullYear(), from.getMonth() + 1)
 }
 
-// Estimate salary from the most recent real income transaction. No reliable
-// income → returns null and the salary event is omitted.
+// Estimate the next salary amount. Strategy (deterministic, no stored amount):
+//   1) most recent income categorized as "Salary"
+//   2) else the largest income in the last 45 days (salary is normally the biggest inflow)
+//   3) else null → salary event is omitted (per spec: hide when no reliable estimate)
 function estimateSalary(state: AppState): number | null {
+  const catName = new Map(state.categories.map(c => [c.id, c.name.toLowerCase()]))
   const incomes = state.transactions
     .filter(t => t.transaction_type === 'income')
-    .sort((a, b) => (a.transaction_date < b.transaction_date ? 1 : -1))
-  if (incomes.length === 0) return null
-  const amt = incomes[0].amount
-  return amt > 0 ? Math.round(amt) : null
+    .sort((a, b) => (a.transaction_date < b.transaction_date ? 1 : -1)) // newest first
+
+  // 1) explicit "Salary" category
+  const salaryTx = incomes.find(t => t.category_id != null && catName.get(t.category_id) === 'salary')
+  if (salaryTx && salaryTx.amount > 0) return Math.round(salaryTx.amount)
+
+  // 2) fallback: largest income in the trailing 45 days
+  const today = midnight(new Date())
+  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 45)
+  const recentMax = incomes.reduce((max, t) => {
+    const [y, m, dd] = t.transaction_date.split('-').map(Number)
+    const dt = new Date(y, m - 1, dd)
+    return dt >= cutoff && t.amount > max ? t.amount : max
+  }, 0)
+  if (recentMax > 0) return Math.round(recentMax)
+
+  return null
 }
 
 export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics): CashFlowForecast {
