@@ -43,6 +43,7 @@ import { AIChatSheet } from '@/components/AIChatSheet'
 import { AnalyticsPage } from '@/components/AnalyticsPage'
 import { CashFlowForecastCard } from '@/components/CashFlowForecastCard'
 import { CashFlowForecastPage } from '@/components/CashFlowForecastPage'
+import { CashFlowForecastSetup } from '@/components/CashFlowForecastSetup'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
 import { UpdateToast } from '@/components/UpdateToast'
 import { InsightCard } from '@/components/InsightCard'
@@ -134,6 +135,7 @@ function AppContent({ session }: { session: Session }) {
   const [metricsInfoOpen, setMetricsInfoOpen] = useState(false)
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [cashflowOpen, setCashflowOpen] = useState(false)
+  const [cashflowSetupOpen, setCashflowSetupOpen] = useState(false)
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
@@ -166,7 +168,20 @@ function AppContent({ session }: { session: Session }) {
     if (!saved) return DEFAULT_DASHBOARD_SECTIONS
     const savedIds = new Set(saved.map(s => s.id))
     const missing = DEFAULT_DASHBOARD_SECTIONS.filter(s => !savedIds.has(s.id))
-    return missing.length > 0 ? [...saved, ...missing] : saved
+    if (missing.length === 0) return saved
+    // Insert each new section at its intended position (after its preceding
+    // default section that the user already has) instead of dumping at the end.
+    const merged = [...saved]
+    for (const def of missing) {
+      const defIdx = DEFAULT_DASHBOARD_SECTIONS.findIndex(s => s.id === def.id)
+      let insertAt = merged.length
+      for (let i = defIdx - 1; i >= 0; i--) {
+        const idx = merged.findIndex(m => m.id === DEFAULT_DASHBOARD_SECTIONS[i].id)
+        if (idx >= 0) { insertAt = idx + 1; break }
+      }
+      merged.splice(insertAt, 0, def)
+    }
+    return merged
   }, [state.settings.dashboard_sections])
 
   const safeDailyLimit = useMemo(() => {
@@ -323,7 +338,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <Analytics state={state} onSeeAll={() => setAnalyticsOpen(true)} />
                       break
                     case 'cashflow':
-                      el = <CashFlowForecastCard state={state} d={d} onOpen={() => setCashflowOpen(true)} />
+                      el = <CashFlowForecastCard state={state} d={d} onOpen={() => setCashflowOpen(true)} onSetup={() => setCashflowSetupOpen(true)} />
                       break
                     case 'accounts':
                       el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAdjustBalance={adjustBalance} onAddTransaction={() => setSheetOpen(true)} />
@@ -538,8 +553,10 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {cashflowOpen && (
-            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} />
+            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} />
           )}
+
+          <CashFlowForecastSetup open={cashflowSetupOpen} onClose={() => setCashflowSetupOpen(false)} state={state} onUpdateSettings={updateSettings} />
 
           <DailyReflectionSheet
             open={reflectionOpen}

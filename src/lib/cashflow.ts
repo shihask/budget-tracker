@@ -24,6 +24,8 @@ export interface CashFlowForecast {
   lowestBalance: number
   lowestBalanceDate?: string
   nextSalaryDate?: string
+  recoveryDate?: string
+  recoveryBalance?: number
   projections: CashFlowProjection[]
 }
 
@@ -49,36 +51,60 @@ function nextDueDate(dueDay: number, from: Date): Date {
   return mk(from.getFullYear(), from.getMonth() + 1)
 }
 
-// Estimate the next salary amount. Strategy (deterministic, no stored amount):
-//   1) most recent income categorized as "Salary"
-//   2) else the largest income in the last 45 days (salary is normally the biggest inflow)
-//   3) else null → salary event is omitted (per spec: hide when no reliable estimate)
-function estimateSalary(state: AppState): number | null {
+// Estimate the next salary amount. Priority (high confidence first):
+//   1. average of recent "Salary"-category transactions (last ~190 days, up to 3)
+//   2. most recent "Salary"-category transaction
+//   3. user-entered forecast_salary_override (fallback only)
+//   4. null  → salary event is hidden (never show unrealistic values like ₹20)
+export function estimateForecastSalary(state: AppState): { amount: number | null; source: 'avg' | 'recent' | 'override' | null } {
   const catName = new Map(state.categories.map(c => [c.id, c.name.toLowerCase()]))
-  const incomes = state.transactions
-    .filter(t => t.transaction_type === 'income')
+  const today = midnight(new Date())
+  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 190)
+
+  const salaryTxns = state.transactions
+    .filter(t => {
+      if (t.transaction_type !== 'income') return false
+      if (t.category_id == null || catName.get(t.category_id) !== 'salary') return false
+      if (!(t.amount > 0)) return false
+      const [y, m, dd] = t.transaction_date.split('-').map(Number)
+      return new Date(y, m - 1, dd) >= cutoff
+    })
     .sort((a, b) => (a.transaction_date < b.transaction_date ? 1 : -1)) // newest first
 
-  // 1) explicit "Salary" category
-  const salaryTx = incomes.find(t => t.category_id != null && catName.get(t.category_id) === 'salary')
-  if (salaryTx && salaryTx.amount > 0) return Math.round(salaryTx.amount)
+  if (salaryTxns.length >= 2) {
+    const recent = salaryTxns.slice(0, 3)
+    const avg = recent.reduce((s, t) => s + t.amount, 0) / recent.length
+    return { amount: Math.round(avg), source: 'avg' }
+  }
+  if (salaryTxns.length === 1) {
+    return { amount: Math.round(salaryTxns[0].amount), source: 'recent' }
+  }
+  const override = state.settings.forecast_salary_override
+  if (override != null && override > 0) {
+    return { amount: Math.round(override), source: 'override' }
+  }
+  return { amount: null, source: null }
+}
 
-  // 2) fallback: largest income in the trailing 45 days
-  const today = midnight(new Date())
-  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 45)
-  const recentMax = incomes.reduce((max, t) => {
-    const [y, m, dd] = t.transaction_date.split('-').map(Number)
-    const dt = new Date(y, m - 1, dd)
-    return dt >= cutoff && t.amount > max ? t.amount : max
-  }, 0)
-  if (recentMax > 0) return Math.round(recentMax)
-
-  return null
+// Forecast is "ready" when the salary day exists AND there's something to project:
+// at least one active commitment/savings plan, or usable income history.
+export function forecastReady(state: AppState): boolean {
+  if (state.settings.salary_date == null) return false
+  const hasItems =
+    state.commitments.some(c => c.is_active !== false && c.remaining > 0) ||
+    state.savings.some(s => s.is_active !== false && s.is_recurring)
+  const hasIncome = estimateForecastSalary(state).amount != null
+  return hasItems || hasIncome
 }
 
 export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics): CashFlowForecast {
   const today = midnight(new Date())
-  const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + HORIZON_DAYS)
+  const days = state.settings.forecast_days ?? HORIZON_DAYS
+  const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days)
+
+  // Optional include-lists (null = include all active). Set during forecast setup.
+  const incCommit = state.settings.forecast_commitment_ids
+  const incSavings = state.settings.forecast_savings_ids
 
   // Spendable cash now. availableBalance = actual balance − emergency fund.
   // We deliberately do NOT use realFreeMoney here: that already subtracts
@@ -90,6 +116,7 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
   // ── Upcoming commitments (EMI / rent / insurance / recurring) ──
   for (const c of state.commitments) {
     if (c.is_active === false) continue
+    if (incCommit != null && !incCommit.includes(c.id)) continue
     if (!(c.remaining > 0)) continue
     if (c.due_day == null) continue
     const due = nextDueDate(c.due_day, today)
@@ -102,6 +129,7 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
   // ── Upcoming savings contributions (SIP / gold / RD / chit …) ──
   for (const s of state.savings) {
     if (s.is_active === false) continue
+    if (incSavings != null && !incSavings.includes(s.id)) continue
     if (!s.is_recurring) continue            // FD / one-time plans have no future contribution
     if (s.due_day == null) continue
     // finished recurring plans (all installments made) have nothing left to contribute
@@ -116,7 +144,7 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
   // ── Next salary (only if we have both a salary day and a reliable estimate) ──
   let nextSalaryDate: string | undefined
   const salaryDay = state.settings.salary_date
-  const estSalary = estimateSalary(state)
+  const estSalary = estimateForecastSalary(state).amount
   if (salaryDay != null && estSalary != null) {
     const due = nextDueDate(salaryDay, today)
     if (due >= today && due <= horizon) {
@@ -146,11 +174,29 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     return { event, balanceAfter: Math.round(running) }
   })
 
+  // ── Recovery point: if the balance dips below zero, the first event after that
+  //    where it climbs back to >= 0 (so the user knows how long the squeeze lasts).
+  let recoveryDate: string | undefined
+  let recoveryBalance: number | undefined
+  if (lowestBalance < 0) {
+    let wentNegative = false
+    for (const p of projections) {
+      if (p.balanceAfter < 0) wentNegative = true
+      else if (wentNegative && p.balanceAfter >= 0) {
+        recoveryDate = p.event.date
+        recoveryBalance = p.balanceAfter
+        break
+      }
+    }
+  }
+
   return {
     currentBalance,
     lowestBalance: Math.round(lowestBalance),
     lowestBalanceDate,
     nextSalaryDate,
+    recoveryDate,
+    recoveryBalance,
     projections,
   }
 }

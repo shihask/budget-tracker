@@ -135,6 +135,12 @@ export interface Settings {
   custom_savings_pct?:          number
   budget_strategy_base?:        'income' | 'available_funds'
   last_reflection_date?:        string | null
+  // ── Cash Flow Forecast (inputs only; forecast output is never stored) ──
+  forecast_enabled?:            boolean
+  forecast_days?:               number
+  forecast_commitment_ids?:     string[] | null   // null = all active commitments
+  forecast_savings_ids?:        string[] | null   // null = all active savings
+  forecast_salary_override?:    number | null     // fallback only, when salary can't be estimated
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
@@ -353,9 +359,9 @@ export interface DashboardSection {
 export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'hero',            visible: true },
   { id: 'affordability',   visible: true },
+  { id: 'cashflow',        visible: true },
   { id: 'daily_challenge', visible: true },
   { id: 'metrics',         visible: true },
-  { id: 'cashflow',        visible: true },
   { id: 'commitments',   visible: true },
   { id: 'goals',         visible: true },
   { id: 'accounts',      visible: true },
