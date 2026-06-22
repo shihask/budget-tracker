@@ -257,7 +257,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen) ? 'none' : 'block',
           }}>
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} />
           </div>
