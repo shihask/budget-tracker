@@ -41,6 +41,8 @@ import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
 import { AIAssistFAB } from '@/components/AIAssistFAB'
 import { AIChatSheet } from '@/components/AIChatSheet'
 import { AnalyticsPage } from '@/components/AnalyticsPage'
+import { CashFlowForecastCard } from '@/components/CashFlowForecastCard'
+import { CashFlowForecastPage } from '@/components/CashFlowForecastPage'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
 import { UpdateToast } from '@/components/UpdateToast'
 import { InsightCard } from '@/components/InsightCard'
@@ -131,6 +133,7 @@ function AppContent({ session }: { session: Session }) {
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [metricsInfoOpen, setMetricsInfoOpen] = useState(false)
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const [cashflowOpen, setCashflowOpen] = useState(false)
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
@@ -318,6 +321,9 @@ function AppContent({ session }: { session: Session }) {
                       break
                     case 'analytics':
                       el = <Analytics state={state} onSeeAll={() => setAnalyticsOpen(true)} />
+                      break
+                    case 'cashflow':
+                      el = <CashFlowForecastCard state={state} d={d} onOpen={() => setCashflowOpen(true)} />
                       break
                     case 'accounts':
                       el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAdjustBalance={adjustBalance} onAddTransaction={() => setSheetOpen(true)} />
@@ -529,6 +535,10 @@ function AppContent({ session }: { session: Session }) {
 
           {analyticsOpen && (
             <AnalyticsPage state={state} d={d} onClose={() => setAnalyticsOpen(false)} onUpdateSettings={updateSettings} />
+          )}
+
+          {cashflowOpen && (
+            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} />
           )}
 
           <DailyReflectionSheet

@@ -340,7 +340,7 @@ export type Layout = 'grid' | 'carousel' | 'list'
 
 export type DashboardSectionId =
   | 'hero' | 'affordability' | 'daily_challenge' | 'metrics' | 'commitments' | 'goals'
-  | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns' | 'savings'
+  | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns' | 'savings' | 'cashflow'
 
 export interface DashboardSection {
   id: string                    // built-ins use DashboardSectionId; custom sections use 'custom__<timestamp>'
@@ -355,6 +355,7 @@ export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'affordability',   visible: true },
   { id: 'daily_challenge', visible: true },
   { id: 'metrics',         visible: true },
+  { id: 'cashflow',        visible: true },
   { id: 'commitments',   visible: true },
   { id: 'goals',         visible: true },
   { id: 'accounts',      visible: true },

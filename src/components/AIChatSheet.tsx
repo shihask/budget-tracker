@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { parseExpenseWithAI } from '@/lib/gemini'
+import { buildCashFlowForecast } from '@/lib/cashflow'
 import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
@@ -201,6 +202,20 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     `\nSpend: this-month ₹${monthlySpend.toLocaleString()} | income ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transferNote}${savingsNote}` +
     `\nTracking: ${trackingCount} transactions across ${trackingDays} days this month`
   )
+
+  // ── MODULE: Cash flow forecast (always sent — answers "enough before salary?" / affordability) ──
+  {
+    const fc = buildCashFlowForecast(state, d)
+    const upcoming = fc.projections.slice(0, 8)
+      .map(p => `${p.event.date} ${p.event.type === 'income' ? '+' : '-'}₹${p.event.amount.toLocaleString()} ${p.event.title}(${p.event.source})→₹${p.balanceAfter.toLocaleString()}`)
+      .join(' | ')
+    parts.push(
+      `Cash-flow forecast (known events, next 60d; spendable-now ₹${fc.currentBalance.toLocaleString()}):` +
+      `\nLowest projected ₹${fc.lowestBalance.toLocaleString()}${fc.lowestBalanceDate ? ` on ${fc.lowestBalanceDate}` : ''}` +
+      `${fc.nextSalaryDate ? ` | next salary ${fc.nextSalaryDate}` : ' | next salary: unknown'}` +
+      `${upcoming ? `\nUpcoming: ${upcoming}` : ''}`
+    )
+  }
 
   // ── MODULE: Spending breakdown ──
   // spending: full detail (categories, recurring, recent) capped at CTX_LIMITS
