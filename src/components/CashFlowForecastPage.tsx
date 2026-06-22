@@ -224,7 +224,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         {/* Disclaimer */}
         <div style={{ marginTop: 28, padding: 16, borderRadius: 14, background: c.surface2 }}>
           <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>What this forecast includes</div>
-          {['Salary (when confidently known)', 'Commitments & bills', 'Savings plan contributions'].map(t => (
+          {['Salary (when confidently known)', 'Commitments & bills', 'Credit-card bills due', 'Savings plan contributions', 'Borrowed money you owe (at payday)'].map(t => (
             <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               <span style={{ font: `600 13px ${F}`, color: c.ink }}>{t}</span>

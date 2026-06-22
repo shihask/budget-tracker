@@ -11,7 +11,7 @@ export interface CashFlowEvent {
   title: string
   amount: number
   type: 'income' | 'expense'
-  source: 'salary' | 'commitment' | 'saving'
+  source: 'salary' | 'commitment' | 'saving' | 'card' | 'borrowing'
 }
 
 export interface CashFlowProjection {
@@ -131,14 +131,45 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     if (s.is_active === false) continue
     if (incSavings != null && !incSavings.includes(s.id)) continue
     if (!s.is_recurring) continue            // FD / one-time plans have no future contribution
-    if (s.due_day == null) continue
     // finished recurring plans (all installments made) have nothing left to contribute
     if (s.total_installments != null && s.current_installment >= s.total_installments) continue
-    const due = nextDueDate(s.due_day, today)
+    // due day may be unset for some plans — fall back so EVERY active plan is forecast
+    const lastDay = s.last_contribution_date ? new Date(s.last_contribution_date).getDate() : null
+    const dueDay = s.due_day ?? lastDay ?? state.settings.salary_date ?? 1
+    const due = nextDueDate(dueDay, today)
     if (due < today || due > horizon) continue
     const amount = Math.round(s.amount)
     if (!(amount > 0)) continue
     events.push({ date: isoOf(due), title: s.name, amount, type: 'expense', source: 'saving' })
+  }
+
+  // ── Upcoming credit-card bills (outstanding due on the card's due day) ──
+  if (state.settings.track_credit_cards) {
+    for (const cc of state.credit_cards) {
+      if (cc.is_active === false) continue
+      if (!(cc.current_balance > 0)) continue
+      const due = nextDueDate(cc.due_day, today)
+      if (due < today || due > horizon) continue
+      events.push({ date: isoOf(due), title: `${cc.name} bill`, amount: Math.round(cc.current_balance), type: 'expense', source: 'card' })
+    }
+  }
+
+  // ── Pending borrowed money you still owe. Borrowings carry no due date, so we
+  //    assume repayment lands at the next payday (clearly conservative — it only
+  //    adds outflows, never optimistic incoming repayments). ──
+  {
+    const owed = state.borrowings.filter(b => b.direction === 'borrowed' && b.remaining_amount > 0)
+    if (owed.length > 0) {
+      const sDay = state.settings.salary_date
+      const bDue = sDay != null
+        ? nextDueDate(sDay, today)
+        : new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14)
+      if (bDue >= today && bDue <= horizon) {
+        for (const b of owed) {
+          events.push({ date: isoOf(bDue), title: `Repay ${b.person_name}`, amount: Math.round(b.remaining_amount), type: 'expense', source: 'borrowing' })
+        }
+      }
+    }
   }
 
   // ── Next salary (only if we have both a salary day and a reliable estimate) ──
