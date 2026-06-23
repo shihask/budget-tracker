@@ -5,7 +5,6 @@ import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate, fmtTime } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
-import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, Transaction, TransactionType } from '@/types'
@@ -40,11 +39,14 @@ interface TransactionsPageProps {
   initialEditTx?: Transaction | null
   onAdd?: () => void
   onToggleChallengeExclusion?: (txnId: string) => Promise<void>
+  allTransactionsLoaded?: boolean
+  loadingMore?: boolean
+  onLoadMore?: () => void
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -82,20 +84,30 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [quickCatId, setQuickCatId] = useState('')
   const [quickCatSaving, setQuickCatSaving] = useState(false)
   const [filtersVisible, setFiltersVisible] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
   const [dragX, setDragX] = useState(0)
   const [closing, setClosing] = useState(false)
   const [snapping, setSnapping] = useState(false)
   const [entryPlayed, setEntryPlayed] = useState(false)
   const dragXRef = useRef(0)
   const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
 
   useEffect(() => {
     const t = setTimeout(() => setEntryPlayed(true), 360)
     return () => clearTimeout(t)
   }, [])
+
+  useEffect(() => {
+    if (!onLoadMore || allTransactionsLoaded) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) onLoadMore()
+    }, { rootMargin: '200px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onLoadMore, allTransactionsLoaded])
 
   const triggerClose = () => {
     setClosing(true)
@@ -137,16 +149,6 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       setTimeout(() => setSnapping(false), 300)
     }
   }
-  const initials = userName.split(' ').map((w: string) => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [menuOpen])
   const accounts = state.accounts.filter(a => a.is_active)
   const groups = state.groups
 
@@ -365,52 +367,6 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 </svg>
               </button>
             )}
-            {/* Theme toggle */}
-            <button onClick={onToggleTheme} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: `1px solid ${c.faint}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <Glyph name={dark ? 'sun' : 'moon'} color={c.ink} size={16} />
-            </button>
-            {/* Avatar */}
-            <div ref={menuRef} style={{ position: 'relative' }}>
-              <button
-                onClick={() => setMenuOpen(v => !v)}
-                style={{ width: 36, height: 36, borderRadius: 999, background: c.accent, color: '#fff', font: '800 13px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer', position: 'relative' }}
-              >
-                {initials}
-                <span style={{ position: 'absolute', bottom: 1, right: 1, width: 9, height: 9, borderRadius: 999, background: synced ? '#22C55E' : '#F59E0B', border: `2px solid ${c.bg}` }} />
-              </button>
-              {menuOpen && (
-                <div style={{ position: 'absolute', top: 44, right: 0, zIndex: 400, background: c.surface, borderRadius: 16, padding: '6px', boxShadow: '0 8px 32px rgba(0,0,0,0.16)', border: `1px solid ${c.faint}`, minWidth: 200 }}>
-                  <div style={{ padding: '10px 12px 8px' }}>
-                    <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{userName}</div>
-                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{userEmail}</div>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, background: synced ? '#22C55E18' : '#F59E0B18', borderRadius: 999, padding: '3px 8px' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: 999, background: synced ? '#22C55E' : '#F59E0B', flexShrink: 0 }} />
-                      <span style={{ font: '600 10px Plus Jakarta Sans', color: synced ? '#22C55E' : '#F59E0B' }}>{synced ? 'Synced with cloud' : 'Offline — local data'}</span>
-                    </div>
-                  </div>
-                  <div style={{ height: 1, background: c.faint, margin: '4px 0' }} />
-                  <button onClick={() => { setMenuOpen(false); onCategories() }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', color: c.ink, font: '700 13px Plus Jakarta Sans', textAlign: 'left' }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
-                    </svg>
-                    Categories
-                  </button>
-                  <button onClick={() => { setMenuOpen(false); onSettings() }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', color: c.ink, font: '700 13px Plus Jakarta Sans', textAlign: 'left' }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-                    </svg>
-                    Settings
-                  </button>
-                  <div style={{ height: 1, background: c.faint, margin: '4px 0' }} />
-                  <button onClick={() => { setMenuOpen(false); onSignOut() }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', color: c.bad, font: '700 13px Plus Jakarta Sans', textAlign: 'left' }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
-                    Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
@@ -477,6 +433,16 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 {showSystemTxns && <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"><polyline points="2 6 5 9 10 3"/></svg>}
               </span>
               Show system transactions (Opening Balance, Balance Adjustment)
+            </button>
+            <button
+              onClick={() => setFiltersVisible(false)}
+              style={{
+                width: '100%', background: c.accent, color: '#fff', border: 'none',
+                borderRadius: 12, padding: '12px', font: '700 14px Plus Jakarta Sans',
+                cursor: 'pointer', marginTop: 4,
+              }}
+            >
+              Done
             </button>
           </div>
         </div>
@@ -585,6 +551,17 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 </div>
               )
             })}
+            {!allTransactionsLoaded && onLoadMore && (
+              <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+                {loadingMore ? (
+                  <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Loading more...</span>
+                ) : (
+                  <button onClick={onLoadMore} style={{ background: c.surface2, color: c.muted, border: `1.5px solid ${c.faint}`, borderRadius: 12, padding: '10px 24px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
+                    Load more
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

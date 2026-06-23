@@ -121,10 +121,14 @@ const savingsWithdrawNote = (type: string, isChit: boolean) =>
   isChit ? 'Chit Fund Payout' : `${SAVINGS_TYPE_LABEL[type] ?? 'Savings'} Redemption`
 const SAVINGS_CATEGORIES = ['SIP', 'Gold Scheme', 'Recurring Deposit', 'Fixed Deposit', 'PPF / NPS', 'Chit Fund']
 
+const TXN_PAGE_SIZE = 200
+
 export function useSupabaseData(userId: string) {
   const [state, setState] = useState<AppState>(EMPTY_STATE)
   const [loading, setLoading] = useState(true)
   const [usingSupabase, setUsingSupabase] = useState(false)
+  const [allTransactionsLoaded, setAllTransactionsLoaded] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -156,7 +160,7 @@ export function useSupabaseData(userId: string) {
             .eq('user_id', userId)
             .order('transaction_date', { ascending: false })
             .order('created_at', { ascending: false })
-            .limit(200),
+            .limit(TXN_PAGE_SIZE),
           supabase.from('goals').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
           supabase.from('goal_contributions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(200),
           supabase.from('savings').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
@@ -342,6 +346,7 @@ export function useSupabaseData(userId: string) {
           }
         }
 
+        const txnList = (transactions as Transaction[]) || []
         setState({
           accounts: accounts || [],
           categories: userCategories as Category[],
@@ -352,11 +357,12 @@ export function useSupabaseData(userId: string) {
           budget_strategy_settings: budgetStrategySettings,
           commitments: (commitments as Commitment[]) || [],
           borrowings: borrowings || [],
-          transactions: (transactions as Transaction[]) || [],
+          transactions: txnList,
           goals: (goals as Goal[]) || [],
           goal_contributions: (goalContribs as GoalContribution[]) || [],
           savings: (savingsRows as Savings[]) || [],
         })
+        setAllTransactionsLoaded(txnList.length < TXN_PAGE_SIZE)
         setUsingSupabase(true)
       } catch (err) {
         console.error('Supabase load failed:', err)
@@ -1456,8 +1462,35 @@ export function useSupabaseData(userId: string) {
     })
   }, [updateSettings])
 
+  const loadMoreTransactions = useCallback(async () => {
+    if (allTransactionsLoaded || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const current = stateRef.current.transactions
+      const offset = current.length
+      const { data } = await supabase
+        .from('transactions')
+        .select('*, category:categories(*)')
+        .eq('user_id', userId)
+        .order('transaction_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + TXN_PAGE_SIZE - 1)
+      const newTxns = (data as Transaction[]) || []
+      if (newTxns.length < TXN_PAGE_SIZE) setAllTransactionsLoaded(true)
+      if (newTxns.length > 0) {
+        const existingIds = new Set(current.map(t => t.id))
+        const unique = newTxns.filter(t => !existingIds.has(t.id))
+        if (unique.length > 0) setState(s => ({ ...s, transactions: [...s.transactions, ...unique] }))
+      }
+    } catch (err) {
+      console.error('Failed to load more transactions:', err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [userId, allTransactionsLoaded, loadingMore])
+
   return {
-    state, setState, loading, usingSupabase,
+    state, setState, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions,
     addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings,
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
