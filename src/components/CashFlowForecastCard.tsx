@@ -12,7 +12,7 @@ interface Props {
   onSetup: () => void
 }
 
-const LOW_CUSHION = 5000 // below this (but >= 0) the forecast is "getting tight"
+export const LOW_CUSHION = 5000 // below this (but >= 0) the forecast is "getting tight"
 
 type Health = 'healthy' | 'warning' | 'critical'
 

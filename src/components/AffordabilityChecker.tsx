@@ -3,7 +3,9 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
 import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
-import type { DerivedMetrics, Settings, Transaction } from '@/types'
+import { simulatePurchase, forecastReady, getForecastDrivers, estimateForecastSalary, daysUntil as forecastDaysUntil } from '@/lib/cashflow'
+import { LOW_CUSHION } from './CashFlowForecastCard'
+import type { AppState, DerivedMetrics, Settings, Transaction } from '@/types'
 
 interface SaveGoalData {
   name: string
@@ -14,6 +16,7 @@ interface SaveGoalData {
 }
 
 interface Props {
+  state: AppState
   d: DerivedMetrics
   settings: Settings
   transactions: Transaction[]
@@ -39,13 +42,13 @@ function generateChips(freeMoney: number): number[] {
   return selected.slice(0, 6)
 }
 
-function StatusIcon({ tier, color }: { tier: 'safe' | 'risky' | 'no'; color: string }) {
+function StatusIcon({ tier, color }: { tier: 'safe' | 'tight' | 'risky' | 'critical'; color: string }) {
   if (tier === 'safe') return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/>
     </svg>
   )
-  if (tier === 'risky') return (
+  if (tier === 'tight' || tier === 'risky') return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill={color}/>
     </svg>
@@ -57,7 +60,7 @@ function StatusIcon({ tier, color }: { tier: 'safe' | 'risky' | 'no'; color: str
   )
 }
 
-export function AffordabilityChecker({ d, settings, transactions, onUpdateSettings, onSaveGoal }: Props) {
+export function AffordabilityChecker({ state, d, settings, transactions, onUpdateSettings, onSaveGoal }: Props) {
   const c = useTheme()
   const [open, setOpen] = useState(false)
   const [item, setItem] = useState('')
@@ -165,36 +168,106 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
       weeklySpent: d.weeklySpent,
       spendingByGroup: spendingData.spendingByGroup,
       totalSpent30d: spendingData.totalSpent30d,
+      forecastVerdict: status?.label,
+      forecastLowest: simResult?.lowestBalance,
+      forecastLowestDate: simResult?.lowestBalanceDate,
+      forecastRecoveryDate: simResult?.recoveryDate,
+      forecastDrivers: simDrivers.length > 0 ? simDrivers : undefined,
     }, (n) => onUpdateSettings?.({ ai_requests_used: n }))
     setAiInsight(insight ?? "Mint couldn't respond right now. Try again.")
     setAiLoading(false)
   }
 
   const amt = parseFloat(amount)
+  const canForecast = forecastReady(state)
+
+  // Phase 1: Forecast simulation
+  const simResult = useMemo(() => {
+    if (!checked || isNaN(amt) || amt <= 0 || !canForecast) return null
+    return simulatePurchase(state, d, amt)
+  }, [checked, amt, canForecast, state, d])
+
+  const simDrivers = useMemo(() => {
+    if (!simResult) return []
+    return getForecastDrivers(simResult.projections, 3)
+  }, [simResult])
+
+  // Phase 3: Post-salary simulation
+  const timingAdvice = useMemo(() => {
+    if (!checked || isNaN(amt) || amt <= 0 || !canForecast || !simResult) return null
+    const salaryDate = simResult.nextSalaryDate
+    if (!salaryDate) return null
+    const daysAway = forecastDaysUntil(salaryDate)
+    if (daysAway <= 0 || daysAway > 30) return null
+    const salaryAmt = estimateForecastSalary(state).amount
+    if (!salaryAmt) return null
+    const postSalaryForecast = simulatePurchase(state, {
+      ...d,
+      availableBalance: d.availableBalance + salaryAmt,
+    }, amt)
+    if (postSalaryForecast.lowestBalance <= (simResult.lowestBalance + LOW_CUSHION)) return null
+    const postHealth = postSalaryForecast.lowestBalance < 0 ? 'critical' : postSalaryForecast.lowestBalance < LOW_CUSHION ? 'tight' : 'safe'
+    return { daysAway, salaryDate, postLowest: postSalaryForecast.lowestBalance, postHealth }
+  }, [checked, amt, canForecast, simResult, state, d])
+
+  type Tier = 'safe' | 'tight' | 'risky' | 'critical'
 
   const getStatus = () => {
     if (!checked || isNaN(amt)) return null
-    if (amt > freeMoney) return {
-      tier: 'no' as const,
+
+    // Snapshot checks
+    const exceedsFreeMoney = amt > freeMoney
+    const exceedsSPP = safePurchasingPower <= 0 || amt > safePurchasingPower
+
+    // Forecast check — can override snapshot
+    const simLowest = simResult?.lowestBalance ?? null
+    const forecastGoesNegative = simLowest != null && simLowest < 0
+    const forecastTight = simLowest != null && simLowest >= 0 && simLowest < LOW_CUSHION
+
+    // CRITICAL: exceeds free money OR forecast goes negative
+    if (exceedsFreeMoney) return {
+      tier: 'critical' as Tier,
       color: c.bad, bg: '#FEE2E2',
       label: 'Not Affordable',
-      sub: `This purchase exceeds your available free money.`,
+      sub: 'This purchase exceeds your available free money.',
     }
-    if (safePurchasingPower <= 0 || amt > safePurchasingPower) return {
-      tier: 'risky' as const,
+    if (forecastGoesNegative) return {
+      tier: 'critical' as Tier,
+      color: c.bad, bg: '#FEE2E2',
+      label: 'Will Cause Shortfall',
+      sub: `Affordable today, but your balance is projected to go negative${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''} before payday.`,
+    }
+
+    // RISKY: dips into reserved weekly budget
+    if (exceedsSPP) return {
+      tier: 'risky' as Tier,
       color: '#D97706', bg: '#FEF3C7',
       label: 'Risky Purchase',
       sub: hasWeeklyContext
         ? `You can afford this, but it uses money reserved for your remaining ${weeksRemaining}-week budget.`
-        : `You can afford this, but think carefully.`,
+        : 'You can afford this, but think carefully.',
     }
+
+    // TIGHT: affordable + forecast cushion is thin
+    if (forecastTight) return {
+      tier: 'tight' as Tier,
+      color: '#D97706', bg: '#FEF3C7',
+      label: 'Tight — Cuts It Close',
+      sub: `Affordable, but your projected balance dips to ${fmt(simLowest!)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''} before payday.`,
+    }
+
+    // SAFE
     return {
-      tier: 'safe' as const,
+      tier: 'safe' as Tier,
       color: c.good, bg: '#DCFCE7',
       label: 'Safe Purchase',
-      sub: `This purchase does not affect your remaining weekly budget.`,
+      sub: canForecast
+        ? 'This purchase fits comfortably. Your forecast remains healthy.'
+        : 'This purchase does not affect your remaining weekly budget.',
     }
   }
+
+  const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 
   const status = getStatus()
 
@@ -437,6 +510,76 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
               )}
             </div>
 
+            {/* Phase 2: Forecast Impact */}
+            {simResult && (
+              <div style={{ background: c.surface, borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid ${c.faint}` }}>
+                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Forecast Impact</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  <Row label="Balance today" value={fmt(simResult.currentBalance + amt)} />
+                  <Row label="After purchase" value={fmt(simResult.currentBalance)} />
+                  <Divider />
+                  <Row
+                    label={`Lowest projected${simResult.lowestBalanceDate ? ` · ${shortDate(simResult.lowestBalanceDate)}` : ''}`}
+                    value={fmt(simResult.lowestBalance)}
+                    bold
+                    color={simResult.lowestBalance < 0 ? c.bad : simResult.lowestBalance < LOW_CUSHION ? '#D97706' : c.good}
+                  />
+                  {simResult.recoveryDate && simResult.recoveryBalance != null && (
+                    <Row
+                      label={`Recovery · ${shortDate(simResult.recoveryDate)}`}
+                      value={fmt(simResult.recoveryBalance)}
+                      color={c.good}
+                    />
+                  )}
+                  {!simResult.recoveryDate && simResult.nextSalaryDate && simResult.lowestBalance >= 0 && (
+                    <Row
+                      label={`After salary · ${shortDate(simResult.nextSalaryDate)}`}
+                      value={fmt(simResult.projections.length > 0 ? simResult.projections[simResult.projections.length - 1].balanceAfter : simResult.currentBalance)}
+                      color={c.good}
+                    />
+                  )}
+                </div>
+
+                {/* Main Pressure */}
+                {status!.tier !== 'safe' && simDrivers.length > 0 && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
+                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Main Pressure</div>
+                    {simDrivers.map((dr, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div style={{ width: 5, height: 5, borderRadius: 999, background: status!.color, flexShrink: 0 }} />
+                        <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{dr.title}</span>
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(dr.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Phase 3: Timing Advisor */}
+            {timingAdvice && status!.tier !== 'safe' && (
+              <div style={{ background: c.good + '10', borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid ${c.good}30` }}>
+                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Purchase Timing</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ background: status!.bg, borderRadius: 12, padding: '10px 12px' }}>
+                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4 }}>Today</div>
+                    <div style={{ font: '800 14px Plus Jakarta Sans', color: status!.color }}>{status!.tier === 'critical' ? 'Shortfall' : status!.tier === 'risky' ? 'Risky' : 'Tight'}</div>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Lowest: {fmt(simResult!.lowestBalance)}</div>
+                  </div>
+                  <div style={{ background: c.good + '18', borderRadius: 12, padding: '10px 12px' }}>
+                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4 }}>After Salary</div>
+                    <div style={{ font: '800 14px Plus Jakarta Sans', color: c.good }}>{timingAdvice.postHealth === 'safe' ? 'Safe' : timingAdvice.postHealth === 'tight' ? 'Tight' : 'Risky'}</div>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Lowest: {fmt(timingAdvice.postLowest)}</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 10, padding: '8px 12px', background: c.good + '14', borderRadius: 10 }}>
+                  <span style={{ font: '700 12px Plus Jakarta Sans', color: c.good }}>
+                    Wait {timingAdvice.daysAway} day{timingAdvice.daysAway !== 1 ? 's' : ''} until salary ({shortDate(timingAdvice.salaryDate)})
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Breakdown */}
             <div style={{ background: c.surface, borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid ${c.faint}` }}>
               <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Breakdown</div>
@@ -512,7 +655,7 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
             </div>
 
             {/* How Can I Afford This? */}
-            {status!.tier === 'no' && (() => {
+            {status!.tier === 'critical' && (() => {
               const plan = calcGoalPlan(amt)
               return (
                 <>
@@ -761,8 +904,8 @@ export function AffordabilityChecker({ d, settings, transactions, onUpdateSettin
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill="#6366F1"/></svg>,
-                  title: 'Safe / Risky / No verdict',
-                  desc: 'Three clear outcomes: Safe means it fits your plan, Risky means it dips into future budget, No means it exceeds free money.',
+                  title: 'Forecast-aware verdict',
+                  desc: 'Four outcomes: Safe (fits your plan), Tight (balance gets low before payday), Risky (dips into future budget), Critical (will cause a shortfall).',
                 },
               ] as const).map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>

@@ -255,6 +255,13 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
   }
 }
 
+export function simulatePurchase(state: AppState, derived: DerivedMetrics, amount: number): CashFlowForecast {
+  return buildCashFlowForecast(state, {
+    ...derived,
+    availableBalance: derived.availableBalance - amount,
+  })
+}
+
 // Whole days from today until an ISO date (>= 0).
 export function daysUntil(isoDate: string): number {
   const today = midnight(new Date())

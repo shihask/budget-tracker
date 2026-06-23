@@ -59,6 +59,11 @@ export interface AffordabilityContext {
   weeklySpent: number
   spendingByGroup: Record<string, number>
   totalSpent30d: number
+  forecastVerdict?: string
+  forecastLowest?: number
+  forecastLowestDate?: string
+  forecastRecoveryDate?: string
+  forecastDrivers?: { title: string; amount: number }[]
 }
 
 export async function affordabilityInsightWithAI(
@@ -76,6 +81,13 @@ export async function affordabilityInsightWithAI(
       .map(([g, v]) => `  ${g}: ₹${Math.round(v).toLocaleString('en-IN')}`)
       .join('\n')
 
+    const forecastLines = [
+      ctx.forecastVerdict ? `Forecast verdict: ${ctx.forecastVerdict}` : null,
+      ctx.forecastLowest != null ? `Projected lowest balance after purchase: ₹${Math.round(ctx.forecastLowest).toLocaleString('en-IN')}${ctx.forecastLowestDate ? ` on ${ctx.forecastLowestDate}` : ''}` : null,
+      ctx.forecastRecoveryDate ? `Balance recovers on ${ctx.forecastRecoveryDate}` : null,
+      ctx.forecastDrivers?.length ? `Main upcoming obligations:\n${ctx.forecastDrivers.map(d => `  ${d.title}: ₹${Math.round(d.amount).toLocaleString('en-IN')}`).join('\n')}` : null,
+    ].filter(Boolean)
+
     const context = [
       `Real Free Money: ₹${Math.round(ctx.freeMoney).toLocaleString('en-IN')}`,
       `Safe Purchasing Power: ₹${Math.round(ctx.safePurchasingPower).toLocaleString('en-IN')}`,
@@ -83,6 +95,7 @@ export async function affordabilityInsightWithAI(
       `Weekly budget: ₹${Math.round(ctx.weeklyBudget).toLocaleString('en-IN')}, this week spent: ₹${Math.round(ctx.weeklySpent).toLocaleString('en-IN')}`,
       `Last 30-day expense breakdown:\n${groupLines || '  (no data)'}`,
       `Total 30-day spend: ₹${Math.round(ctx.totalSpent30d).toLocaleString('en-IN')}`,
+      ...forecastLines,
     ].filter(Boolean).join('\n')
 
     const itemLabel = item.trim() || 'this item'
