@@ -77,7 +77,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const [goalPlanAI, setGoalPlanAI] = useState<string | null>(null)
   const [goalPlanAILoading, setGoalPlanAILoading] = useState(false)
 
-  const EXCLUDED_TX_TYPES = new Set(['income', 'transfer', 'savings_contribution', 'savings_withdrawal', 'borrowing', 'borrowing_repayment', 'opening_balance', 'balance_adjustment', 'credit_card_payment'])
+  const EXCLUDED_TX_TYPES = new Set(['income', 'transfer', 'savings_contribution', 'savings_withdrawal', 'borrowing', 'borrowing_repayment', 'opening_balance', 'balance_adjustment', 'credit_card_payment', 'cc_opening_balance', 'cc_balance_adjustment'])
 
   const spendingData = useMemo(() => {
     const cutoff30 = new Date(); cutoff30.setDate(cutoff30.getDate() - 30)

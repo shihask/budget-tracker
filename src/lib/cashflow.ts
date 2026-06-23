@@ -1,4 +1,5 @@
 import type { AppState, DerivedMetrics } from '@/types'
+import { getCreditCardBilling } from '@/lib/credit-card'
 
 /* ============================================================================
    Cash Flow Forecast — projects future balance using KNOWN future events only.
@@ -166,14 +167,16 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     events.push({ date: isoOf(due), title: s.name, amount, type: 'expense', source: 'saving' })
   }
 
-  // ── Upcoming credit-card bills (outstanding due on the card's due day) ──
+  // ── Upcoming credit-card bills (billed amount due on the card's due day) ──
   if (state.settings.track_credit_cards) {
     for (const cc of state.credit_cards) {
       if (cc.is_active === false) continue
       if (!(cc.current_balance > 0)) continue
+      const billing = getCreditCardBilling(cc, state.transactions, today)
+      const amount = Math.round(billing.billedAmount || cc.current_balance)
       const due = nextDueDate(cc.due_day, today)
       if (due < today || due > horizon) continue
-      events.push({ date: isoOf(due), title: `${cc.name} bill`, amount: Math.round(cc.current_balance), type: 'expense', source: 'card' })
+      events.push({ date: isoOf(due), title: `${cc.name} bill`, amount, type: 'expense', source: 'card' })
     }
   }
 

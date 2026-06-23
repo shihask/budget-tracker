@@ -152,7 +152,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
   const filtered = useMemo(() => {
     let txns = [...state.transactions]
-    if (!showSystemTxns) txns = txns.filter(t => t.transaction_type !== 'opening_balance' && t.transaction_type !== 'balance_adjustment')
+    if (!showSystemTxns) txns = txns.filter(t => t.transaction_type !== 'opening_balance' && t.transaction_type !== 'balance_adjustment' && t.transaction_type !== 'cc_opening_balance' && t.transaction_type !== 'cc_balance_adjustment')
     if (search.trim()) txns = txns.filter(t => t.description.toLowerCase().includes(search.toLowerCase()))
     if (filterAccount !== 'all') txns = txns.filter(t => t.from_account_id === filterAccount || (t as any).credit_card_id === filterAccount)
     if (filterCategory !== 'all') txns = txns.filter(t => t.category_id === filterCategory)
@@ -527,9 +527,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                         {t.transaction_type === 'savings_withdrawal' && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 999, padding: '2px 7px' }}>Withdrawal</span>
                         )}
-                        {(t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment') ? (
+                        {(t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment' || t.transaction_type === 'cc_opening_balance' || t.transaction_type === 'cc_balance_adjustment') ? (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px' }}>
-                            {t.transaction_type === 'opening_balance' ? 'Opening Balance' : 'Balance Adjustment'}
+                            {(t.transaction_type === 'opening_balance' || t.transaction_type === 'cc_opening_balance') ? 'Opening Balance' : 'Balance Adjustment'}
                           </span>
                         ) : cat && t.transaction_type !== 'savings_contribution' && t.transaction_type !== 'savings_withdrawal'
                           ? <span style={{ font: '600 10px Plus Jakarta Sans', color: col, background: col + '18', borderRadius: 999, padding: '2px 7px' }}>{cat.name}</span>

@@ -153,7 +153,12 @@ CREATE OR REPLACE FUNCTION mp_update_transaction(
   -- Borrowing sync (null = no sync needed)
   p_borrowing_id        uuid    DEFAULT NULL,
   p_old_amount          numeric DEFAULT NULL,
-  p_borrowing_type      text    DEFAULT NULL   -- 'borrowing' | 'borrowing_repayment'
+  p_borrowing_type      text    DEFAULT NULL,  -- 'borrowing' | 'borrowing_repayment'
+  -- Credit card balance deltas
+  p_old_cc_id           uuid    DEFAULT NULL,
+  p_old_cc_delta        numeric DEFAULT NULL,
+  p_new_cc_id           uuid    DEFAULT NULL,
+  p_new_cc_delta        numeric DEFAULT NULL
 )
 RETURNS jsonb   -- { transaction, borrowing | null }
 LANGUAGE plpgsql
@@ -175,6 +180,11 @@ BEGIN
     WHERE id = p_old_to_account_id;
   END IF;
 
+  IF p_old_cc_id IS NOT NULL AND p_old_cc_delta IS NOT NULL THEN
+    UPDATE credit_cards SET current_balance = current_balance + p_old_cc_delta
+    WHERE id = p_old_cc_id;
+  END IF;
+
   -- 2. Update the transaction record
   UPDATE transactions SET
     transaction_date = p_transaction_date,
@@ -184,7 +194,8 @@ BEGIN
     category_id      = p_category_id,
     from_account_id  = p_from_account_id,
     to_account_id    = p_to_account_id,
-    is_credit        = p_is_credit
+    is_credit        = p_is_credit,
+    credit_card_id   = p_new_cc_id
   WHERE id = p_transaction_id;
 
   -- 3. Apply new balance effects
@@ -196,6 +207,11 @@ BEGIN
   IF p_to_account_id IS NOT NULL AND p_new_to_delta IS NOT NULL THEN
     UPDATE accounts SET current_balance = current_balance + p_new_to_delta
     WHERE id = p_to_account_id;
+  END IF;
+
+  IF p_new_cc_id IS NOT NULL AND p_new_cc_delta IS NOT NULL THEN
+    UPDATE credit_cards SET current_balance = current_balance + p_new_cc_delta
+    WHERE id = p_new_cc_id;
   END IF;
 
   -- 4. Sync borrowing record if amount changed

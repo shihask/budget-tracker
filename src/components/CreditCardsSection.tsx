@@ -3,7 +3,8 @@ import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
-import { BottomSheet, HelpText } from './BottomSheet'
+import { BottomSheet, HelpText, HelpToggle } from './BottomSheet'
+import { getCreditCardBilling } from '@/lib/credit-card'
 import type { AppState, CreditCard } from '@/types'
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
   onUpdate: (id: string, form: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
+  onAdjustBalance: (cardId: string, actualBalance: number) => Promise<void>
 }
 
 type CardForm = {
@@ -43,18 +45,8 @@ function dayLabel(n: number): string {
   return `in ${n} days`
 }
 
-function getCycleSpend(card: CreditCard, transactions: AppState['transactions']): number {
-  const today = new Date()
-  const startDay = card.cycle_start_day
-  let cycleStart = new Date(today.getFullYear(), today.getMonth(), startDay)
-  if (cycleStart > today) cycleStart.setMonth(cycleStart.getMonth() - 1)
-  const startStr = cycleStart.toISOString().slice(0, 10)
-  return transactions
-    .filter(t => t.from_account_id === card.id && t.transaction_type === 'expense' && t.transaction_date >= startStr)
-    .reduce((sum, t) => sum + t.amount, 0)
-}
 
-export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill }: Props) {
+export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill, onAdjustBalance }: Props) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -66,6 +58,9 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   const [payAccountId, setPayAccountId] = useState('')
   const [paying, setPaying] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [adjustTarget, setAdjustTarget] = useState<CreditCard | null>(null)
+  const [adjustAmount, setAdjustAmount] = useState('')
+  const [adjusting, setAdjusting] = useState(false)
 
   const accounts = state.accounts.filter(a => a.is_active)
   const cards = state.credit_cards || []
@@ -123,6 +118,16 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       setPayTarget(null)
     } catch (_) {}
     setPaying(false)
+  }
+
+  const handleAdjustBalance = async () => {
+    if (!adjustTarget || !adjustAmount) return
+    setAdjusting(true)
+    try {
+      await onAdjustBalance(adjustTarget.id, parseFloat(adjustAmount))
+      setAdjustTarget(null)
+    } catch (_) {}
+    setAdjusting(false)
   }
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -192,6 +197,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
               const daysUntilBill = getDaysUntil(card.bill_day)
               const daysUntilDue = getDaysUntil(card.due_day)
               const isUrgent = daysUntilDue <= 5
+              const billing = getCreditCardBilling(card, state.transactions)
 
               const isExpanded = expandedId === card.id
 
@@ -222,7 +228,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <button
-                        onClick={e => { e.stopPropagation(); setPayTarget(card); setPayAmount(String(card.current_balance)); setPayAccountId(accounts[0]?.id || '') }}
+                        onClick={e => { e.stopPropagation(); setPayTarget(card); setPayAmount(String(billing.billedAmount || card.current_balance)); setPayAccountId(accounts[0]?.id || '') }}
                         style={{ background: col, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}
                       >
                         Pay Bill
@@ -240,17 +246,30 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   {isExpanded && (
                     <div
                       style={{ padding: '0 14px 14px', borderTop: `1px solid ${col}25` }}
-                      onClick={() => openEdit(card)}
                     >
-                      {/* Balance */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, marginTop: 12 }}>
+                      {/* Total outstanding */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, marginTop: 12 }}>
                         <div>
-                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding</div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Outstanding</div>
                           <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{fmt(card.current_balance)}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Available</div>
                           <div style={{ font: '800 20px Plus Jakarta Sans', color: c.good, letterSpacing: '-0.02em' }}>{fmt(available)}</div>
+                        </div>
+                      </div>
+
+                      {/* Billed / Unbilled split */}
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }} onClick={e => e.stopPropagation()}>
+                        <div style={{ flex: 1, background: c.surface, borderRadius: 10, padding: '8px 10px' }}>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Billed</div>
+                          <div style={{ font: '700 15px Plus Jakarta Sans', color: billing.billedAmount > 0 ? c.bad : c.ink, marginTop: 2 }}>{fmt(billing.billedAmount)}</div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>pay by {card.due_day}th</div>
+                        </div>
+                        <div style={{ flex: 1, background: c.surface, borderRadius: 10, padding: '8px 10px' }}>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Unbilled</div>
+                          <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(billing.unbilledAmount)}</div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>since {card.bill_day}th</div>
                         </div>
                       </div>
 
@@ -287,8 +306,19 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                           <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>start day</div>
                         </div>
                       </div>
-                      <div style={{ marginTop: 10, textAlign: 'center' }}>
-                        <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Tap card to edit</span>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => { setAdjustTarget(card); setAdjustAmount(String(card.current_balance)) }}
+                          style={{ flex: 1, background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 10, padding: '8px 0', font: '700 11px Plus Jakarta Sans', color: c.ink, cursor: 'pointer' }}
+                        >
+                          Adjust Balance
+                        </button>
+                        <button
+                          onClick={() => openEdit(card)}
+                          style={{ flex: 1, background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 10, padding: '8px 0', font: '700 11px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}
+                        >
+                          Edit Card
+                        </button>
                       </div>
                     </div>
                   )}
@@ -353,17 +383,20 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       )}
 
       {/* Add/Edit sheet */}
-      <BottomSheet open={sheetOpen} onClose={closeSheet} maxHeight="90svh" zIndex={350}>
+      <BottomSheet open={sheetOpen} onClose={closeSheet} maxHeight="90svh" zIndex={350} showHelpButton={false}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{editingId ? 'Edit Card' : 'Add Credit Card'}</div>
-              {editingId && (
-                <button onClick={async () => { if (await confirm('Delete this card?')) { await onDelete(editingId); closeSheet() } }}
-                  style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-                  </svg>
-                </button>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <HelpToggle />
+                {editingId && (
+                  <button onClick={async () => { if (await confirm('Delete this card?')) { await onDelete(editingId); closeSheet() } }}
+                    style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -412,14 +445,22 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   <input type="number" inputMode="numeric" onFocus={e => e.target.select()} value={form.due_day} onChange={e => setForm(f => ({ ...f, due_day: e.target.value }))} min="1" max="31" style={inp} />
                 </div>
               </div>
-              <div>
-                <label style={lbl}>
-                  Current Outstanding
-                  <InfoIcon id="balance" text="How much you currently owe on this card right now. Check your bank app or last statement." />
-                </label>
-                <HelpText>How much you currently owe on this card. Check your card app or last statement.</HelpText>
-                <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
-              </div>
+              {!editingId ? (
+                <div>
+                  <label style={lbl}>
+                    Current Outstanding
+                    <InfoIcon id="balance" text="How much you currently owe on this card right now. Check your bank app or last statement." />
+                  </label>
+                  <HelpText>How much you currently owe on this card. Check your card app or last statement.</HelpText>
+                  <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
+                </div>
+              ) : (
+                <div style={{ background: c.surface2, borderRadius: 11, padding: '10px 12px' }}>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Current Outstanding</div>
+                  <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{fmt(cards.find(cd => cd.id === editingId)?.current_balance ?? 0)}</div>
+                  <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 4 }}>Use "Adjust Balance" from the card to correct this.</div>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button onClick={closeSheet} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
@@ -432,7 +473,14 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       {/* Pay bill sheet */}
       <BottomSheet open={!!payTarget} onClose={() => setPayTarget(null)} zIndex={350} showHelpButton={false}>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Pay Bill</div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>{payTarget?.name} · Outstanding {payTarget ? fmt(payTarget.current_balance) : ''}</div>
+            {payTarget && (() => {
+              const b = getCreditCardBilling(payTarget, state.transactions)
+              return (
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>
+                  {payTarget.name} · Billed {fmt(b.billedAmount)}{b.unbilledAmount > 0 ? ` · Unbilled ${fmt(b.unbilledAmount)}` : ''} · Total {fmt(payTarget.current_balance)}
+                </div>
+              )
+            })()}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Payment Amount</label>
@@ -450,6 +498,39 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
               <button onClick={() => setPayTarget(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
               <button onClick={handlePayBill} disabled={paying || !payAmount || !payAccountId} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: paying ? 0.7 : 1 }}>
                 {paying ? 'Processing...' : `Pay ${fmt(parseFloat(payAmount) || 0)}`}
+              </button>
+            </div>
+      </BottomSheet>
+
+      {/* Adjust balance sheet */}
+      <BottomSheet open={!!adjustTarget} onClose={() => setAdjustTarget(null)} zIndex={350} showHelpButton={false}>
+            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Adjust Balance</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>
+              {adjustTarget?.name} · Current outstanding {adjustTarget ? fmt(adjustTarget.current_balance) : ''}
+            </div>
+            <div>
+              <label style={lbl}>Actual Balance Today</label>
+              <HelpText>Enter the real outstanding amount from your bank app. A balance adjustment transaction will be created automatically.</HelpText>
+              <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="0" style={inp} />
+            </div>
+            {adjustTarget && parseFloat(adjustAmount) !== adjustTarget.current_balance && adjustAmount !== '' && (
+              <div style={{ marginTop: 10, background: c.surface2, borderRadius: 10, padding: '8px 12px', font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                {(() => {
+                  const diff = parseFloat(adjustAmount) - adjustTarget.current_balance
+                  return diff > 0
+                    ? `Outstanding increases by ${fmt(diff)}`
+                    : `Outstanding decreases by ${fmt(Math.abs(diff))}`
+                })()}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={() => setAdjustTarget(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+              <button
+                onClick={handleAdjustBalance}
+                disabled={adjusting || !adjustAmount || (adjustTarget ? parseFloat(adjustAmount) === adjustTarget.current_balance : true)}
+                style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: adjusting ? 0.7 : 1 }}
+              >
+                {adjusting ? 'Adjusting...' : 'Adjust Balance'}
               </button>
             </div>
       </BottomSheet>

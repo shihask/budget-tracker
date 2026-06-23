@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 
 // ── Help mode context ─────────────────────────────────────────────────────────
-const HelpContext = createContext(false)
-export const useHelpMode = () => useContext(HelpContext)
+const HelpContext = createContext<{ helpMode: boolean; setHelpMode: (v: boolean | ((p: boolean) => boolean)) => void }>({ helpMode: false, setHelpMode: () => {} })
+export const useHelpMode = () => useContext(HelpContext).helpMode
 
 export function HelpText({ children }: { children: string }) {
   const helpMode = useHelpMode()
@@ -14,6 +14,26 @@ export function HelpText({ children }: { children: string }) {
     <div style={{ font: '500 11px Plus Jakarta Sans', color: c.accent, lineHeight: 1.5, marginTop: 3, paddingLeft: 2 }}>
       {children}
     </div>
+  )
+}
+
+export function HelpToggle() {
+  const c = useTheme()
+  const { helpMode, setHelpMode } = useContext(HelpContext)
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); setHelpMode((v: boolean) => !v) }}
+      title={helpMode ? 'Hide field hints' : 'Show field hints'}
+      style={{
+        width: 28, height: 28, borderRadius: 999,
+        background: helpMode ? c.accent : c.surface2,
+        border: `1.5px solid ${helpMode ? c.accent : c.faint}`,
+        color: helpMode ? '#fff' : c.muted,
+        font: '700 12px Plus Jakarta Sans',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', transition: 'all 0.15s', lineHeight: 1, flexShrink: 0,
+      }}
+    >?</button>
   )
 }
 
@@ -177,7 +197,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
           )}
         </div>
         <div style={{ padding: '0 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
-          <HelpContext.Provider value={helpMode}>
+          <HelpContext.Provider value={{ helpMode, setHelpMode }}>
             {children}
           </HelpContext.Provider>
         </div>

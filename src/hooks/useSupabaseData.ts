@@ -438,14 +438,17 @@ export function useSupabaseData(userId: string) {
         toDelta = -t.amount
       }
 
+      const ccId = t.credit_card_id ?? null
+      const ccDelta = ccId ? -t.amount : null
+
       const { error } = await supabase.rpc('mp_delete_transaction', {
         p_transaction_id:  t.id,
         p_from_account_id: t.from_account_id ?? null,
         p_from_delta:      fromDelta,
         p_to_account_id:   toDelta !== null ? t.to_account_id : null,
         p_to_delta:        toDelta,
-        p_credit_card_id:  null,
-        p_cc_delta:        null,
+        p_credit_card_id:  ccId,
+        p_cc_delta:        ccDelta,
       })
       if (error) throw error
 
@@ -458,6 +461,9 @@ export function useSupabaseData(userId: string) {
           if (a.id === t.to_account_id   && toDelta  !== null) bal += toDelta
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
+        credit_cards: ccId ? s.credit_cards.map(c =>
+          c.id === ccId ? { ...c, current_balance: c.current_balance + (ccDelta ?? 0) } : c
+        ) : s.credit_cards,
       }))
     } catch (err) { console.error('Failed to delete transaction:', err); throw err }
   }, [])
@@ -488,6 +494,12 @@ export function useSupabaseData(userId: string) {
         : null
       const newToDelta = toAccountId ? form.amount : null
 
+      const oldCcId = old.credit_card_id ?? null
+      const oldCcDelta = oldCcId ? -old.amount : null
+      const newIsCC = stateRef.current.credit_cards.some(c => c.id === form.from_account_id)
+      const newCcId = newIsCC ? form.from_account_id! : null
+      const newCcDelta = newCcId ? form.amount : null
+
       const { data, error } = await supabase.rpc('mp_update_transaction', {
         p_transaction_id:      old.id,
         p_transaction_date:    form.transaction_date,
@@ -495,18 +507,22 @@ export function useSupabaseData(userId: string) {
         p_amount:              form.amount,
         p_transaction_type:    form.transaction_type,
         p_category_id:         form.category_id ?? null,
-        p_from_account_id:     form.from_account_id ?? null,
+        p_from_account_id:     newIsCC ? null : (form.from_account_id ?? null),
         p_to_account_id:       toAccountId,
         p_is_credit:           newIsCredit,
         p_old_from_account_id: old.from_account_id ?? null,
         p_old_from_delta:      oldFromDelta,
         p_old_to_account_id:   old.transaction_type === 'transfer' ? (old.to_account_id ?? null) : null,
         p_old_to_delta:        oldToDelta,
-        p_new_from_delta:      newFromDelta,
+        p_new_from_delta:      newIsCC ? null : newFromDelta,
         p_new_to_delta:        newToDelta,
         p_borrowing_id:        old.borrowing_id ?? null,
         p_old_amount:          old.amount,
         p_borrowing_type:      old.borrowing_id ? old.transaction_type : null,
+        p_old_cc_id:           oldCcId,
+        p_old_cc_delta:        oldCcDelta,
+        p_new_cc_id:           newCcId,
+        p_new_cc_delta:        newCcDelta,
       })
       if (error) throw error
 
@@ -526,10 +542,16 @@ export function useSupabaseData(userId: string) {
           let bal = a.current_balance
           if (a.id === old.from_account_id  && oldFromDelta !== null) bal += oldFromDelta
           if (a.id === old.to_account_id    && oldToDelta  !== null) bal += oldToDelta
-          if (a.id === form.from_account_id && newFromDelta !== null) bal += newFromDelta
+          if (!newIsCC && a.id === form.from_account_id && newFromDelta !== null) bal += newFromDelta
           if (a.id === toAccountId          && newToDelta  !== null) bal += newToDelta
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),
+        credit_cards: (oldCcId || newCcId) ? s.credit_cards.map(c => {
+          let bal = c.current_balance
+          if (c.id === oldCcId && oldCcDelta !== null) bal += oldCcDelta
+          if (c.id === newCcId && newCcDelta !== null) bal += newCcDelta
+          return bal !== c.current_balance ? { ...c, current_balance: bal } : c
+        }) : s.credit_cards,
       }))
     } catch (err) { console.error('Failed to update transaction:', err); throw err }
   }, [])
@@ -1267,13 +1289,35 @@ export function useSupabaseData(userId: string) {
 
   // ── Credit Cards CRUD ────────────────────────────────────────────────────────
   const addCreditCard = useCallback(async (form: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => {
-    const { data, error } = await supabase.from('credit_cards').insert({ ...form, user_id: userId, is_active: true }).select('*').single()
+    const openingBalance = form.current_balance || 0
+    const { data, error } = await supabase.from('credit_cards').insert({ ...form, current_balance: 0, user_id: userId, is_active: true }).select('*').single()
     if (error) throw error
-    setState(s => ({ ...s, credit_cards: [...s.credit_cards, data as CreditCard] }))
+    const card = data as CreditCard
+
+    if (openingBalance > 0) {
+      const today = new Date().toISOString().slice(0, 10)
+      const { data: txData, error: txErr } = await supabase.rpc('mp_execute_transaction', {
+        p_user_id: userId, p_transaction_date: today,
+        p_description: `${card.name} Opening Balance`, p_amount: openingBalance,
+        p_transaction_type: 'cc_opening_balance',
+        p_credit_card_id: card.id, p_cc_delta: openingBalance,
+        p_from_account_id: null, p_to_account_id: null, p_from_delta: null, p_to_delta: null,
+        p_notes: 'Opening Balance', p_category_id: null, p_borrowing_id: null, p_savings_id: null, p_is_credit: null,
+      })
+      if (txErr) throw txErr
+      card.current_balance = openingBalance
+      const openTx: Transaction = { ...(txData as Transaction), category: undefined }
+      setState(s => ({ ...s, credit_cards: [...s.credit_cards, card], transactions: [openTx, ...s.transactions] }))
+    } else {
+      setState(s => ({ ...s, credit_cards: [...s.credit_cards, card] }))
+    }
   }, [userId])
 
   const updateCreditCard = useCallback(async (id: string, form: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => {
-    const { data, error } = await supabase.from('credit_cards').update(form).eq('id', id).select('*').single()
+    const card = stateRef.current.credit_cards.find(c => c.id === id)
+    if (!card) return
+    const { current_balance: _ignore, ...metaFields } = form
+    const { data, error } = await supabase.from('credit_cards').update(metaFields).eq('id', id).select('*').single()
     if (error) throw error
     setState(s => ({ ...s, credit_cards: s.credit_cards.map(c => c.id === id ? data as CreditCard : c) }))
   }, [])
@@ -1314,11 +1358,32 @@ export function useSupabaseData(userId: string) {
     }))
   }, [userId])
 
-  const updateCreditCardBalance = useCallback(async (card: CreditCard, spentAmount: number) => {
-    const newBalance = card.current_balance + spentAmount
-    await supabase.from('credit_cards').update({ current_balance: newBalance }).eq('id', card.id)
-    setState(s => ({ ...s, credit_cards: s.credit_cards.map(c => c.id === card.id ? { ...c, current_balance: newBalance } : c) }))
-  }, [])
+  const adjustCreditCardBalance = useCallback(async (cardId: string, actualBalance: number) => {
+    const card = stateRef.current.credit_cards.find(c => c.id === cardId)
+    if (!card) return
+    const difference = actualBalance - card.current_balance
+    if (difference === 0) return
+
+    const today = new Date().toISOString().slice(0, 10)
+    const { data, error } = await supabase.rpc('mp_execute_transaction', {
+      p_user_id: userId, p_transaction_date: today,
+      p_description: `${card.name} Balance Adjustment`,
+      p_amount: Math.abs(difference),
+      p_transaction_type: 'cc_balance_adjustment',
+      p_credit_card_id: cardId, p_cc_delta: difference,
+      p_from_account_id: null, p_to_account_id: null, p_from_delta: null, p_to_delta: null,
+      p_notes: `Adjusted: ₹${card.current_balance.toLocaleString('en-IN')} → ₹${actualBalance.toLocaleString('en-IN')}`,
+      p_category_id: null, p_borrowing_id: null, p_savings_id: null, p_is_credit: null,
+    })
+    if (error) throw error
+
+    const newTx: Transaction = { ...(data as Transaction), category: undefined }
+    setState(s => ({
+      ...s,
+      credit_cards: s.credit_cards.map(c => c.id === cardId ? { ...c, current_balance: actualBalance } : c),
+      transactions: [newTx, ...s.transactions],
+    }))
+  }, [userId])
 
   const updateChallengeResult = useCallback(async (
     result: 'success' | 'miss',
@@ -1397,7 +1462,7 @@ export function useSupabaseData(userId: string) {
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
     addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,
-    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, updateCreditCardBalance,
+    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addGoal, updateGoal, deleteGoal, addGoalSavings,

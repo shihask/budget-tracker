@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
+import { getCreditCardBilling } from '@/lib/credit-card'
 import type { AppState, Commitment } from '@/types'
 
 interface Props {
@@ -37,13 +38,14 @@ function buildReminders(state: AppState): Reminder[] {
 
     const daysUntilDue = getDaysUntil(card.due_day)
     const daysUntilBill = getDaysUntil(card.bill_day)
+    const billing = getCreditCardBilling(card, state.transactions)
 
     if (daysUntilDue <= 7) {
       reminders.push({
         id: `cc-due-${card.id}`,
         type: 'credit_card_due',
         title: `${card.name} payment due`,
-        subtitle: `₹${card.current_balance.toLocaleString('en-IN')} outstanding`,
+        subtitle: `Billed: ${fmt(billing.billedAmount)}`,
         daysLeft: daysUntilDue,
         urgent: daysUntilDue <= 3,
         warning: daysUntilDue <= 7,
@@ -53,7 +55,7 @@ function buildReminders(state: AppState): Reminder[] {
         id: `cc-bill-${card.id}`,
         type: 'credit_card_bill',
         title: `${card.name} bill generates soon`,
-        subtitle: `Current spend: ${fmt(card.current_balance)}`,
+        subtitle: `Unbilled spend: ${fmt(billing.unbilledAmount)}`,
         daysLeft: daysUntilBill,
         urgent: false,
         warning: true,

@@ -98,7 +98,7 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
       if (!cat) continue
 
       // System transactions are never spending
-      if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment' || t.transaction_type === 'credit_card_payment') continue
+      if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment' || t.transaction_type === 'credit_card_payment' || t.transaction_type === 'cc_opening_balance' || t.transaction_type === 'cc_balance_adjustment') continue
 
       let effectiveBucket: BudgetBucket | null = null
 

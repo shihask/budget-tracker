@@ -7,7 +7,7 @@
 -- ─── enums ──────────────────────────────────────────────────────────────────
 create type account_type    as enum ('bank', 'cash', 'credit_card');
 create type category_group  as enum ('Lifestyle', 'Commitment', 'Renovation', 'Family', 'Transfer');
-create type transaction_type as enum ('expense', 'income', 'transfer', 'commitment', 'borrowing', 'borrowing_repayment');
+create type transaction_type as enum ('expense', 'income', 'transfer', 'commitment', 'borrowing', 'borrowing_repayment', 'savings_contribution', 'savings_withdrawal', 'opening_balance', 'balance_adjustment', 'credit_card_payment', 'cc_opening_balance', 'cc_balance_adjustment');
 
 -- ─── accounts ───────────────────────────────────────────────────────────────
 create table accounts (

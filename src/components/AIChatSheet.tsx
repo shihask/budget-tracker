@@ -8,6 +8,7 @@ import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { computeChallenge } from '@/lib/challenge'
 import { getStrategyPcts, getCategoryBucket } from './BudgetStrategyCard'
+import { getCreditCardBilling } from '@/lib/credit-card'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -160,7 +161,9 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
 
   const isSystemTx = (t: Transaction) =>
     t.transaction_type === 'opening_balance' ||
-    t.transaction_type === 'balance_adjustment'
+    t.transaction_type === 'balance_adjustment' ||
+    t.transaction_type === 'cc_opening_balance' ||
+    t.transaction_type === 'cc_balance_adjustment'
 
   // ── Pre-compute aggregates used across multiple modules ──
   const thisMonthTxns = state.transactions.filter(t =>
@@ -289,7 +292,8 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     if (activeCCs.length > 0) {
       parts.push(`CreditCards: ${activeCCs.map(cc => {
         const last = cc.last_four ? ` •${cc.last_four}` : ''
-        return `${cc.name}${last} outstanding ₹${Math.round(cc.current_balance).toLocaleString('en-IN')} / limit ₹${Math.round(cc.credit_limit).toLocaleString('en-IN')}`
+        const billing = getCreditCardBilling(cc, state.transactions)
+        return `${cc.name}${last} total ₹${Math.round(cc.current_balance).toLocaleString('en-IN')} (billed ₹${Math.round(billing.billedAmount).toLocaleString('en-IN')} + unbilled ₹${Math.round(billing.unbilledAmount).toLocaleString('en-IN')}) / limit ₹${Math.round(cc.credit_limit).toLocaleString('en-IN')}`
       }).join(' | ')}`)
     }
   }
@@ -393,7 +397,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
         const cat = catMap[t.category_id ?? '']
         if (!cat) continue
         let bucket: string | null = null
-        if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment' || t.transaction_type === 'credit_card_payment') {
+        if (t.transaction_type === 'opening_balance' || t.transaction_type === 'balance_adjustment' || t.transaction_type === 'credit_card_payment' || t.transaction_type === 'cc_opening_balance' || t.transaction_type === 'cc_balance_adjustment') {
           continue  // system transactions never count toward strategy
         } else if (t.transaction_type === 'savings_contribution') {
           bucket = 'savings'

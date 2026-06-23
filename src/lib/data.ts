@@ -11,6 +11,8 @@ export const isSystemTx = (t: AppState['transactions'][0], catMap: ReturnType<ty
   t.transaction_type === 'opening_balance' ||
   t.transaction_type === 'balance_adjustment' ||
   t.transaction_type === 'credit_card_payment' ||
+  t.transaction_type === 'cc_opening_balance' ||
+  t.transaction_type === 'cc_balance_adjustment' ||
   catMap[t.category_id ?? '']?.group_name === ADJUSTMENT_GROUP
 
 /** @deprecated Use isSystemTx */

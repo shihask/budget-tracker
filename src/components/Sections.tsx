@@ -196,11 +196,11 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
       ) : txns.map((t) => {
         const cat = catMap[t.category_id!]
         const col = (cat && CAT_COLORS[cat.name]) || c.muted
-        const acc = acctById[t.from_account_id!] ?? (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'opening_balance' ? acctById[t.to_account_id!] : undefined)
+        const acc = acctById[t.from_account_id!] ?? (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'opening_balance' || t.transaction_type === 'cc_opening_balance' || t.transaction_type === 'cc_balance_adjustment' ? acctById[t.to_account_id!] : undefined)
         const toAcc = t.transaction_type === 'transfer' && t.to_account_id ? acctById[t.to_account_id] : null
         const isDeleting = deleting === t.id
-        const typeLabel = t.transaction_type === 'balance_adjustment' ? 'Balance Adjustment'
-          : t.transaction_type === 'opening_balance' ? 'Opening Balance'
+        const typeLabel = (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'cc_balance_adjustment') ? 'Balance Adjustment'
+          : (t.transaction_type === 'opening_balance' || t.transaction_type === 'cc_opening_balance') ? 'Opening Balance'
           : cat ? cat.name : 'Other'
         const subLabel = toAcc
           ? `${acc?.name || '?'} → ${toAcc.name}`
@@ -223,7 +223,9 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
                 <div style={{ font: '800 14px Plus Jakarta Sans', color:
                   t.transaction_type === 'income' ? c.good :
                   t.transaction_type === 'opening_balance' ? c.good :
-                  t.transaction_type === 'balance_adjustment' ? (t.to_account_id ? c.good : c.muted) :
+                  (t.transaction_type === 'balance_adjustment') ? (t.to_account_id ? c.good : c.muted) :
+                  t.transaction_type === 'cc_opening_balance' ? c.muted :
+                  t.transaction_type === 'cc_balance_adjustment' ? c.muted :
                   t.transaction_type === 'credit_card_payment' ? c.muted :
                   t.transaction_type === 'savings_withdrawal' ? '#10B981' :
                   t.transaction_type === 'savings_contribution' ? '#10B981' :
@@ -232,6 +234,7 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
                   c.bad }}>
                   {(t.transaction_type === 'income' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'opening_balance') ? '+' :
                    t.transaction_type === 'balance_adjustment' ? (t.to_account_id ? '+' : '−') :
+                   (t.transaction_type === 'cc_opening_balance' || t.transaction_type === 'cc_balance_adjustment') ? '' :
                    t.transaction_type === 'credit_card_payment' ? '⇄' :
                    t.transaction_type === 'savings_contribution' ? '−' :
                    t.transaction_type === 'transfer' ? '⇄' :
