@@ -74,18 +74,27 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const [goalPlanAI, setGoalPlanAI] = useState<string | null>(null)
   const [goalPlanAILoading, setGoalPlanAILoading] = useState(false)
 
+  const EXCLUDED_TX_TYPES = new Set(['income', 'transfer', 'savings_contribution', 'savings_withdrawal', 'borrowing', 'borrowing_repayment', 'opening_balance', 'balance_adjustment', 'credit_card_payment'])
+
   const spendingData = useMemo(() => {
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 30)
-    const recent = transactions.filter(t =>
-      t.transaction_type === 'expense' && new Date(t.transaction_date) >= cutoff
+    const cutoff30 = new Date(); cutoff30.setDate(cutoff30.getDate() - 30)
+    const cutoff60 = new Date(); cutoff60.setDate(cutoff60.getDate() - 60)
+    const lifestyle60 = transactions.filter(t =>
+      !EXCLUDED_TX_TYPES.has(t.transaction_type) && new Date(t.transaction_date) >= cutoff60
     )
+    const lifestyle30 = lifestyle60.filter(t => new Date(t.transaction_date) >= cutoff30)
     const byGroup: Record<string, number> = {}
-    for (const t of recent) {
+    for (const t of lifestyle30) {
       const g = t.category?.group_name ?? 'Other'
       byGroup[g] = (byGroup[g] ?? 0) + t.amount
     }
-    return { spendingByGroup: byGroup, totalSpent30d: recent.reduce((s, t) => s + t.amount, 0) }
+    const total60 = lifestyle60.reduce((s, t) => s + t.amount, 0)
+    const months60 = lifestyle60.length > 0 && lifestyle60.some(t => new Date(t.transaction_date) < cutoff30) ? 2 : 1
+    return {
+      spendingByGroup: byGroup,
+      totalSpent30d: lifestyle30.reduce((s, t) => s + t.amount, 0),
+      avgMonthlySpending: Math.round(total60 / months60),
+    }
   }, [transactions])
 
   const freeMoney = d.realFreeMoney
@@ -103,18 +112,37 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     setChecked(true)
   }
 
-  const calcGoalPlan = (goalAmount: number) => {
-    const currentSavings = Math.max(0, freeMoney)
-    const required = Math.max(0, goalAmount - currentSavings)
-    const monthlyBudgetAllocation = (weeklyBudget * 52) / 12
-    const monthlyCapacity = Math.max(500, Math.round(monthlyBudgetAllocation - spendingData.totalSpent30d))
-    const monthsNeeded = required > 0 ? Math.ceil(required / monthlyCapacity) : 0
+  const salaryEstimate = useMemo(() => estimateForecastSalary(state), [state])
+
+  const monthlyObligations = useMemo(() => {
+    const commitmentTotal = state.commitments
+      .filter(c => c.is_active && c.is_recurring)
+      .reduce((s, c) => s + c.amount, 0)
+    const savingsTotal = state.savings
+      .filter(sv => sv.is_active && sv.is_recurring)
+      .reduce((s, sv) => s + sv.amount, 0)
+    return { commitmentTotal, savingsTotal, total: commitmentTotal + savingsTotal }
+  }, [state.commitments, state.savings])
+
+  const calcPurchasePlan = (goalAmount: number) => {
+    const salary = salaryEstimate.amount
+    if (salary == null) {
+      return { hasSalary: false as const, canSaveMonthly: 0, required: goalAmount, monthsNeeded: 0, targetLabel: '', targetISO: '', reductions: [] as { group: string; monthlySpend: number; suggestion: number }[], improvedMonths: 0, improvedLabel: '', salary: 0, commitments: 0, savings: 0, typicalSpending: 0 }
+    }
+    const commitments = monthlyObligations.commitmentTotal
+    const savings = monthlyObligations.savingsTotal
+    const typicalSpending = spendingData.avgMonthlySpending
+    const surplus = salary - commitments - savings - typicalSpending
+    const canSaveMonthly = Math.max(0, Math.round(surplus))
+
+    const required = goalAmount
+    const monthsNeeded = canSaveMonthly > 0 ? Math.ceil(required / canSaveMonthly) : 0
     const targetDate = new Date()
     targetDate.setMonth(targetDate.getMonth() + monthsNeeded)
-    const targetLabel = targetDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
-    const targetISO = targetDate.toISOString().slice(0, 10)
+    const targetLabel = canSaveMonthly > 0 ? targetDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : ''
+    const targetISO = canSaveMonthly > 0 ? targetDate.toISOString().slice(0, 10) : ''
 
-    const skipGroups = new Set(['Income', 'Transfer', 'Commitment'])
+    const skipGroups = new Set(['Income', 'Transfer', 'Commitment', 'Savings & Investments'])
     const reductions = Object.entries(spendingData.spendingByGroup)
       .filter(([g]) => !skipGroups.has(g))
       .sort((a, b) => b[1] - a[1])
@@ -123,16 +151,16 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
       .filter(r => r.suggestion >= 100)
 
     const totalReductionSavings = reductions.reduce((s, r) => s + r.suggestion, 0)
-    const improvedCapacity = monthlyCapacity + totalReductionSavings
-    const improvedMonths = required > 0 ? Math.ceil(required / improvedCapacity) : 0
+    const improvedCapacity = canSaveMonthly + totalReductionSavings
+    const improvedMonths = improvedCapacity > 0 && required > 0 ? Math.ceil(required / improvedCapacity) : 0
     const improvedDate = new Date()
     improvedDate.setMonth(improvedDate.getMonth() + improvedMonths)
-    const improvedLabel = improvedDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+    const improvedLabel = improvedCapacity > 0 ? improvedDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : ''
 
-    return { currentSavings, required, monthlyCapacity, monthsNeeded, targetLabel, targetISO, reductions, improvedCapacity, improvedMonths, improvedLabel }
+    return { hasSalary: true as const, canSaveMonthly, required, monthsNeeded, targetLabel, targetISO, reductions, improvedMonths, improvedLabel, salary, commitments, savings, typicalSpending }
   }
 
-  const getGoalPlanAI = async (plan: ReturnType<typeof calcGoalPlan>) => {
+  const getGoalPlanAI = async (plan: ReturnType<typeof calcPurchasePlan>) => {
     const a = parseFloat(amount)
     if (isNaN(a)) return
     setGoalPlanAILoading(true)
@@ -140,9 +168,9 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     const advice = await goalPlanAdviceWithAI({
       item,
       goalAmount: a,
-      currentSavings: plan.currentSavings,
+      currentSavings: 0,
       required: plan.required,
-      monthlyCapacity: plan.monthlyCapacity,
+      monthlyCapacity: plan.canSaveMonthly,
       monthsNeeded: plan.monthsNeeded,
       targetDate: plan.targetLabel,
       reductions: plan.reductions,
@@ -368,7 +396,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>
               {hasWeeklyContext
                 ? `Safe to spend · ${fmt(Math.max(0, safePurchasingPower))}`
-                : `Based on real free money · ${fmt(freeMoney)}`}
+                : `Spendable money · ${fmt(freeMoney)}`}
             </div>
           </div>
         </div>
@@ -391,7 +419,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
               </button>
             </div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-              {hasWeeklyContext ? 'Accounts for your remaining weekly budget' : 'Checks against Real Free Money'}
+              {hasWeeklyContext ? 'Includes your upcoming budget' : 'Based on your spendable money'}
             </div>
           </div>
           <button onClick={close} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
@@ -399,7 +427,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
 
         {!checked ? (
           <>
-            {/* Safe Purchasing Power card */}
+            {/* Safe to Spend card */}
             <div style={{
               background: `linear-gradient(135deg, ${c.accent}14, ${c.accent}07)`,
               border: `1px solid ${c.accent}30`,
@@ -408,7 +436,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             }}>
               <div>
                 <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {hasWeeklyContext ? 'Safe Purchasing Power' : 'Can Afford Up To'}
+                  Safe to Spend
                 </div>
                 <div style={{ font: '800 26px Plus Jakarta Sans', color: c.accent, marginTop: 2, letterSpacing: '-0.02em' }}>
                   {fmt(Math.max(0, safePurchasingPower))}
@@ -441,12 +469,12 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                   <Row label="Spendable Balance" value={fmt(d.availableBalance)} />
                   <Row label="Remaining Commitments" value={`− ${fmt(d.remainingCommitments)}`} muted />
                   <Divider />
-                  <Row label="Real Free Money" value={fmt(freeMoney)} bold />
+                  <Row label="Spendable Money" value={fmt(freeMoney)} bold />
                   {hasWeeklyContext && (
                     <>
                       <Row label={`Weekly Budget × ${weeksRemaining}w`} value={`− ${fmt(reservedBudget)}`} muted />
                       <Divider />
-                      <Row label="Safe Purchasing Power" value={fmt(Math.max(0, safePurchasingPower))} bold accent />
+                      <Row label="Safe to Spend" value={fmt(Math.max(0, safePurchasingPower))} bold accent />
                     </>
                   )}
                 </div>
@@ -469,7 +497,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             {/* Quick chips */}
             <div style={{ marginBottom: 18 }}>
               <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>
-                Quick check · safe up to {fmt(Math.max(0, safePurchasingPower))}
+                Quick check · safe to spend {fmt(Math.max(0, safePurchasingPower))}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {quickAmounts.map(a => {
@@ -584,14 +612,14 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             <div style={{ background: c.surface, borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid ${c.faint}` }}>
               <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Breakdown</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <Row label="Real Free Money" value={fmt(freeMoney)} />
+                <Row label="Spendable Money" value={fmt(freeMoney)} />
                 {hasWeeklyContext && (
                   <>
                     <Row label="Weeks Remaining" value={`${weeksRemaining} weeks`} muted />
                     <Row label="Weekly Budget" value={fmt(weeklyBudget)} muted />
-                    <Row label="Reserved Future Budget" value={`− ${fmt(reservedBudget)}`} muted />
+                    <Row label="Reserved for Budget" value={`− ${fmt(reservedBudget)}`} muted />
                     <Divider />
-                    <Row label="Safe Purchasing Power" value={fmt(Math.max(0, safePurchasingPower))} bold />
+                    <Row label="Safe to Spend" value={fmt(Math.max(0, safePurchasingPower))} bold />
                   </>
                 )}
                 <Divider />
@@ -631,21 +659,21 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                       {hasWeeklyContext && safePurchasingPower > 0 ? (
                         safePct !== null && safePct <= 100 ? (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>
-                            Safe Spending Limit Used: {safePct}% of Safe Purchasing Power
+                            {safePct}% of safe spending limit used
                           </span>
                         ) : (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: status!.color }}>
-                            Exceeded Safe Limit By: {fmt(amt - safePurchasingPower)}
+                            Exceeds safe limit by {fmt(amt - safePurchasingPower)}
                           </span>
                         )
                       ) : (
                         <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>
-                          Uses {Math.round((amt / freeMoney) * 100)}% of Real Free Money
+                          Uses {Math.round((amt / freeMoney) * 100)}% of spendable money
                         </span>
                       )}
                       {hasWeeklyContext && safePurchasingPower > 0 && (
                         <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, flexShrink: 0, marginLeft: 8 }}>
-                          Safe limit: {fmt(safePurchasingPower)}
+                          Safe to spend: {fmt(safePurchasingPower)}
                         </span>
                       )}
                     </div>
@@ -656,7 +684,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
 
             {/* How Can I Afford This? */}
             {status!.tier === 'critical' && (() => {
-              const plan = calcGoalPlan(amt)
+              const plan = calcPurchasePlan(amt)
               return (
                 <>
                   {!showGoalPlan ? (
@@ -682,29 +710,72 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                     </button>
                   ) : (
                     <div style={{ marginBottom: 14 }}>
-                      {/* Plan card */}
-                      <div style={{ background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
-                        <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Goal Plan</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                          <Row label="Goal Amount" value={fmt(amt)} bold />
-                          {plan.currentSavings > 0 && <Row label="You Currently Have" value={fmt(plan.currentSavings)} accent />}
-                          <Row label="Still Needed" value={fmt(plan.required)} />
-                          <Divider />
-                          <Row label="Monthly Capacity" value={fmt(plan.monthlyCapacity)} />
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>Target Date</span>
-                            <div style={{ textAlign: 'right' }}>
-                              <div style={{ font: '800 13px Plus Jakarta Sans', color: c.accent }}>{plan.targetLabel}</div>
-                              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{plan.monthsNeeded} month{plan.monthsNeeded !== 1 ? 's' : ''} away</div>
+                      {!plan.hasSalary ? (
+                        /* No salary — can't compute plan */
+                        <div style={{ background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
+                          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Purchase Plan</div>
+                          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                            We need salary information to estimate when you could afford this purchase.
+                          </div>
+                          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 10, lineHeight: 1.5 }}>
+                            Add salary details in <strong style={{ color: c.ink }}>Settings</strong> or record salary transactions to enable purchase planning.
+                          </div>
+                        </div>
+                      ) : plan.canSaveMonthly === 0 ? (
+                        /* Zero surplus — can't save */
+                        <div style={{ background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
+                          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Purchase Plan</div>
+                          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                            Based on your current income and obligations, there is no monthly surplus available for saving.
+                          </div>
+                          {/* Explainability */}
+                          <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
+                            <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 8 }}>How it's calculated</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              <Row label="Salary" value={fmt(plan.salary)} />
+                              <Row label="Commitments" value={`− ${fmt(plan.commitments)}`} muted />
+                              <Row label="Savings Plans" value={`− ${fmt(plan.savings)}`} muted />
+                              <Row label="Typical Spending" value={`− ${fmt(plan.typicalSpending)}`} muted />
+                              <Divider />
+                              <Row label="Can Save Monthly" value={fmt(0)} bold color={c.bad} />
                             </div>
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        /* Has surplus — show full plan */
+                        <div style={{ background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
+                          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Purchase Plan</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                            <Row label="Purchase Amount" value={fmt(amt)} bold />
+                            <Divider />
+                            <Row label="Can Save Monthly" value={fmt(plan.canSaveMonthly)} accent />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>Earliest by</span>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ font: '800 13px Plus Jakarta Sans', color: c.accent }}>{plan.targetLabel}</div>
+                                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{plan.monthsNeeded} month{plan.monthsNeeded !== 1 ? 's' : ''} away</div>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Explainability */}
+                          <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
+                            <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 8 }}>How it's calculated</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              <Row label="Salary" value={fmt(plan.salary)} />
+                              <Row label="Commitments" value={`− ${fmt(plan.commitments)}`} muted />
+                              <Row label="Savings Plans" value={`− ${fmt(plan.savings)}`} muted />
+                              <Row label="Typical Spending" value={`− ${fmt(plan.typicalSpending)}`} muted />
+                              <Divider />
+                              <Row label="Can Save Monthly" value={fmt(plan.canSaveMonthly)} bold accent />
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-                      {/* Reduction suggestions */}
+                      {/* Where to Cut Back */}
                       {plan.reductions.length > 0 && (
                         <div style={{ background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
-                          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Spending Opportunities</div>
+                          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Where to Cut Back</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             {plan.reductions.map(r => (
                               <div key={r.group} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -714,13 +785,15 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                                     Currently ₹{r.monthlySpend.toLocaleString('en-IN')}/mo — save {fmt(r.suggestion)}/mo
                                   </div>
                                 </div>
-                                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.accent, background: c.accent + '18', borderRadius: 8, padding: '4px 8px', flexShrink: 0 }}>
-                                  −{plan.monthsNeeded - plan.improvedMonths > 0 ? `${plan.monthsNeeded - plan.improvedMonths}mo` : '<1mo'}
-                                </div>
+                                {plan.canSaveMonthly > 0 && plan.monthsNeeded > 0 && plan.monthsNeeded > plan.improvedMonths && (
+                                  <div style={{ font: '700 11px Plus Jakarta Sans', color: c.accent, background: c.accent + '18', borderRadius: 8, padding: '4px 8px', flexShrink: 0 }}>
+                                    −{plan.monthsNeeded - plan.improvedMonths > 0 ? `${plan.monthsNeeded - plan.improvedMonths}mo` : '<1mo'}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
-                          {plan.improvedMonths < plan.monthsNeeded && (
+                          {plan.canSaveMonthly > 0 && plan.improvedMonths > 0 && plan.improvedMonths < plan.monthsNeeded && (
                             <div style={{ marginTop: 10, padding: '8px 10px', background: c.accent + '12', borderRadius: 10 }}>
                               <span style={{ font: '600 11px Plus Jakarta Sans', color: c.accent }}>
                                 With all reductions: {plan.improvedLabel} ({plan.improvedMonths} month{plan.improvedMonths !== 1 ? 's' : ''})
@@ -731,14 +804,14 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                       )}
 
                       {/* Save as Goal */}
-                      {onSaveGoal && (
+                      {onSaveGoal && plan.canSaveMonthly > 0 && (
                         <button
                           onClick={() => {
                             onSaveGoal({
                               name: item || '',
                               goal_amount: amt,
-                              current_saved: Math.max(0, Math.round(plan.currentSavings)),
-                              monthly_target: plan.monthlyCapacity,
+                              current_saved: 0,
+                              monthly_target: plan.canSaveMonthly,
                               target_date: plan.targetISO,
                             })
                           }}
@@ -899,8 +972,8 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-                  title: 'Safe purchasing power',
-                  desc: 'Your Real Free Money minus the budget reserved for remaining weeks — the amount you can spend without affecting your weekly plan.',
+                  title: 'Safe to spend',
+                  desc: 'Your spendable money minus the budget reserved for remaining weeks — the amount you can spend without affecting your weekly plan.',
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill="#6366F1"/></svg>,
