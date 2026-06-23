@@ -67,7 +67,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const [amount, setAmount] = useState('')
   const [checked, setChecked] = useState(false)
   const [showWhy, setShowWhy] = useState(false)
-  const [infoOpen, setInfoOpen] = useState(false)
+  const [glossaryOpen, setGlossaryOpen] = useState(false)
   const [aiInsight, setAiInsight] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [showGoalPlan, setShowGoalPlan] = useState(false)
@@ -412,17 +412,19 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Can I Afford This?</div>
-              <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                </svg>
-              </button>
             </div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
               {hasWeeklyContext ? 'Includes your upcoming budget' : 'Based on your spendable money'}
             </div>
           </div>
-          <button onClick={close} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => setGlossaryOpen(true)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </button>
+            <button onClick={close} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
+          </div>
         </div>
 
         {!checked ? (
@@ -584,26 +586,49 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
               </div>
             )}
 
-            {/* Phase 3: Timing Advisor */}
+            {/* Recommendation */}
             {timingAdvice && status!.tier !== 'safe' && (
-              <div style={{ background: c.good + '10', borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid ${c.good}30` }}>
-                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Purchase Timing</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div style={{ background: status!.bg, borderRadius: 12, padding: '10px 12px' }}>
-                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4 }}>Today</div>
-                    <div style={{ font: '800 14px Plus Jakarta Sans', color: status!.color }}>{status!.tier === 'critical' ? 'Shortfall' : status!.tier === 'risky' ? 'Risky' : 'Tight'}</div>
-                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Lowest: {fmt(simResult!.lowestBalance)}</div>
+              <div style={{ background: '#FFF7ED', borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid #FDBA7430` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
                   </div>
-                  <div style={{ background: c.good + '18', borderRadius: 12, padding: '10px 12px' }}>
-                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4 }}>After Salary</div>
-                    <div style={{ font: '800 14px Plus Jakarta Sans', color: c.good }}>{timingAdvice.postHealth === 'safe' ? 'Safe' : timingAdvice.postHealth === 'tight' ? 'Tight' : 'Risky'}</div>
-                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Lowest: {fmt(timingAdvice.postLowest)}</div>
-                  </div>
+                  <div style={{ font: '800 14px Plus Jakarta Sans', color: '#92400E' }}>Recommendation</div>
                 </div>
-                <div style={{ marginTop: 10, padding: '8px 12px', background: c.good + '14', borderRadius: 10 }}>
-                  <span style={{ font: '700 12px Plus Jakarta Sans', color: c.good }}>
-                    Wait {timingAdvice.daysAway} day{timingAdvice.daysAway !== 1 ? 's' : ''} until salary ({shortDate(timingAdvice.salaryDate)})
-                  </span>
+                <div style={{ font: '700 14px Plus Jakarta Sans', color: '#92400E', marginBottom: 10 }}>
+                  Wait {timingAdvice.daysAway} day{timingAdvice.daysAway !== 1 ? 's' : ''} until salary ({shortDate(timingAdvice.salaryDate)}).
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {simResult && simResult.lowestBalance < 0 && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.bad} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                        <circle cx="12" cy="12" r="10"/><path d="M9 9l6 6M15 9l-6 6"/>
+                      </svg>
+                      <span style={{ font: '600 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.5 }}>
+                        Buying today would create a shortfall of {fmt(Math.abs(simResult.lowestBalance))}.
+                      </span>
+                    </div>
+                  )}
+                  {simResult && simResult.lowestBalance >= 0 && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                        <path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill="#D97706"/>
+                      </svg>
+                      <span style={{ font: '600 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.5 }}>
+                        Buying today drops your balance to {fmt(simResult.lowestBalance)}.
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                      <circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/>
+                    </svg>
+                    <span style={{ font: '600 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.5 }}>
+                      After salary, this purchase becomes affordable with an estimated balance of {fmt(timingAdvice.postLowest)}.
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -952,55 +977,52 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
         )}
       </BottomSheet>
 
-      {infoOpen && (
-        <div onClick={() => setInfoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 22, width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 12, background: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/>
+      <BottomSheet open={glossaryOpen} onClose={() => setGlossaryOpen(false)} zIndex={500}>
+        <div style={{ padding: '4px 20px 24px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>What do these mean?</div>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>Understand each item in simple terms.</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {([
+              { bg: '#DBEAFE', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>, title: 'Spendable Money', desc: 'The money you have right now after setting aside what\'s needed for upcoming bills and commitments.' },
+              { bg: '#E0E7FF', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"/></svg>, title: 'Weekly Budget', desc: 'The amount you\'ve planned to spend in a week for your lifestyle.' },
+              { bg: '#FEF3C7', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, title: 'Reserved for Budget', desc: 'The portion of your spendable money kept aside to follow your weekly budget till your next salary.' },
+              { bg: '#DCFCE7', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>, title: 'Safe to Spend', desc: 'The amount you can safely spend right now without affecting your commitments or budget.' },
+              { bg: '#FEE2E2', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/></svg>, title: 'Forecast Impact', desc: 'Shows how this purchase affects your future balance based on your income and expenses.' },
+              { bg: '#FEF3C7', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>, title: 'Lowest Projected', desc: 'The lowest balance your account is expected to reach in the coming days.' },
+              { bg: '#DCFCE7', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>, title: 'Recovery', desc: 'The date when your account balance is expected to become healthy again.' },
+              { bg: '#FEE2E2', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>, title: 'Main Pressure', desc: 'The top upcoming bills and commitments that are putting pressure on your finances.' },
+              { bg: '#E0E7FF', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>, title: 'Purchase Plan', desc: 'Your plan to afford this purchase in the future based on your monthly saving capacity.' },
+              { bg: '#DBEAFE', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, title: 'Earliest By', desc: 'The earliest month you can afford this purchase if you save consistently.' },
+            ] as const).map((item, i) => (
+              <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: item.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {item.icon}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{item.title}</div>
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {settings.autopilot_enabled && (
+            <div style={{ marginTop: 18, padding: '12px 14px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F122', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#6366F118', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
               </div>
-              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>Can I Afford This?</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {([
-                {
-                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>,
-                  title: 'Instant affordability check',
-                  desc: 'Enter any purchase amount to instantly see if you can safely afford it right now.',
-                },
-                {
-                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-                  title: 'Safe to spend',
-                  desc: 'Your spendable money minus the budget reserved for remaining weeks — the amount you can spend without affecting your weekly plan.',
-                },
-                {
-                  svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.3L2 21h20L13.7 3.3a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><circle cx="12" cy="17" r=".5" fill="#6366F1"/></svg>,
-                  title: 'Forecast-aware verdict',
-                  desc: 'Four outcomes: Safe (fits your plan), Tight (balance gets low before payday), Risky (dips into future budget), Critical (will cause a shortfall).',
-                },
-              ] as const).map((item, i) => (
-                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 9, background: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                    {item.svg}
-                  </div>
-                  <div>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{item.title}</div>
-                    <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 16, padding: '12px', background: c.surface2, borderRadius: 12 }}>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
-                Set your <strong style={{ color: c.ink }}>salary date</strong> and <strong style={{ color: c.ink }}>weekly budget</strong> for the most accurate results.
+              <div>
+                <div style={{ font: '700 13px Plus Jakarta Sans', color: '#6366F1' }}>Still confused?</div>
+                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Ask Mint AI for help</div>
               </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                <path d="M9 6l6 6-6 6"/>
+              </svg>
             </div>
-            <button onClick={() => setInfoOpen(false)} style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
-          </div>
+          )}
         </div>
-      )}
+      </BottomSheet>
     </>
   )
 }
