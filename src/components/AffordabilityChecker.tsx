@@ -73,6 +73,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const [aiInsight, setAiInsight] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [showGoalPlan, setShowGoalPlan] = useState(false)
+  const [showUpcoming, setShowUpcoming] = useState(false)
   const [goalPlanAI, setGoalPlanAI] = useState<string | null>(null)
   const [goalPlanAILoading, setGoalPlanAILoading] = useState(false)
 
@@ -181,7 +182,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     setGoalPlanAILoading(false)
   }
 
-  const reset = () => { setItem(''); setAmount(''); setChecked(false); setShowWhy(false); setShowDetails(false); setShowCalc(false); setExpandedHelp(null); setAiInsight(null); setAiLoading(false); setShowGoalPlan(false); setGoalPlanAI(null); setGoalPlanAILoading(false) }
+  const reset = () => { setItem(''); setAmount(''); setChecked(false); setShowWhy(false); setShowDetails(false); setShowCalc(false); setExpandedHelp(null); setAiInsight(null); setAiLoading(false); setShowGoalPlan(false); setGoalPlanAI(null); setGoalPlanAILoading(false); setShowUpcoming(false) }
   const close = () => { setOpen(false); reset() }
 
   const getAIInsight = async () => {
@@ -558,6 +559,9 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
               const afterSalary = simResult.projections.filter(p => p.event.type === 'expense' && salaryDate && p.event.date >= salaryDate)
               const salaryEvent = simResult.projections.find(p => p.event.source === 'salary')
               const lowestColor = simResult.lowestBalance < 0 ? c.bad : simResult.lowestBalance < LOW_CUSHION ? '#D97706' : c.good
+              const allUpcoming = [...beforeSalary, ...afterSalary]
+              const totalUpcoming = allUpcoming.reduce((s, p) => s + p.event.amount, 0)
+              const lastProjection = simResult.projections[simResult.projections.length - 1]
 
               const TimelineRow = ({ label, amount, balance, date, isIncome, isLowest, isRecovery }: {
                 label: string; amount?: number; balance: number; date?: string; isIncome?: boolean; isLowest?: boolean; isRecovery?: boolean
@@ -594,71 +598,75 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                   {/* Purchase */}
                   <TimelineRow label={item || 'This purchase'} amount={amt} balance={simResult.currentBalance} />
 
-                  {/* Events before salary */}
-                  {beforeSalary.map((p, i) => (
-                    <TimelineRow
-                      key={`pre-${i}`}
-                      label={p.event.title}
-                      amount={p.event.amount}
-                      balance={p.balanceAfter}
-                      date={shortDate(p.event.date)}
-                      isLowest={!!simResult.lowestBalanceDate && p.event.date === simResult.lowestBalanceDate && p.balanceAfter === simResult.lowestBalance}
-                    />
-                  ))}
+                  {/* Upcoming payments summary */}
+                  {allUpcoming.length > 0 && (
+                    <>
+                      <div style={{ height: 1, background: c.faint, margin: '2px 0' }} />
+                      <button
+                        onClick={() => setShowUpcoming(v => !v)}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '8px 0', background: 'none', border: 'none', cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {allUpcoming.length} upcoming payment{allUpcoming.length !== 1 ? 's' : ''}
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showUpcoming ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </span>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>−{fmt(totalUpcoming)}</div>
+                          <div style={{ font: '700 13px Plus Jakarta Sans', color: lastProjection ? (lastProjection.balanceAfter < 0 ? c.bad : c.ink) : c.ink }}>
+                            {lastProjection ? fmt(lastProjection.balanceAfter) : ''}
+                          </div>
+                        </div>
+                      </button>
 
-                  {/* Lowest point marker (if not already on an event row) */}
-                  {simResult.lowestBalance < simResult.currentBalance && !beforeSalary.some(p => p.balanceAfter === simResult.lowestBalance) && (
+                      {/* Expanded timeline */}
+                      {showUpcoming && (
+                        <div style={{ paddingLeft: 10, borderLeft: `2px solid ${c.faint}`, marginBottom: 4 }}>
+                          {beforeSalary.map((p, i) => (
+                            <TimelineRow
+                              key={`pre-${i}`}
+                              label={p.event.title}
+                              amount={p.event.amount}
+                              balance={p.balanceAfter}
+                              date={shortDate(p.event.date)}
+                              isLowest={!!simResult.lowestBalanceDate && p.event.date === simResult.lowestBalanceDate && p.balanceAfter === simResult.lowestBalance}
+                            />
+                          ))}
+
+                          {/* Lowest point marker */}
+                          {simResult.lowestBalance < simResult.currentBalance && !beforeSalary.some(p => p.balanceAfter === simResult.lowestBalance) && (
+                            <>
+                              <div style={{ height: 1, background: lowestColor + '40', margin: '2px 0' }} />
+                              <TimelineRow label="Lowest point" balance={simResult.lowestBalance} date={simResult.lowestBalanceDate ? shortDate(simResult.lowestBalanceDate) : undefined} isLowest />
+                            </>
+                          )}
+
+                          {/* Salary */}
+                          {salaryEvent && (
+                            <>
+                              <div style={{ height: 1, background: c.good + '40', margin: '4px 0' }} />
+                              <TimelineRow label="Salary" amount={salaryEvent.event.amount} balance={salaryEvent.balanceAfter} date={shortDate(salaryEvent.event.date)} isIncome isRecovery />
+                            </>
+                          )}
+
+                          {afterSalary.map((p, i) => (
+                            <TimelineRow key={`post-${i}`} label={p.event.title} amount={p.event.amount} balance={p.balanceAfter} date={shortDate(p.event.date)} />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Lowest point (when no upcoming events but lowest is notable) */}
+                  {allUpcoming.length === 0 && simResult.lowestBalance < simResult.currentBalance && (
                     <>
                       <div style={{ height: 1, background: lowestColor + '40', margin: '2px 0' }} />
                       <TimelineRow label="Lowest point" balance={simResult.lowestBalance} date={simResult.lowestBalanceDate ? shortDate(simResult.lowestBalanceDate) : undefined} isLowest />
                     </>
-                  )}
-
-                  {/* Salary */}
-                  {salaryEvent && (
-                    <>
-                      <div style={{ height: 1, background: c.good + '40', margin: '4px 0' }} />
-                      <TimelineRow label="Salary" amount={salaryEvent.event.amount} balance={salaryEvent.balanceAfter} date={shortDate(salaryEvent.event.date)} isIncome isRecovery />
-                    </>
-                  )}
-
-                  {/* Events after salary */}
-                  {afterSalary.length > 0 && (
-                    <>
-                      {afterSalary.map((p, i) => (
-                        <TimelineRow key={`post-${i}`} label={p.event.title} amount={p.event.amount} balance={p.balanceAfter} date={shortDate(p.event.date)} />
-                      ))}
-                    </>
-                  )}
-
-                  {/* Split upcoming payments summary */}
-                  {status!.tier !== 'safe' && (beforeSalary.length > 0 || afterSalary.length > 0) && (
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
-                      {beforeSalary.length > 0 && (
-                        <>
-                          <div style={{ font: '700 11px Plus Jakarta Sans', color: c.bad, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Due before salary</div>
-                          {beforeSalary.map((p, i) => (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                              <div style={{ width: 5, height: 5, borderRadius: 999, background: c.bad, flexShrink: 0 }} />
-                              <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{p.event.title}</span>
-                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(p.event.amount)}</span>
-                            </div>
-                          ))}
-                        </>
-                      )}
-                      {afterSalary.length > 0 && (
-                        <div style={{ marginTop: beforeSalary.length > 0 ? 8 : 0 }}>
-                          <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Due after salary</div>
-                          {afterSalary.map((p, i) => (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                              <div style={{ width: 5, height: 5, borderRadius: 999, background: c.muted, flexShrink: 0 }} />
-                              <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.muted }}>{p.event.title}</span>
-                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.muted }}>{fmt(p.event.amount)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   )}
                 </div>
               )
