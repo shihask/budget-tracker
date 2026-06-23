@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { BottomSheet } from '@/components/BottomSheet'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { estimateForecastSalary } from '@/lib/cashflow'
+import { estimateForecastSalary, SALARY_SOURCE_LABEL } from '@/lib/cashflow'
 import type { AppState, Settings, ForecastSettings } from '@/types'
 
 interface Props {
@@ -18,6 +18,7 @@ const F = 'Plus Jakarta Sans'
 export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, onUpdateForecastSettings }: Props) {
   const c = useTheme()
   const s = state.settings
+  const fs = state.forecast_settings
 
   const activeCommitments = useMemo(() => state.commitments.filter(x => x.is_active !== false && x.remaining > 0), [state.commitments])
   const activeSavings = useMemo(() => state.savings.filter(x => x.is_active !== false && x.is_recurring), [state.savings])
@@ -25,15 +26,20 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
 
   const initSet = (ids: string[] | null | undefined, all: string[]) => new Set(ids == null ? all : ids)
 
-  const fs = state.forecast_settings
   const [enabled, setEnabled] = useState(fs.enabled ?? true)
   const [days, setDays] = useState(fs.days ?? 60)
   const [salaryDay, setSalaryDay] = useState(s.salary_date != null ? String(s.salary_date) : '')
+  const [useCustom, setUseCustom] = useState(fs.salary_override != null && fs.salary_override > 0)
+  const [customAmt, setCustomAmt] = useState(fs.salary_override != null ? String(fs.salary_override) : '')
   const [commitSel, setCommitSel] = useState<Set<string>>(() => initSet(fs.commitment_ids, activeCommitments.map(x => x.id)))
   const [savingsSel, setSavingsSel] = useState<Set<string>>(() => initSet(fs.savings_ids, activeSavings.map(x => x.id)))
   const [saving, setSaving] = useState(false)
 
-  const hasSalary = salaryEst.amount != null
+  // Auto-detected salary (ignoring override) for display purposes
+  const autoSalary = useMemo(() => {
+    const patched = { ...state, forecast_settings: { ...fs, salary_override: null } }
+    return estimateForecastSalary(patched)
+  }, [state, fs])
 
   const toggle = (set: Set<string>, id: string, setter: (v: Set<string>) => void) => {
     const next = new Set(set)
@@ -46,11 +52,13 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
     setSaving(true)
     const allCommit = activeCommitments.map(x => x.id)
     const allSavings = activeSavings.map(x => x.id)
+    const parsedCustom = parseFloat(customAmt)
     const fPatch: Partial<ForecastSettings> = {
       enabled,
       days,
       commitment_ids: allCommit.every(id => commitSel.has(id)) ? null : [...commitSel],
       savings_ids: allSavings.every(id => savingsSel.has(id)) ? null : [...savingsSel],
+      salary_override: useCustom && parsedCustom > 0 ? Math.round(parsedCustom) : null,
     }
     const settingsPatch: Partial<Settings> = {}
     const day = parseInt(salaryDay)
@@ -76,13 +84,17 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
     </button>
   )
 
+  const hasAuto = autoSalary.amount != null
+  const activeSource = salaryEst.source
+  const activeLabel = activeSource != null ? SALARY_SOURCE_LABEL[activeSource] : 'Not Available'
+
   return (
     <BottomSheet open={open} onClose={onClose} zIndex={300}>
       <div style={{ padding: '4px 20px 24px', fontFamily: `${F}, sans-serif` }}>
         <div style={{ font: `800 20px ${F}`, color: c.ink, marginBottom: 4 }}>Cash Flow Forecast Setup</div>
         <div style={{ font: `600 13px ${F}`, color: c.muted, marginBottom: 20 }}>Built from your existing data. Tweak what's included.</div>
 
-        {/* Salary date (reuses settings.salary_date) */}
+        {/* Salary date */}
         <label style={lbl}>Salary date</label>
         {s.salary_date != null ? (
           <div style={{ ...inp, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default' }}>
@@ -93,18 +105,50 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
           <input value={salaryDay} onChange={e => setSalaryDay(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="Day of month, e.g. 28" style={inp} />
         )}
 
-        {/* Estimated salary */}
+        {/* Estimated salary with source transparency */}
         <label style={{ ...lbl, marginTop: 18 }}>Estimated salary</label>
-        {hasSalary ? (
-          <div style={{ ...inp, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default' }}>
-            <span style={{ color: c.ink }}>{fmt(salaryEst.amount!)}</span>
-            <span style={{ font: `600 11px ${F}`, color: c.good }}>
-              {salaryEst.source === 'avg' ? 'avg of recent salary' : salaryEst.source === 'recent' ? 'last salary' : 'from settings'}
-            </span>
+        {salaryEst.amount != null ? (
+          <div style={{ background: c.surface2, borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ font: `800 20px ${F}`, color: c.ink }}>{fmt(salaryEst.amount)}</span>
+              <span style={{ font: `600 11px ${F}`, color: c.accent, background: c.accentSoft, borderRadius: 6, padding: '3px 8px' }}>{activeLabel}</span>
+            </div>
           </div>
         ) : (
-          <div style={{ ...inp, cursor: 'default' }}>
-            <span style={{ font: `600 13px ${F}`, color: c.muted }}>Not set — add your salary in Settings</span>
+          <div style={{ background: c.surface2, borderRadius: 12, padding: '14px' }}>
+            <div style={{ font: `700 14px ${F}`, color: c.muted, marginBottom: 6 }}>Not Available</div>
+            <div style={{ font: `600 12px ${F}`, color: c.muted, lineHeight: 1.5 }}>
+              Enter a custom estimate below to improve forecast accuracy.
+            </div>
+          </div>
+        )}
+
+        {/* Custom override toggle */}
+        <button
+          onClick={() => setUseCustom(v => !v)}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: useCustom ? c.accentSoft : c.surface2, border: `1.5px solid ${useCustom ? c.accent : c.faint}`, borderRadius: 12, padding: '11px 14px', cursor: 'pointer', marginTop: 10 }}
+        >
+          <span style={{ font: `700 13px ${F}`, color: useCustom ? c.accent : c.ink }}>Use Custom Estimate</span>
+          <div style={{ width: 42, height: 24, borderRadius: 999, background: useCustom ? c.accent : c.faint, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+            <div style={{ width: 18, height: 18, borderRadius: 999, background: '#fff', position: 'absolute', top: 3, left: useCustom ? 21 : 3, transition: 'left 0.2s' }} />
+          </div>
+        </button>
+
+        {useCustom && (
+          <div style={{ marginTop: 10 }}>
+            <input
+              value={customAmt}
+              onChange={e => setCustomAmt(e.target.value.replace(/[^0-9]/g, ''))}
+              inputMode="numeric"
+              placeholder="Enter your expected salary"
+              onFocus={e => e.target.select()}
+              style={inp}
+            />
+            {hasAuto && (
+              <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 6 }}>
+                Auto-detected: {fmt(autoSalary.amount!)} ({autoSalary.source != null ? SALARY_SOURCE_LABEL[autoSalary.source] : ''})
+              </div>
+            )}
           </div>
         )}
 

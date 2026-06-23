@@ -145,6 +145,7 @@ export interface ForecastSettings {
   days: number
   commitment_ids: string[] | null
   savings_ids: string[] | null
+  salary_override: number | null
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)

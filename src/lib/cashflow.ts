@@ -51,12 +51,25 @@ function nextDueDate(dueDay: number, from: Date): Date {
   return mk(from.getFullYear(), from.getMonth() + 1)
 }
 
-// Estimate the next salary amount. Priority (high confidence first):
-//   1. average of recent "Salary"-category transactions (last ~190 days, up to 3)
-//   2. most recent "Salary"-category transaction
-//   3. user-entered monthly_salary from settings (fallback only)
-//   4. null  → salary event is hidden (never show unrealistic values like ₹20)
-export function estimateForecastSalary(state: AppState): { amount: number | null; source: 'avg' | 'recent' | 'override' | null } {
+export type SalarySource = 'override' | 'avg' | 'recent' | null
+
+export const SALARY_SOURCE_LABEL: Record<NonNullable<SalarySource>, string> = {
+  override: 'Custom Estimate',
+  avg: 'Salary History',
+  recent: 'Recent Salary',
+}
+
+// Estimate the next salary amount. Priority:
+//   1. forecast_settings.salary_override  (user explicitly set a custom estimate)
+//   2. average of recent "Salary"-category transactions (last ~190 days, up to 3)
+//   3. most recent "Salary"-category transaction
+//   4. null  → salary event is hidden
+export function estimateForecastSalary(state: AppState): { amount: number | null; source: SalarySource } {
+  const override = state.forecast_settings.salary_override
+  if (override != null && override > 0) {
+    return { amount: Math.round(override), source: 'override' }
+  }
+
   const catName = new Map(state.categories.map(c => [c.id, c.name.toLowerCase()]))
   const today = midnight(new Date())
   const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 190)
@@ -69,7 +82,7 @@ export function estimateForecastSalary(state: AppState): { amount: number | null
       const [y, m, dd] = t.transaction_date.split('-').map(Number)
       return new Date(y, m - 1, dd) >= cutoff
     })
-    .sort((a, b) => (a.transaction_date < b.transaction_date ? 1 : -1)) // newest first
+    .sort((a, b) => (a.transaction_date < b.transaction_date ? 1 : -1))
 
   if (salaryTxns.length >= 2) {
     const recent = salaryTxns.slice(0, 3)
@@ -79,11 +92,21 @@ export function estimateForecastSalary(state: AppState): { amount: number | null
   if (salaryTxns.length === 1) {
     return { amount: Math.round(salaryTxns[0].amount), source: 'recent' }
   }
-  const manual = state.settings.monthly_salary
-  if (manual != null && manual > 0) {
-    return { amount: Math.round(manual), source: 'override' }
-  }
   return { amount: null, source: null }
+}
+
+export interface ForecastDriver {
+  title: string
+  amount: number
+  source: CashFlowEvent['source']
+}
+
+export function getForecastDrivers(projections: CashFlowProjection[], limit = 5): ForecastDriver[] {
+  return projections
+    .filter(p => p.event.type === 'expense')
+    .sort((a, b) => b.event.amount - a.event.amount)
+    .slice(0, limit)
+    .map(p => ({ title: p.event.title, amount: p.event.amount, source: p.event.source }))
 }
 
 // Forecast is "ready" when the salary day exists AND there's something to project:

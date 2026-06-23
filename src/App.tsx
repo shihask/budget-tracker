@@ -556,7 +556,7 @@ function AppContent({ session }: { session: Session }) {
             <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} onSwipeProgress={setSwipePct} />
           )}
 
-          <CashFlowForecastSetup open={cashflowSetupOpen} onClose={() => setCashflowSetupOpen(false)} state={state} onUpdateSettings={updateSettings} onUpdateForecastSettings={updateForecastSettings} />
+          {cashflowSetupOpen && <CashFlowForecastSetup open onClose={() => setCashflowSetupOpen(false)} state={state} onUpdateSettings={updateSettings} onUpdateForecastSettings={updateForecastSettings} />}
 
           <DailyReflectionSheet
             open={reflectionOpen}

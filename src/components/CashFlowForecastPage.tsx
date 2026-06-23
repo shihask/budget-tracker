@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { buildCashFlowForecast, daysUntil } from '@/lib/cashflow'
+import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
 import { forecastHealth, HEALTH_MESSAGE } from '@/components/CashFlowForecastCard'
 import type { AppState, DerivedMetrics } from '@/types'
 
@@ -19,9 +19,9 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { d
 
 export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgress }: Props) {
   const c = useTheme()
-  const [tick, setTick] = useState(0)
-  const forecast = useMemo(() => buildCashFlowForecast(state, d), [state, d, tick])
+  const forecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
   const { currentBalance, lowestBalance, lowestBalanceDate, nextSalaryDate, recoveryDate, recoveryBalance, projections } = forecast
+  const drivers = useMemo(() => getForecastDrivers(projections, 5), [projections])
 
   // ── Swipe-back gesture (mirrors BorrowingPage) ──
   const [dragX, setDragX] = useState(0)
@@ -102,6 +102,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   const message = projections.length === 0 ? 'No upcoming events' : HEALTH_MESSAGE[health]
   const salaryDays = nextSalaryDate ? daysUntil(nextSalaryDate) : null
   const days = state.forecast_settings.days ?? 60
+  const topCauses = drivers.slice(0, 3)
 
   return createPortal(
     <div
@@ -142,13 +143,12 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>Forecast · next {days} days</div>
         </div>
 
-        {/* Actions — forecast is derived, never stored; Recalculate just reruns it */}
+        {/* Actions */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
           <button onClick={onSetup} style={{ flex: 1, background: c.surface2, color: c.ink, border: 'none', borderRadius: 12, padding: '11px', font: `700 13px ${F}`, cursor: 'pointer' }}>Edit Forecast</button>
-          <button onClick={() => setTick(t => t + 1)} style={{ flex: 1, background: c.surface2, color: c.ink, border: 'none', borderRadius: 12, padding: '11px', font: `700 13px ${F}`, cursor: 'pointer' }}>Recalculate</button>
         </div>
 
-        {/* Status / lowest */}
+        {/* Status / lowest + warning causes */}
         <div style={{ background: toneSoft, borderRadius: 16, padding: 16, marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ font: `700 12px ${F}`, color: toneColor }}>Lowest Balance</span>
@@ -162,6 +162,18 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
               Next salary in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
             </div>
           )}
+          {health !== 'healthy' && topCauses.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${toneColor}22` }}>
+              <div style={{ font: `700 11px ${F}`, color: toneColor, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Main causes</div>
+              {topCauses.map((dr, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: 999, background: toneColor, flexShrink: 0 }} />
+                  <span style={{ flex: 1, font: `600 13px ${F}`, color: toneColor }}>{dr.title}</span>
+                  <span style={{ font: `700 13px ${F}`, color: toneColor }}>{fmt(dr.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {recoveryDate && recoveryBalance != null && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <span style={{ font: `700 12px ${F}`, color: c.good }}>Back positive · {shortDate(recoveryDate)}</span>
@@ -169,6 +181,22 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             </div>
           )}
         </div>
+
+        {/* Forecast Drivers */}
+        {drivers.length > 0 && (
+          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 24 }}>
+            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 12 }}>Forecast Drivers</div>
+            {drivers.map((dr, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < drivers.length - 1 ? `1px solid ${c.faint}` : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 999, background: i === 0 ? c.bad : i === 1 ? c.warn : c.muted, flexShrink: 0 }} />
+                  <span style={{ font: `700 14px ${F}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dr.title}</span>
+                </div>
+                <span style={{ font: `800 14px ${F}`, color: c.ink, whiteSpace: 'nowrap', marginLeft: 12 }}>{fmt(dr.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Timeline */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>

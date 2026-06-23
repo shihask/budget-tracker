@@ -19,7 +19,7 @@ const EMPTY_STATE: AppState = {
   groups: [],
   credit_cards: [],
   settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, budget_strategy: 'none', custom_needs_pct: 50, custom_wants_pct: 30, custom_savings_pct: 20, budget_strategy_base: 'income', last_reflection_date: null, monthly_salary: null },
-  forecast_settings: { id: '', enabled: true, days: 60, commitment_ids: null, savings_ids: null },
+  forecast_settings: { id: '', enabled: true, days: 60, commitment_ids: null, savings_ids: null, salary_override: null },
   commitments: [],
   borrowings: [],
   transactions: [],
@@ -177,9 +177,9 @@ export function useSupabaseData(userId: string) {
         if (!forecastSettings) {
           const { data: created } = await supabase
             .from('forecast_settings')
-            .insert({ user_id: userId, enabled: true, days: 60, commitment_ids: null, savings_ids: null })
+            .insert({ user_id: userId, enabled: true, days: 60, commitment_ids: null, savings_ids: null, salary_override: null })
             .select('*').single()
-          forecastSettings = (created as ForecastSettings) ?? { id: '', user_id: userId, enabled: true, days: 60, commitment_ids: null, savings_ids: null }
+          forecastSettings = (created as ForecastSettings) ?? { id: '', user_id: userId, enabled: true, days: 60, commitment_ids: null, savings_ids: null, salary_override: null }
         }
 
         // First login — seed groups
