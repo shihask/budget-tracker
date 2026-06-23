@@ -23,9 +23,10 @@ interface BottomSheetProps {
   children: React.ReactNode
   maxHeight?: string
   zIndex?: number
+  showHelpButton?: boolean
 }
 
-export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zIndex = 200 }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zIndex = 200, showHelpButton = true }: BottomSheetProps) {
   const c = useTheme()
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -156,22 +157,24 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
           style={{ padding: '12px 16px 18px', cursor: 'grab', touchAction: 'none', userSelect: 'none', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <div style={{ width: 40, height: 4, background: c.faint, borderRadius: 999 }} />
-          <button
-            onMouseDown={e => e.stopPropagation()}
-            onTouchStart={e => e.stopPropagation()}
-            onClick={e => { e.stopPropagation(); setHelpMode(v => !v) }}
-            title={helpMode ? 'Hide field hints' : 'Show field hints'}
-            style={{
-              position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
-              width: 28, height: 28, borderRadius: 999,
-              background: helpMode ? c.accent : c.surface2,
-              border: `1.5px solid ${helpMode ? c.accent : c.faint}`,
-              color: helpMode ? '#fff' : c.muted,
-              font: '700 13px Plus Jakarta Sans',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', transition: 'all 0.15s', lineHeight: 1,
-            }}
-          >?</button>
+          {showHelpButton && (
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); setHelpMode(v => !v) }}
+              title={helpMode ? 'Hide field hints' : 'Show field hints'}
+              style={{
+                position: 'absolute', right: 16, top: 10,
+                width: 22, height: 22, borderRadius: 999,
+                background: helpMode ? c.accent : c.surface2,
+                border: `1.5px solid ${helpMode ? c.accent : c.faint}`,
+                color: helpMode ? '#fff' : c.muted,
+                font: '700 11px Plus Jakarta Sans',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.15s', lineHeight: 1,
+              }}
+            >?</button>
+          )}
         </div>
         <div style={{ padding: '0 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
           <HelpContext.Provider value={helpMode}>

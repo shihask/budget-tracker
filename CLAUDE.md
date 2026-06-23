@@ -34,10 +34,6 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `autopilot_enabled` | boolean | false | AI categorization, opt-in |
 | `dashboard_sections` | json\|null | null | Section order/visibility |
 | `track_savings` | boolean | false | Savings & Investments tracker, opt-in |
-| `budget_strategy` | 'none'\|'balanced'\|'stable'\|'growth'\|'custom' | 'none' | Budget Strategy framework |
-| `custom_needs_pct` | number | 50 | Custom strategy needs % |
-| `custom_wants_pct` | number | 30 | Custom strategy wants % |
-| `custom_savings_pct` | number | 20 | Custom strategy savings % |
 
 ## Budget Strategy system
 Two independent budgeting systems coexist:
@@ -57,12 +53,28 @@ Two independent budgeting systems coexist:
 - Group name "Other" → uses `category.budget_bucket` from DB (user-defined)
 - System groups (income, transfer, borrowing, adjustment) → null (excluded)
 
+### Table: `budget_strategy_settings` (separate from `settings`)
+| Column | Type | Default |
+|--------|------|---------|
+| `budget_strategy` | text | `'none'` |
+| `custom_needs_pct` | integer | `50` |
+| `custom_wants_pct` | integer | `30` |
+| `custom_savings_pct` | integer | `20` |
+| `budget_strategy_base` | text | `'income'` |
+
 ### SQL migrations needed
 ```sql
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS budget_strategy text DEFAULT 'none';
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS custom_needs_pct integer DEFAULT 50;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS custom_wants_pct integer DEFAULT 30;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS custom_savings_pct integer DEFAULT 20;
+CREATE TABLE IF NOT EXISTS budget_strategy_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users NOT NULL UNIQUE,
+  budget_strategy text DEFAULT 'none',
+  custom_needs_pct integer DEFAULT 50,
+  custom_wants_pct integer DEFAULT 30,
+  custom_savings_pct integer DEFAULT 20,
+  budget_strategy_base text DEFAULT 'income'
+);
+ALTER TABLE budget_strategy_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users manage own budget strategy" ON budget_strategy_settings FOR ALL USING (auth.uid() = user_id);
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS budget_bucket text DEFAULT NULL;
 ```
 

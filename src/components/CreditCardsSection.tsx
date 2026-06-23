@@ -430,7 +430,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       </BottomSheet>
 
       {/* Pay bill sheet */}
-      <BottomSheet open={!!payTarget} onClose={() => setPayTarget(null)} zIndex={350}>
+      <BottomSheet open={!!payTarget} onClose={() => setPayTarget(null)} zIndex={350} showHelpButton={false}>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Pay Bill</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>{payTarget?.name} · Outstanding {payTarget ? fmt(payTarget.current_balance) : ''}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

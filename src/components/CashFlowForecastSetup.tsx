@@ -89,7 +89,7 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
   const activeLabel = activeSource != null ? SALARY_SOURCE_LABEL[activeSource] : 'Not Available'
 
   return (
-    <BottomSheet open={open} onClose={onClose} zIndex={300}>
+    <BottomSheet open={open} onClose={onClose} zIndex={300} showHelpButton={false}>
       <div style={{ padding: '4px 20px 24px', fontFamily: `${F}, sans-serif` }}>
         <div style={{ font: `800 20px ${F}`, color: c.ink, marginBottom: 4 }}>Cash Flow Forecast Setup</div>
         <div style={{ font: `600 13px ${F}`, color: c.muted, marginBottom: 20 }}>Built from your existing data. Tweak what's included.</div>

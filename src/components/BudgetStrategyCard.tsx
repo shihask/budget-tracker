@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import type { AppState, BudgetBucket, BudgetStrategyType, DerivedMetrics } from '@/types'
+import type { AppState, BudgetBucket, BudgetStrategySettings, BudgetStrategyType, DerivedMetrics } from '@/types'
 
 interface BudgetStrategyCardProps {
   state: AppState
@@ -18,13 +18,13 @@ export const STRATEGY_PRESETS: Record<
   growth:   { needs: 45, wants: 20, savings: 35, label: 'Growth (45/20/35)' },
 }
 
-export function getStrategyPcts(settings: AppState['settings']): { needs: number; wants: number; savings: number; label: string } | null {
-  const s = settings.budget_strategy ?? 'none'
+export function getStrategyPcts(bss: BudgetStrategySettings): { needs: number; wants: number; savings: number; label: string } | null {
+  const s = bss.budget_strategy ?? 'none'
   if (s === 'none') return null
   if (s === 'custom') {
-    const n = settings.custom_needs_pct ?? 50
-    const w = settings.custom_wants_pct ?? 30
-    const sv = settings.custom_savings_pct ?? 20
+    const n = bss.custom_needs_pct ?? 50
+    const w = bss.custom_wants_pct ?? 30
+    const sv = bss.custom_savings_pct ?? 20
     return { needs: n, wants: w, savings: sv, label: `Custom (${n}/${w}/${sv})` }
   }
   return STRATEGY_PRESETS[s]
@@ -63,10 +63,10 @@ export function getCategoryBucket(cat: AppState['categories'][0], groups: AppSta
 
 function useStrategyData(state: AppState, d: DerivedMetrics) {
   return useMemo(() => {
-    const pcts = getStrategyPcts(state.settings)
+    const pcts = getStrategyPcts(state.budget_strategy_settings)
     if (!pcts) return null
 
-    const base = state.settings.budget_strategy_base ?? 'income'
+    const base = state.budget_strategy_settings.budget_strategy_base ?? 'income'
 
     const now = new Date()
     const sd = state.settings.salary_date

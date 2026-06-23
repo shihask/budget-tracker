@@ -48,7 +48,7 @@ export function BudgetStrategySheet({ open, onClose, budgetStrategy, customNeeds
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} zIndex={350}>
+    <BottomSheet open={open} onClose={onClose} zIndex={350} showHelpButton={false}>
       <div style={{ padding: '4px 0 8px' }}>
         <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em', marginBottom: 4 }}>
           Budget Strategy

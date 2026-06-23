@@ -129,11 +129,6 @@ export interface Settings {
   challenge_excluded_txn_ids?:  string[] | null
   challenge_total_days?:        number
   challenge_success_days?:      number
-  budget_strategy?:             BudgetStrategyType
-  custom_needs_pct?:            number
-  custom_wants_pct?:            number
-  custom_savings_pct?:          number
-  budget_strategy_base?:        'income' | 'available_funds'
   last_reflection_date?:        string | null
   monthly_salary?:              number | null
 }
@@ -146,6 +141,16 @@ export interface ForecastSettings {
   commitment_ids: string[] | null
   savings_ids: string[] | null
   salary_override: number | null
+}
+
+export interface BudgetStrategySettings {
+  id: string
+  user_id?: string
+  budget_strategy: BudgetStrategyType
+  custom_needs_pct: number
+  custom_wants_pct: number
+  custom_savings_pct: number
+  budget_strategy_base: 'income' | 'available_funds'
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
@@ -227,6 +232,7 @@ export interface AppState {
   credit_cards: CreditCard[]
   settings: Settings
   forecast_settings: ForecastSettings
+  budget_strategy_settings: BudgetStrategySettings
   commitments: Commitment[]
   borrowings: Borrowing[]
   transactions: Transaction[]

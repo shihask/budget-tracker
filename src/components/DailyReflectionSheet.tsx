@@ -65,7 +65,7 @@ export function DailyReflectionSheet({ open, onClose, state, onGoalContribution 
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} zIndex={400}>
+    <BottomSheet open={open} onClose={onClose} zIndex={400} showHelpButton={false}>
       <div style={{ padding: '4px 20px 24px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
         <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
           Today's reflection

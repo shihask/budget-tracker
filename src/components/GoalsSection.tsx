@@ -517,7 +517,7 @@ export function GoalsSection({
       </BottomSheet>
 
       {/* Goal Detail Sheet */}
-      <BottomSheet open={!!detailGoal} onClose={() => { setDetailGoal(null); setDeleteConfirm(false) }} maxHeight="92svh" zIndex={410}>
+      <BottomSheet open={!!detailGoal} onClose={() => { setDetailGoal(null); setDeleteConfirm(false) }} maxHeight="92svh" zIndex={410} showHelpButton={false}>
         {detailGoal && (() => {
           const goal = detailGoal
           const st = calcGoalStatus(goal)

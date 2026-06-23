@@ -373,7 +373,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   // ── MODULE: Budget Strategy ──
   // Relevant for financial_health / budget / general
   if (['financial_health', 'budget', 'general'].includes(intent)) {
-    const stratPcts = getStrategyPcts(state.settings)
+    const stratPcts = getStrategyPcts(state.budget_strategy_settings)
     if (stratPcts) {
       const sd = state.settings.salary_date
       let stratStart: Date

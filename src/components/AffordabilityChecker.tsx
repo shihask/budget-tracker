@@ -427,7 +427,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
         </svg>
       </button>
 
-      <BottomSheet open={open} onClose={close} maxHeight="90svh" zIndex={400}>
+      <BottomSheet open={open} onClose={close} maxHeight="90svh" zIndex={400} showHelpButton={false}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>

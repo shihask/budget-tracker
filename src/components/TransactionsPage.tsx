@@ -755,7 +755,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       </BottomSheet>
 
       {/* Quick categorize sheet */}
-      <BottomSheet open={!!quickCatTx} onClose={() => setQuickCatTx(null)} zIndex={350}>
+      <BottomSheet open={!!quickCatTx} onClose={() => setQuickCatTx(null)} zIndex={350} showHelpButton={false}>
         <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Set Category</div>
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>{quickCatTx?.description}</div>
         <CategorySelect

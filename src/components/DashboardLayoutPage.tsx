@@ -424,7 +424,7 @@ export function DashboardLayoutPage({ sections, settings, categories, onUpdate, 
       </div>
 
       {/* Add custom section sheet */}
-      <BottomSheet open={addOpen} onClose={closeAdd} zIndex={500}>
+      <BottomSheet open={addOpen} onClose={closeAdd} zIndex={500} showHelpButton={false}>
           <div>
             <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em', marginBottom: 4 }}>Add custom section</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 20 }}>

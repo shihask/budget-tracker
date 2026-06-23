@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.33.0'
+const APP_VERSION = '1.34.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
@@ -149,7 +149,7 @@ function AppContent({ session }: { session: Session }) {
   const [strategyMapperOpen, setStrategyMapperOpen] = useState(false)
   const [budgetStrategySheetOpen, setBudgetStrategySheetOpen] = useState(false)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
   const [challengeWin, setChallengeWin] = useState<{ amount: number } | null>(null)
@@ -322,7 +322,7 @@ function AppContent({ session }: { session: Session }) {
                   }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
-                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{(state.settings.budget_strategy ?? 'none') !== 'none' && <BudgetStrategyCard state={state} d={d} onOpenSettings={() => setBudgetStrategySheetOpen(true)} />}</>
+                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{state.budget_strategy_settings.budget_strategy !== 'none' && <BudgetStrategyCard state={state} d={d} onOpenSettings={() => setBudgetStrategySheetOpen(true)} />}</>
                       break
                     case 'affordability':
                       el = <><AffordabilityChecker state={state} d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
@@ -589,6 +589,7 @@ function AppContent({ session }: { session: Session }) {
               trackCreditCards={state.settings.track_credit_cards ?? false}
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackSavings={state.settings.track_savings ?? false}
+              budgetStrategyEnabled={state.budget_strategy_settings.budget_strategy !== 'none'}
               challengeEnabled={state.settings.challenge_enabled ?? false}
               autopilotEnabled={state.settings.autopilot_enabled ?? false}
               aiRequestsUsed={state.settings.ai_requests_used ?? 0}
@@ -604,6 +605,7 @@ function AppContent({ session }: { session: Session }) {
               onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
               onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
               onTrackSavings={v => updateSettings({ track_savings: v })}
+              onBudgetStrategy={v => { updateBudgetStrategySettings({ budget_strategy: v ? 'balanced' : 'none' }); if (v) setBudgetStrategySheetOpen(true) }}
               onChallengeEnabled={v => updateSettings({ challenge_enabled: v })}
               onAutopilot={v => updateSettings({ autopilot_enabled: v })}
               onNotificationsEnabled={v => updateSettings({ notifications_enabled: v })}
@@ -619,20 +621,20 @@ function AppContent({ session }: { session: Session }) {
         <BudgetStrategySheet
           open={budgetStrategySheetOpen}
           onClose={() => setBudgetStrategySheetOpen(false)}
-          budgetStrategy={state.settings.budget_strategy ?? 'none'}
-          customNeedsPct={state.settings.custom_needs_pct ?? 50}
-          customWantsPct={state.settings.custom_wants_pct ?? 30}
-          customSavingsPct={state.settings.custom_savings_pct ?? 20}
-          budgetStrategyBase={state.settings.budget_strategy_base ?? 'income'}
-          onBudgetStrategyBase={v => updateSettings({ budget_strategy_base: v })}
+          budgetStrategy={state.budget_strategy_settings.budget_strategy}
+          customNeedsPct={state.budget_strategy_settings.custom_needs_pct}
+          customWantsPct={state.budget_strategy_settings.custom_wants_pct}
+          customSavingsPct={state.budget_strategy_settings.custom_savings_pct}
+          budgetStrategyBase={state.budget_strategy_settings.budget_strategy_base}
+          onBudgetStrategyBase={v => updateBudgetStrategySettings({ budget_strategy_base: v })}
           onBudgetStrategy={async (strategy, customPcts) => {
-            const patch: Parameters<typeof updateSettings>[0] = { budget_strategy: strategy }
+            const patch: Partial<typeof state.budget_strategy_settings> = { budget_strategy: strategy }
             if (customPcts) {
               patch.custom_needs_pct = customPcts.needs
               patch.custom_wants_pct = customPcts.wants
               patch.custom_savings_pct = customPcts.savings
             }
-            await updateSettings(patch)
+            await updateBudgetStrategySettings(patch)
           }}
           onMapCategories={() => { setBudgetStrategySheetOpen(false); setStrategyMapperOpen(true) }}
         />

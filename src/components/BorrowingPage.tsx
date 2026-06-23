@@ -607,7 +607,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
       </BottomSheet>
 
       {/* ── Payment Sheet ────────────────────────────────────────────────────────── */}
-      <BottomSheet open={!!payTarget} onClose={closePay}>
+      <BottomSheet open={!!payTarget} onClose={closePay} showHelpButton={false}>
         <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Record Payment</div>
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, marginBottom: 16 }}>
           {payTarget?.person_name} · Remaining {payTarget ? fmt(payTarget.remaining_amount ?? (payTarget.total_amount - payTarget.paid_amount)) : ''}

@@ -216,7 +216,7 @@ export function SavingsSuggestions({ state, d, autopilotEnabled }: Props) {
       </button>
 
       {/* Sheet */}
-      <BottomSheet open={open} onClose={() => setOpen(false)} maxHeight="88svh" zIndex={350}>
+      <BottomSheet open={open} onClose={() => setOpen(false)} maxHeight="88svh" zIndex={350} showHelpButton={false}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <div>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Savings Suggestions</div>
