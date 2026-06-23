@@ -29,12 +29,11 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
   const [enabled, setEnabled] = useState(fs.enabled ?? true)
   const [days, setDays] = useState(fs.days ?? 60)
   const [salaryDay, setSalaryDay] = useState(s.salary_date != null ? String(s.salary_date) : '')
-  const [override, setOverride] = useState(fs.salary_override != null ? String(fs.salary_override) : '')
   const [commitSel, setCommitSel] = useState<Set<string>>(() => initSet(fs.commitment_ids, activeCommitments.map(x => x.id)))
   const [savingsSel, setSavingsSel] = useState<Set<string>>(() => initSet(fs.savings_ids, activeSavings.map(x => x.id)))
   const [saving, setSaving] = useState(false)
 
-  const canEstimate = salaryEst.amount != null && salaryEst.source !== 'override'
+  const hasSalary = salaryEst.amount != null
 
   const toggle = (set: Set<string>, id: string, setter: (v: Set<string>) => void) => {
     const next = new Set(set)
@@ -52,10 +51,6 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
       days,
       commitment_ids: allCommit.every(id => commitSel.has(id)) ? null : [...commitSel],
       savings_ids: allSavings.every(id => savingsSel.has(id)) ? null : [...savingsSel],
-    }
-    if (!canEstimate) {
-      const ov = parseFloat(override)
-      fPatch.salary_override = ov > 0 ? Math.round(ov) : null
     }
     const settingsPatch: Partial<Settings> = {}
     const day = parseInt(salaryDay)
@@ -100,16 +95,17 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
 
         {/* Estimated salary */}
         <label style={{ ...lbl, marginTop: 18 }}>Estimated salary</label>
-        {canEstimate ? (
+        {hasSalary ? (
           <div style={{ ...inp, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default' }}>
             <span style={{ color: c.ink }}>{fmt(salaryEst.amount!)}</span>
-            <span style={{ font: `600 11px ${F}`, color: c.good }}>{salaryEst.source === 'avg' ? 'avg of recent salary' : 'last salary'}</span>
+            <span style={{ font: `600 11px ${F}`, color: c.good }}>
+              {salaryEst.source === 'avg' ? 'avg of recent salary' : salaryEst.source === 'recent' ? 'last salary' : 'from settings'}
+            </span>
           </div>
         ) : (
-          <>
-            <input value={override} onChange={e => setOverride(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="numeric" placeholder="Enter your usual salary" onFocus={e => e.target.select()} style={inp} />
-            <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 6 }}>We couldn't detect it — tag a salary credit under the “Salary” category and this fills in automatically.</div>
-          </>
+          <div style={{ ...inp, cursor: 'default' }}>
+            <span style={{ font: `600 13px ${F}`, color: c.muted }}>Not set — add your salary in Settings</span>
+          </div>
         )}
 
         {/* Forecast period */}

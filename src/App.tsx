@@ -583,6 +583,7 @@ function AppContent({ session }: { session: Session }) {
             <SettingsPanel
               accent={accent} dark={dark} layout={layout}
               salaryDate={state.settings.salary_date}
+              monthlySalary={state.settings.monthly_salary ?? null}
               trackCreditCards={state.settings.track_credit_cards ?? false}
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackSavings={state.settings.track_savings ?? false}
@@ -613,6 +614,7 @@ function AppContent({ session }: { session: Session }) {
               onMapCategories={() => setStrategyMapperOpen(true)}
               onAccent={setAccent} onDark={setDark} onLayout={setLayout}
               onSalaryDate={v => updateSettings({ salary_date: v })}
+              onMonthlySalary={v => updateSettings({ monthly_salary: v })}
               onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
               onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
               onTrackSavings={v => updateSettings({ track_savings: v })}

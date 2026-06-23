@@ -135,6 +135,7 @@ export interface Settings {
   custom_savings_pct?:          number
   budget_strategy_base?:        'income' | 'available_funds'
   last_reflection_date?:        string | null
+  monthly_salary?:              number | null
 }
 
 export interface ForecastSettings {
@@ -144,7 +145,6 @@ export interface ForecastSettings {
   days: number
   commitment_ids: string[] | null
   savings_ids: string[] | null
-  salary_override: number | null
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)

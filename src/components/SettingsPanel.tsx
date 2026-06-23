@@ -10,6 +10,7 @@ interface SettingsPanelProps {
   dark: boolean
   layout: Layout
   salaryDate: number | null
+  monthlySalary: number | null
   trackCreditCards: boolean
   trackBorrowings: boolean
   trackSavings: boolean
@@ -34,6 +35,7 @@ interface SettingsPanelProps {
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
   onSalaryDate: (v: number | null) => Promise<void>
+  onMonthlySalary: (v: number | null) => Promise<void>
   onTrackCreditCards: (v: boolean) => Promise<void>
   onTrackBorrowings: (v: boolean) => Promise<void>
   onTrackSavings: (v: boolean) => Promise<void>
@@ -47,9 +49,10 @@ interface SettingsPanelProps {
   onDashboardLayout: () => void
 }
 
-export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCards, trackBorrowings, trackSavings, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, budgetStrategy, customNeedsPct, customWantsPct, customSavingsPct, budgetStrategyBase, onBudgetStrategy, onBudgetStrategyBase, onMapCategories, onAccent, onDark, onLayout, onSalaryDate, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, salaryDate, monthlySalary, trackCreditCards, trackBorrowings, trackSavings, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, budgetStrategy, customNeedsPct, customWantsPct, customSavingsPct, budgetStrategyBase, onBudgetStrategy, onBudgetStrategyBase, onMapCategories, onAccent, onDark, onLayout, onSalaryDate, onMonthlySalary, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
+  const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
   const [savingSalary, setSavingSalary] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifError, setNotifError] = useState<string | null>(null)
@@ -94,8 +97,13 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
   const handleSalarySave = async () => {
     const v = parseInt(salaryInput)
     const val = (!salaryInput || isNaN(v)) ? null : Math.min(31, Math.max(1, v))
+    const amt = parseFloat(salaryAmountInput)
+    const salaryAmt = (!salaryAmountInput || isNaN(amt)) ? null : Math.round(amt)
     setSavingSalary(true)
-    try { await onSalaryDate(val) } catch (_) {}
+    try {
+      await onSalaryDate(val)
+      await onMonthlySalary(salaryAmt)
+    } catch (_) {}
     setSavingSalary(false)
   }
 
@@ -196,6 +204,20 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
           />
           <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, whiteSpace: 'nowrap' }}>of month</span>
         </div>
+        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 10 }}>Monthly salary</div>
+        <input
+          type="number"
+          value={salaryAmountInput}
+          onChange={e => setSalaryAmountInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSalarySave()}
+          placeholder="e.g. 50000"
+          style={{
+            width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
+            borderRadius: 11, padding: '11px 12px',
+            font: '800 16px Plus Jakarta Sans', color: c.ink,
+            outline: 'none', marginBottom: 8,
+          }}
+        />
         <button
           onClick={handleSalarySave}
           disabled={savingSalary}
@@ -206,7 +228,7 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, trackCreditCar
             cursor: savingSalary ? 'not-allowed' : 'pointer', opacity: savingSalary ? 0.6 : 1,
           }}
         >
-          {savingSalary ? 'Saving...' : 'Save Salary Date'}
+          {savingSalary ? 'Saving...' : 'Save Salary Details'}
         </button>
       </div>
 

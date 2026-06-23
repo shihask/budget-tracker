@@ -54,7 +54,7 @@ function nextDueDate(dueDay: number, from: Date): Date {
 // Estimate the next salary amount. Priority (high confidence first):
 //   1. average of recent "Salary"-category transactions (last ~190 days, up to 3)
 //   2. most recent "Salary"-category transaction
-//   3. user-entered forecast_salary_override (fallback only)
+//   3. user-entered monthly_salary from settings (fallback only)
 //   4. null  → salary event is hidden (never show unrealistic values like ₹20)
 export function estimateForecastSalary(state: AppState): { amount: number | null; source: 'avg' | 'recent' | 'override' | null } {
   const catName = new Map(state.categories.map(c => [c.id, c.name.toLowerCase()]))
@@ -79,9 +79,9 @@ export function estimateForecastSalary(state: AppState): { amount: number | null
   if (salaryTxns.length === 1) {
     return { amount: Math.round(salaryTxns[0].amount), source: 'recent' }
   }
-  const override = state.forecast_settings.salary_override
-  if (override != null && override > 0) {
-    return { amount: Math.round(override), source: 'override' }
+  const manual = state.settings.monthly_salary
+  if (manual != null && manual > 0) {
+    return { amount: Math.round(manual), source: 'override' }
   }
   return { amount: null, source: null }
 }
