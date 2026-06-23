@@ -6,6 +6,7 @@ import type { AppState, BudgetBucket, BudgetStrategyType, DerivedMetrics } from 
 interface BudgetStrategyCardProps {
   state: AppState
   d: DerivedMetrics
+  onOpenSettings?: () => void
 }
 
 export const STRATEGY_PRESETS: Record<
@@ -173,7 +174,7 @@ function BucketRow({ label, actual, target, color }: BucketRowProps) {
   )
 }
 
-export function BudgetStrategyCard({ state, d }: BudgetStrategyCardProps) {
+export function BudgetStrategyCard({ state, d, onOpenSettings }: BudgetStrategyCardProps) {
   const c = useTheme()
   const data = useStrategyData(state, d)
   if (!data) return null
@@ -196,16 +197,34 @@ export function BudgetStrategyCard({ state, d }: BudgetStrategyCardProps) {
             {pcts.label} · based on {base === 'available_funds' ? 'available funds' : 'income'}
           </div>
         </div>
-        {!noBase && (
-          <div style={{
-            background: overallScore >= 80 ? c.good : overallScore >= 50 ? c.warn : c.bad,
-            color: '#fff', borderRadius: 20,
-            padding: '3px 10px',
-            font: '700 12px Plus Jakarta Sans',
-          }}>
-            {overallScore}%
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!noBase && (
+            <div style={{
+              background: overallScore >= 80 ? c.good : overallScore >= 50 ? c.warn : c.bad,
+              color: '#fff', borderRadius: 20,
+              padding: '3px 10px',
+              font: '700 12px Plus Jakarta Sans',
+            }}>
+              {overallScore}%
+            </div>
+          )}
+          {onOpenSettings && (
+            <button
+              onClick={e => { e.stopPropagation(); onOpenSettings() }}
+              style={{
+                width: 30, height: 30, borderRadius: 999,
+                background: c.surface2, border: `1px solid ${c.faint}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke={c.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {noBase ? (
