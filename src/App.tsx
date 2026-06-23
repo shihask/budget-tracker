@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.23.0'
+const APP_VERSION = '1.32.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
