@@ -67,7 +67,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const [amount, setAmount] = useState('')
   const [checked, setChecked] = useState(false)
   const [showWhy, setShowWhy] = useState(false)
-  const [glossaryOpen, setGlossaryOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   const [aiInsight, setAiInsight] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [showGoalPlan, setShowGoalPlan] = useState(false)
@@ -314,12 +314,26 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none',
   }
 
-  const Row = ({ label, value, bold, accent, muted, color }: {
-    label: string; value: string; bold?: boolean; accent?: boolean; muted?: boolean; color?: string
+  const InfoTip = ({ text }: { text: string }) => (
+    <span className="info-tooltip-wrap" style={{ position: 'relative', display: 'inline-flex', marginLeft: 4 }}>
+      <svg viewBox="0 0 20 20" width={13} height={13} fill="none" stroke={c.muted} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'default', flexShrink: 0 }}>
+        <circle cx="10" cy="10" r="8" /><line x1="10" y1="9" x2="10" y2="14" /><circle cx="10" cy="6.5" r="0.8" fill={c.muted} stroke="none" />
+      </svg>
+      <span className="info-tooltip" style={{
+        position: 'absolute', left: '50%', bottom: '120%', transform: 'translateX(-50%)',
+        background: c.ink, color: c.surface, font: '600 10px Plus Jakarta Sans',
+        borderRadius: 7, padding: '5px 9px', whiteSpace: 'normal', width: 180,
+        pointerEvents: 'none', opacity: 0, transition: 'opacity 0.15s', zIndex: 999,
+      }}>{text}</span>
+    </span>
+  )
+
+  const Row = ({ label, value, bold, accent, muted, color, info }: {
+    label: string; value: string; bold?: boolean; accent?: boolean; muted?: boolean; color?: string; info?: string
   }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ font: `${bold ? '700' : '600'} 12px Plus Jakarta Sans`, color: muted ? c.muted : c.ink }}>
-        {label}
+      <span style={{ font: `${bold ? '700' : '600'} 12px Plus Jakarta Sans`, color: muted ? c.muted : c.ink, display: 'flex', alignItems: 'center' }}>
+        {label}{info && <InfoTip text={info} />}
       </span>
       <span style={{ font: `${bold ? '800' : '700'} 13px Plus Jakarta Sans`, color: color ?? (accent ? c.accent : muted ? c.muted : c.ink) }}>
         {value}
@@ -412,19 +426,17 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Can I Afford This?</div>
+              <button onClick={() => setInfoOpen(v => !v)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: c.muted }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </button>
             </div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
               {hasWeeklyContext ? 'Includes your upcoming budget' : 'Based on your spendable money'}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => setGlossaryOpen(true)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-            </button>
-            <button onClick={close} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
-          </div>
+          <button onClick={close} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
         </div>
 
         {!checked ? (
@@ -468,15 +480,15 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                   <Row label="Actual Balance" value={fmt(d.actualBalance)} />
                   <Row label="Emergency Fund" value={`− ${fmt(d.emergencyFund)}`} muted />
-                  <Row label="Spendable Balance" value={fmt(d.availableBalance)} />
-                  <Row label="Remaining Commitments" value={`− ${fmt(d.remainingCommitments)}`} muted />
+                  <Row label="Spendable Balance" value={fmt(d.availableBalance)} info="Balance after keeping your emergency fund aside" />
+                  <Row label="Remaining Commitments" value={`− ${fmt(d.remainingCommitments)}`} muted info="Upcoming bills and obligations this cycle" />
                   <Divider />
-                  <Row label="Spendable Money" value={fmt(freeMoney)} bold />
+                  <Row label="Spendable Money" value={fmt(freeMoney)} bold info="What you have after all commitments — your real available money" />
                   {hasWeeklyContext && (
                     <>
-                      <Row label={`Weekly Budget × ${weeksRemaining}w`} value={`− ${fmt(reservedBudget)}`} muted />
+                      <Row label={`Weekly Budget × ${weeksRemaining}w`} value={`− ${fmt(reservedBudget)}`} muted info="Reserved to follow your weekly spending plan till salary" />
                       <Divider />
-                      <Row label="Safe to Spend" value={fmt(Math.max(0, safePurchasingPower))} bold accent />
+                      <Row label="Safe to Spend" value={fmt(Math.max(0, safePurchasingPower))} bold accent info="What you can spend right now without affecting your budget" />
                     </>
                   )}
                 </div>
@@ -553,12 +565,14 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                     value={fmt(simResult.lowestBalance)}
                     bold
                     color={simResult.lowestBalance < 0 ? c.bad : simResult.lowestBalance < LOW_CUSHION ? '#D97706' : c.good}
+                    info="The lowest your balance is expected to reach"
                   />
                   {simResult.recoveryDate && simResult.recoveryBalance != null && (
                     <Row
                       label={`Recovery · ${shortDate(simResult.recoveryDate)}`}
                       value={fmt(simResult.recoveryBalance)}
                       color={c.good}
+                      info="When your balance becomes healthy again"
                     />
                   )}
                   {!simResult.recoveryDate && simResult.nextSalaryDate && simResult.lowestBalance >= 0 && (
@@ -573,7 +587,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                 {/* Main Pressure */}
                 {status!.tier !== 'safe' && simDrivers.length > 0 && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
-                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Main Pressure</div>
+                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center' }}>Main Pressure<InfoTip text="The biggest upcoming bills putting pressure on your balance" /></div>
                     {simDrivers.map((dr, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <div style={{ width: 5, height: 5, borderRadius: 999, background: status!.color, flexShrink: 0 }} />
@@ -637,14 +651,14 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             <div style={{ background: c.surface, borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid ${c.faint}` }}>
               <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Breakdown</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <Row label="Spendable Money" value={fmt(freeMoney)} />
+                <Row label="Spendable Money" value={fmt(freeMoney)} info="Your real available money after commitments" />
                 {hasWeeklyContext && (
                   <>
                     <Row label="Weeks Remaining" value={`${weeksRemaining} weeks`} muted />
-                    <Row label="Weekly Budget" value={fmt(weeklyBudget)} muted />
-                    <Row label="Reserved for Budget" value={`− ${fmt(reservedBudget)}`} muted />
+                    <Row label="Weekly Budget" value={fmt(weeklyBudget)} muted info="Your planned weekly spending limit" />
+                    <Row label="Reserved for Budget" value={`− ${fmt(reservedBudget)}`} muted info="Kept aside for your weekly plan till salary" />
                     <Divider />
-                    <Row label="Safe to Spend" value={fmt(Math.max(0, safePurchasingPower))} bold />
+                    <Row label="Safe to Spend" value={fmt(Math.max(0, safePurchasingPower))} bold info="What you can safely spend on a purchase right now" />
                   </>
                 )}
                 <Divider />
@@ -773,9 +787,9 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                             <Row label="Purchase Amount" value={fmt(amt)} bold />
                             <Divider />
-                            <Row label="Can Save Monthly" value={fmt(plan.canSaveMonthly)} accent />
+                            <Row label="Can Save Monthly" value={fmt(plan.canSaveMonthly)} accent info="What you can set aside each month after all expenses" />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>Earliest by</span>
+                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, display: 'flex', alignItems: 'center' }}>Earliest by<InfoTip text="The earliest month you can afford this if you save consistently" /></span>
                               <div style={{ textAlign: 'right' }}>
                                 <div style={{ font: '800 13px Plus Jakarta Sans', color: c.accent }}>{plan.targetLabel}</div>
                                 <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{plan.monthsNeeded} month{plan.monthsNeeded !== 1 ? 's' : ''} away</div>
@@ -786,12 +800,12 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                           <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
                             <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 8 }}>How it's calculated</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                              <Row label="Salary" value={fmt(plan.salary)} />
-                              <Row label="Commitments" value={`− ${fmt(plan.commitments)}`} muted />
-                              <Row label="Savings Plans" value={`− ${fmt(plan.savings)}`} muted />
-                              <Row label="Typical Spending" value={`− ${fmt(plan.typicalSpending)}`} muted />
+                              <Row label="Salary" value={fmt(plan.salary)} info="Your estimated monthly income" />
+                              <Row label="Commitments" value={`− ${fmt(plan.commitments)}`} muted info="Recurring bills like EMI, rent, insurance" />
+                              <Row label="Savings Plans" value={`− ${fmt(plan.savings)}`} muted info="SIP, gold, chit fund contributions" />
+                              <Row label="Typical Spending" value={`− ${fmt(plan.typicalSpending)}`} muted info="Your average monthly lifestyle spending" />
                               <Divider />
-                              <Row label="Can Save Monthly" value={fmt(plan.canSaveMonthly)} bold accent />
+                              <Row label="Can Save Monthly" value={fmt(plan.canSaveMonthly)} bold accent info="What's left to save toward this purchase" />
                             </div>
                           </div>
                         </div>
@@ -977,52 +991,37 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
         )}
       </BottomSheet>
 
-      <BottomSheet open={glossaryOpen} onClose={() => setGlossaryOpen(false)} zIndex={500}>
-        <div style={{ padding: '4px 20px 24px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>What do these mean?</div>
-          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>Understand each item in simple terms.</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {([
-              { bg: '#DBEAFE', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>, title: 'Spendable Money', desc: 'The money you have right now after setting aside what\'s needed for upcoming bills and commitments.' },
-              { bg: '#E0E7FF', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"/></svg>, title: 'Weekly Budget', desc: 'The amount you\'ve planned to spend in a week for your lifestyle.' },
-              { bg: '#FEF3C7', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, title: 'Reserved for Budget', desc: 'The portion of your spendable money kept aside to follow your weekly budget till your next salary.' },
-              { bg: '#DCFCE7', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/></svg>, title: 'Safe to Spend', desc: 'The amount you can safely spend right now without affecting your commitments or budget.' },
-              { bg: '#FEE2E2', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/></svg>, title: 'Forecast Impact', desc: 'Shows how this purchase affects your future balance based on your income and expenses.' },
-              { bg: '#FEF3C7', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>, title: 'Lowest Projected', desc: 'The lowest balance your account is expected to reach in the coming days.' },
-              { bg: '#DCFCE7', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>, title: 'Recovery', desc: 'The date when your account balance is expected to become healthy again.' },
-              { bg: '#FEE2E2', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>, title: 'Main Pressure', desc: 'The top upcoming bills and commitments that are putting pressure on your finances.' },
-              { bg: '#E0E7FF', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>, title: 'Purchase Plan', desc: 'Your plan to afford this purchase in the future based on your monthly saving capacity.' },
-              { bg: '#DBEAFE', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, title: 'Earliest By', desc: 'The earliest month you can afford this purchase if you save consistently.' },
-            ] as const).map((item, i) => (
-              <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: item.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {item.icon}
+      {/* Inline info panel — toggled by ℹ️ button */}
+      {infoOpen && (
+        <div onClick={() => setInfoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: c.surface, borderRadius: 22, padding: 22, width: '100%', maxWidth: 360, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 16px 48px rgba(0,0,0,0.18)' }}>
+            <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>What do these mean?</div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 14 }}>Tap the ℹ︎ icon next to any label for a quick explanation.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { label: 'Spendable Money', desc: 'Your real available money after setting aside emergency fund and commitments.' },
+                { label: 'Safe to Spend', desc: 'What you can spend right now without affecting your weekly budget plan.' },
+                { label: 'Forecast Impact', desc: 'How this purchase affects your future balance — based on upcoming bills, salary, and savings.' },
+                { label: 'Lowest Projected', desc: 'The lowest your balance is expected to drop before it recovers.' },
+                { label: 'Recovery', desc: 'When your balance becomes healthy again (usually after salary).' },
+                { label: 'Main Pressure', desc: 'The biggest upcoming bills putting pressure on your finances.' },
+                { label: 'Purchase Plan', desc: 'A plan to afford this purchase based on your monthly saving capacity.' },
+                { label: 'Can Save Monthly', desc: 'Salary minus commitments, savings plans, and typical spending.' },
+                { label: 'Earliest By', desc: 'The earliest month you can afford this if you save consistently.' },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                  <div style={{ width: 4, height: 4, borderRadius: 999, background: c.accent, flexShrink: 0, marginTop: 6 }} />
+                  <div>
+                    <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{item.label}</span>
+                    <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}> — {item.desc}</span>
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{item.title}</div>
-                  <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          {settings.autopilot_enabled && (
-            <div style={{ marginTop: 18, padding: '12px 14px', background: 'linear-gradient(135deg,#6366F10e,#8B5CF60e)', border: '1px solid #6366F122', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#6366F118', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                </svg>
-              </div>
-              <div>
-                <div style={{ font: '700 13px Plus Jakarta Sans', color: '#6366F1' }}>Still confused?</div>
-                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Ask Mint AI for help</div>
-              </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', flexShrink: 0 }}>
-                <path d="M9 6l6 6-6 6"/>
-              </svg>
+              ))}
             </div>
-          )}
+            <button onClick={() => setInfoOpen(false)} style={{ marginTop: 16, width: '100%', background: c.surface2, border: 'none', borderRadius: 12, padding: 11, font: '700 13px Plus Jakarta Sans', color: c.muted, cursor: 'pointer' }}>Got it</button>
+          </div>
         </div>
-      </BottomSheet>
+      )}
     </>
   )
 }
