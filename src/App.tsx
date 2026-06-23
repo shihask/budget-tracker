@@ -147,7 +147,7 @@ function AppContent({ session }: { session: Session }) {
   const [swipePct, setSwipePct] = useState(0)
   const [strategyMapperOpen, setStrategyMapperOpen] = useState(false)
 
-  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
   const [challengeWin, setChallengeWin] = useState<{ amount: number } | null>(null)
@@ -556,7 +556,7 @@ function AppContent({ session }: { session: Session }) {
             <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} onSwipeProgress={setSwipePct} />
           )}
 
-          <CashFlowForecastSetup open={cashflowSetupOpen} onClose={() => setCashflowSetupOpen(false)} state={state} onUpdateSettings={updateSettings} />
+          <CashFlowForecastSetup open={cashflowSetupOpen} onClose={() => setCashflowSetupOpen(false)} state={state} onUpdateSettings={updateSettings} onUpdateForecastSettings={updateForecastSettings} />
 
           <DailyReflectionSheet
             open={reflectionOpen}

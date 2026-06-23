@@ -31,7 +31,7 @@ export const HEALTH_MESSAGE: Record<Health, string> = {
 export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
   const c = useTheme()
   const F = 'Plus Jakarta Sans'
-  const enabled = state.settings.forecast_enabled ?? true
+  const enabled = state.forecast_settings.enabled ?? true
   const ready = forecastReady(state)
   const forecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
 

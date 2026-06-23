@@ -3,18 +3,19 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { estimateForecastSalary } from '@/lib/cashflow'
-import type { AppState, Settings } from '@/types'
+import type { AppState, Settings, ForecastSettings } from '@/types'
 
 interface Props {
   open: boolean
   onClose: () => void
   state: AppState
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>
+  onUpdateForecastSettings: (patch: Partial<ForecastSettings>) => Promise<void>
 }
 
 const F = 'Plus Jakarta Sans'
 
-export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings }: Props) {
+export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, onUpdateForecastSettings }: Props) {
   const c = useTheme()
   const s = state.settings
 
@@ -24,12 +25,13 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings }
 
   const initSet = (ids: string[] | null | undefined, all: string[]) => new Set(ids == null ? all : ids)
 
-  const [enabled, setEnabled] = useState(s.forecast_enabled ?? true)
-  const [days, setDays] = useState(s.forecast_days ?? 60)
+  const fs = state.forecast_settings
+  const [enabled, setEnabled] = useState(fs.enabled ?? true)
+  const [days, setDays] = useState(fs.days ?? 60)
   const [salaryDay, setSalaryDay] = useState(s.salary_date != null ? String(s.salary_date) : '')
-  const [override, setOverride] = useState(s.forecast_salary_override != null ? String(s.forecast_salary_override) : '')
-  const [commitSel, setCommitSel] = useState<Set<string>>(() => initSet(s.forecast_commitment_ids, activeCommitments.map(x => x.id)))
-  const [savingsSel, setSavingsSel] = useState<Set<string>>(() => initSet(s.forecast_savings_ids, activeSavings.map(x => x.id)))
+  const [override, setOverride] = useState(fs.salary_override != null ? String(fs.salary_override) : '')
+  const [commitSel, setCommitSel] = useState<Set<string>>(() => initSet(fs.commitment_ids, activeCommitments.map(x => x.id)))
+  const [savingsSel, setSavingsSel] = useState<Set<string>>(() => initSet(fs.savings_ids, activeSavings.map(x => x.id)))
   const [saving, setSaving] = useState(false)
 
   const canEstimate = salaryEst.amount != null && salaryEst.source !== 'override'
@@ -45,20 +47,23 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings }
     setSaving(true)
     const allCommit = activeCommitments.map(x => x.id)
     const allSavings = activeSavings.map(x => x.id)
-    const patch: Partial<Settings> = {
-      forecast_enabled: enabled,
-      forecast_days: days,
-      // store null when everything is selected so future items are auto-included
-      forecast_commitment_ids: allCommit.every(id => commitSel.has(id)) ? null : [...commitSel],
-      forecast_savings_ids: allSavings.every(id => savingsSel.has(id)) ? null : [...savingsSel],
+    const fPatch: Partial<ForecastSettings> = {
+      enabled,
+      days,
+      commitment_ids: allCommit.every(id => commitSel.has(id)) ? null : [...commitSel],
+      savings_ids: allSavings.every(id => savingsSel.has(id)) ? null : [...savingsSel],
     }
     if (!canEstimate) {
       const ov = parseFloat(override)
-      patch.forecast_salary_override = ov > 0 ? Math.round(ov) : null
+      fPatch.salary_override = ov > 0 ? Math.round(ov) : null
     }
+    const settingsPatch: Partial<Settings> = {}
     const day = parseInt(salaryDay)
-    if (day >= 1 && day <= 31 && day !== s.salary_date) patch.salary_date = day // reuses the EXISTING field
-    try { await onUpdateSettings(patch) } catch (_) { /* keep UI responsive */ }
+    if (day >= 1 && day <= 31 && day !== s.salary_date) settingsPatch.salary_date = day
+    try {
+      await onUpdateForecastSettings(fPatch)
+      if (Object.keys(settingsPatch).length > 0) await onUpdateSettings(settingsPatch)
+    } catch (_) { /* keep UI responsive */ }
     setSaving(false)
     onClose()
   }

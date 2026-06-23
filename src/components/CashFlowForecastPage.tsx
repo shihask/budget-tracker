@@ -101,7 +101,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   const toneSoft = health === 'critical' ? c.badSoft : health === 'warning' ? c.warnSoft : c.goodSoft
   const message = projections.length === 0 ? 'No upcoming events' : HEALTH_MESSAGE[health]
   const salaryDays = nextSalaryDate ? daysUntil(nextSalaryDate) : null
-  const days = state.settings.forecast_days ?? 60
+  const days = state.forecast_settings.days ?? 60
 
   return createPortal(
     <div

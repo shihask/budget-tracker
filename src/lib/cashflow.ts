@@ -79,7 +79,7 @@ export function estimateForecastSalary(state: AppState): { amount: number | null
   if (salaryTxns.length === 1) {
     return { amount: Math.round(salaryTxns[0].amount), source: 'recent' }
   }
-  const override = state.settings.forecast_salary_override
+  const override = state.forecast_settings.salary_override
   if (override != null && override > 0) {
     return { amount: Math.round(override), source: 'override' }
   }
@@ -99,12 +99,12 @@ export function forecastReady(state: AppState): boolean {
 
 export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics): CashFlowForecast {
   const today = midnight(new Date())
-  const days = state.settings.forecast_days ?? HORIZON_DAYS
+  const days = state.forecast_settings.days ?? HORIZON_DAYS
   const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days)
 
   // Optional include-lists (null = include all active). Set during forecast setup.
-  const incCommit = state.settings.forecast_commitment_ids
-  const incSavings = state.settings.forecast_savings_ids
+  const incCommit = state.forecast_settings.commitment_ids
+  const incSavings = state.forecast_settings.savings_ids
 
   // Spendable cash now. availableBalance = actual balance − emergency fund.
   // We deliberately do NOT use realFreeMoney here: that already subtracts

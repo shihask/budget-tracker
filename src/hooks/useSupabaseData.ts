@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, BudgetBucket } from '@/types'
+import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, BudgetBucket, ForecastSettings } from '@/types'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 
 const delta = (type: TransactionType, amount: number) => {
@@ -18,7 +18,8 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, budget_strategy: 'none', custom_needs_pct: 50, custom_wants_pct: 30, custom_savings_pct: 20, budget_strategy_base: 'income', last_reflection_date: null, forecast_enabled: true, forecast_days: 60, forecast_commitment_ids: null, forecast_savings_ids: null, forecast_salary_override: null },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, budget_strategy: 'none', custom_needs_pct: 50, custom_wants_pct: 30, custom_savings_pct: 20, budget_strategy_base: 'income', last_reflection_date: null },
+  forecast_settings: { id: '', enabled: true, days: 60, commitment_ids: null, savings_ids: null, salary_override: null },
   commitments: [],
   borrowings: [],
   transactions: [],
@@ -139,6 +140,7 @@ export function useSupabaseData(userId: string) {
           { data: goals },
           { data: goalContribs },
           { data: savingsRows },
+          { data: forecastRow },
         ] = await Promise.all([
           supabase.from('settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
@@ -156,6 +158,7 @@ export function useSupabaseData(userId: string) {
           supabase.from('goals').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
           supabase.from('goal_contributions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(200),
           supabase.from('savings').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
+          supabase.from('forecast_settings').select('*').eq('user_id', userId).limit(1).single(),
         ])
 
         // First login — seed settings
@@ -167,6 +170,16 @@ export function useSupabaseData(userId: string) {
             .select('*').single()
           if (error || !created) { console.error('Failed to create settings:', error); setLoading(false); return }
           settings = created
+        }
+
+        // First login — seed forecast_settings
+        let forecastSettings = forecastRow as ForecastSettings | null
+        if (!forecastSettings) {
+          const { data: created } = await supabase
+            .from('forecast_settings')
+            .insert({ user_id: userId, enabled: true, days: 60, commitment_ids: null, savings_ids: null, salary_override: null })
+            .select('*').single()
+          forecastSettings = (created as ForecastSettings) ?? { id: '', user_id: userId, enabled: true, days: 60, commitment_ids: null, savings_ids: null, salary_override: null }
         }
 
         // First login — seed groups
@@ -321,6 +334,7 @@ export function useSupabaseData(userId: string) {
           groups: userGroups as Group[],
           credit_cards: (credit_cards as CreditCard[]) || [],
           settings,
+          forecast_settings: forecastSettings,
           commitments: (commitments as Commitment[]) || [],
           borrowings: borrowings || [],
           transactions: (transactions as Transaction[]) || [],
@@ -1182,6 +1196,13 @@ export function useSupabaseData(userId: string) {
     } catch (err) { console.error('Failed to update settings:', err); throw err }
   }, [state.settings.id, userId])
 
+  const updateForecastSettings = useCallback(async (patch: Partial<ForecastSettings>) => {
+    try {
+      await supabase.from('forecast_settings').update(patch).eq('id', state.forecast_settings.id)
+      setState(s => ({ ...s, forecast_settings: { ...s.forecast_settings, ...patch } }))
+    } catch (err) { console.error('Failed to update forecast settings:', err); throw err }
+  }, [state.forecast_settings.id])
+
   // Reverse a borrowing-linked transaction (called when user deletes it from TransactionsPage)
   const reversePayment = useCallback(async (t: Transaction) => {
     if (!t.borrowing_id) return
@@ -1350,7 +1371,7 @@ export function useSupabaseData(userId: string) {
 
   return {
     state, setState, loading, usingSupabase,
-    addTransaction, deleteTransaction, updateTransaction, updateSettings,
+    addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings,
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
     addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,

@@ -135,12 +135,16 @@ export interface Settings {
   custom_savings_pct?:          number
   budget_strategy_base?:        'income' | 'available_funds'
   last_reflection_date?:        string | null
-  // ── Cash Flow Forecast (inputs only; forecast output is never stored) ──
-  forecast_enabled?:            boolean
-  forecast_days?:               number
-  forecast_commitment_ids?:     string[] | null   // null = all active commitments
-  forecast_savings_ids?:        string[] | null   // null = all active savings
-  forecast_salary_override?:    number | null     // fallback only, when salary can't be estimated
+}
+
+export interface ForecastSettings {
+  id: string
+  user_id?: string
+  enabled: boolean
+  days: number
+  commitment_ids: string[] | null
+  savings_ids: string[] | null
+  salary_override: number | null
 }
 
 // Commitments are rows in a separate local table (or commitments are derived from transactions)
@@ -221,6 +225,7 @@ export interface AppState {
   groups: Group[]
   credit_cards: CreditCard[]
   settings: Settings
+  forecast_settings: ForecastSettings
   commitments: Commitment[]
   borrowings: Borrowing[]
   transactions: Transaction[]
