@@ -242,54 +242,52 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
 
   type Tier = 'safe' | 'tight' | 'risky' | 'critical'
 
+  // Sum of expense events due before salary in the simulation
+  const prePaydayExpenses = useMemo(() => {
+    if (!simResult) return 0
+    const salaryDate = simResult.nextSalaryDate
+    return simResult.projections
+      .filter(p => p.event.type === 'expense' && (!salaryDate || p.event.date < salaryDate))
+      .reduce((s, p) => s + p.event.amount, 0)
+  }, [simResult])
+
   const getStatus = () => {
     if (!checked || isNaN(amt)) return null
 
-    // Snapshot checks
     const exceedsFreeMoney = amt > freeMoney
     const exceedsSPP = safePurchasingPower <= 0 || amt > safePurchasingPower
-
-    // Forecast check — can override snapshot
     const simLowest = simResult?.lowestBalance ?? null
     const forecastGoesNegative = simLowest != null && simLowest < 0
     const forecastTight = simLowest != null && simLowest >= 0 && simLowest < LOW_CUSHION
+    const balance = Math.round(d.availableBalance)
 
-    // CRITICAL: exceeds free money OR forecast goes negative
-    if (exceedsFreeMoney) return {
-      tier: 'critical' as Tier,
-      color: c.bad, bg: '#FEE2E2',
-      label: 'Not Affordable',
-      sub: 'This purchase exceeds your available free money.',
+    if (exceedsFreeMoney) {
+      const sub = simResult && prePaydayExpenses > 0
+        ? `You have ${fmt(balance)} available. Before your next salary, ${fmt(prePaydayExpenses)} in payments are due. Buying this now could leave you short by ${fmt(Math.abs(simResult.lowestBalance))}.`
+        : `You have ${fmt(balance)} available but this purchase costs ${fmt(amt)}.`
+      return { tier: 'critical' as Tier, color: c.bad, bg: '#FEE2E2', label: 'Not Affordable', sub }
     }
-    if (forecastGoesNegative) return {
-      tier: 'critical' as Tier,
-      color: c.bad, bg: '#FEE2E2',
-      label: 'Will Cause Shortfall',
-      sub: `Affordable today, but your balance is projected to go negative${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''} before payday.`,
+    if (forecastGoesNegative) {
+      return {
+        tier: 'critical' as Tier, color: c.bad, bg: '#FEE2E2',
+        label: 'Will Cause Shortfall',
+        sub: `You can cover this today, but ${fmt(prePaydayExpenses)} in payments are due before salary. Your balance would drop to ${fmt(simResult!.lowestBalance)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''}.`,
+      }
     }
-
-    // RISKY: dips into reserved weekly budget
     if (exceedsSPP) return {
-      tier: 'risky' as Tier,
-      color: '#D97706', bg: '#FEF3C7',
+      tier: 'risky' as Tier, color: '#D97706', bg: '#FEF3C7',
       label: 'Risky Purchase',
       sub: hasWeeklyContext
-        ? `You can afford this, but it uses money reserved for your remaining ${weeksRemaining}-week budget.`
-        : 'You can afford this, but think carefully.',
+        ? `You can afford this, but it uses ${fmt(amt - safePurchasingPower)} from money reserved for your ${weeksRemaining}-week budget.`
+        : 'You can afford this, but it uses most of your available money.',
     }
-
-    // TIGHT: affordable + forecast cushion is thin
     if (forecastTight) return {
-      tier: 'tight' as Tier,
-      color: '#D97706', bg: '#FEF3C7',
+      tier: 'tight' as Tier, color: '#D97706', bg: '#FEF3C7',
       label: 'Tight — Cuts It Close',
-      sub: `Affordable, but your projected balance dips to ${fmt(simLowest!)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''} before payday.`,
+      sub: `You can afford this, but your balance drops to ${fmt(simLowest!)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''} before payday.`,
     }
-
-    // SAFE
     return {
-      tier: 'safe' as Tier,
-      color: c.good, bg: '#DCFCE7',
+      tier: 'safe' as Tier, color: c.good, bg: '#DCFCE7',
       label: 'Safe Purchase',
       sub: canForecast
         ? 'This purchase fits comfortably. Your forecast remains healthy.'
@@ -553,53 +551,118 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
               )}
             </div>
 
-            {/* Phase 2: Forecast Impact */}
-            {simResult && (
-              <div style={{ background: c.surface, borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid ${c.faint}` }}>
-                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>What happens if you buy this</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  <Row label="You have now" value={fmt(simResult.currentBalance + amt)} />
-                  <Row label="After buying" value={fmt(simResult.currentBalance)} />
-                  <Divider />
-                  <Row
-                    label={`Lowest point${simResult.lowestBalanceDate ? ` · ${shortDate(simResult.lowestBalanceDate)}` : ''}`}
-                    value={fmt(simResult.lowestBalance)}
-                    bold
-                    color={simResult.lowestBalance < 0 ? c.bad : simResult.lowestBalance < LOW_CUSHION ? '#D97706' : c.good}
-                    info="The lowest your balance will drop before it recovers"
-                  />
-                  {simResult.recoveryDate && simResult.recoveryBalance != null && (
-                    <Row
-                      label={`Back on track · ${shortDate(simResult.recoveryDate)}`}
-                      value={fmt(simResult.recoveryBalance)}
-                      color={c.good}
-                      info="When your balance becomes healthy again"
+            {/* What happens if you buy this — chronological timeline */}
+            {simResult && (() => {
+              const salaryDate = simResult.nextSalaryDate
+              const beforeSalary = simResult.projections.filter(p => p.event.type === 'expense' && (!salaryDate || p.event.date < salaryDate))
+              const afterSalary = simResult.projections.filter(p => p.event.type === 'expense' && salaryDate && p.event.date >= salaryDate)
+              const salaryEvent = simResult.projections.find(p => p.event.source === 'salary')
+              const lowestColor = simResult.lowestBalance < 0 ? c.bad : simResult.lowestBalance < LOW_CUSHION ? '#D97706' : c.good
+
+              const TimelineRow = ({ label, amount, balance, date, isIncome, isLowest, isRecovery }: {
+                label: string; amount?: number; balance: number; date?: string; isIncome?: boolean; isLowest?: boolean; isRecovery?: boolean
+              }) => {
+                const balColor = isLowest ? lowestColor : isRecovery ? c.good : balance < 0 ? c.bad : c.ink
+                return (
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '5px 0' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ font: `${isLowest || isRecovery ? '700' : '600'} 12px Plus Jakarta Sans`, color: isLowest ? lowestColor : isRecovery ? c.good : c.ink }}>{label}</span>
+                      {date && <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginLeft: 6 }}>{date}</span>}
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 8 }}>
+                      {amount != null && (
+                        <div style={{ font: '600 11px Plus Jakarta Sans', color: isIncome ? c.good : c.muted }}>
+                          {isIncome ? '+' : '−'}{fmt(amount)}
+                        </div>
+                      )}
+                      <div style={{ font: `${isLowest || isRecovery ? '800' : '700'} 13px Plus Jakarta Sans`, color: balColor }}>
+                        {fmt(balance)}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <div style={{ background: c.surface, borderRadius: 16, padding: 14, marginBottom: 14, border: `1px solid ${c.faint}` }}>
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>What happens if you buy this</div>
+
+                  {/* Starting balance */}
+                  <TimelineRow label="You have now" balance={simResult.currentBalance + amt} />
+                  <div style={{ height: 1, background: c.faint, margin: '2px 0' }} />
+
+                  {/* Purchase */}
+                  <TimelineRow label={item || 'This purchase'} amount={amt} balance={simResult.currentBalance} />
+
+                  {/* Events before salary */}
+                  {beforeSalary.map((p, i) => (
+                    <TimelineRow
+                      key={`pre-${i}`}
+                      label={p.event.title}
+                      amount={p.event.amount}
+                      balance={p.balanceAfter}
+                      date={shortDate(p.event.date)}
+                      isLowest={!!simResult.lowestBalanceDate && p.event.date === simResult.lowestBalanceDate && p.balanceAfter === simResult.lowestBalance}
                     />
+                  ))}
+
+                  {/* Lowest point marker (if not already on an event row) */}
+                  {simResult.lowestBalance < simResult.currentBalance && !beforeSalary.some(p => p.balanceAfter === simResult.lowestBalance) && (
+                    <>
+                      <div style={{ height: 1, background: lowestColor + '40', margin: '2px 0' }} />
+                      <TimelineRow label="Lowest point" balance={simResult.lowestBalance} date={simResult.lowestBalanceDate ? shortDate(simResult.lowestBalanceDate) : undefined} isLowest />
+                    </>
                   )}
-                  {!simResult.recoveryDate && simResult.nextSalaryDate && simResult.lowestBalance >= 0 && (
-                    <Row
-                      label={`After salary · ${shortDate(simResult.nextSalaryDate)}`}
-                      value={fmt(simResult.projections.length > 0 ? simResult.projections[simResult.projections.length - 1].balanceAfter : simResult.currentBalance)}
-                      color={c.good}
-                    />
+
+                  {/* Salary */}
+                  {salaryEvent && (
+                    <>
+                      <div style={{ height: 1, background: c.good + '40', margin: '4px 0' }} />
+                      <TimelineRow label="Salary" amount={salaryEvent.event.amount} balance={salaryEvent.balanceAfter} date={shortDate(salaryEvent.event.date)} isIncome isRecovery />
+                    </>
+                  )}
+
+                  {/* Events after salary */}
+                  {afterSalary.length > 0 && (
+                    <>
+                      {afterSalary.map((p, i) => (
+                        <TimelineRow key={`post-${i}`} label={p.event.title} amount={p.event.amount} balance={p.balanceAfter} date={shortDate(p.event.date)} />
+                      ))}
+                    </>
+                  )}
+
+                  {/* Split upcoming payments summary */}
+                  {status!.tier !== 'safe' && (beforeSalary.length > 0 || afterSalary.length > 0) && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
+                      {beforeSalary.length > 0 && (
+                        <>
+                          <div style={{ font: '700 11px Plus Jakarta Sans', color: c.bad, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Due before salary</div>
+                          {beforeSalary.map((p, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                              <div style={{ width: 5, height: 5, borderRadius: 999, background: c.bad, flexShrink: 0 }} />
+                              <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{p.event.title}</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(p.event.amount)}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      {afterSalary.length > 0 && (
+                        <div style={{ marginTop: beforeSalary.length > 0 ? 8 : 0 }}>
+                          <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Due after salary</div>
+                          {afterSalary.map((p, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                              <div style={{ width: 5, height: 5, borderRadius: 999, background: c.muted, flexShrink: 0 }} />
+                              <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.muted }}>{p.event.title}</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.muted }}>{fmt(p.event.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-
-                {/* Main Pressure */}
-                {status!.tier !== 'safe' && simDrivers.length > 0 && (
-                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
-                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Upcoming payments</div>
-                    {simDrivers.map((dr, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <div style={{ width: 5, height: 5, borderRadius: 999, background: status!.color, flexShrink: 0 }} />
-                        <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{dr.title}</span>
-                        <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(dr.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+              )
+            })()}
 
             {/* Recommendation */}
             {timingAdvice && status!.tier !== 'safe' && (
