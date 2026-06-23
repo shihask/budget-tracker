@@ -79,15 +79,9 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
       periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
     }
 
-    const cycleIncome = state.transactions
-      .filter(t => t.transaction_type === 'income' && new Date(t.transaction_date) >= periodStart)
-      .reduce((s, t) => s + t.amount, 0)
-
-    // 'available_funds' uses account balance (minus emergency fund) as the strategy base.
-    // This lets users with savings-first or pre-funded accounts run the 50/30/20 framework.
     const income = base === 'available_funds'
       ? Math.max(0, d.availableBalance)
-      : cycleIncome
+      : (state.settings.monthly_salary ?? 0)
 
     const actuals: Record<BudgetBucket, number> = { needs: 0, wants: 0, savings: 0 }
     const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
@@ -132,7 +126,7 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
     const savingsScore = targets.savings > 0 ? Math.min(100, Math.round(actuals.savings / targets.savings * 100)) : 0
     const overallScore = Math.round((needsScore + wantsScore + savingsScore) / 3)
 
-    return { pcts, base, income, cycleIncome, actuals, targets, needsScore, wantsScore, savingsScore, overallScore }
+    return { pcts, base, income, actuals, targets, needsScore, wantsScore, savingsScore, overallScore }
   }, [state, d])
 }
 
@@ -179,7 +173,7 @@ export function BudgetStrategyCard({ state, d, onOpenSettings }: BudgetStrategyC
   const data = useStrategyData(state, d)
   if (!data) return null
 
-  const { pcts, base, income, cycleIncome, actuals, targets, needsScore, wantsScore, savingsScore, overallScore } = data
+  const { pcts, base, income, actuals, targets, needsScore, wantsScore, savingsScore, overallScore } = data
   const noBase = income === 0
 
   return (
@@ -249,10 +243,10 @@ export function BudgetStrategyCard({ state, d, onOpenSettings }: BudgetStrategyC
             </div>
             <div style={{ flex: 1, background: c.surface2, borderRadius: 12, padding: '10px 12px' }}>
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                {cycleIncome > 0 ? 'Cycle Income' : 'Available to Spend'}
+                {income > 0 ? 'Monthly Salary' : 'Available to Spend'}
               </div>
-              <div style={{ font: '800 15px Plus Jakarta Sans', color: cycleIncome > 0 ? c.good : c.ink }}>
-                {fmt(cycleIncome > 0 ? cycleIncome : d.realFreeMoney)}
+              <div style={{ font: '800 15px Plus Jakarta Sans', color: income > 0 ? c.good : c.ink }}>
+                {fmt(income > 0 ? income : d.realFreeMoney)}
               </div>
             </div>
           </div>

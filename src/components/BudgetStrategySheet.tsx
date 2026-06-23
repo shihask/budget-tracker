@@ -147,7 +147,7 @@ export function BudgetStrategySheet({ open, onClose, budgetStrategy, customNeeds
                 Strategy base — what the Needs/Wants/Savings targets are calculated from
               </div>
               {([
-                { value: 'income' as const, label: 'Income (Recommended)', desc: 'Only income transactions in the current cycle. How 50/30/20 is intended.' },
+                { value: 'income' as const, label: 'Income (Recommended)', desc: 'Uses your monthly salary from Settings. How 50/30/20 is intended.' },
                 { value: 'available_funds' as const, label: 'Available Funds', desc: 'Your account balance minus emergency fund. Useful when using savings or pre-funded accounts.' },
               ] as const).map(opt => (
                 <div
