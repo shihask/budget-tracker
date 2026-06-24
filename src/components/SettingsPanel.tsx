@@ -13,6 +13,7 @@ interface SettingsPanelProps {
   trackCreditCards: boolean
   trackBorrowings: boolean
   trackSavings: boolean
+  trackProjects: boolean
   budgetStrategyEnabled: boolean
   challengeEnabled: boolean
   autopilotEnabled: boolean
@@ -31,6 +32,7 @@ interface SettingsPanelProps {
   onTrackCreditCards: (v: boolean) => Promise<void>
   onTrackBorrowings: (v: boolean) => Promise<void>
   onTrackSavings: (v: boolean) => Promise<void>
+  onTrackProjects: (v: boolean) => Promise<void>
   onBudgetStrategy: (v: boolean) => void
   onChallengeEnabled: (v: boolean) => Promise<void>
   onAutopilot: (v: boolean) => Promise<void>
@@ -42,7 +44,7 @@ interface SettingsPanelProps {
   onDashboardLayout: () => void
 }
 
-export function SettingsPanel({ accent, dark, layout, salaryDate, monthlySalary, trackCreditCards, trackBorrowings, trackSavings, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, onAccent, onDark, onLayout, onSalaryDate, onMonthlySalary, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, salaryDate, monthlySalary, trackCreditCards, trackBorrowings, trackSavings, trackProjects, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, onAccent, onDark, onLayout, onSalaryDate, onMonthlySalary, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
@@ -284,6 +286,19 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, monthlySalary,
           style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackSavings ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
         >
           <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackSavings ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+        </button>
+      </div>
+
+      <div style={rowStyle}>
+        <div>
+          <div style={labelStyle}>Projects</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Track renovations, events & shared goals</div>
+        </div>
+        <button
+          onClick={() => onTrackProjects(!trackProjects)}
+          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackProjects ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
+        >
+          <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackProjects ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </button>
       </div>
 

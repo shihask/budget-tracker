@@ -55,6 +55,10 @@ import { CategoryBucketMapper } from '@/components/CategoryBucketMapper'
 import { BudgetStrategySheet } from '@/components/BudgetStrategySheet'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { computeChallenge } from '@/lib/challenge'
+import { ProjectsDashboardCard } from '@/features/shared-projects/components/ProjectsDashboardCard'
+import { ProjectsListPage } from '@/features/shared-projects/components/ProjectsListPage'
+import { PublicProjectPage } from '@/features/shared-projects/components/PublicProjectPage'
+import { useProjectsSummary } from '@/features/shared-projects/hooks/useProjectsSummary'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -94,6 +98,17 @@ export default function App() {
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
+
+  // Public project view — works for both logged-in and anonymous visitors
+  const path = window.location.pathname
+  if (path.startsWith('/project/')) {
+    const code = path.replace('/project/', '').replace(/\/$/, '')
+    if (code) return (
+      <ThemeContext.Provider value={makeColors('#10B981', false)}>
+        <PublicProjectPage shareCode={code} />
+      </ThemeContext.Provider>
+    )
+  }
 
   if (isResetting) return <ResetPasswordPage onDone={async () => {
     setIsResetting(false)
@@ -137,6 +152,8 @@ function AppContent({ session }: { session: Session }) {
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [cashflowOpen, setCashflowOpen] = useState(false)
   const [cashflowSetupOpen, setCashflowSetupOpen] = useState(false)
+  const [projectsOpen, setProjectsOpen] = useState(false)
+  const [projectsAddOnOpen, setProjectsAddOnOpen] = useState(false)
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
@@ -150,6 +167,8 @@ function AppContent({ session }: { session: Session }) {
   const [budgetStrategySheetOpen, setBudgetStrategySheetOpen] = useState(false)
 
   const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
+
+  const projectsSummary = useProjectsSummary(session.user.id)
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
   const [challengeWin, setChallengeWin] = useState<{ amount: number } | null>(null)
@@ -259,7 +278,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'none' : 'block',
           }}>
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} />
           </div>
@@ -356,6 +375,9 @@ function AppContent({ session }: { session: Session }) {
                       break
                     case 'credit_cards':
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} onAdjustBalance={adjustCreditCardBalance} /> : null
+                      break
+                    case 'projects':
+                      el = (state.settings.track_projects ?? false) ? <ProjectsDashboardCard projects={projectsSummary.activeProjects} onSeeAll={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }} onAdd={() => { setProjectsAddOnOpen(true); setProjectsOpen(true) }} /> : null
                       break
                     case 'goals':
                       el = <GoalsSection
@@ -502,7 +524,7 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen || cashflowOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 0.4 * (1 - swipePct) : 0})`,
             pointerEvents: 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
@@ -517,6 +539,15 @@ function AppContent({ session }: { session: Session }) {
 
           {borrowingOpen && (
             <BorrowingPage state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} onClose={() => setBorrowingOpen(false)} initialAddOpen={borrowingAddOnOpen} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />
+          )}
+
+          {projectsOpen && (
+            <ProjectsListPage
+              userId={session.user.id}
+              onClose={() => { setProjectsOpen(false); setProjectsAddOnOpen(false) }}
+              onSwipeProgress={setSwipePct}
+              initialAddOpen={projectsAddOnOpen}
+            />
           )}
 
           {savingsOpen && (
@@ -589,6 +620,7 @@ function AppContent({ session }: { session: Session }) {
               trackCreditCards={state.settings.track_credit_cards ?? false}
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackSavings={state.settings.track_savings ?? false}
+              trackProjects={state.settings.track_projects ?? false}
               budgetStrategyEnabled={state.budget_strategy_settings.budget_strategy !== 'none'}
               challengeEnabled={state.settings.challenge_enabled ?? false}
               autopilotEnabled={state.settings.autopilot_enabled ?? false}
@@ -605,6 +637,7 @@ function AppContent({ session }: { session: Session }) {
               onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
               onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
               onTrackSavings={v => updateSettings({ track_savings: v })}
+              onTrackProjects={v => updateSettings({ track_projects: v })}
               onBudgetStrategy={v => { updateBudgetStrategySettings({ budget_strategy: v ? 'balanced' : 'none' }); if (v) setBudgetStrategySheetOpen(true) }}
               onChallengeEnabled={v => updateSettings({ challenge_enabled: v })}
               onAutopilot={v => updateSettings({ autopilot_enabled: v })}

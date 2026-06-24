@@ -30,7 +30,7 @@ const EMPTY_STATE: AppState = {
   planned_expenses: [],
 }
 
-const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false }
+const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_projects: false }
 
 const DEFAULT_GROUPS: { name: string; is_system?: boolean; is_editable?: boolean; is_deletable?: boolean; type?: string }[] = [
   { name: 'Lifestyle',   type: 'discretionary' },

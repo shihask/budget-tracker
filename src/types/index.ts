@@ -117,6 +117,7 @@ export interface Settings {
   notify_commitments?: boolean
   notify_weekly_summary?: boolean
   track_savings?: boolean
+  track_projects?: boolean
   budget_mode?: 'auto' | 'manual'
   hero_mode?: 'remaining' | 'budget'
   challenge_enabled?:           boolean
@@ -373,6 +374,7 @@ export type Layout = 'grid' | 'carousel' | 'list'
 export type DashboardSectionId =
   | 'hero' | 'affordability' | 'daily_challenge' | 'metrics' | 'commitments' | 'goals'
   | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns' | 'savings' | 'cashflow'
+  | 'projects'
 
 export interface DashboardSection {
   id: string                    // built-ins use DashboardSectionId; custom sections use 'custom__<timestamp>'
@@ -394,6 +396,7 @@ export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'savings',       visible: true },
   { id: 'borrowing',     visible: true },
   { id: 'credit_cards',  visible: true },
+  { id: 'projects',      visible: true },
   { id: 'analytics',     visible: true },
   { id: 'recent_txns',   visible: true },
 ]
