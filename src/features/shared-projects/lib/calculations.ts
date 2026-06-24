@@ -65,22 +65,27 @@ export function calcSettlement(
     return { creditors: [], debtors: [], settlements: [] }
   }
 
-  // Only member-paid expenses affect settlement; project fund expenses are excluded
-  const memberExpenses = transactions
-    .filter(t => t.transaction_type === 'expense' && t.member_id != null)
-  const totalMemberExpenses = memberExpenses.reduce((s, t) => s + t.amount, 0)
+  const totalExpenses = transactions
+    .filter(t => t.transaction_type === 'expense')
+    .reduce((s, t) => s + t.amount, 0)
 
   const totalRatio = activeMembers.reduce((s, m) => s + m.share_ratio, 0)
 
+  // Each member's total input = contributions + expenses they paid personally
+  // Fair share = their proportion of ALL expenses (including fund expenses)
   const balances = activeMembers.map(member => {
-    const paid = memberExpenses
-      .filter(t => t.member_id === member.id)
+    const contributed = transactions
+      .filter(t => t.member_id === member.id && t.transaction_type === 'contribution')
       .reduce((s, t) => s + t.amount, 0)
-    const fairShare = totalRatio > 0 ? (member.share_ratio / totalRatio) * totalMemberExpenses : 0
+    const paidExpenses = transactions
+      .filter(t => t.member_id === member.id && t.transaction_type === 'expense')
+      .reduce((s, t) => s + t.amount, 0)
+    const totalInput = contributed + paidExpenses
+    const fairShare = totalRatio > 0 ? (member.share_ratio / totalRatio) * totalExpenses : 0
     return {
       memberId: member.id,
       memberName: member.name,
-      net: Math.round((paid - fairShare) * 100) / 100,
+      net: Math.round((totalInput - fairShare) * 100) / 100,
     }
   })
 
