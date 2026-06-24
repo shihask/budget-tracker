@@ -61,7 +61,7 @@ export function getCategoryBucket(cat: AppState['categories'][0], groups: AppSta
   return getAutoBucket(groups, cat.group_name)
 }
 
-function useStrategyData(state: AppState, d: DerivedMetrics) {
+export function useStrategyData(state: AppState, d: DerivedMetrics) {
   return useMemo(() => {
     const pcts = getStrategyPcts(state.budget_strategy_settings)
     if (!pcts) return null
@@ -84,6 +84,7 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
       : (state.settings.monthly_salary ?? 0)
 
     const actuals: Record<BudgetBucket, number> = { needs: 0, wants: 0, savings: 0 }
+    const catTotals: Record<BudgetBucket, Record<string, number>> = { needs: {}, wants: {}, savings: {} }
     const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
 
     for (const t of state.transactions) {
@@ -101,8 +102,6 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
       } else if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') {
         effectiveBucket = getCategoryBucket(cat, state.groups)
       } else if (t.transaction_type === 'borrowing_repayment') {
-        // Outgoing repayments (paying back borrowed money) → Needs by default.
-        // Incoming repayments (is_credit=true) are credit/income-like and should be excluded.
         if (!t.is_credit) {
           effectiveBucket = cat.budget_bucket ?? 'needs'
         }
@@ -112,6 +111,14 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
 
       if (!effectiveBucket) continue
       actuals[effectiveBucket] += t.amount
+      catTotals[effectiveBucket][cat.name] = (catTotals[effectiveBucket][cat.name] || 0) + t.amount
+    }
+
+    const categoryBreakdown: Record<BudgetBucket, { name: string; amount: number }[]> = { needs: [], wants: [], savings: [] }
+    for (const b of ['needs', 'wants', 'savings'] as BudgetBucket[]) {
+      categoryBreakdown[b] = Object.entries(catTotals[b])
+        .map(([name, amount]) => ({ name, amount }))
+        .sort((a, b) => b.amount - a.amount)
     }
 
     const targets = {
@@ -126,7 +133,7 @@ function useStrategyData(state: AppState, d: DerivedMetrics) {
     const savingsScore = targets.savings > 0 ? Math.min(100, Math.round(actuals.savings / targets.savings * 100)) : 0
     const overallScore = Math.round((needsScore + wantsScore + savingsScore) / 3)
 
-    return { pcts, base, income, actuals, targets, needsScore, wantsScore, savingsScore, overallScore }
+    return { pcts, base, income, actuals, targets, needsScore, wantsScore, savingsScore, overallScore, categoryBreakdown }
   }, [state, d])
 }
 

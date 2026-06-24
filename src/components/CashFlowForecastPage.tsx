@@ -4,7 +4,8 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
 import { forecastHealth, HEALTH_MESSAGE } from '@/components/CashFlowForecastCard'
-import type { AppState, DerivedMetrics } from '@/types'
+import { useStrategyData, getCategoryBucket } from './BudgetStrategyCard'
+import type { AppState, BudgetBucket, DerivedMetrics } from '@/types'
 
 interface Props {
   state: AppState
@@ -22,6 +23,67 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   const forecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
   const { currentBalance, lowestBalance, lowestBalanceDate, nextSalaryDate, recoveryDate, recoveryBalance, projections } = forecast
   const drivers = useMemo(() => getForecastDrivers(projections, 5), [projections])
+  const strategyData = useStrategyData(state, d)
+
+  const forecastOutcome = useMemo(() => {
+    let income = 0
+    let debt = 0
+    const debtItems: { title: string; amount: number }[] = []
+
+    for (const p of projections) {
+      const ev = p.event
+      if (ev.type === 'income') {
+        income += ev.amount
+      } else if (ev.source === 'card' || ev.source === 'borrowing') {
+        debt += ev.amount
+        debtItems.push({ title: ev.title, amount: ev.amount })
+      }
+    }
+
+    if (income === 0 && debt === 0) return null
+    return { income, debt, available: income - debt, debtItems }
+  }, [projections])
+
+  const projectedBudget = useMemo(() => {
+    if (!strategyData) return null
+    const { actuals, targets } = strategyData
+
+    const projected: Record<BudgetBucket, number> = { needs: actuals.needs, wants: actuals.wants, savings: actuals.savings }
+    const forecastItems: Record<BudgetBucket, { title: string; amount: number }[]> = { needs: [], wants: [], savings: [] }
+    const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
+    let hasProjection = false
+
+    for (const p of projections) {
+      const ev = p.event
+      if (ev.type !== 'expense') continue
+      if (ev.source === 'card' || ev.source === 'borrowing') continue
+
+      let bucket: BudgetBucket | null = null
+      if (ev.source === 'saving') {
+        bucket = 'savings'
+      } else if (ev.source === 'commitment') {
+        const cat = ev.category_id ? catMap[ev.category_id] : null
+        bucket = cat ? getCategoryBucket(cat, state.groups) : 'needs'
+      }
+
+      if (bucket) {
+        projected[bucket] += ev.amount
+        forecastItems[bucket].push({ title: ev.title, amount: ev.amount })
+        hasProjection = true
+      }
+    }
+
+    if (!hasProjection) return null
+
+    return [
+      { label: 'Needs', pct: targets.needs > 0 ? Math.round(projected.needs / targets.needs * 100) : 0, color: '#3B82F6', spending: true, current: actuals.needs, target: targets.needs, items: forecastItems.needs },
+      { label: 'Wants', pct: targets.wants > 0 ? Math.round(projected.wants / targets.wants * 100) : 0, color: '#F97316', spending: true, current: actuals.wants, target: targets.wants, items: forecastItems.wants },
+      { label: 'Savings', pct: targets.savings > 0 ? Math.round(projected.savings / targets.savings * 100) : 0, color: c.accent, spending: false, current: actuals.savings, target: targets.savings, items: forecastItems.savings },
+    ] as const
+  }, [strategyData, projections, state, c.accent])
+
+  const [expandedBucket, setExpandedBucket] = useState<string | null>(null)
+  const [debtExpanded, setDebtExpanded] = useState(false)
 
   // ── Swipe-back gesture (mirrors BorrowingPage) ──
   const [dragX, setDragX] = useState(0)
@@ -181,6 +243,112 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             </div>
           )}
         </div>
+
+        {/* Forecast Outcome */}
+        {forecastOutcome && (
+          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: projectedBudget ? 0 : 24 }}>
+            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
+              Forecast Outcome
+            </div>
+            {forecastOutcome.income > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                <span style={{ font: `600 13px ${F}`, color: c.ink }}>Income Received</span>
+                <span style={{ font: `700 14px ${F}`, color: c.good }}>{fmt(forecastOutcome.income)}</span>
+              </div>
+            )}
+            {forecastOutcome.debt > 0 && (
+              <>
+                <div
+                  onClick={() => setDebtExpanded(!debtExpanded)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ font: `600 13px ${F}`, color: c.ink }}>Debt & Liability Payments</span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: debtExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                  <span style={{ font: `700 14px ${F}`, color: c.bad }}>{fmt(forecastOutcome.debt)}</span>
+                </div>
+                {debtExpanded && (
+                  <div style={{ padding: '2px 0 4px 16px' }}>
+                    {forecastOutcome.debtItems.map((item, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                        <span style={{ font: `500 12px ${F}`, color: c.muted }}>{item.title}</span>
+                        <span style={{ font: `600 12px ${F}`, color: c.muted }}>{fmt(item.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            {forecastOutcome.income > 0 && forecastOutcome.debt > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', marginTop: 4, borderTop: `1px dashed ${c.faint}` }}>
+                <span style={{ font: `700 13px ${F}`, color: c.ink }}>Available After Obligations</span>
+                <span style={{ font: `800 14px ${F}`, color: forecastOutcome.available >= 0 ? c.good : c.bad }}>{fmt(forecastOutcome.available)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Projected Budget Completion */}
+        {projectedBudget && (
+          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 24, marginTop: forecastOutcome ? 2 : 0, borderTop: forecastOutcome ? `1px solid ${c.faint}` : 'none', borderTopLeftRadius: forecastOutcome ? 0 : 16, borderTopRightRadius: forecastOutcome ? 0 : 16 }}>
+            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>
+              Projected Budget Completion
+            </div>
+            {projectedBudget.map(({ label, pct, color, spending, current, target, items }) => {
+              const ok = spending ? pct <= 100 : pct >= 100
+              const expanded = expandedBucket === label
+              const upcomingTotal = items.reduce((s, it) => s + it.amount, 0)
+              return (
+                <div key={label}>
+                  <div
+                    onClick={() => setExpandedBucket(expanded ? null : label)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: !expanded && label !== 'Savings' ? `1px solid ${c.faint}` : 'none', cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }} />
+                      <span style={{ font: `700 14px ${F}`, color: c.ink }}>{label}</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ font: `800 15px ${F}`, color: ok ? c.good : c.warn }}>{pct}%</span>
+                      <span style={{ fontSize: 14, color: ok ? c.good : c.warn }}>{ok ? '✓' : '⚠'}</span>
+                    </div>
+                  </div>
+                  {expanded && (
+                    <div style={{ padding: '4px 0 10px 18px', borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
+                        <span style={{ font: `600 12px ${F}`, color: c.muted }}>{spending ? 'Spent so far' : 'Saved so far'}</span>
+                        <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(current)}</span>
+                      </div>
+                      {items.map((item, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
+                          <span style={{ font: `600 12px ${F}`, color: c.ink }}>+ {item.title}</span>
+                          <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(item.amount)}</span>
+                        </div>
+                      ))}
+                      {items.length === 0 && (
+                        <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '5px 0', fontStyle: 'italic' }}>No upcoming items</div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', marginTop: 4, borderTop: `1px dashed ${c.faint}` }}>
+                        <span style={{ font: `700 12px ${F}`, color: c.ink }}>Projected</span>
+                        <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn }}>{fmt(current + upcomingTotal)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                        <span style={{ font: `600 11px ${F}`, color: c.muted }}>Target</span>
+                        <span style={{ font: `700 12px ${F}`, color: c.muted }}>{fmt(target)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Forecast Drivers */}
         {drivers.length > 0 && (

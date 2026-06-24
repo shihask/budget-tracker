@@ -13,6 +13,8 @@ export interface CashFlowEvent {
   amount: number
   type: 'income' | 'expense'
   source: 'salary' | 'commitment' | 'saving' | 'card' | 'borrowing'
+  category_id?: string | null
+  card_id?: string
 }
 
 export interface CashFlowProjection {
@@ -147,7 +149,7 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     if (due < today || due > horizon) continue
     const amount = Math.round(Math.min(c.amount, c.remaining))
     if (!(amount > 0)) continue
-    events.push({ date: isoOf(due), title: c.name, amount, type: 'expense', source: 'commitment' })
+    events.push({ date: isoOf(due), title: c.name, amount, type: 'expense', source: 'commitment', category_id: c.category_id })
   }
 
   // ── Upcoming savings contributions (SIP / gold / RD / chit …) ──
@@ -164,7 +166,7 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     if (due < today || due > horizon) continue
     const amount = Math.round(s.amount)
     if (!(amount > 0)) continue
-    events.push({ date: isoOf(due), title: s.name, amount, type: 'expense', source: 'saving' })
+    events.push({ date: isoOf(due), title: s.name, amount, type: 'expense', source: 'saving', category_id: s.category_id })
   }
 
   // ── Upcoming credit-card bills (billed amount due on the card's due day) ──
@@ -176,7 +178,7 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
       const amount = Math.round(billing.billedAmount || cc.current_balance)
       const due = nextDueDate(cc.due_day, today)
       if (due < today || due > horizon) continue
-      events.push({ date: isoOf(due), title: `${cc.name} bill`, amount, type: 'expense', source: 'card' })
+      events.push({ date: isoOf(due), title: `${cc.name} bill`, amount, type: 'expense', source: 'card', card_id: cc.id })
     }
   }
 
