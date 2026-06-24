@@ -544,6 +544,7 @@ function AppContent({ session }: { session: Session }) {
           {projectsOpen && (
             <ProjectsListPage
               userId={session.user.id}
+              userName={userName}
               onClose={() => { setProjectsOpen(false); setProjectsAddOnOpen(false) }}
               onSwipeProgress={setSwipePct}
               initialAddOpen={projectsAddOnOpen}

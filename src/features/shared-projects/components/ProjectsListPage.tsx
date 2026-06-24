@@ -9,12 +9,13 @@ import type { Project, ProjectStatus } from '../types'
 
 interface Props {
   userId: string
+  userName: string
   onClose: () => void
   onSwipeProgress?: (pct: number) => void
   initialAddOpen?: boolean
 }
 
-export function ProjectsListPage({ userId, onClose, onSwipeProgress, initialAddOpen }: Props) {
+export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, initialAddOpen }: Props) {
   const c = useTheme()
   const data = useProjectsData(userId)
   const { projects, loading } = data
@@ -118,7 +119,8 @@ export function ProjectsListPage({ userId, onClose, onSwipeProgress, initialAddO
   }), [projects])
 
   const handleAdd = async (form: { name: string; description?: string; notes?: string; target_amount: number }) => {
-    await data.addProject(form)
+    const project = await data.addProject(form)
+    await data.addMember(project.id, { name: userName })
   }
 
   const statusColors: Record<ProjectStatus, string> = {
