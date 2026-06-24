@@ -5,7 +5,9 @@ import { fmt } from '@/lib/utils'
 import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
 import { forecastHealth, HEALTH_MESSAGE } from '@/components/CashFlowForecastCard'
 import { useStrategyData, getCategoryBucket } from './BudgetStrategyCard'
-import type { AppState, BudgetBucket, DerivedMetrics } from '@/types'
+import { CategorySelect } from './CategorySelect'
+import { simulatePurchase } from '@/lib/cashflow'
+import type { AppState, BudgetBucket, DerivedMetrics, PlannedExpense } from '@/types'
 
 interface Props {
   state: AppState
@@ -13,12 +15,39 @@ interface Props {
   onClose: () => void
   onSetup: () => void
   onSwipeProgress?: (pct: number) => void
+  onAddPlannedExpense: (form: Omit<PlannedExpense, 'id' | 'created_at'>) => Promise<void>
+  onUpdatePlannedExpense: (id: string, patch: Partial<PlannedExpense>) => Promise<void>
+  onDeletePlannedExpense: (id: string) => Promise<void>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
 }
 
 const F = 'Plus Jakarta Sans'
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 
-export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgress }: Props) {
+function InfoTip({ id, text, openId, setOpenId, color }: { id: string; text: string; openId: string | null; setOpenId: (v: string | null) => void; color: string }) {
+  const isOpen = openId === id
+  return (
+    <>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpenId(isOpen ? null : id) }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0, verticalAlign: 'middle', marginLeft: 3, lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={`${color}80`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="16" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div style={{ font: `500 11px ${F}`, color, lineHeight: 1.5, padding: '6px 0 2px', maxWidth: 340 }}>
+          {text}
+        </div>
+      )}
+    </>
+  )
+}
+
+export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgress, onAddPlannedExpense, onUpdatePlannedExpense, onDeletePlannedExpense, onAddCategory }: Props) {
   const c = useTheme()
   const forecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
   const { currentBalance, lowestBalance, lowestBalanceDate, nextSalaryDate, recoveryDate, recoveryBalance, projections } = forecast
@@ -29,8 +58,12 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
     let income = 0
     let cardTotal = 0
     let borrowingTotal = 0
+    let prizedChitTotal = 0
+    let plannedTotal = 0
     const cardItems: { title: string; amount: number }[] = []
     const borrowingItems: { title: string; amount: number }[] = []
+    const prizedChitItems: { title: string; amount: number }[] = []
+    const plannedItems: { title: string; amount: number }[] = []
 
     for (const p of projections) {
       const ev = p.event
@@ -42,19 +75,25 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
       } else if (ev.source === 'borrowing') {
         borrowingTotal += ev.amount
         borrowingItems.push({ title: ev.title, amount: ev.amount })
+      } else if (ev.source === 'saving' && ev.is_prized) {
+        prizedChitTotal += ev.amount
+        prizedChitItems.push({ title: ev.title, amount: ev.amount })
+      } else if (ev.source === 'planned') {
+        plannedTotal += ev.amount
+        plannedItems.push({ title: ev.title, amount: ev.amount })
       }
     }
 
-    const debt = cardTotal + borrowingTotal
-    if (income === 0 && debt === 0) return null
-    return { income, debt, available: income - debt, cardTotal, cardItems, borrowingTotal, borrowingItems }
+    const debt = cardTotal + borrowingTotal + prizedChitTotal
+    if (income === 0 && debt === 0 && plannedTotal === 0) return null
+    return { income, debt, plannedTotal, plannedItems, available: income - debt - plannedTotal, cardTotal, cardItems, borrowingTotal, borrowingItems, prizedChitTotal, prizedChitItems }
   }, [projections])
 
-  const [budgetPeriod, setBudgetPeriod] = useState<'current' | 'next'>('next')
+  const [budgetPeriod, setBudgetPeriod] = useState<'current' | 'next'>('current')
 
   const projectedBudget = useMemo(() => {
     if (!strategyData) return null
-    const { actuals, targets } = strategyData
+    const { actuals, targets, pcts } = strategyData
 
     const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const sd = state.settings.salary_date
@@ -65,27 +104,28 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
 
     if (sd && sd >= 1 && sd <= 31) {
       const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-      if (budgetPeriod === 'next') {
-        const s = day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd)
-        periodStart = toIso(s)
-        periodEnd = toIso(new Date(s.getFullYear(), s.getMonth() + 1, sd))
-      } else {
+      if (budgetPeriod === 'current') {
         const s = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
         periodStart = toIso(s)
         periodEnd = toIso(day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd))
+      } else {
+        const s = day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd)
+        periodStart = toIso(s)
+        periodEnd = toIso(new Date(s.getFullYear(), s.getMonth() + 1, sd))
       }
     } else {
-      if (budgetPeriod === 'next') {
+      if (budgetPeriod === 'current') {
+        periodStart = toIso(new Date(now.getFullYear(), now.getMonth(), 1))
+        periodEnd = toIso(new Date(now.getFullYear(), now.getMonth() + 1, 1))
+      } else {
         const s = new Date(now.getFullYear(), now.getMonth() + 1, 1)
         periodStart = toIso(s)
         periodEnd = toIso(new Date(s.getFullYear(), s.getMonth() + 1, 1))
-      } else {
-        periodStart = toIso(new Date(now.getFullYear(), now.getMonth(), 1))
-        periodEnd = toIso(new Date(now.getFullYear(), now.getMonth() + 1, 1))
       }
     }
 
-    const baseActuals = budgetPeriod === 'current' ? actuals : { needs: 0, wants: 0, savings: 0 }
+    const isCurrent = budgetPeriod === 'current'
+    const baseActuals = isCurrent ? actuals : { needs: 0, wants: 0, savings: 0 }
     const projected: Record<BudgetBucket, number> = { ...baseActuals }
     const forecastItems: Record<BudgetBucket, { title: string; amount: number }[]> = { needs: [], wants: [], savings: [] }
     const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
@@ -95,14 +135,15 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
       const ev = p.event
       if (ev.type !== 'expense') continue
       if (ev.source === 'card' || ev.source === 'borrowing') continue
+      if (ev.source === 'saving' && ev.is_prized) continue
       if (ev.date < periodStart || ev.date >= periodEnd) continue
 
       let bucket: BudgetBucket | null = null
       if (ev.source === 'saving') {
         bucket = 'savings'
-      } else if (ev.source === 'commitment') {
+      } else if (ev.source === 'commitment' || ev.source === 'planned') {
         const cat = ev.category_id ? catMap[ev.category_id] : null
-        bucket = cat ? getCategoryBucket(cat, state.groups) : 'needs'
+        bucket = cat ? getCategoryBucket(cat, state.groups) : (ev.source === 'commitment' ? 'needs' : null)
       }
 
       if (bucket) {
@@ -112,19 +153,60 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
       }
     }
 
-    if (!hasProjection && budgetPeriod === 'next') return null
-    if (!hasProjection && budgetPeriod === 'current' && actuals.needs === 0 && actuals.wants === 0 && actuals.savings === 0) return null
-
-    return [
-      { label: 'Needs', pct: targets.needs > 0 ? Math.round(projected.needs / targets.needs * 100) : 0, color: '#3B82F6', spending: true, target: targets.needs, projected: projected.needs, items: forecastItems.needs },
-      { label: 'Wants', pct: targets.wants > 0 ? Math.round(projected.wants / targets.wants * 100) : 0, color: '#F97316', spending: true, target: targets.wants, projected: projected.wants, items: forecastItems.wants },
-      { label: 'Savings', pct: targets.savings > 0 ? Math.round(projected.savings / targets.savings * 100) : 0, color: c.accent, spending: false, target: targets.savings, projected: projected.savings, items: forecastItems.savings },
-    ] as const
+    const hasBuckets = hasProjection || (isCurrent && (actuals.needs > 0 || actuals.wants > 0 || actuals.savings > 0))
+    return {
+      periodStart,
+      periodEnd,
+      isCurrent,
+      buckets: hasBuckets ? [
+        { label: 'Needs', pct: targets.needs > 0 ? Math.round(projected.needs / targets.needs * 100) : 0, color: '#3B82F6', spending: true, target: targets.needs, targetPct: pcts.needs, projected: projected.needs, currentSpend: baseActuals.needs, items: forecastItems.needs },
+        { label: 'Wants', pct: targets.wants > 0 ? Math.round(projected.wants / targets.wants * 100) : 0, color: '#F97316', spending: true, target: targets.wants, targetPct: pcts.wants, projected: projected.wants, currentSpend: baseActuals.wants, items: forecastItems.wants },
+        { label: 'Savings', pct: targets.savings > 0 ? Math.round(projected.savings / targets.savings * 100) : 0, color: c.accent, spending: false, target: targets.savings, targetPct: pcts.savings, projected: projected.savings, currentSpend: baseActuals.savings, items: forecastItems.savings },
+      ] as const : null,
+    }
   }, [strategyData, projections, state, c.accent, budgetPeriod])
 
   const [expandedBucket, setExpandedBucket] = useState<string | null>(null)
   const [debtExpanded, setDebtExpanded] = useState(false)
   const [debtDetailExpanded, setDebtDetailExpanded] = useState(false)
+  const [plannedExpanded, setPlannedExpanded] = useState(false)
+  const [openInfoId, setOpenInfoId] = useState<string | null>(null)
+  const [peAdding, setPeAdding] = useState(false)
+  const [peTitle, setPeTitle] = useState('')
+  const [peAmount, setPeAmount] = useState('')
+  const [peDate, setPeDate] = useState('')
+  const [peCategoryId, setPeCategoryId] = useState('')
+  const [peEditId, setPeEditId] = useState<string | null>(null)
+  const [peSaving, setPeSaving] = useState(false)
+
+  const pendingPlanned = useMemo(() => state.planned_expenses.filter(p => !p.is_completed), [state.planned_expenses])
+
+  const resetPeForm = () => { setPeTitle(''); setPeAmount(''); setPeDate(''); setPeCategoryId(''); setPeEditId(null); setPeAdding(false) }
+
+  const peImpact = useMemo(() => {
+    const amt = parseFloat(peAmount)
+    if (!peAdding || !(amt > 0)) return null
+    const sim = simulatePurchase(state, d, amt)
+    return { lowestBefore: forecast.lowestBalance, lowestAfter: sim.lowestBalance }
+  }, [peAdding, peAmount, state, d, forecast])
+
+  const savePe = async () => {
+    const amt = parseFloat(peAmount)
+    if (!peTitle.trim() || !(amt > 0) || !peDate || !peCategoryId) return
+    setPeSaving(true)
+    try {
+      if (peEditId) {
+        await onUpdatePlannedExpense(peEditId, { title: peTitle.trim(), amount: amt, planned_date: peDate, category_id: peCategoryId })
+      } else {
+        await onAddPlannedExpense({ title: peTitle.trim(), amount: amt, planned_date: peDate, category_id: peCategoryId, notes: null, is_completed: false })
+      }
+      resetPeForm()
+    } finally { setPeSaving(false) }
+  }
+
+  const startPeEdit = (pe: PlannedExpense) => {
+    setPeTitle(pe.title); setPeAmount(String(pe.amount)); setPeDate(pe.planned_date); setPeCategoryId(pe.category_id || ''); setPeEditId(pe.id); setPeAdding(true); setPlannedExpanded(true)
+  }
 
   // ── Swipe-back gesture (mirrors BorrowingPage) ──
   const [dragX, setDragX] = useState(0)
@@ -241,7 +323,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '18px 16px calc(40px + env(safe-area-inset-bottom,0px))' }}>
         {/* Available today */}
         <div style={{ marginBottom: 14 }}>
-          <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Available Today</div>
+          <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center' }}>Available Today<InfoTip id="available" text="Your actual balance minus emergency fund reserve. This is what you can realistically spend today." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></div>
           <div style={{ font: `800 30px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>{fmt(currentBalance)}</div>
           <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>Available to spend right now</div>
         </div>
@@ -254,7 +336,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         {/* Status / lowest + warning causes */}
         <div style={{ background: toneSoft, borderRadius: 16, padding: 16, marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ font: `700 12px ${F}`, color: toneColor }}>Lowest Balance</span>
+            <span style={{ font: `700 12px ${F}`, color: toneColor, display: 'flex', alignItems: 'center' }}>Lowest Balance<InfoTip id="lowest" text="The minimum your balance will reach after all known upcoming events. If negative, you may run short before payday." openId={openInfoId} setOpenId={setOpenInfoId} color={toneColor} /></span>
             <span style={{ font: `800 20px ${F}`, color: toneColor }}>{fmt(lowestBalance)}</span>
           </div>
           <div style={{ marginTop: 6, font: `700 13px ${F}`, color: toneColor }}>
@@ -280,7 +362,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           {recoveryDate && recoveryBalance != null && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ font: `700 12px ${F}`, color: c.ink }}>Recovery Date</span>
+                <span style={{ font: `700 12px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Recovery Date<InfoTip id="recovery" text="The date your balance returns to positive after going negative. Usually after salary credit." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `800 14px ${F}`, color: c.good }}>{shortDate(recoveryDate)}</span>
               </div>
               <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>After Salary Credit · Balance {fmt(recoveryBalance)}</div>
@@ -296,13 +378,13 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
 
         {/* Forecast Outcome */}
         {forecastOutcome && (
-          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: (projectedBudget || strategyData) ? 0 : 24 }}>
-            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
-              Forecast Outcome
+          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: (projectedBudget?.buckets || strategyData) ? 0 : 24 }}>
+            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center' }}>
+              Forecast Outcome<InfoTip id="outcome" text="Summary of money coming in and going out during the forecast period. Shows income, debt payments, planned expenses, and what remains." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} />
             </div>
             {forecastOutcome.income > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                <span style={{ font: `600 13px ${F}`, color: c.ink }}>Income Received</span>
+                <span style={{ font: `600 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Income Received<InfoTip id="income" text="Expected salary credit based on your salary history or custom estimate." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `700 14px ${F}`, color: c.good }}>{fmt(forecastOutcome.income)}</span>
               </div>
             )}
@@ -313,7 +395,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', cursor: 'pointer' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ font: `600 13px ${F}`, color: c.ink }}>Debt & Liability Payments</span>
+                    <span style={{ font: `600 13px ${F}`, color: c.ink }}>Debt & Liability Payments<InfoTip id="debt" text="Credit card bills, borrowing repayments, and prized chit dues. These are obligations that must be paid." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: debtExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
                       <polyline points="6 9 12 15 18 9" />
                     </svg>
@@ -332,6 +414,12 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
                         <span style={{ font: `600 12px ${F}`, color: c.ink }}>Borrowing Repayments</span>
                         <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(forecastOutcome.borrowingTotal)}</span>
+                      </div>
+                    )}
+                    {forecastOutcome.prizedChitTotal > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                        <span style={{ font: `600 12px ${F}`, color: c.ink }}>Prized Chit Dues</span>
+                        <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(forecastOutcome.prizedChitTotal)}</span>
                       </div>
                     )}
                     <div
@@ -357,15 +445,99 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                             <span style={{ font: `600 11px ${F}`, color: c.muted }}>{fmt(item.amount)}</span>
                           </div>
                         ))}
+                        {forecastOutcome.prizedChitItems.map((item, i) => (
+                          <div key={`p${i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                            <span style={{ font: `500 11px ${F}`, color: c.muted }}>{item.title}</span>
+                            <span style={{ font: `600 11px ${F}`, color: c.muted }}>{fmt(item.amount)}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
                 )}
               </>
             )}
-            {forecastOutcome.income > 0 && forecastOutcome.debt > 0 && (
+            <div
+              onClick={() => setPlannedExpanded(!plannedExpanded)}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ font: `600 13px ${F}`, color: c.ink }}>Planned Expenses<InfoTip id="planned" text="One-time future spending you know about — bike repairs, school fees, vacations. Tap to manage." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: plannedExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+              <span style={{ font: `700 14px ${F}`, color: forecastOutcome.plannedTotal > 0 ? c.warn : c.muted }}>{forecastOutcome.plannedTotal > 0 ? fmt(forecastOutcome.plannedTotal) : '—'}</span>
+            </div>
+            {plannedExpanded && (
+              <div style={{ padding: '4px 0 8px 0' }}>
+                {pendingPlanned.map(pe => {
+                  const cat = pe.category_id ? state.categories.find(cc => cc.id === pe.category_id) : null
+                  return (
+                    <div key={pe.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${c.faint}` }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ font: `700 13px ${F}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pe.title}</div>
+                        <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 1 }}>
+                          {shortDate(pe.planned_date)}{cat ? ` · ${cat.name}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <span style={{ font: `700 13px ${F}`, color: c.ink }}>{fmt(pe.amount)}</span>
+                        <button onClick={(e) => { e.stopPropagation(); startPeEdit(pe) }} style={{ width: 28, height: 28, borderRadius: 8, background: c.surface, border: `1px solid ${c.faint}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></svg>
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); onDeletePlannedExpense(pe.id) }} style={{ width: 28, height: 28, borderRadius: 8, background: c.surface, border: `1px solid ${c.faint}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Add/Edit form */}
+                {peAdding ? (
+                  <div style={{ background: c.surface, borderRadius: 14, padding: '14px', marginTop: 10, border: `1px solid ${c.faint}` }}>
+                    <div style={{ font: `700 13px ${F}`, color: c.ink, marginBottom: 10 }}>{peEditId ? 'Edit Expense' : 'Add Planned Expense'}</div>
+                    <input value={peTitle} onChange={e => setPeTitle(e.target.value)} placeholder="Title (e.g. Bike Tyre)" style={{ width: '100%', boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none', marginBottom: 8 }} />
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <input value={peAmount} onChange={e => setPeAmount(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="Amount" style={{ flex: 1, boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none' }} />
+                      <input type="date" value={peDate} onChange={e => setPeDate(e.target.value)} style={{ flex: 1, boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none' }} />
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <CategorySelect value={peCategoryId} onChange={setPeCategoryId} state={state} onAddCategory={onAddCategory} excludeGroups={['Income', 'Transfer', 'Borrowings', 'Adjustments']} />
+                    </div>
+
+                    {/* Impact preview */}
+                    {peImpact && (
+                      <div style={{ background: c.bg, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+                        <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center' }}>Forecast Impact<InfoTip id="peimpact" text="Shows how adding this expense will change your lowest forecasted balance. Helps you decide before committing." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ font: `600 12px ${F}`, color: c.muted }}>Lowest Balance</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ font: `700 12px ${F}`, color: c.muted }}>{fmt(peImpact.lowestBefore)}</span>
+                            <span style={{ font: `600 11px ${F}`, color: c.muted }}>→</span>
+                            <span style={{ font: `700 12px ${F}`, color: peImpact.lowestAfter < 0 ? c.bad : peImpact.lowestAfter < 5000 ? c.warn : c.good }}>{fmt(peImpact.lowestAfter)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={savePe} disabled={peSaving || !peTitle.trim() || !parseFloat(peAmount) || !peDate || !peCategoryId} style={{ flex: 1, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', font: `700 13px ${F}`, cursor: 'pointer', opacity: (peSaving || !peTitle.trim() || !parseFloat(peAmount) || !peDate || !peCategoryId) ? 0.5 : 1 }}>{peSaving ? 'Saving…' : peEditId ? 'Update' : 'Add'}</button>
+                      <button onClick={resetPeForm} style={{ flex: 1, background: c.surface, color: c.ink, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '11px', font: `700 13px ${F}`, cursor: 'pointer' }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setPeAdding(true)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, background: 'none', border: `1.5px dashed ${c.faint}`, borderRadius: 12, padding: '11px', cursor: 'pointer', marginTop: 10 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    <span style={{ font: `700 13px ${F}`, color: c.accent }}>Add Planned Expense</span>
+                  </button>
+                )}
+              </div>
+            )}
+            {forecastOutcome.income > 0 && (forecastOutcome.debt > 0 || forecastOutcome.plannedTotal > 0) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', marginTop: 4, borderTop: `1px dashed ${c.faint}` }}>
-                <span style={{ font: `700 13px ${F}`, color: c.ink }}>Available After Obligations</span>
+                <span style={{ font: `700 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Potential Available<InfoTip id="potavail" text="Income minus all debt payments and planned expenses. This is what remains for daily spending, savings, and unplanned needs." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `800 14px ${F}`, color: forecastOutcome.available >= 0 ? c.good : c.bad }}>{fmt(forecastOutcome.available)}</span>
               </div>
             )}
@@ -373,11 +545,11 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         )}
 
         {/* Projected Budget Completion */}
-        {(projectedBudget || strategyData) && (
+        {(projectedBudget?.buckets || strategyData) && (
           <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 24, marginTop: forecastOutcome ? 2 : 0, borderTop: forecastOutcome ? `1px solid ${c.faint}` : 'none', borderTopLeftRadius: forecastOutcome ? 0 : 16, borderTopRightRadius: forecastOutcome ? 0 : 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                Projected Budget Completion
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center' }}>
+                Projected Budget Completion<InfoTip id="budgetproj" text="Shows how known upcoming items (commitments, savings plans, planned expenses) align with your budget strategy targets. Only forecast items — not past spending." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} />
               </div>
               <div style={{ display: 'flex', background: c.faint, borderRadius: 8, padding: 2 }}>
                 {(['current', 'next'] as const).map(p => (
@@ -397,10 +569,15 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                 ))}
               </div>
             </div>
-            {!projectedBudget && (
+            {projectedBudget && (
+              <div style={{ font: `600 11px ${F}`, color: c.muted, marginBottom: 6 }}>
+                {shortDate(projectedBudget.periodStart)} — {shortDate(projectedBudget.periodEnd)}
+              </div>
+            )}
+            {!projectedBudget?.buckets && (
               <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '8px 0', fontStyle: 'italic' }}>No known items for this cycle</div>
             )}
-            {projectedBudget?.map(({ label, pct, color, spending, target, projected, items }) => {
+            {projectedBudget?.buckets?.map(({ label, pct, color, spending, target, targetPct, projected, currentSpend, items }) => {
               const ok = spending ? pct <= 100 : pct >= 100
               const expanded = expandedBucket === label
               const diff = Math.abs(projected - target)
@@ -415,7 +592,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }} />
-                      <span style={{ font: `700 14px ${F}`, color: c.ink }}>{label}</span>
+                      <span style={{ font: `700 14px ${F}`, color: c.ink }}>{label} <span style={{ font: `600 11px ${F}`, color: c.muted }}>({targetPct}%)</span></span>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
                         <polyline points="6 9 12 15 18 9" />
                       </svg>
@@ -425,26 +602,50 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                       <span style={{ fontSize: 14, color: ok ? c.good : c.warn }}>{ok ? '✓' : '⚠'}</span>
                     </div>
                   </div>
-                  <div style={{ padding: '0 0 8px 18px', font: `600 11px ${F}`, color: ok ? c.good : c.warn, borderBottom: !expanded && label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
-                    {ok ? '✓' : '⚠'} {status}
-                  </div>
-                  {expanded && (
-                    <div style={{ padding: '4px 0 10px 18px', borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
-                      {items.map((item, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
-                          <span style={{ font: `600 12px ${F}`, color: c.ink }}>+ {item.title}</span>
-                          <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(item.amount)}</span>
-                        </div>
-                      ))}
-                      {items.length === 0 && (
-                        <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '5px 0', fontStyle: 'italic' }}>No upcoming items</div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0 0', marginTop: 4, borderTop: `1px dashed ${c.faint}` }}>
-                        <span style={{ font: `600 11px ${F}`, color: c.muted }}>Target</span>
-                        <span style={{ font: `700 12px ${F}`, color: c.muted }}>{fmt(target)}</span>
-                      </div>
+                  {!expanded && (
+                    <div style={{ padding: '0 0 8px 18px', font: `600 11px ${F}`, color: ok ? c.good : c.warn, borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
+                      {ok ? '✓' : '⚠'} {status}
                     </div>
                   )}
+                  {expanded && (() => {
+                    const itemTotal = items.reduce((s, it) => s + it.amount, 0)
+                    const showCurrentSpend = projectedBudget!.isCurrent && currentSpend > 0
+                    return (
+                      <div style={{ padding: '4px 0 10px 18px', borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
+                        {showCurrentSpend && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
+                            <span style={{ font: `600 12px ${F}`, color: c.muted }}>{spending ? 'Spent so far' : 'Saved so far'}</span>
+                            <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(currentSpend)}</span>
+                          </div>
+                        )}
+                        {items.map((item, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
+                            <span style={{ font: `600 12px ${F}`, color: c.ink }}>+ {item.title}</span>
+                            <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(item.amount)}</span>
+                          </div>
+                        ))}
+                        {!showCurrentSpend && items.length === 0 && (
+                          <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '5px 0', fontStyle: 'italic' }}>No upcoming items</div>
+                        )}
+                        {(showCurrentSpend || items.length > 1) && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0 0', marginTop: 4, borderTop: `1px solid ${c.faint}` }}>
+                            <span style={{ font: `700 12px ${F}`, color: c.ink }}>Projected</span>
+                            <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(projected)}</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 0', marginTop: (!showCurrentSpend && items.length <= 1) ? 4 : 0, borderTop: (!showCurrentSpend && items.length <= 1) ? `1px solid ${c.faint}` : 'none' }}>
+                          <span style={{ font: `600 12px ${F}`, color: c.muted }}>Target</span>
+                          <span style={{ font: `700 12px ${F}`, color: c.muted }}>{fmt(target)}</span>
+                        </div>
+                        {diff > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 0' }}>
+                            <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn }}>{ok ? '✓' : '⚠'} {status}</span>
+                            <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn }}>{spending ? (ok ? '' : `+${fmt(diff)}`) : (ok ? `+${fmt(diff)}` : `−${fmt(diff)}`)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -454,7 +655,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         {/* Forecast Drivers */}
         {drivers.length > 0 && (
           <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 24 }}>
-            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 12 }}>Forecast Drivers</div>
+            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center' }}>Forecast Drivers<InfoTip id="drivers" text="The largest upcoming expenses in your forecast, ranked by amount. These have the biggest impact on your cash flow." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></div>
             {drivers.map((dr, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < drivers.length - 1 ? `1px solid ${c.faint}` : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>

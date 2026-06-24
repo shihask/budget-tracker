@@ -5,7 +5,7 @@ import { BottomSheet } from './BottomSheet'
 import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
 import { simulatePurchase, forecastReady, getForecastDrivers, estimateForecastSalary, daysUntil as forecastDaysUntil } from '@/lib/cashflow'
 import { LOW_CUSHION } from './CashFlowForecastCard'
-import type { AppState, DerivedMetrics, Settings, Transaction } from '@/types'
+import type { AppState, DerivedMetrics, Settings, Transaction, PlannedExpense } from '@/types'
 
 interface SaveGoalData {
   name: string
@@ -22,6 +22,7 @@ interface Props {
   transactions: Transaction[]
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   onSaveGoal?: (data: SaveGoalData) => void
+  onAddPlannedExpense?: (form: Omit<PlannedExpense, 'id' | 'created_at'>) => Promise<void>
 }
 
 function daysUntil(dayOfMonth: number): number {
@@ -60,7 +61,7 @@ function StatusIcon({ tier, color }: { tier: 'safe' | 'tight' | 'risky' | 'criti
   )
 }
 
-export function AffordabilityChecker({ state, d, settings, transactions, onUpdateSettings, onSaveGoal }: Props) {
+export function AffordabilityChecker({ state, d, settings, transactions, onUpdateSettings, onSaveGoal, onAddPlannedExpense }: Props) {
   const c = useTheme()
   const [open, setOpen] = useState(false)
   const [item, setItem] = useState('')
@@ -75,6 +76,9 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const [showGoalPlan, setShowGoalPlan] = useState(false)
   const [showUpcoming, setShowUpcoming] = useState(false)
   const [goalPlanAI, setGoalPlanAI] = useState<string | null>(null)
+  const [addedToForecast, setAddedToForecast] = useState(false)
+  const [forecastDate, setForecastDate] = useState('')
+  const [showForecastDate, setShowForecastDate] = useState(false)
   const [goalPlanAILoading, setGoalPlanAILoading] = useState(false)
 
   const EXCLUDED_TX_TYPES = new Set(['income', 'transfer', 'savings_contribution', 'savings_withdrawal', 'borrowing', 'borrowing_repayment', 'opening_balance', 'balance_adjustment', 'credit_card_payment', 'cc_opening_balance', 'cc_balance_adjustment'])
@@ -113,6 +117,9 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     const a = parseFloat(amount)
     if (isNaN(a) || a <= 0) return
     setChecked(true)
+    setAddedToForecast(false)
+    setShowForecastDate(false)
+    setForecastDate('')
   }
 
   const salaryEstimate = useMemo(() => estimateForecastSalary(state), [state])
@@ -551,6 +558,46 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                 </div>
               )}
             </div>
+
+            {/* Add to Forecast */}
+            {onAddPlannedExpense && checked && !addedToForecast && (
+              <div style={{ marginBottom: 14 }}>
+                {!showForecastDate ? (
+                  <button
+                    onClick={() => { setShowForecastDate(true); setForecastDate(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)) }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, background: c.accentSoft, border: `1px solid ${c.accent}30`, borderRadius: 14, padding: '12px', font: '700 13px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+                    Add to Forecast
+                  </button>
+                ) : (
+                  <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
+                    <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>When do you plan to spend this?</div>
+                    <input type="date" value={forecastDate} onChange={e => setForecastDate(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: '700 14px Plus Jakarta Sans', color: c.ink, outline: 'none', marginBottom: 8 }} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={async () => {
+                          if (!forecastDate) return
+                          await onAddPlannedExpense({ title: item.trim() || 'Planned Purchase', amount: parseFloat(amount), planned_date: forecastDate, category_id: null, notes: null, is_completed: false })
+                          setAddedToForecast(true)
+                          setShowForecastDate(false)
+                        }}
+                        style={{ flex: 1, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}
+                      >
+                        Confirm
+                      </button>
+                      <button onClick={() => setShowForecastDate(false)} style={{ flex: 1, background: c.surface2, color: c.ink, border: `1px solid ${c.faint}`, borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {addedToForecast && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: c.goodSoft, borderRadius: 14, marginBottom: 14 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                <span style={{ font: '700 13px Plus Jakarta Sans', color: c.good }}>Added to forecast</span>
+              </div>
+            )}
 
             {/* What happens if you buy this — chronological timeline */}
             {simResult && (() => {

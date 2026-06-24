@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, BudgetBucket, ForecastSettings, BudgetStrategySettings } from '@/types'
+import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings } from '@/types'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 
 const delta = (type: TransactionType, amount: number) => {
@@ -19,7 +19,7 @@ const EMPTY_STATE: AppState = {
   groups: [],
   credit_cards: [],
   settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, track_savings: false, budget_mode: 'manual', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, last_reflection_date: null, monthly_salary: null },
-  forecast_settings: { id: '', enabled: true, days: 60, commitment_ids: null, savings_ids: null, salary_override: null },
+  forecast_settings: { id: '', enabled: true, days: 30, commitment_ids: null, savings_ids: null, salary_override: null },
   budget_strategy_settings: { id: '', budget_strategy: 'none', custom_needs_pct: 50, custom_wants_pct: 30, custom_savings_pct: 20, budget_strategy_base: 'income' },
   commitments: [],
   borrowings: [],
@@ -27,6 +27,7 @@ const EMPTY_STATE: AppState = {
   goals: [],
   goal_contributions: [],
   savings: [],
+  planned_expenses: [],
 }
 
 const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false }
@@ -147,6 +148,7 @@ export function useSupabaseData(userId: string) {
           { data: savingsRows },
           { data: forecastRow },
           { data: budgetStrategyRow },
+          { data: plannedExpenses },
         ] = await Promise.all([
           supabase.from('settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
@@ -166,6 +168,7 @@ export function useSupabaseData(userId: string) {
           supabase.from('savings').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
           supabase.from('forecast_settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('budget_strategy_settings').select('*').eq('user_id', userId).limit(1).single(),
+          supabase.from('planned_expenses').select('*').eq('user_id', userId).order('planned_date'),
         ])
 
         // First login — seed settings
@@ -361,6 +364,7 @@ export function useSupabaseData(userId: string) {
           goals: (goals as Goal[]) || [],
           goal_contributions: (goalContribs as GoalContribution[]) || [],
           savings: (savingsRows as Savings[]) || [],
+          planned_expenses: (plannedExpenses as PlannedExpense[]) || [],
         })
         setAllTransactionsLoaded(txnList.length < TXN_PAGE_SIZE)
         setUsingSupabase(true)
@@ -922,12 +926,14 @@ export function useSupabaseData(userId: string) {
     const newInstallment = (cm.current_installment || 0) + 1
     const isComplete     = cm.total_installments ? newInstallment >= cm.total_installments : false
     const newRemaining   = !cm.is_recurring ? Math.max(0, cm.remaining - payAmount) : undefined
+    const effectiveAccountId = isCreditCard ? cm.from_account_id : (accountId ?? cm.from_account_id)
 
     const commitmentStateUpdate = (s: AppState) =>
       s.commitments.map(c => c.id === cm.id ? {
         ...c, last_paid_date: today, current_installment: newInstallment,
         remaining: newRemaining ?? c.remaining,
         is_active: isComplete ? false : c.is_active,
+        from_account_id: effectiveAccountId ?? c.from_account_id,
       } : c)
 
     // Path A: no balance effects — just update the commitment record
@@ -936,6 +942,7 @@ export function useSupabaseData(userId: string) {
         last_paid_date: today, current_installment: newInstallment,
         ...(newRemaining !== undefined ? { remaining: newRemaining } : {}),
         ...(isComplete ? { is_active: false } : {}),
+        ...(accountId && accountId !== cm.from_account_id ? { from_account_id: accountId } : {}),
       }).eq('id', cm.id)
       setState(s => ({ ...s, commitments: commitmentStateUpdate(s) }))
       return
@@ -1076,6 +1083,7 @@ export function useSupabaseData(userId: string) {
     const patch: Partial<Savings> = {
       current_installment: newInstallment,
       last_contribution_date: today,
+      ...(accountId && accountId !== sv.from_account_id ? { from_account_id: accountId } : {}),
     }
 
     // Mark complete if all installments done
@@ -1175,6 +1183,24 @@ export function useSupabaseData(userId: string) {
       savings: s.savings.map(item => item.id === sv.id ? { ...item, current_value: result.restored_value } : item),
     }))
   }, [userId])
+
+  // ── Planned Expenses ──
+  const addPlannedExpense = useCallback(async (form: Omit<PlannedExpense, 'id' | 'created_at'>) => {
+    const { data, error } = await supabase.from('planned_expenses').insert({ ...form, user_id: userId }).select('*').single()
+    if (error) throw error
+    setState(s => ({ ...s, planned_expenses: [...s.planned_expenses, data as PlannedExpense].sort((a, b) => a.planned_date.localeCompare(b.planned_date)) }))
+  }, [userId])
+
+  const updatePlannedExpense = useCallback(async (id: string, patch: Partial<PlannedExpense>) => {
+    const { data, error } = await supabase.from('planned_expenses').update(patch).eq('id', id).select('*').single()
+    if (error) throw error
+    setState(s => ({ ...s, planned_expenses: s.planned_expenses.map(p => p.id === id ? data as PlannedExpense : p) }))
+  }, [])
+
+  const deletePlannedExpense = useCallback(async (id: string) => {
+    await supabase.from('planned_expenses').delete().eq('id', id)
+    setState(s => ({ ...s, planned_expenses: s.planned_expenses.filter(p => p.id !== id) }))
+  }, [])
 
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {
@@ -1498,6 +1524,7 @@ export function useSupabaseData(userId: string) {
     addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
+    addPlannedExpense, updatePlannedExpense, deletePlannedExpense,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
     addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout,
     updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion,

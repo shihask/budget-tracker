@@ -290,12 +290,13 @@ BEGIN
   )
   RETURNING id INTO v_tx_id;
 
-  -- Update commitment record
+  -- Update commitment record (sync from_account_id to the actual payment source)
   UPDATE commitments SET
     last_paid_date      = p_last_paid_date,
     current_installment = p_new_installment,
     remaining           = COALESCE(p_new_remaining, remaining),
-    is_active           = COALESCE(p_new_is_active, is_active)
+    is_active           = COALESCE(p_new_is_active, is_active),
+    from_account_id     = COALESCE(p_from_account_id, p_credit_card_id, from_account_id)
   WHERE id = p_commitment_id AND user_id = p_user_id;
 
   -- Update bank account balance
@@ -343,7 +344,8 @@ BEGIN
   UPDATE savings SET
     current_installment    = p_new_installment,
     last_contribution_date = p_last_contribution_date,
-    is_active              = CASE WHEN p_mark_complete THEN false ELSE is_active END
+    is_active              = CASE WHEN p_mark_complete THEN false ELSE is_active END,
+    from_account_id        = p_account_id
   WHERE id = p_savings_id AND user_id = p_user_id;
 
   UPDATE accounts SET current_balance = current_balance - p_amount

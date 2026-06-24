@@ -169,6 +169,7 @@ export interface Commitment {
   last_paid_date: string | null
   total_installments: number | null
   current_installment: number | null
+  due_date: string | null
 }
 
 export type SavingsType = 'sip' | 'gold' | 'rd' | 'fd' | 'ppf_nps' | 'chit' | 'custom'
@@ -225,6 +226,18 @@ export interface GoalContribution {
   created_at: string
 }
 
+export interface PlannedExpense {
+  id: string
+  user_id?: string
+  title: string
+  amount: number
+  planned_date: string
+  category_id: string | null
+  notes: string | null
+  is_completed: boolean
+  created_at?: string
+}
+
 export interface AppState {
   accounts: Account[]
   categories: Category[]
@@ -239,6 +252,7 @@ export interface AppState {
   goals: Goal[]
   goal_contributions: GoalContribution[]
   savings: Savings[]
+  planned_expenses: PlannedExpense[]
 }
 
 export interface DerivedMetrics {

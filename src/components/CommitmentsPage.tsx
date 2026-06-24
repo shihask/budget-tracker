@@ -20,6 +20,7 @@ type CForm = {
   is_recurring: boolean
   frequency: Freq
   due_day: string
+  due_date: string
   from_account_id: string
   total_installments: string
   current_installment: string
@@ -28,7 +29,7 @@ type CForm = {
 const EMPTY_FORM: CForm = {
   name: '', amount: '', paid_amount: '0', remaining: '', total_amount: '',
   category_id: '', is_recurring: false,
-  frequency: 'monthly', due_day: '', from_account_id: '',
+  frequency: 'monthly', due_day: '', due_date: '', from_account_id: '',
   total_installments: '', current_installment: '0',
 }
 
@@ -148,6 +149,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
       is_recurring: cm.is_recurring,
       frequency: cm.frequency || 'monthly',
       due_day: cm.due_day ? String(cm.due_day) : '',
+      due_date: cm.due_date || '',
       from_account_id: cm.from_account_id || '',
       total_installments: cm.total_installments ? String(cm.total_installments) : '',
       current_installment: String(cm.current_installment || 0),
@@ -199,6 +201,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
       is_recurring: form.is_recurring,
       frequency: form.is_recurring ? form.frequency : null,
       due_day: (form.is_recurring && form.frequency === 'monthly' && form.due_day) ? parseInt(form.due_day) : null,
+      due_date: (!form.is_recurring && form.due_date) ? form.due_date : null,
       from_account_id: form.from_account_id || null,
       is_active: true, last_paid_date: null,
       total_installments: form.total_installments ? parseInt(form.total_installments) : null,
@@ -377,7 +380,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                           ? paidThisMonth
                             ? `✓ Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
                             : (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
-                          : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}`
+                          : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}${cm.due_date ? ` · Due ${new Date(cm.due_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}`
                         }
                       </div>
 
@@ -490,32 +493,39 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
             </div>
 
             {!form.is_recurring ? (
-              <div style={{ background: c.surface2, borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Amount Owed</label>
-                    <HelpText>Total amount you owe for this obligation.</HelpText>
-                    <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
-                      value={form.amount} onChange={e => set('amount', e.target.value)}
-                      placeholder="₹" min="0" style={inp} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Paid Amount</label>
-                    <HelpText>How much you have already paid towards this.</HelpText>
-                    <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
-                      value={form.paid_amount} onChange={e => set('paid_amount', e.target.value)}
-                      placeholder="0" min="0" style={inp} />
-                  </div>
-                </div>
-                {form.amount && (
-                  <div style={{ background: c.accentSoft, borderRadius: 11, padding: '10px 12px' }}>
-                    <div style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, textTransform: 'uppercase' }}>Remaining</div>
-                    <div style={{ font: '800 15px Plus Jakarta Sans', color: c.accent, marginTop: 2 }}>
-                      {fmt(Math.max(0, parseFloat(form.amount) - (parseFloat(form.paid_amount) || 0)))}
+              <>
+                <div style={{ background: c.surface2, borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Amount Owed</label>
+                      <HelpText>Total amount you owe for this obligation.</HelpText>
+                      <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
+                        value={form.amount} onChange={e => set('amount', e.target.value)}
+                        placeholder="₹" min="0" style={inp} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Paid Amount</label>
+                      <HelpText>How much you have already paid towards this.</HelpText>
+                      <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
+                        value={form.paid_amount} onChange={e => set('paid_amount', e.target.value)}
+                        placeholder="0" min="0" style={inp} />
                     </div>
                   </div>
-                )}
-              </div>
+                  {form.amount && (
+                    <div style={{ background: c.accentSoft, borderRadius: 11, padding: '10px 12px' }}>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, textTransform: 'uppercase' }}>Remaining</div>
+                      <div style={{ font: '800 15px Plus Jakarta Sans', color: c.accent, marginTop: 2 }}>
+                        {fmt(Math.max(0, parseFloat(form.amount) - (parseFloat(form.paid_amount) || 0)))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label style={lbl}>Due Date</label>
+                  <HelpText>When is this bill due? Helps track upcoming payments.</HelpText>
+                  <input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)} style={inp} />
+                </div>
+              </>
             ) : (
               <>
                 <div style={{ background: c.surface2, borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>

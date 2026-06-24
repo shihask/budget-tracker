@@ -34,6 +34,7 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
   const [commitSel, setCommitSel] = useState<Set<string>>(() => initSet(fs.commitment_ids, activeCommitments.map(x => x.id)))
   const [savingsSel, setSavingsSel] = useState<Set<string>>(() => initSet(fs.savings_ids, activeSavings.map(x => x.id)))
   const [saving, setSaving] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
 
   // Auto-detected salary (ignoring override) for display purposes
   const autoSalary = useMemo(() => {
@@ -91,8 +92,31 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
   return (
     <BottomSheet open={open} onClose={onClose} zIndex={300} showHelpButton={false}>
       <div style={{ padding: '4px 20px 24px', fontFamily: `${F}, sans-serif` }}>
-        <div style={{ font: `800 20px ${F}`, color: c.ink, marginBottom: 4 }}>Cash Flow Forecast Setup</div>
-        <div style={{ font: `600 13px ${F}`, color: c.muted, marginBottom: 20 }}>Built from your existing data. Tweak what's included.</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ font: `800 20px ${F}`, color: c.ink }}>Cash Flow Forecast Setup</div>
+          <button onClick={() => setShowHelp(!showHelp)} style={{ width: 28, height: 28, borderRadius: 999, background: showHelp ? c.accent : c.surface2, border: `1px solid ${showHelp ? c.accent : c.faint}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ font: `700 13px ${F}`, color: showHelp ? '#fff' : c.muted, lineHeight: 1 }}>?</span>
+          </button>
+        </div>
+        {showHelp ? (
+          <div style={{ background: c.accentSoft, borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
+            <div style={{ font: `700 12px ${F}`, color: c.accent, marginBottom: 8 }}>How Forecast Setup Works</div>
+            {[
+              { label: 'Salary Date', desc: 'The day you receive your salary. Used to calculate salary cycles and forecast income.' },
+              { label: 'Estimated Salary', desc: 'Auto-detected from your salary history. Use custom estimate if it\'s inaccurate or if you expect a different amount.' },
+              { label: 'Forecast Period', desc: 'How far ahead the forecast looks. 30 days covers this month, 60 days covers the next salary cycle too, 90 days gives a longer view.' },
+              { label: 'Commitments', desc: 'Recurring bills and obligations (EMI, rent, insurance). Unchecked items are excluded from the forecast.' },
+              { label: 'Savings Plans', desc: 'Recurring savings contributions (SIP, RD, Gold, Chit). Unchecked items are excluded from the forecast.' },
+            ].map(h => (
+              <div key={h.label} style={{ marginBottom: 8 }}>
+                <span style={{ font: `700 11px ${F}`, color: c.ink }}>{h.label}</span>
+                <div style={{ font: `500 11px ${F}`, color: c.muted, lineHeight: 1.4, marginTop: 1 }}>{h.desc}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ font: `600 13px ${F}`, color: c.muted, marginBottom: 20 }}>Built from your existing data. Tweak what's included.</div>
+        )}
 
         {/* Salary date */}
         <label style={lbl}>Salary date</label>

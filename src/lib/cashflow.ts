@@ -12,9 +12,10 @@ export interface CashFlowEvent {
   title: string
   amount: number
   type: 'income' | 'expense'
-  source: 'salary' | 'commitment' | 'saving' | 'card' | 'borrowing'
+  source: 'salary' | 'commitment' | 'saving' | 'card' | 'borrowing' | 'planned'
   category_id?: string | null
   card_id?: string
+  is_prized?: boolean
 }
 
 export interface CashFlowProjection {
@@ -32,7 +33,7 @@ export interface CashFlowForecast {
   projections: CashFlowProjection[]
 }
 
-const HORIZON_DAYS = 60
+const HORIZON_DAYS = 30
 
 function midnight(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -123,6 +124,16 @@ export function forecastReady(state: AppState): boolean {
   return hasItems || hasIncome
 }
 
+function allDueDates(dueDay: number, from: Date, until: Date): Date[] {
+  const dates: Date[] = []
+  let due = nextDueDate(dueDay, from)
+  while (due <= until) {
+    dates.push(due)
+    due = nextDueDate(dueDay, new Date(due.getFullYear(), due.getMonth(), due.getDate() + 1))
+  }
+  return dates
+}
+
 export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics): CashFlowForecast {
   const today = midnight(new Date())
   const days = state.forecast_settings.days ?? HORIZON_DAYS
@@ -144,29 +155,53 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     if (c.is_active === false) continue
     if (incCommit != null && !incCommit.includes(c.id)) continue
     if (!(c.remaining > 0)) continue
-    if (c.due_day == null) continue
-    const due = nextDueDate(c.due_day, today)
-    if (due < today || due > horizon) continue
     const amount = Math.round(Math.min(c.amount, c.remaining))
     if (!(amount > 0)) continue
-    events.push({ date: isoOf(due), title: c.name, amount, type: 'expense', source: 'commitment', category_id: c.category_id })
+
+    if (c.is_recurring && c.due_day != null) {
+      let remainingAmt = c.remaining
+      const installmentsDone = c.current_installment ?? 0
+      const totalInstallments = c.total_installments
+      let count = 0
+      for (const due of allDueDates(c.due_day, today, horizon)) {
+        if (totalInstallments != null && installmentsDone + count >= totalInstallments) break
+        const payAmt = Math.round(Math.min(c.amount, remainingAmt))
+        if (!(payAmt > 0)) break
+        events.push({ date: isoOf(due), title: c.name, amount: payAmt, type: 'expense', source: 'commitment', category_id: c.category_id })
+        remainingAmt -= payAmt
+        count++
+      }
+    } else {
+      let due: Date | null = null
+      if (c.due_day != null) {
+        due = nextDueDate(c.due_day, today)
+      } else if (c.due_date) {
+        const parsed = new Date(c.due_date + 'T00:00:00')
+        due = parsed < today ? today : parsed
+      }
+      if (!due || due > horizon) continue
+      events.push({ date: isoOf(due), title: c.name, amount, type: 'expense', source: 'commitment', category_id: c.category_id })
+    }
   }
 
   // ── Upcoming savings contributions (SIP / gold / RD / chit …) ──
   for (const s of state.savings) {
     if (s.is_active === false) continue
     if (incSavings != null && !incSavings.includes(s.id)) continue
-    if (!s.is_recurring) continue            // FD / one-time plans have no future contribution
-    // finished recurring plans (all installments made) have nothing left to contribute
+    if (!s.is_recurring) continue
     if (s.total_installments != null && s.current_installment >= s.total_installments) continue
-    // due day may be unset for some plans — fall back so EVERY active plan is forecast
     const lastDay = s.last_contribution_date ? new Date(s.last_contribution_date).getDate() : null
     const dueDay = s.due_day ?? lastDay ?? state.settings.salary_date ?? 1
-    const due = nextDueDate(dueDay, today)
-    if (due < today || due > horizon) continue
     const amount = Math.round(s.amount)
     if (!(amount > 0)) continue
-    events.push({ date: isoOf(due), title: s.name, amount, type: 'expense', source: 'saving', category_id: s.category_id })
+
+    let installmentsDone = s.current_installment
+    let count = 0
+    for (const due of allDueDates(dueDay, today, horizon)) {
+      if (s.total_installments != null && installmentsDone + count >= s.total_installments) break
+      events.push({ date: isoOf(due), title: s.name, amount, type: 'expense', source: 'saving', category_id: s.category_id, is_prized: s.is_prized || undefined })
+      count++
+    }
   }
 
   // ── Upcoming credit-card bills (billed amount due on the card's due day) ──
@@ -176,9 +211,9 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
       if (!(cc.current_balance > 0)) continue
       const billing = getCreditCardBilling(cc, state.transactions, today)
       const amount = Math.round(billing.billedAmount || cc.current_balance)
-      const due = nextDueDate(cc.due_day, today)
-      if (due < today || due > horizon) continue
-      events.push({ date: isoOf(due), title: `${cc.name} bill`, amount, type: 'expense', source: 'card', card_id: cc.id })
+      for (const due of allDueDates(cc.due_day, today, horizon)) {
+        events.push({ date: isoOf(due), title: `${cc.name} bill`, amount, type: 'expense', source: 'card', card_id: cc.id })
+      }
     }
   }
 
@@ -200,15 +235,26 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     }
   }
 
-  // ── Next salary (only if we have both a salary day and a reliable estimate) ──
+  // ── Planned expenses (one-time user-defined future spending) ──
+  for (const pe of state.planned_expenses) {
+    if (pe.is_completed) continue
+    const [y, m, dd] = pe.planned_date.split('-').map(Number)
+    const due = new Date(y, m - 1, dd)
+    if (due < today || due > horizon) continue
+    const amount = Math.round(pe.amount)
+    if (!(amount > 0)) continue
+    events.push({ date: pe.planned_date, title: pe.title, amount, type: 'expense', source: 'planned', category_id: pe.category_id })
+  }
+
+  // ── Salary (all occurrences within horizon) ──
   let nextSalaryDate: string | undefined
   const salaryDay = state.settings.salary_date
   const estSalary = estimateForecastSalary(state).amount
   if (salaryDay != null && estSalary != null) {
-    const due = nextDueDate(salaryDay, today)
-    if (due >= today && due <= horizon) {
-      nextSalaryDate = isoOf(due)
-      events.push({ date: nextSalaryDate, title: 'Salary', amount: estSalary, type: 'income', source: 'salary' })
+    for (const due of allDueDates(salaryDay, today, horizon)) {
+      const iso = isoOf(due)
+      if (!nextSalaryDate) nextSalaryDate = iso
+      events.push({ date: iso, title: 'Salary', amount: estSalary, type: 'income', source: 'salary' })
     }
   }
 
