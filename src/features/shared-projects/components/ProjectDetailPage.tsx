@@ -242,6 +242,7 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
           <MembersTab
             members={members}
             memberSummaries={memberSummaries}
+            transactions={transactions}
             onAdd={() => { setEditMember(null); setMemberName(''); setMemberEmail(''); setAddMemberOpen(true) }}
             onEdit={m => { setEditMember(m); setMemberName(m.name); setMemberEmail(m.email || ''); setAddMemberOpen(true) }}
             onRemove={id => data.removeMember(id)}
@@ -425,6 +426,40 @@ function OverviewTab({ project, summary, memberSummaries, transactions }: {
           </div>
         </div>
       )}
+
+      {/* Project Fund */}
+      {summary.totalContributions > 0 && (() => {
+        const fundExpenses = transactions
+          .filter(t => t.transaction_type === 'expense' && t.member_id == null)
+          .reduce((s, t) => s + t.amount, 0)
+        const fundBalance = summary.totalContributions - fundExpenses
+        const usedPct = summary.totalContributions > 0 ? Math.min(100, (fundExpenses / summary.totalContributions) * 100) : 0
+        return (
+          <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
+            <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
+              Project Fund
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Contributed</div>
+                <div style={{ font: '800 18px Plus Jakarta Sans', color: '#10B981', marginTop: 2 }}>{fmt(summary.totalContributions)}</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Used</div>
+                <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent, marginTop: 2 }}>{fmt(fundExpenses)}</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Remaining</div>
+                <div style={{ font: '800 18px Plus Jakarta Sans', color: fundBalance >= 0 ? '#10B981' : '#EF4444', marginTop: 2 }}>{fmt(fundBalance)}</div>
+              </div>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: c.faint, overflow: 'hidden' }}>
+              <div style={{ height: '100%', borderRadius: 3, background: c.accent, width: `${usedPct}%`, transition: 'width 0.3s ease' }} />
+            </div>
+            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 4, textAlign: 'right' }}>{usedPct.toFixed(0)}% used</div>
+          </div>
+        )
+      })()}
 
       {/* Stats row */}
       <div style={{ display: 'flex', gap: 10 }}>
@@ -665,15 +700,23 @@ function TransactionsTab({ transactions, attachments, onAdd, onEdit, onDelete }:
   )
 }
 
-function MembersTab({ members, memberSummaries, onAdd, onEdit, onRemove }: {
+function MembersTab({ members, memberSummaries, transactions, onAdd, onEdit, onRemove }: {
   members: ProjectMember[]
   memberSummaries: ReturnType<typeof calcMemberSummaries>
+  transactions: ProjectTransaction[]
   onAdd: () => void
   onEdit: (m: ProjectMember) => void
   onRemove: (id: string) => void
 }) {
   const c = useTheme()
   const summaryMap = new Map(memberSummaries.map(ms => [ms.memberId, ms]))
+
+  const totalContributions = transactions
+    .filter(t => t.transaction_type === 'contribution')
+    .reduce((s, t) => s + t.amount, 0)
+  const fundExpenses = transactions
+    .filter(t => t.transaction_type === 'expense' && t.member_id == null)
+    .reduce((s, t) => s + t.amount, 0)
 
   return (
     <div>
@@ -719,22 +762,42 @@ function MembersTab({ members, memberSummaries, onAdd, onEdit, onRemove }: {
                     </button>
                   </div>
                 </div>
-                {ms && (
-                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                    <div>
-                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Contributed</div>
-                      <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981' }}>{fmt(ms.actualContribution)}</div>
-                    </div>
-                    <div>
-                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Expected</div>
-                      <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(ms.expectedContribution)}</div>
-                    </div>
-                    <div>
-                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Expenses Paid</div>
-                      <div style={{ font: '700 13px Plus Jakarta Sans', color: c.accent }}>{fmt(ms.totalExpensesPaid)}</div>
-                    </div>
-                  </div>
-                )}
+                {ms && (() => {
+                  const fundUsed = totalContributions > 0
+                    ? (ms.actualContribution / totalContributions) * fundExpenses
+                    : 0
+                  const fundRemaining = ms.actualContribution - fundUsed
+                  return (
+                    <>
+                      <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                        <div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Contributed</div>
+                          <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981' }}>{fmt(ms.actualContribution)}</div>
+                        </div>
+                        <div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Expected</div>
+                          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(ms.expectedContribution)}</div>
+                        </div>
+                        <div>
+                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Paid Direct</div>
+                          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.accent }}>{fmt(ms.totalExpensesPaid)}</div>
+                        </div>
+                      </div>
+                      {ms.actualContribution > 0 && (
+                        <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+                          <div>
+                            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Fund Used</div>
+                            <div style={{ font: '700 13px Plus Jakarta Sans', color: c.accent }}>{fmt(Math.round(fundUsed))}</div>
+                          </div>
+                          <div>
+                            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Fund Remaining</div>
+                            <div style={{ font: '700 13px Plus Jakarta Sans', color: fundRemaining >= 0 ? '#10B981' : '#EF4444' }}>{fmt(Math.round(fundRemaining))}</div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             )
           })}
