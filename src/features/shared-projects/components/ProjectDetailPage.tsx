@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 import { calcProjectSummary, calcMemberSummaries, calcSettlement } from '../lib/calculations'
 import { ProjectFormSheet } from './ProjectFormSheet'
 import { ProjectTransactionSheet } from './ProjectTransactionSheet'
@@ -27,6 +28,42 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
   const [memberName, setMemberName] = useState('')
   const [memberEmail, setMemberEmail] = useState('')
   const [editMember, setEditMember] = useState<ProjectMember | null>(null)
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'found' | 'not_found'>('idle')
+  const [emailUserName, setEmailUserName] = useState<string | null>(null)
+  const emailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const checkEmail = useCallback(async (email: string) => {
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed || !trimmed.includes('@')) {
+      setEmailStatus('idle')
+      setEmailUserName(null)
+      return
+    }
+    setEmailStatus('checking')
+    try {
+      const { data: result } = await supabase.rpc('mp_check_user_email', { p_email: trimmed })
+      if (result?.exists) {
+        setEmailStatus('found')
+        setEmailUserName(result.name || null)
+        if (!memberName.trim() && result.name) setMemberName(result.name)
+      } else {
+        setEmailStatus('not_found')
+        setEmailUserName(null)
+      }
+    } catch {
+      setEmailStatus('idle')
+    }
+  }, [memberName])
+
+  const handleEmailChange = useCallback((val: string) => {
+    setMemberEmail(val)
+    setEmailStatus('idle')
+    setEmailUserName(null)
+    if (emailTimerRef.current) clearTimeout(emailTimerRef.current)
+    if (val.trim().includes('@')) {
+      emailTimerRef.current = setTimeout(() => checkEmail(val), 600)
+    }
+  }, [checkEmail])
 
   const members = data.detail?.members ?? []
   const transactions = data.detail?.transactions ?? []
@@ -242,8 +279,8 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
           <MembersTab
             members={members}
             memberSummaries={memberSummaries}
-            onAdd={() => { setEditMember(null); setMemberName(''); setMemberEmail(''); setAddMemberOpen(true) }}
-            onEdit={m => { setEditMember(m); setMemberName(m.name); setMemberEmail(m.email || ''); setAddMemberOpen(true) }}
+            onAdd={() => { setEditMember(null); setMemberName(''); setMemberEmail(''); setEmailStatus('idle'); setEmailUserName(null); setAddMemberOpen(true) }}
+            onEdit={m => { setEditMember(m); setMemberName(m.name); setMemberEmail(m.email || ''); setEmailStatus('idle'); setEmailUserName(null); setAddMemberOpen(true) }}
             onRemove={id => data.removeMember(id)}
           />
         )}
@@ -329,7 +366,36 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
               </div>
               <div>
                 <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email (optional)</div>
-                <input value={memberEmail} onChange={e => setMemberEmail(e.target.value)} placeholder="email@example.com" style={inputStyle} />
+                <div style={{ position: 'relative' }}>
+                  <input value={memberEmail} onChange={e => handleEmailChange(e.target.value)} placeholder="email@example.com" style={inputStyle} />
+                  {emailStatus === 'checking' && (
+                    <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, borderRadius: 999, border: '2px solid ' + c.accent, borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
+                  )}
+                  {emailStatus === 'found' && (
+                    <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </div>
+                  )}
+                  {emailStatus === 'not_found' && (
+                    <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                {emailStatus === 'found' && emailUserName && (
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: '#10B981', marginTop: 4 }}>
+                    Verified MoneyPlant user: {emailUserName}
+                  </div>
+                )}
+                {emailStatus === 'not_found' && memberEmail.trim() && (
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: '#EF4444', marginTop: 4 }}>
+                    Not a MoneyPlant user — ask them to create an account
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
@@ -361,6 +427,7 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
           from { transform: translateX(100%); }
           to { transform: translateX(0); }
         }
+        @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
       `}</style>
     </div>,
     document.body

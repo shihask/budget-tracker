@@ -178,5 +178,30 @@ BEGIN
 END;
 $$;
 
+-- ── RPC: check if verified user exists by email ─────────────────────────
+CREATE OR REPLACE FUNCTION mp_check_user_email(p_email text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_name text;
+BEGIN
+  SELECT raw_user_meta_data->>'full_name'
+  INTO v_name
+  FROM auth.users
+  WHERE email = lower(trim(p_email))
+    AND email_confirmed_at IS NOT NULL
+  LIMIT 1;
+
+  IF v_name IS NOT NULL THEN
+    RETURN jsonb_build_object('exists', true, 'name', v_name);
+  ELSE
+    RETURN jsonb_build_object('exists', false);
+  END IF;
+END;
+$$;
+
 -- ── Settings column ─────────────────────────────────────────────────────
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS track_projects boolean NOT NULL DEFAULT false;
