@@ -3,6 +3,7 @@ import { Card } from '@/components/Card'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { buildCashFlowForecast, daysUntil, forecastReady } from '@/lib/cashflow'
+import { buildLifestyleForecast } from '@/features/forecast/lib/lifestyleForecast'
 import type { AppState, DerivedMetrics } from '@/types'
 
 interface Props {
@@ -33,7 +34,10 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
   const F = 'Plus Jakarta Sans'
   const enabled = state.forecast_settings.enabled ?? true
   const ready = forecastReady(state)
-  const forecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
+  const mode = state.forecast_settings.forecast_mode ?? 'planned'
+  const plannedForecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
+  const lifestyleData = useMemo(() => mode === 'lifestyle' ? buildLifestyleForecast(state, d) : null, [state, d, mode])
+  const forecast = lifestyleData ?? plannedForecast
 
   const Title = ({ tone, soft }: { tone: string; soft: string }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -78,6 +82,12 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
         <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Lowest Balance</div>
         <div style={{ font: `800 26px ${F}`, color: toneColor, letterSpacing: '-0.02em' }}>{fmt(lowestBalance)}</div>
         <div style={{ marginTop: 12, padding: '9px 12px', borderRadius: 11, background: toneSoft, font: `700 12px ${F}`, color: toneColor }}>{message}</div>
+        {lifestyleData && lifestyleData.dailySpend.source && (
+          <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ font: `600 12px ${F}`, color: c.muted }}>Safe Until</span>
+            <span style={{ font: `700 12px ${F}`, color: lifestyleData.risk === 'risk' ? c.bad : lifestyleData.risk === 'watch' ? c.warn : c.good }}>{lifestyleData.safeUntilLabel}</span>
+          </div>
+        )}
         {salaryDays != null && (
           <div style={{ marginTop: 10, font: `600 12px ${F}`, color: c.muted }}>
             Salary in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}

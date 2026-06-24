@@ -7,7 +7,8 @@ import { forecastHealth, HEALTH_MESSAGE } from '@/components/CashFlowForecastCar
 import { useStrategyData, getCategoryBucket } from './BudgetStrategyCard'
 import { CategorySelect } from './CategorySelect'
 import { simulatePurchase } from '@/lib/cashflow'
-import type { AppState, BudgetBucket, DerivedMetrics, PlannedExpense } from '@/types'
+import { buildLifestyleForecast } from '@/features/forecast/lib/lifestyleForecast'
+import type { AppState, BudgetBucket, DerivedMetrics, ForecastMode, ForecastSettings, PlannedExpense } from '@/types'
 
 interface Props {
   state: AppState
@@ -19,6 +20,7 @@ interface Props {
   onUpdatePlannedExpense: (id: string, patch: Partial<PlannedExpense>) => Promise<void>
   onDeletePlannedExpense: (id: string) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
+  onUpdateForecastSettings: (patch: Partial<ForecastSettings>) => void
 }
 
 const F = 'Plus Jakarta Sans'
@@ -47,9 +49,15 @@ function InfoTip({ id, text, openId, setOpenId, color }: { id: string; text: str
   )
 }
 
-export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgress, onAddPlannedExpense, onUpdatePlannedExpense, onDeletePlannedExpense, onAddCategory }: Props) {
+export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgress, onAddPlannedExpense, onUpdatePlannedExpense, onDeletePlannedExpense, onAddCategory, onUpdateForecastSettings }: Props) {
   const c = useTheme()
-  const forecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
+  const mode: ForecastMode = state.forecast_settings.forecast_mode ?? 'planned'
+  const setMode = (m: ForecastMode) => onUpdateForecastSettings({ forecast_mode: m })
+
+  const plannedForecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
+  const lifestyleForecast = useMemo(() => mode === 'lifestyle' ? buildLifestyleForecast(state, d) : null, [state, d, mode])
+
+  const forecast = mode === 'lifestyle' && lifestyleForecast ? lifestyleForecast : plannedForecast
   const { currentBalance, lowestBalance, lowestBalanceDate, nextSalaryDate, recoveryDate, recoveryBalance, projections } = forecast
   const drivers = useMemo(() => getForecastDrivers(projections, 5), [projections])
   const strategyData = useStrategyData(state, d)
@@ -315,7 +323,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ font: `800 20px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>Cash Flow Forecast</div>
-            <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 1 }}>Next {days} days · known events only</div>
+            <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 1 }}>Next {days} days · {mode === 'lifestyle' ? 'includes daily spending' : 'known events only'}</div>
           </div>
         </div>
       </div>
@@ -327,6 +335,71 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           <div style={{ font: `800 30px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>{fmt(currentBalance)}</div>
           <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>Available to spend right now</div>
         </div>
+
+        {/* Mode Toggle */}
+        <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, marginBottom: 14 }}>
+          {(['planned', 'lifestyle'] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              style={{
+                flex: 1, border: 'none', cursor: 'pointer', borderRadius: 10, padding: '10px 0',
+                font: `700 13px ${F}`,
+                background: mode === m ? c.bg : 'transparent',
+                color: mode === m ? c.ink : c.muted,
+                boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.2s',
+              }}
+            >
+              {m === 'planned' ? 'Planned' : 'Lifestyle'}
+              {m === 'lifestyle' && <span style={{ font: `600 9px ${F}`, color: c.accent, marginLeft: 4, verticalAlign: 'super' }}>BETA</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Lifestyle Summary Card */}
+        {mode === 'lifestyle' && lifestyleForecast && lifestyleForecast.dailySpend.source && (
+          <div style={{ background: `${c.accent}10`, border: `1.5px solid ${c.accent}30`, borderRadius: 16, padding: 16, marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <div style={{ font: `700 11px ${F}`, color: c.accent, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Est. Daily Spend</div>
+                <div style={{ font: `800 26px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>{fmt(lifestyleForecast.dailySpend.amount)}<span style={{ font: `600 13px ${F}`, color: c.muted }}>/day</span></div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ font: `700 11px ${F}`, color: c.accent, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Safe Until</div>
+                <div style={{ font: `800 18px ${F}`, color: lifestyleForecast.risk === 'risk' ? c.bad : lifestyleForecast.risk === 'watch' ? c.warn : c.good }}>{lifestyleForecast.safeUntilLabel}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: 999, flexShrink: 0,
+                background: lifestyleForecast.risk === 'risk' ? c.bad : lifestyleForecast.risk === 'watch' ? c.warn : c.good,
+              }} />
+              <span style={{
+                font: `700 12px ${F}`,
+                color: lifestyleForecast.risk === 'risk' ? c.bad : lifestyleForecast.risk === 'watch' ? c.warn : c.good,
+              }}>
+                {lifestyleForecast.risk === 'safe' ? 'Cash flow looks healthy' : lifestyleForecast.risk === 'watch' ? 'Getting tight — watch spending' : 'May run short — reduce spending'}
+              </span>
+            </div>
+            {lifestyleForecast.dailySpend.breakdown && (
+              <div style={{ display: 'flex', gap: 12, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.accent}20` }}>
+                <div style={{ font: `600 11px ${F}`, color: c.muted }}>Needs <span style={{ font: `700 11px ${F}`, color: c.ink }}>{fmt(lifestyleForecast.dailySpend.breakdown.needs)}</span></div>
+                <div style={{ font: `600 11px ${F}`, color: c.muted }}>Wants <span style={{ font: `700 11px ${F}`, color: c.ink }}>{fmt(lifestyleForecast.dailySpend.breakdown.wants)}</span></div>
+              </div>
+            )}
+            <div style={{ font: `600 10px ${F}`, color: c.muted, marginTop: 8 }}>
+              Based on: {lifestyleForecast.dailySpend.source === 'budget_strategy' ? 'Budget Strategy' : 'Last 30 Days'}
+            </div>
+          </div>
+        )}
+
+        {mode === 'lifestyle' && lifestyleForecast && !lifestyleForecast.dailySpend.source && (
+          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 14 }}>
+            <div style={{ font: `700 13px ${F}`, color: c.ink, marginBottom: 4 }}>Lifestyle Forecast needs data</div>
+            <div style={{ font: `600 12px ${F}`, color: c.muted, lineHeight: 1.5 }}>Set up a Budget Strategy or record at least a few days of spending to enable lifestyle projections.</div>
+          </div>
+        )}
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
@@ -684,45 +757,140 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             No upcoming money events in the next {days} days.
           </div>
         ) : (
-          projections.map((p, i) => {
-            const income = p.event.type === 'income'
-            const isLowest = !!lowestBalanceDate && p.event.date === lowestBalanceDate && p.balanceAfter === lowestBalance
-            const isRecovery = !!recoveryDate && p.event.date === recoveryDate && p.balanceAfter === recoveryBalance
-            const balColor = isLowest ? toneColor : isRecovery ? c.good : p.balanceAfter < 0 ? c.bad : c.ink
-            const balBg = isLowest ? toneSoft : isRecovery ? c.goodSoft : c.surface2
-            return (
-              <div key={i}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 8 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 999, background: income ? c.goodSoft : c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={income ? c.good : c.muted} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                      {income ? <><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></> : <><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>}
-                    </svg>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                      <span style={{ font: `700 14px ${F}`, color: c.ink }}>{p.event.title}</span>
-                      <span style={{ font: `800 15px ${F}`, color: income ? c.good : c.ink, whiteSpace: 'nowrap' }}>
-                        {income ? '+' : '−'}{fmt(p.event.amount)}
-                      </span>
+          (() => {
+            const isSynthetic = (p: typeof projections[0]) => p.event.title === 'Est. Daily Spending'
+
+            if (mode === 'lifestyle') {
+              type TimelineItem = { type: 'event'; idx: number } | { type: 'group'; startIdx: number; endIdx: number; totalAmount: number; days: number; balanceAfter: number; dateRange: string }
+              const timeline: TimelineItem[] = []
+              let i = 0
+              while (i < projections.length) {
+                if (isSynthetic(projections[i])) {
+                  const start = i
+                  let total = 0
+                  while (i < projections.length && isSynthetic(projections[i])) {
+                    total += projections[i].event.amount
+                    i++
+                  }
+                  const count = i - start
+                  const endP = projections[i - 1]
+                  const startDate = projections[start].event.date
+                  const endDate = endP.event.date
+                  const dr = count <= 3 ? `${shortDate(startDate)}${count > 1 ? ` – ${shortDate(endDate)}` : ''}` : `${shortDate(startDate)} – ${shortDate(endDate)}`
+                  timeline.push({ type: 'group', startIdx: start, endIdx: i - 1, totalAmount: total, days: count, balanceAfter: endP.balanceAfter, dateRange: dr })
+                } else {
+                  timeline.push({ type: 'event', idx: i })
+                  i++
+                }
+              }
+
+              return timeline.map((item, ti) => {
+                if (item.type === 'group') {
+                  const balColor2 = item.balanceAfter < 0 ? c.bad : c.muted
+                  return (
+                    <div key={`g${ti}`}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 8, opacity: 0.7 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 999, background: `${c.accent}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: `1.5px dashed ${c.accent}40` }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20" /><circle cx="12" cy="12" r="10" strokeDasharray="4 4" /></svg>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                            <span style={{ font: `600 13px ${F}`, color: c.muted }}>Daily Spending × {item.days}d</span>
+                            <span style={{ font: `700 13px ${F}`, color: c.muted, whiteSpace: 'nowrap' }}>−{fmt(item.totalAmount)}</span>
+                          </div>
+                          <div style={{ font: `500 10px ${F}`, color: c.muted, marginTop: 1 }}>{item.dateRange} · projection</div>
+                          <div style={{ marginTop: 6, padding: '5px 10px', borderRadius: 8, background: c.surface2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ font: `500 10px ${F}`, color: c.muted, letterSpacing: '0.02em', textTransform: 'uppercase' }}>Balance after</span>
+                            <span style={{ font: `700 12px ${F}`, color: balColor2 }}>{fmt(item.balanceAfter)}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 1 }}>{shortDate(p.event.date)} · {p.event.source}</div>
-                    <div style={{ marginTop: 8, padding: '7px 11px', borderRadius: 9, background: balBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ font: `600 11px ${F}`, color: isLowest ? toneColor : isRecovery ? c.good : c.muted, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                        {isLowest ? 'Lowest point' : isRecovery ? 'Back positive' : 'Balance after'}
-                      </span>
-                      <span style={{ font: `800 14px ${F}`, color: balColor }}>{fmt(p.balanceAfter)}</span>
+                  )
+                }
+
+                const p = projections[item.idx]
+                const income = p.event.type === 'income'
+                const isLowest = !!lowestBalanceDate && p.event.date === lowestBalanceDate && p.balanceAfter === lowestBalance
+                const isRecovery = !!recoveryDate && p.event.date === recoveryDate && p.balanceAfter === recoveryBalance
+                const balColor = isLowest ? toneColor : isRecovery ? c.good : p.balanceAfter < 0 ? c.bad : c.ink
+                const balBg = isLowest ? toneSoft : isRecovery ? c.goodSoft : c.surface2
+                return (
+                  <div key={`e${ti}`}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 8 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 999, background: income ? c.goodSoft : c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={income ? c.good : c.muted} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          {income ? <><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></> : <><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>}
+                        </svg>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                          <span style={{ font: `700 14px ${F}`, color: c.ink }}>{p.event.title}</span>
+                          <span style={{ font: `800 15px ${F}`, color: income ? c.good : c.ink, whiteSpace: 'nowrap' }}>
+                            {income ? '+' : '−'}{fmt(p.event.amount)}
+                          </span>
+                        </div>
+                        <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 1 }}>{shortDate(p.event.date)} · {p.event.source}</div>
+                        <div style={{ marginTop: 8, padding: '7px 11px', borderRadius: 9, background: balBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ font: `600 11px ${F}`, color: isLowest ? toneColor : isRecovery ? c.good : c.muted, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                            {isLowest ? 'Lowest point' : isRecovery ? 'Back positive' : 'Balance after'}
+                          </span>
+                          <span style={{ font: `800 14px ${F}`, color: balColor }}>{fmt(p.balanceAfter)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            }
+
+            return projections.map((p, i) => {
+              const income = p.event.type === 'income'
+              const isLowest = !!lowestBalanceDate && p.event.date === lowestBalanceDate && p.balanceAfter === lowestBalance
+              const isRecovery = !!recoveryDate && p.event.date === recoveryDate && p.balanceAfter === recoveryBalance
+              const balColor = isLowest ? toneColor : isRecovery ? c.good : p.balanceAfter < 0 ? c.bad : c.ink
+              const balBg = isLowest ? toneSoft : isRecovery ? c.goodSoft : c.surface2
+              return (
+                <div key={i}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 8 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 999, background: income ? c.goodSoft : c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={income ? c.good : c.muted} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        {income ? <><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></> : <><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>}
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                        <span style={{ font: `700 14px ${F}`, color: c.ink }}>{p.event.title}</span>
+                        <span style={{ font: `800 15px ${F}`, color: income ? c.good : c.ink, whiteSpace: 'nowrap' }}>
+                          {income ? '+' : '−'}{fmt(p.event.amount)}
+                        </span>
+                      </div>
+                      <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 1 }}>{shortDate(p.event.date)} · {p.event.source}</div>
+                      <div style={{ marginTop: 8, padding: '7px 11px', borderRadius: 9, background: balBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ font: `600 11px ${F}`, color: isLowest ? toneColor : isRecovery ? c.good : c.muted, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                          {isLowest ? 'Lowest point' : isRecovery ? 'Back positive' : 'Balance after'}
+                        </span>
+                        <span style={{ font: `800 14px ${F}`, color: balColor }}>{fmt(p.balanceAfter)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )
-          })
+              )
+            })
+          })()
         )}
 
         {/* Disclaimer */}
         <div style={{ marginTop: 28, padding: 16, borderRadius: 14, background: c.surface2 }}>
           <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>What this forecast includes</div>
-          {['Salary (when confidently known)', 'Commitments & bills', 'Credit-card bills due', 'Savings plan contributions', 'Borrowed money you owe (at payday)'].map(t => (
+          {[
+            'Salary (when confidently known)',
+            'Commitments & bills',
+            'Credit-card bills due',
+            'Savings plan contributions',
+            'Borrowed money you owe (at payday)',
+            ...(mode === 'lifestyle' ? ['Estimated daily spending (projection)'] : []),
+          ].map(t => (
             <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               <span style={{ font: `600 13px ${F}`, color: c.ink }}>{t}</span>
@@ -730,12 +898,22 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           ))}
           <div style={{ height: 1, background: c.faint, margin: '12px 0' }} />
           <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>Not included</div>
-          {['Daily / everyday spending', 'Future unplanned expenses'].map(t => (
+          {(mode === 'lifestyle'
+            ? ['Future unplanned expenses']
+            : ['Daily / everyday spending', 'Future unplanned expenses']
+          ).map(t => (
             <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
               <div style={{ width: 6, height: 6, borderRadius: 999, background: c.muted, flexShrink: 0, marginLeft: 4, marginRight: 5 }} />
               <span style={{ font: `600 13px ${F}`, color: c.muted }}>{t}</span>
             </div>
           ))}
+          {mode === 'lifestyle' && (
+            <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 10, background: `${c.warn}10`, border: `1px solid ${c.warn}25` }}>
+              <div style={{ font: `600 11px ${F}`, color: c.warn, lineHeight: 1.5 }}>
+                Lifestyle mode uses estimated spending — actual results may vary. Switch to Planned mode for guaranteed-only projections.
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>,

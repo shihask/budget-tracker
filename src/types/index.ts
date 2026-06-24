@@ -134,6 +134,8 @@ export interface Settings {
   monthly_salary?:              number | null
 }
 
+export type ForecastMode = 'planned' | 'lifestyle'
+
 export interface ForecastSettings {
   id: string
   user_id?: string
@@ -142,6 +144,7 @@ export interface ForecastSettings {
   commitment_ids: string[] | null
   savings_ids: string[] | null
   salary_override: number | null
+  forecast_mode: ForecastMode
 }
 
 export interface BudgetStrategySettings {
