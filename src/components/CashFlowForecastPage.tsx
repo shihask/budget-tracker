@@ -27,28 +27,66 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
 
   const forecastOutcome = useMemo(() => {
     let income = 0
-    let debt = 0
-    const debtItems: { title: string; amount: number }[] = []
+    let cardTotal = 0
+    let borrowingTotal = 0
+    const cardItems: { title: string; amount: number }[] = []
+    const borrowingItems: { title: string; amount: number }[] = []
 
     for (const p of projections) {
       const ev = p.event
       if (ev.type === 'income') {
         income += ev.amount
-      } else if (ev.source === 'card' || ev.source === 'borrowing') {
-        debt += ev.amount
-        debtItems.push({ title: ev.title, amount: ev.amount })
+      } else if (ev.source === 'card') {
+        cardTotal += ev.amount
+        cardItems.push({ title: ev.title, amount: ev.amount })
+      } else if (ev.source === 'borrowing') {
+        borrowingTotal += ev.amount
+        borrowingItems.push({ title: ev.title, amount: ev.amount })
       }
     }
 
+    const debt = cardTotal + borrowingTotal
     if (income === 0 && debt === 0) return null
-    return { income, debt, available: income - debt, debtItems }
+    return { income, debt, available: income - debt, cardTotal, cardItems, borrowingTotal, borrowingItems }
   }, [projections])
+
+  const [budgetPeriod, setBudgetPeriod] = useState<'current' | 'next'>('next')
 
   const projectedBudget = useMemo(() => {
     if (!strategyData) return null
     const { actuals, targets } = strategyData
 
-    const projected: Record<BudgetBucket, number> = { needs: actuals.needs, wants: actuals.wants, savings: actuals.savings }
+    const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const sd = state.settings.salary_date
+    const now = new Date()
+
+    let periodStart: string
+    let periodEnd: string
+
+    if (sd && sd >= 1 && sd <= 31) {
+      const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
+      if (budgetPeriod === 'next') {
+        const s = day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd)
+        periodStart = toIso(s)
+        periodEnd = toIso(new Date(s.getFullYear(), s.getMonth() + 1, sd))
+      } else {
+        const s = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
+        periodStart = toIso(s)
+        periodEnd = toIso(day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd))
+      }
+    } else {
+      if (budgetPeriod === 'next') {
+        const s = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        periodStart = toIso(s)
+        periodEnd = toIso(new Date(s.getFullYear(), s.getMonth() + 1, 1))
+      } else {
+        periodStart = toIso(new Date(now.getFullYear(), now.getMonth(), 1))
+        periodEnd = toIso(new Date(now.getFullYear(), now.getMonth() + 1, 1))
+      }
+    }
+
+    const baseActuals = budgetPeriod === 'current' ? actuals : { needs: 0, wants: 0, savings: 0 }
+    const projected: Record<BudgetBucket, number> = { ...baseActuals }
     const forecastItems: Record<BudgetBucket, { title: string; amount: number }[]> = { needs: [], wants: [], savings: [] }
     const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
     let hasProjection = false
@@ -57,6 +95,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
       const ev = p.event
       if (ev.type !== 'expense') continue
       if (ev.source === 'card' || ev.source === 'borrowing') continue
+      if (ev.date < periodStart || ev.date >= periodEnd) continue
 
       let bucket: BudgetBucket | null = null
       if (ev.source === 'saving') {
@@ -73,17 +112,19 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
       }
     }
 
-    if (!hasProjection) return null
+    if (!hasProjection && budgetPeriod === 'next') return null
+    if (!hasProjection && budgetPeriod === 'current' && actuals.needs === 0 && actuals.wants === 0 && actuals.savings === 0) return null
 
     return [
-      { label: 'Needs', pct: targets.needs > 0 ? Math.round(projected.needs / targets.needs * 100) : 0, color: '#3B82F6', spending: true, current: actuals.needs, target: targets.needs, items: forecastItems.needs },
-      { label: 'Wants', pct: targets.wants > 0 ? Math.round(projected.wants / targets.wants * 100) : 0, color: '#F97316', spending: true, current: actuals.wants, target: targets.wants, items: forecastItems.wants },
-      { label: 'Savings', pct: targets.savings > 0 ? Math.round(projected.savings / targets.savings * 100) : 0, color: c.accent, spending: false, current: actuals.savings, target: targets.savings, items: forecastItems.savings },
+      { label: 'Needs', pct: targets.needs > 0 ? Math.round(projected.needs / targets.needs * 100) : 0, color: '#3B82F6', spending: true, target: targets.needs, projected: projected.needs, items: forecastItems.needs },
+      { label: 'Wants', pct: targets.wants > 0 ? Math.round(projected.wants / targets.wants * 100) : 0, color: '#F97316', spending: true, target: targets.wants, projected: projected.wants, items: forecastItems.wants },
+      { label: 'Savings', pct: targets.savings > 0 ? Math.round(projected.savings / targets.savings * 100) : 0, color: c.accent, spending: false, target: targets.savings, projected: projected.savings, items: forecastItems.savings },
     ] as const
-  }, [strategyData, projections, state, c.accent])
+  }, [strategyData, projections, state, c.accent, budgetPeriod])
 
   const [expandedBucket, setExpandedBucket] = useState<string | null>(null)
   const [debtExpanded, setDebtExpanded] = useState(false)
+  const [debtDetailExpanded, setDebtDetailExpanded] = useState(false)
 
   // ── Swipe-back gesture (mirrors BorrowingPage) ──
   const [dragX, setDragX] = useState(0)
@@ -198,11 +239,11 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
       </div>
 
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '18px 16px calc(40px + env(safe-area-inset-bottom,0px))' }}>
-        {/* Current balance context */}
+        {/* Available today */}
         <div style={{ marginBottom: 14 }}>
-          <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Current Balance</div>
+          <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Available Today</div>
           <div style={{ font: `800 30px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>{fmt(currentBalance)}</div>
-          <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>Forecast · next {days} days</div>
+          <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>Available to spend right now</div>
         </div>
 
         {/* Actions */}
@@ -237,16 +278,25 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             </div>
           )}
           {recoveryDate && recoveryBalance != null && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <span style={{ font: `700 12px ${F}`, color: c.good }}>Back positive · {shortDate(recoveryDate)}</span>
-              <span style={{ font: `800 14px ${F}`, color: c.good }}>{fmt(recoveryBalance)}</span>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ font: `700 12px ${F}`, color: c.ink }}>Recovery Date</span>
+                <span style={{ font: `800 14px ${F}`, color: c.good }}>{shortDate(recoveryDate)}</span>
+              </div>
+              <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>After Salary Credit · Balance {fmt(recoveryBalance)}</div>
+            </div>
+          )}
+          {health === 'healthy' && projections.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${toneColor}22`, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              <span style={{ font: `700 12px ${F}`, color: c.good }}>Cash Flow Remains Positive</span>
             </div>
           )}
         </div>
 
         {/* Forecast Outcome */}
         {forecastOutcome && (
-          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: projectedBudget ? 0 : 24 }}>
+          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: (projectedBudget || strategyData) ? 0 : 24 }}>
             <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
               Forecast Outcome
             </div>
@@ -259,7 +309,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             {forecastOutcome.debt > 0 && (
               <>
                 <div
-                  onClick={() => setDebtExpanded(!debtExpanded)}
+                  onClick={() => { setDebtExpanded(!debtExpanded); if (debtExpanded) setDebtDetailExpanded(false) }}
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', cursor: 'pointer' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -271,13 +321,44 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                   <span style={{ font: `700 14px ${F}`, color: c.bad }}>{fmt(forecastOutcome.debt)}</span>
                 </div>
                 {debtExpanded && (
-                  <div style={{ padding: '2px 0 4px 16px' }}>
-                    {forecastOutcome.debtItems.map((item, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
-                        <span style={{ font: `500 12px ${F}`, color: c.muted }}>{item.title}</span>
-                        <span style={{ font: `600 12px ${F}`, color: c.muted }}>{fmt(item.amount)}</span>
+                  <div style={{ padding: '2px 0 4px 14px' }}>
+                    {forecastOutcome.cardTotal > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                        <span style={{ font: `600 12px ${F}`, color: c.ink }}>Credit Card Bills</span>
+                        <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(forecastOutcome.cardTotal)}</span>
                       </div>
-                    ))}
+                    )}
+                    {forecastOutcome.borrowingTotal > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                        <span style={{ font: `600 12px ${F}`, color: c.ink }}>Borrowing Repayments</span>
+                        <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(forecastOutcome.borrowingTotal)}</span>
+                      </div>
+                    )}
+                    <div
+                      onClick={(e) => { e.stopPropagation(); setDebtDetailExpanded(!debtDetailExpanded) }}
+                      style={{ font: `600 11px ${F}`, color: c.accent, padding: '6px 0 2px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      {debtDetailExpanded ? 'Hide details' : 'Show details'}
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: debtDetailExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                    {debtDetailExpanded && (
+                      <div style={{ padding: '4px 0 2px 10px' }}>
+                        {forecastOutcome.cardItems.map((item, i) => (
+                          <div key={`c${i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                            <span style={{ font: `500 11px ${F}`, color: c.muted }}>{item.title}</span>
+                            <span style={{ font: `600 11px ${F}`, color: c.muted }}>{fmt(item.amount)}</span>
+                          </div>
+                        ))}
+                        {forecastOutcome.borrowingItems.map((item, i) => (
+                          <div key={`b${i}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                            <span style={{ font: `500 11px ${F}`, color: c.muted }}>{item.title}</span>
+                            <span style={{ font: `600 11px ${F}`, color: c.muted }}>{fmt(item.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -292,20 +373,45 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         )}
 
         {/* Projected Budget Completion */}
-        {projectedBudget && (
+        {(projectedBudget || strategyData) && (
           <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 24, marginTop: forecastOutcome ? 2 : 0, borderTop: forecastOutcome ? `1px solid ${c.faint}` : 'none', borderTopLeftRadius: forecastOutcome ? 0 : 16, borderTopRightRadius: forecastOutcome ? 0 : 16 }}>
-            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>
-              Projected Budget Completion
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Projected Budget Completion
+              </div>
+              <div style={{ display: 'flex', background: c.faint, borderRadius: 8, padding: 2 }}>
+                {(['current', 'next'] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setBudgetPeriod(p)}
+                    style={{
+                      font: `700 10px ${F}`, border: 'none', cursor: 'pointer',
+                      padding: '4px 10px', borderRadius: 6,
+                      background: budgetPeriod === p ? c.surface : 'transparent',
+                      color: budgetPeriod === p ? c.ink : c.muted,
+                      boxShadow: budgetPeriod === p ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                  >
+                    {p === 'current' ? 'This Cycle' : 'Next Cycle'}
+                  </button>
+                ))}
+              </div>
             </div>
-            {projectedBudget.map(({ label, pct, color, spending, current, target, items }) => {
+            {!projectedBudget && (
+              <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '8px 0', fontStyle: 'italic' }}>No known items for this cycle</div>
+            )}
+            {projectedBudget?.map(({ label, pct, color, spending, target, projected, items }) => {
               const ok = spending ? pct <= 100 : pct >= 100
               const expanded = expandedBucket === label
-              const upcomingTotal = items.reduce((s, it) => s + it.amount, 0)
+              const diff = Math.abs(projected - target)
+              const status = spending
+                ? (pct <= 100 ? 'On Track' : `Over by ${fmt(diff)}`)
+                : (pct >= 100 ? 'On Track' : `Behind Target by ${fmt(diff)}`)
               return (
                 <div key={label}>
                   <div
                     onClick={() => setExpandedBucket(expanded ? null : label)}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: !expanded && label !== 'Savings' ? `1px solid ${c.faint}` : 'none', cursor: 'pointer' }}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 2px', cursor: 'pointer' }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }} />
@@ -319,6 +425,9 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                       <span style={{ fontSize: 14, color: ok ? c.good : c.warn }}>{ok ? '✓' : '⚠'}</span>
                     </div>
                   </div>
+                  <div style={{ padding: '0 0 8px 18px', font: `600 11px ${F}`, color: ok ? c.good : c.warn, borderBottom: !expanded && label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
+                    {ok ? '✓' : '⚠'} {status}
+                  </div>
                   {expanded && (
                     <div style={{ padding: '4px 0 10px 18px', borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
                       {items.map((item, i) => (
@@ -330,11 +439,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                       {items.length === 0 && (
                         <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '5px 0', fontStyle: 'italic' }}>No upcoming items</div>
                       )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', marginTop: 4, borderTop: `1px dashed ${c.faint}` }}>
-                        <span style={{ font: `700 12px ${F}`, color: c.ink }}>Projected</span>
-                        <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn }}>{fmt(current + upcomingTotal)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0 0', marginTop: 4, borderTop: `1px dashed ${c.faint}` }}>
                         <span style={{ font: `600 11px ${F}`, color: c.muted }}>Target</span>
                         <span style={{ font: `700 12px ${F}`, color: c.muted }}>{fmt(target)}</span>
                       </div>
