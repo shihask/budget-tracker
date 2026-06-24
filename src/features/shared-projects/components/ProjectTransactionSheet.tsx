@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { iso, TODAY } from '@/lib/utils'
 import { BottomSheet } from '@/components/BottomSheet'
-import type { ProjectMember, ProjectTransaction } from '../types'
+import type { ProjectMember, ProjectTransaction, ProjectBudget } from '../types'
 
 interface Props {
   open: boolean
@@ -22,9 +22,10 @@ interface Props {
   }) => Promise<void>
   onUploadAttachment?: (file: File, projectId: string, transactionId: string) => Promise<void>
   editTxn?: ProjectTransaction | null
+  budgets?: ProjectBudget[]
 }
 
-export function ProjectTransactionSheet({ open, onClose, mode, members, projectId, onSave, editTxn }: Props) {
+export function ProjectTransactionSheet({ open, onClose, mode, members, projectId, onSave, editTxn, budgets = [] }: Props) {
   const c = useTheme()
   const [memberId, setMemberId] = useState<string>('')
   const [amount, setAmount] = useState('')
@@ -141,12 +142,39 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
           {!isContribution && (
             <div>
               <div style={labelStyle}>Category</div>
-              <input
-                value={category}
-                onChange={e => setCategory(e.target.value)}
-                placeholder="e.g. Materials, Labour, Food"
-                style={inputStyle}
-              />
+              {budgets.length > 0 ? (
+                <>
+                  <select
+                    value={budgets.some(b => b.category.toLowerCase() === category.toLowerCase()) ? category : (category ? '__other__' : '')}
+                    onChange={e => {
+                      if (e.target.value === '__other__') setCategory('')
+                      else setCategory(e.target.value)
+                    }}
+                    style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="">Select category</option>
+                    {budgets.map(b => (
+                      <option key={b.id} value={b.category}>{b.category}</option>
+                    ))}
+                    <option value="__other__">Other</option>
+                  </select>
+                  {(!budgets.some(b => b.category.toLowerCase() === category.toLowerCase()) && category !== '') && (
+                    <input
+                      value={category}
+                      onChange={e => setCategory(e.target.value)}
+                      placeholder="Custom category"
+                      style={{ ...inputStyle, marginTop: 8 }}
+                    />
+                  )}
+                </>
+              ) : (
+                <input
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  placeholder="e.g. Materials, Labour, Food"
+                  style={inputStyle}
+                />
+              )}
             </div>
           )}
 

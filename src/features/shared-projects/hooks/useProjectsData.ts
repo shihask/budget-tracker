@@ -2,17 +2,21 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type {
   Project, ProjectMember, ProjectTransaction, ProjectAttachment,
-  ProjectStatus
+  ProjectCollaborator, ProjectBudget, CollaboratorRole
 } from '../types'
 
 interface ProjectDetail {
   members: ProjectMember[]
   transactions: ProjectTransaction[]
   attachments: ProjectAttachment[]
+  collaborators: ProjectCollaborator[]
+  budgets: ProjectBudget[]
 }
 
 export function useProjectsData(userId: string) {
   const [projects, setProjects] = useState<Project[]>([])
+  const [sharedProjects, setSharedProjects] = useState<Project[]>([])
+  const [projectRoles, setProjectRoles] = useState<Map<string, CollaboratorRole>>(new Map())
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<ProjectDetail | null>(null)
   const [detailProjectId, setDetailProjectId] = useState<string | null>(null)
@@ -20,19 +24,49 @@ export function useProjectsData(userId: string) {
 
   useEffect(() => {
     mountedRef.current = true
-    fetchProjects()
+    supabase.rpc('mp_resolve_pending_invites').then(() => fetchProjects(), () => fetchProjects())
     return () => { mountedRef.current = false }
   }, [userId])
 
   const fetchProjects = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('owner_user_id', userId)
-      .order('created_at', { ascending: false })
-    if (!error && mountedRef.current) setProjects(data ?? [])
-    if (mountedRef.current) setLoading(false)
+
+    const [ownedRes, collabRes] = await Promise.all([
+      supabase
+        .from('projects')
+        .select('*')
+        .eq('owner_user_id', userId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('project_collaborators')
+        .select('project_id, role')
+        .eq('user_id', userId)
+        .eq('status', 'active'),
+    ])
+
+    const owned = ownedRes.data ?? []
+    const collabRows = collabRes.data ?? []
+
+    let shared: Project[] = []
+    if (collabRows.length > 0) {
+      const sharedIds = collabRows.map(c => c.project_id)
+      const { data: sharedData } = await supabase
+        .from('projects')
+        .select('*')
+        .in('id', sharedIds)
+        .order('created_at', { ascending: false })
+      shared = sharedData ?? []
+    }
+
+    if (mountedRef.current) {
+      setProjects(owned)
+      setSharedProjects(shared)
+      const roles = new Map<string, CollaboratorRole>()
+      owned.forEach(p => roles.set(p.id, 'owner'))
+      collabRows.forEach(c => roles.set(c.project_id, c.role as CollaboratorRole))
+      setProjectRoles(roles)
+      setLoading(false)
+    }
   }, [userId])
 
   // ── Project CRUD ──────────────────────────────────────────────────────
@@ -58,6 +92,7 @@ export function useProjectsData(userId: string) {
       .single()
     if (error) throw error
     setProjects(prev => [data, ...prev])
+    setProjectRoles(prev => new Map(prev).set(data.id, 'owner'))
     return data
   }, [userId])
 
@@ -70,7 +105,9 @@ export function useProjectsData(userId: string) {
       .update({ ...patch, updated_at: new Date().toISOString() })
       .eq('id', id)
     if (error) throw error
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, ...patch, updated_at: new Date().toISOString() } : p))
+    const updater = (p: Project) => p.id === id ? { ...p, ...patch, updated_at: new Date().toISOString() } : p
+    setProjects(prev => prev.map(updater))
+    setSharedProjects(prev => prev.map(updater))
   }, [])
 
   const deleteProject = useCallback(async (id: string) => {
@@ -87,7 +124,7 @@ export function useProjectsData(userId: string) {
 
   const loadProjectDetail = useCallback(async (projectId: string) => {
     setDetailProjectId(projectId)
-    const [membersRes, txnsRes, attachRes] = await Promise.all([
+    const [membersRes, txnsRes, attachRes, collabRes, budgetsRes] = await Promise.all([
       supabase
         .from('project_members')
         .select('*')
@@ -109,11 +146,23 @@ export function useProjectsData(userId: string) {
             .eq('project_id', projectId)
           ).data?.map(t => t.id) ?? []
         ),
+      supabase
+        .from('project_collaborators')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('project_budgets')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('display_order', { ascending: true }),
     ])
 
     const members = membersRes.data ?? []
     const transactions = txnsRes.data ?? []
     const attachments = attachRes.data ?? []
+    const collaborators = collabRes.data ?? []
+    const budgets = budgetsRes.data ?? []
 
     const memberMap = new Map(members.map(m => [m.id, m]))
     const txnsWithMembers = transactions.map(t => ({
@@ -122,7 +171,7 @@ export function useProjectsData(userId: string) {
     }))
 
     if (mountedRef.current) {
-      setDetail({ members, transactions: txnsWithMembers, attachments })
+      setDetail({ members, transactions: txnsWithMembers, attachments, collaborators, budgets })
     }
   }, [])
 
@@ -275,6 +324,94 @@ export function useProjectsData(userId: string) {
     ))
   }, [])
 
+  // ── Collaborators ─────────────────────────────────────────────────────
+
+  const addCollaborator = useCallback(async (projectId: string, email: string, role: CollaboratorRole) => {
+    const { data, error } = await supabase.rpc('mp_add_collaborator', {
+      p_project_id: projectId,
+      p_email: email,
+      p_role: role,
+    })
+    if (error) throw error
+    const { data: collabs } = await supabase
+      .from('project_collaborators')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true })
+    setDetail(prev => prev ? { ...prev, collaborators: collabs ?? [] } : prev)
+    return data
+  }, [])
+
+  const removeCollaborator = useCallback(async (projectId: string, collaboratorId: string) => {
+    const { error } = await supabase.rpc('mp_remove_collaborator', {
+      p_project_id: projectId,
+      p_collaborator_id: collaboratorId,
+    })
+    if (error) throw error
+    setDetail(prev => prev ? {
+      ...prev,
+      collaborators: prev.collaborators.filter(c => c.id !== collaboratorId),
+    } : prev)
+  }, [])
+
+  const updateCollaboratorRole = useCallback(async (collaboratorId: string, role: CollaboratorRole) => {
+    const { error } = await supabase
+      .from('project_collaborators')
+      .update({ role })
+      .eq('id', collaboratorId)
+    if (error) throw error
+    setDetail(prev => prev ? {
+      ...prev,
+      collaborators: prev.collaborators.map(c => c.id === collaboratorId ? { ...c, role } : c),
+    } : prev)
+  }, [])
+
+  // ── Budgets ───────────────────────────────────────────────────────────
+
+  const addBudget = useCallback(async (projectId: string, form: {
+    category: string
+    budget_amount: number
+  }): Promise<ProjectBudget> => {
+    const maxOrder = detail?.budgets.reduce((m, b) => Math.max(m, b.display_order), -1) ?? -1
+    const { data, error } = await supabase
+      .from('project_budgets')
+      .insert({
+        project_id: projectId,
+        category: form.category,
+        budget_amount: form.budget_amount,
+        display_order: maxOrder + 1,
+      })
+      .select()
+      .single()
+    if (error) throw error
+    setDetail(prev => prev ? { ...prev, budgets: [...prev.budgets, data] } : prev)
+    return data
+  }, [detail])
+
+  const updateBudget = useCallback(async (
+    id: string,
+    patch: Partial<Pick<ProjectBudget, 'category' | 'budget_amount' | 'display_order'>>
+  ) => {
+    const { error } = await supabase
+      .from('project_budgets')
+      .update(patch)
+      .eq('id', id)
+    if (error) throw error
+    setDetail(prev => prev ? {
+      ...prev,
+      budgets: prev.budgets.map(b => b.id === id ? { ...b, ...patch } : b),
+    } : prev)
+  }, [])
+
+  const removeBudget = useCallback(async (id: string) => {
+    const { error } = await supabase.from('project_budgets').delete().eq('id', id)
+    if (error) throw error
+    setDetail(prev => prev ? {
+      ...prev,
+      budgets: prev.budgets.filter(b => b.id !== id),
+    } : prev)
+  }, [])
+
   // ── Attachments ───────────────────────────────────────────────────────
 
   const uploadAttachment = useCallback(async (
@@ -317,6 +454,8 @@ export function useProjectsData(userId: string) {
 
   return {
     projects,
+    sharedProjects,
+    projectRoles,
     loading,
     detail,
     detailProjectId,
@@ -333,6 +472,12 @@ export function useProjectsData(userId: string) {
     deleteProjectTransaction,
     generateShareCode,
     revokeShareCode,
+    addCollaborator,
+    removeCollaborator,
+    updateCollaboratorRole,
+    addBudget,
+    updateBudget,
+    removeBudget,
     uploadAttachment,
     deleteAttachment,
   }

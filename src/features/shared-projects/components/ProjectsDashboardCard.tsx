@@ -5,11 +5,12 @@ import type { Project } from '../types'
 
 interface Props {
   projects: Project[]
+  sharedProjects?: Project[]
   onSeeAll: () => void
   onAdd: () => void
 }
 
-export function ProjectsDashboardCard({ projects, onSeeAll, onAdd }: Props) {
+export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll, onAdd }: Props) {
   const c = useTheme()
 
   return (
@@ -61,6 +62,14 @@ export function ProjectsDashboardCard({ projects, onSeeAll, onAdd }: Props) {
             >
               +{projects.length - 3} more
             </div>
+          )}
+          {sharedProjects.length > 0 && (
+            <>
+              <div style={{ font: '700 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: 10 }}>Shared with me</div>
+              {sharedProjects.slice(0, 2).map(p => (
+                <ProjectMiniCard key={p.id} project={p} onClick={onSeeAll} />
+              ))}
+            </>
           )}
         </div>
       )}

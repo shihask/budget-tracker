@@ -5,7 +5,7 @@ import { fmt } from '@/lib/utils'
 import { useProjectsData } from '../hooks/useProjectsData'
 import { ProjectFormSheet } from './ProjectFormSheet'
 import { ProjectDetailPage } from './ProjectDetailPage'
-import type { Project, ProjectStatus } from '../types'
+import type { Project, ProjectStatus, ProjectRole } from '../types'
 
 interface Props {
   userId: string
@@ -18,7 +18,7 @@ interface Props {
 export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, initialAddOpen }: Props) {
   const c = useTheme()
   const data = useProjectsData(userId)
-  const { projects, loading } = data
+  const { projects, sharedProjects, projectRoles, loading } = data
 
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all')
   const [search, setSearch] = useState('')
@@ -98,25 +98,23 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
   }
 
   // ── Filtered projects ──────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    let items = [...projects]
+  const applyFilters = (items: Project[]) => {
     if (filterStatus !== 'all') items = items.filter(p => p.status === filterStatus)
     if (search.trim()) {
       const q = search.toLowerCase()
-      items = items.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.description || '').toLowerCase().includes(q)
-      )
+      items = items.filter(p => p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q))
     }
     return items
-  }, [projects, filterStatus, search])
+  }
+  const filtered = useMemo(() => applyFilters([...projects]), [projects, filterStatus, search])
+  const filteredShared = useMemo(() => applyFilters([...sharedProjects]), [sharedProjects, filterStatus, search])
 
   const statusCounts = useMemo(() => ({
-    all: projects.length,
+    all: projects.length + sharedProjects.length,
     active: projects.filter(p => p.status === 'active').length,
-    completed: projects.filter(p => p.status === 'completed').length,
-    archived: projects.filter(p => p.status === 'archived').length,
-  }), [projects])
+    completed: [...projects, ...sharedProjects].filter(p => p.status === 'completed').length,
+    archived: [...projects, ...sharedProjects].filter(p => p.status === 'archived').length,
+  }), [projects, sharedProjects])
 
   const handleAdd = async (form: { name: string; description?: string; notes?: string; target_amount: number }) => {
     const project = await data.addProject(form)
@@ -230,59 +228,20 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+            {filtered.length > 0 && sharedProjects.length > 0 && (
+              <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: 4 }}>My Projects</div>
+            )}
             {filtered.map(p => (
-              <div
-                key={p.id}
-                onClick={() => {
-                  data.loadProjectDetail(p.id)
-                  setDetailProject(p)
-                }}
-                style={{
-                  background: c.surface, borderRadius: 18, padding: '14px 16px',
-                  border: `1px solid ${c.faint}`, cursor: 'pointer',
-                  boxShadow: c.cardShadow,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, flex: 1 }}>{p.name}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{
-                      font: '700 10px Plus Jakarta Sans', color: statusColors[p.status],
-                      background: `${statusColors[p.status]}18`,
-                      padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase',
-                    }}>
-                    {p.status}
-                    </div>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        if (confirm(`Delete "${p.name}"? This will remove all members, transactions, and attachments.`)) {
-                          data.deleteProject(p.id)
-                        }
-                      }}
-                      style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                {p.description && (
-                  <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 4, lineHeight: 1.4 }}>
-                    {p.description}
-                  </div>
-                )}
-                {p.target_amount > 0 && (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Target</div>
-                      <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(p.target_amount)}</div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ProjectCard key={p.id} project={p} role="owner" statusColors={statusColors} onOpen={() => { data.loadProjectDetail(p.id); setDetailProject(p) }} onDelete={() => data.deleteProject(p.id)} />
             ))}
+            {filteredShared.length > 0 && (
+              <>
+                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: 10 }}>Shared with Me</div>
+                {filteredShared.map(p => (
+                  <ProjectCard key={p.id} project={p} role={projectRoles.get(p.id) || 'viewer'} statusColors={statusColors} onOpen={() => { data.loadProjectDetail(p.id); setDetailProject(p) }} />
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -297,6 +256,7 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
         <ProjectDetailPage
           project={detailProject}
           data={data}
+          role={projectRoles.get(detailProject.id) || 'owner'}
           onClose={() => setDetailProject(null)}
           onSwipeProgress={onSwipeProgress}
           onProjectUpdated={(updated) => {
@@ -313,5 +273,71 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
       `}</style>
     </div>,
     document.body
+  )
+}
+
+function ProjectCard({ project: p, role, statusColors, onOpen, onDelete }: {
+  project: Project
+  role: ProjectRole
+  statusColors: Record<ProjectStatus, string>
+  onOpen: () => void
+  onDelete?: () => void
+}) {
+  const c = useTheme()
+  return (
+    <div
+      onClick={onOpen}
+      style={{
+        background: c.surface, borderRadius: 18, padding: '14px 16px',
+        border: `1px solid ${c.faint}`, cursor: 'pointer',
+        boxShadow: c.cardShadow,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, flex: 1 }}>{p.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {role !== 'owner' && (
+            <div style={{
+              font: '700 10px Plus Jakarta Sans', color: role === 'editor' ? '#6366F1' : c.muted,
+              background: role === 'editor' ? '#6366F118' : c.surface2,
+              padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase',
+            }}>
+              {role}
+            </div>
+          )}
+          <div style={{
+            font: '700 10px Plus Jakarta Sans', color: statusColors[p.status],
+            background: `${statusColors[p.status]}18`,
+            padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase',
+          }}>
+            {p.status}
+          </div>
+          {role === 'owner' && onDelete && (
+            <button
+              onClick={e => {
+                e.stopPropagation()
+                if (confirm(`Delete "${p.name}"? This will remove all members, transactions, and attachments.`)) onDelete()
+              }}
+              style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+      {p.description && (
+        <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 4, lineHeight: 1.4 }}>{p.description}</div>
+      )}
+      {p.target_amount > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Target</div>
+            <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(p.target_amount)}</div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

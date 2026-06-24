@@ -57,10 +57,23 @@ export interface ProjectAttachment {
 export interface ProjectCollaborator {
   id: string
   project_id: string
-  user_id: string
+  user_id: string | null
+  invited_email: string | null
   role: CollaboratorRole
+  status: 'active' | 'pending'
   created_at: string
 }
+
+export interface ProjectBudget {
+  id: string
+  project_id: string
+  category: string
+  budget_amount: number
+  display_order: number
+  created_at: string
+}
+
+export type ProjectRole = 'owner' | 'editor' | 'viewer'
 
 // ── Calculation outputs ─────────────────────────────────────────────────
 
@@ -96,4 +109,21 @@ export interface SettlementResult {
   creditors: Array<{ memberId: string; memberName: string; netCredit: number }>
   debtors: Array<{ memberId: string; memberName: string; netDebt: number }>
   settlements: SettlementEntry[]
+}
+
+export interface BudgetBreakdown {
+  budgetId: string
+  category: string
+  budgetAmount: number
+  spent: number
+  remaining: number
+  pct: number
+}
+
+export interface BudgetSummary {
+  totalAllocated: number
+  totalSpentInBudget: number
+  unallocatedAmount: number
+  breakdowns: BudgetBreakdown[]
+  uncategorizedSpend: number
 }

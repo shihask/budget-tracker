@@ -2,21 +2,25 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { calcProjectSummary, calcMemberSummaries, calcSettlement } from '../lib/calculations'
+import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSummary } from '../lib/calculations'
 import { ProjectFormSheet } from './ProjectFormSheet'
 import { ProjectTransactionSheet } from './ProjectTransactionSheet'
 import { ShareSheet } from './ShareSheet'
-import type { Project, ProjectTab, ProjectMember, ProjectTransaction, ProjectStatus } from '../types'
+import { BudgetBreakdownSection } from './BudgetBreakdownSection'
+import { BudgetManageSheet } from './BudgetManageSheet'
+import { CollaboratorInviteSheet } from './CollaboratorInviteSheet'
+import type { Project, ProjectTab, ProjectMember, ProjectTransaction, ProjectStatus, ProjectRole } from '../types'
 
 interface Props {
   project: Project
   data: ReturnType<typeof import('../hooks/useProjectsData').useProjectsData>
+  role: ProjectRole
   onClose: () => void
   onSwipeProgress?: (pct: number) => void
   onProjectUpdated?: (p: Project) => void
 }
 
-export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onProjectUpdated }: Props) {
+export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgress, onProjectUpdated }: Props) {
   const c = useTheme()
   const [tab, setTab] = useState<ProjectTab>('overview')
   const [editOpen, setEditOpen] = useState(false)
@@ -27,12 +31,20 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
   const [memberName, setMemberName] = useState('')
   const [memberEmail, setMemberEmail] = useState('')
   const [editMember, setEditMember] = useState<ProjectMember | null>(null)
+  const [budgetManageOpen, setBudgetManageOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+
+  const canEdit = role === 'owner' || role === 'editor'
+  const isOwner = role === 'owner'
 
   const members = data.detail?.members ?? []
   const transactions = data.detail?.transactions ?? []
   const attachments = data.detail?.attachments ?? []
+  const collaborators = data.detail?.collaborators ?? []
+  const budgets = data.detail?.budgets ?? []
 
   const summary = useMemo(() => calcProjectSummary(project, members, transactions), [project, members, transactions])
+  const budgetSummary = useMemo(() => calcBudgetSummary(project, budgets, transactions), [project, budgets, transactions])
   const memberSummaries = useMemo(() => calcMemberSummaries(project, members, transactions), [project, members, transactions])
   const settlement = useMemo(() => calcSettlement(members, transactions), [members, transactions])
 
@@ -189,28 +201,34 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShareOpen(true)} style={{ width: 36, height: 36, borderRadius: 12, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-            </button>
-            <button onClick={() => setEditOpen(true)} style={{ width: 36, height: 36, borderRadius: 12, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
-            <button onClick={() => {
-              if (confirm(`Delete "${project.name}"? This will remove all members, transactions, and attachments.`)) {
-                data.deleteProject(project.id)
-                triggerClose()
-              }
-            }} style={{ width: 36, height: 36, borderRadius: 12, border: 'none', background: '#EF444418', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-            </button>
+            {isOwner && (
+              <button onClick={() => setShareOpen(true)} style={{ width: 36, height: 36, borderRadius: 12, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+              </button>
+            )}
+            {canEdit && (
+              <button onClick={() => setEditOpen(true)} style={{ width: 36, height: 36, borderRadius: 12, border: 'none', background: c.surface2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+            )}
+            {isOwner && (
+              <button onClick={() => {
+                if (confirm(`Delete "${project.name}"? This will remove all members, transactions, and attachments.`)) {
+                  data.deleteProject(project.id)
+                  triggerClose()
+                }
+              }} style={{ width: 36, height: 36, borderRadius: 12, border: 'none', background: '#EF444418', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -237,7 +255,7 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
       {/* Tab content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px 120px', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
         {tab === 'overview' && (
-          <OverviewTab project={project} summary={summary} memberSummaries={memberSummaries} transactions={transactions} />
+          <OverviewTab project={project} summary={summary} memberSummaries={memberSummaries} transactions={transactions} budgetSummary={budgetSummary} role={role} onManageBudgets={() => setBudgetManageOpen(true)} />
         )}
         {tab === 'expenses' && (
           <TransactionsTab
@@ -249,14 +267,54 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
           />
         )}
         {tab === 'members' && (
+          <>
           <MembersTab
             members={members}
             memberSummaries={memberSummaries}
             transactions={transactions}
+            canEdit={canEdit}
             onAdd={() => { setEditMember(null); setMemberName(''); setMemberEmail(''); setAddMemberOpen(true) }}
             onEdit={m => { setEditMember(m); setMemberName(m.name); setMemberEmail(m.email || ''); setAddMemberOpen(true) }}
             onRemove={id => data.removeMember(id)}
           />
+          {/* Collaborators section */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Collaborators</div>
+              {isOwner && (
+                <button onClick={() => setInviteOpen(true)} style={{ padding: '6px 14px', borderRadius: 10, border: 'none', background: c.accent, color: '#fff', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>+ Invite</button>
+              )}
+            </div>
+            {collaborators.length === 0 ? (
+              <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted }}>
+                {isOwner ? 'No collaborators yet. Invite someone to share this project.' : 'No other collaborators.'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {collaborators.map(collab => (
+                  <div key={collab.id} style={{ background: c.surface, borderRadius: 14, padding: '10px 14px', border: `1px solid ${c.faint}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink }}>{collab.invited_email || 'Unknown'}</div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 3 }}>
+                        <span style={{ font: '700 10px Plus Jakarta Sans', color: collab.role === 'editor' ? '#6366F1' : c.muted, background: collab.role === 'editor' ? '#6366F118' : c.surface2, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase' }}>{collab.role}</span>
+                        {collab.status === 'pending' && (
+                          <span style={{ font: '700 10px Plus Jakarta Sans', color: '#F59E0B', background: '#F59E0B18', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase' }}>Pending</span>
+                        )}
+                      </div>
+                    </div>
+                    {isOwner && (
+                      <button onClick={() => { if (confirm(`Remove ${collab.invited_email}?`)) data.removeCollaborator(project.id, collab.id) }} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          </>
         )}
         {tab === 'settlement' && (
           <SettlementTab settlement={settlement} />
@@ -264,7 +322,7 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
       </div>
 
       {/* FAB for adding transactions */}
-      {tab === 'expenses' && (
+      {tab === 'expenses' && canEdit && (
         <div style={{ position: 'fixed', bottom: 24, right: 20, display: 'flex', gap: 10, zIndex: 140 }}>
           <button
             onClick={() => setAddMode('contribution')}
@@ -304,6 +362,7 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
           projectId={project.id}
           onSave={handleAddTxn}
           editTxn={editTxn}
+          budgets={budgets}
         />
       )}
 
@@ -313,6 +372,22 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
         project={project}
         onGenerateCode={() => data.generateShareCode(project.id)}
         onRevokeCode={() => data.revokeShareCode(project.id)}
+      />
+
+      <BudgetManageSheet
+        open={budgetManageOpen}
+        onClose={() => setBudgetManageOpen(false)}
+        budgets={budgets}
+        targetAmount={project.target_amount}
+        onAdd={form => data.addBudget(project.id, form)}
+        onUpdate={data.updateBudget}
+        onRemove={data.removeBudget}
+      />
+
+      <CollaboratorInviteSheet
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        onInvite={(email, role) => data.addCollaborator(project.id, email, role)}
       />
 
       {/* Add member dialog */}
@@ -380,11 +455,14 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
 
 // ── Tab components ──────────────────────────────────────────────────────
 
-function OverviewTab({ project, summary, memberSummaries, transactions }: {
+function OverviewTab({ project, summary, memberSummaries, transactions, budgetSummary, role, onManageBudgets }: {
   project: Project
   summary: ReturnType<typeof calcProjectSummary>
   memberSummaries: ReturnType<typeof calcMemberSummaries>
   transactions: ProjectTransaction[]
+  budgetSummary: ReturnType<typeof calcBudgetSummary>
+  role: ProjectRole
+  onManageBudgets: () => void
 }) {
   const c = useTheme()
   const target = project.target_amount || 0
@@ -470,6 +548,14 @@ function OverviewTab({ project, summary, memberSummaries, transactions }: {
           </div>
         )
       })()}
+
+      {/* Budget breakdown */}
+      <BudgetBreakdownSection
+        budgetSummary={budgetSummary}
+        targetAmount={project.target_amount || 0}
+        role={role}
+        onManage={onManageBudgets}
+      />
 
       {/* Stats row */}
       <div style={{ display: 'flex', gap: 10 }}>
@@ -711,10 +797,11 @@ function TransactionsTab({ transactions, attachments, onAdd, onEdit, onDelete }:
   )
 }
 
-function MembersTab({ members, memberSummaries, transactions, onAdd, onEdit, onRemove }: {
+function MembersTab({ members, memberSummaries, transactions, canEdit, onAdd, onEdit, onRemove }: {
   members: ProjectMember[]
   memberSummaries: ReturnType<typeof calcMemberSummaries>
   transactions: ProjectTransaction[]
+  canEdit: boolean
   onAdd: () => void
   onEdit: (m: ProjectMember) => void
   onRemove: (id: string) => void
@@ -733,14 +820,16 @@ function MembersTab({ members, memberSummaries, transactions, onAdd, onEdit, onR
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{members.length} Member{members.length !== 1 ? 's' : ''}</div>
-        <button
-          onClick={onAdd}
-          style={{
-            padding: '8px 16px', borderRadius: 12,
-            border: 'none', background: c.accent, color: '#fff',
-            font: '700 13px Plus Jakarta Sans', cursor: 'pointer',
-          }}
-        >+ Add Member</button>
+        {canEdit && (
+          <button
+            onClick={onAdd}
+            style={{
+              padding: '8px 16px', borderRadius: 12,
+              border: 'none', background: c.accent, color: '#fff',
+              font: '700 13px Plus Jakarta Sans', cursor: 'pointer',
+            }}
+          >+ Add Member</button>
+        )}
       </div>
 
       {members.length === 0 ? (

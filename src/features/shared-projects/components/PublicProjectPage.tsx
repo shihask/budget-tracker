@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { loadPublicProject } from '../lib/publicApi'
-import { calcProjectSummary, calcMemberSummaries, calcSettlement } from '../lib/calculations'
-import type { Project, ProjectMember, ProjectTransaction, ProjectAttachment } from '../types'
+import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSummary } from '../lib/calculations'
+import { BudgetBreakdownSection } from './BudgetBreakdownSection'
+import type { Project, ProjectMember, ProjectTransaction, ProjectAttachment, ProjectBudget } from '../types'
 
 interface Props {
   shareCode: string
@@ -16,6 +17,7 @@ export function PublicProjectPage({ shareCode }: Props) {
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [transactions, setTransactions] = useState<ProjectTransaction[]>([])
   const [attachments, setAttachments] = useState<ProjectAttachment[]>([])
+  const [budgets, setBudgets] = useState<ProjectBudget[]>([])
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<'overview' | 'expenses' | 'members' | 'settlement'>('overview')
 
@@ -26,6 +28,7 @@ export function PublicProjectPage({ shareCode }: Props) {
         setMembers(result.members)
         setTransactions(result.transactions)
         setAttachments(result.attachments)
+        setBudgets(result.budgets)
       } else {
         setNotFound(true)
       }
@@ -44,6 +47,10 @@ export function PublicProjectPage({ shareCode }: Props) {
   const settlement = useMemo(
     () => calcSettlement(members, transactions),
     [members, transactions]
+  )
+  const budgetSummaryData = useMemo(
+    () => project ? calcBudgetSummary(project, budgets, transactions) : null,
+    [project, budgets, transactions]
   )
 
   if (loading) {
@@ -138,6 +145,11 @@ export function PublicProjectPage({ shareCode }: Props) {
                 </div>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.accent, marginTop: 6, textAlign: 'right' }}>{summary.spendingProgress.toFixed(0)}%</div>
               </div>
+            )}
+
+            {/* Budget breakdown */}
+            {budgetSummaryData && budgetSummaryData.breakdowns.length > 0 && (
+              <BudgetBreakdownSection budgetSummary={budgetSummaryData} targetAmount={target} role="viewer" />
             )}
 
             {/* Stats */}

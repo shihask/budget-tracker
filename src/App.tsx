@@ -377,7 +377,7 @@ function AppContent({ session }: { session: Session }) {
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} onAdjustBalance={adjustCreditCardBalance} /> : null
                       break
                     case 'projects':
-                      el = (state.settings.track_projects ?? false) ? <ProjectsDashboardCard projects={projectsSummary.activeProjects} onSeeAll={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }} onAdd={() => { setProjectsAddOnOpen(true); setProjectsOpen(true) }} /> : null
+                      el = (state.settings.track_projects ?? false) ? <ProjectsDashboardCard projects={projectsSummary.activeProjects} sharedProjects={projectsSummary.sharedProjects} onSeeAll={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }} onAdd={() => { setProjectsAddOnOpen(true); setProjectsOpen(true) }} /> : null
                       break
                     case 'goals':
                       el = <GoalsSection
@@ -525,7 +525,7 @@ function AppContent({ session }: { session: Session }) {
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
             background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 0.4 * (1 - swipePct) : 0})`,
-            pointerEvents: 'none',
+            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'auto' : 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
 
@@ -587,7 +587,7 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {cashflowOpen && (
-            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} onSwipeProgress={setSwipePct} onAddPlannedExpense={addPlannedExpense} onUpdatePlannedExpense={updatePlannedExpense} onDeletePlannedExpense={deletePlannedExpense} onAddCategory={addCategory} />
+            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} onSwipeProgress={setSwipePct} onAddPlannedExpense={addPlannedExpense} onUpdatePlannedExpense={updatePlannedExpense} onDeletePlannedExpense={deletePlannedExpense} onAddCategory={addCategory} onUpdateForecastSettings={updateForecastSettings} />
           )}
 
           {cashflowSetupOpen && <CashFlowForecastSetup open onClose={() => setCashflowSetupOpen(false)} state={state} onUpdateSettings={updateSettings} onUpdateForecastSettings={updateForecastSettings} />}

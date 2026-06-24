@@ -1,6 +1,6 @@
 import type {
-  Project, ProjectMember, ProjectTransaction,
-  ProjectSummary, MemberSummary, SettlementResult
+  Project, ProjectMember, ProjectTransaction, ProjectBudget,
+  ProjectSummary, MemberSummary, SettlementResult, BudgetSummary
 } from '../types'
 
 export function calcProjectSummary(
@@ -138,4 +138,42 @@ function settleDebts(
   }
 
   return settlements
+}
+
+export function calcBudgetSummary(
+  project: Project,
+  budgets: ProjectBudget[],
+  transactions: ProjectTransaction[]
+): BudgetSummary {
+  const expenses = transactions.filter(t => t.transaction_type === 'expense')
+
+  const breakdowns = budgets
+    .sort((a, b) => a.display_order - b.display_order)
+    .map(b => {
+      const spent = expenses
+        .filter(t => (t.category || '').toLowerCase() === b.category.toLowerCase())
+        .reduce((s, t) => s + t.amount, 0)
+      return {
+        budgetId: b.id,
+        category: b.category,
+        budgetAmount: b.budget_amount,
+        spent,
+        remaining: b.budget_amount - spent,
+        pct: b.budget_amount > 0 ? Math.min(100, (spent / b.budget_amount) * 100) : 0,
+      }
+    })
+
+  const totalAllocated = budgets.reduce((s, b) => s + b.budget_amount, 0)
+  const budgetCategories = new Set(budgets.map(b => b.category.toLowerCase()))
+  const uncategorizedSpend = expenses
+    .filter(t => !budgetCategories.has((t.category || '').toLowerCase()))
+    .reduce((s, t) => s + t.amount, 0)
+
+  return {
+    totalAllocated,
+    totalSpentInBudget: breakdowns.reduce((s, b) => s + b.spent, 0),
+    unallocatedAmount: (project.target_amount || 0) - totalAllocated,
+    breakdowns,
+    uncategorizedSpend,
+  }
 }
