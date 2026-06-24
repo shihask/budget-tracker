@@ -82,19 +82,13 @@ export function useProjectsSummary(userId: string) {
   }
 
   const acceptInvite = async (collaboratorId: string) => {
-    const { error } = await supabase
-      .from('project_collaborators')
-      .update({ status: 'active' })
-      .eq('id', collaboratorId)
+    const { error } = await supabase.rpc('mp_accept_invite', { p_collaborator_id: collaboratorId })
     if (error) throw error
     await fetchActive()
   }
 
   const declineInvite = async (collaboratorId: string) => {
-    const { error } = await supabase
-      .from('project_collaborators')
-      .delete()
-      .eq('id', collaboratorId)
+    const { error } = await supabase.rpc('mp_decline_invite', { p_collaborator_id: collaboratorId })
     if (error) throw error
     setPendingInvites(prev => prev.filter(i => i.id !== collaboratorId))
   }

@@ -17,11 +17,15 @@ interface Props {
 export function NotificationsSheet({ open, onClose, pendingInvites, sharedProjects, onAccept, onDecline, onViewProject }: Props) {
   const c = useTheme()
   const [processing, setProcessing] = useState<string | null>(null)
+  const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const hasContent = pendingInvites.length > 0 || sharedProjects.length > 0
 
   const handleAccept = async (id: string) => {
     setProcessing(id)
-    try { await onAccept(id) } catch (e) { console.error(e) }
+    try {
+      await onAccept(id)
+      setAccepted(prev => new Set([...prev, id]))
+    } catch (e) { console.error(e) }
     setProcessing(null)
   }
 
@@ -83,6 +87,18 @@ export function NotificationsSheet({ open, onClose, pendingInvites, sharedProjec
                     <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 4, textTransform: 'uppercase' }}>
                       Role: {invite.role}
                     </div>
+                    {accepted.has(invite.id) ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981' }}>Accepted</span>
+                        <button
+                          onClick={() => { onViewProject(); onClose() }}
+                          style={{ marginLeft: 8, padding: '6px 14px', borderRadius: 8, border: 'none', background: c.accent, color: '#fff', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
+                        >View Project</button>
+                      </div>
+                    ) : (
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       <button
                         onClick={() => handleAccept(invite.id)}
@@ -108,6 +124,7 @@ export function NotificationsSheet({ open, onClose, pendingInvites, sharedProjec
                         Decline
                       </button>
                     </div>
+                    )}
                   </div>
                 </div>
               </div>
