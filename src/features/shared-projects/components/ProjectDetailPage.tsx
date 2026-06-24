@@ -593,7 +593,8 @@ function TransactionsTab({ transactions, attachments, onAdd, onEdit, onDelete }:
   const c = useTheme()
   const [filter, setFilter] = useState<'all' | 'contribution' | 'expense'>('all')
 
-  const filtered = filter === 'all' ? transactions : transactions.filter(t => t.transaction_type === filter)
+  const filtered = (filter === 'all' ? transactions : transactions.filter(t => t.transaction_type === filter))
+    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.created_at.localeCompare(a.created_at))
 
   return (
     <div>

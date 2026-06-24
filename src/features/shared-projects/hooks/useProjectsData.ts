@@ -97,7 +97,8 @@ export function useProjectsData(userId: string) {
         .from('project_transactions')
         .select('*')
         .eq('project_id', projectId)
-        .order('transaction_date', { ascending: false }),
+        .order('transaction_date', { ascending: false })
+        .order('created_at', { ascending: false }),
       supabase
         .from('project_attachments')
         .select('*')
