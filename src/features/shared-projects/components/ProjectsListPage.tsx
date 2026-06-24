@@ -214,7 +214,7 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 100px', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
         {loading ? (
           <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted, textAlign: 'center', paddingTop: 40 }}>Loading…</div>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && filteredShared.length === 0 ? (
           <div style={{ textAlign: 'center', paddingTop: 40 }}>
             <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted }}>No projects found</div>
             <button
@@ -228,12 +228,16 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
-            {filtered.length > 0 && sharedProjects.length > 0 && (
-              <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: 4 }}>My Projects</div>
+            {filtered.length > 0 && (
+              <>
+                {filteredShared.length > 0 && (
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: 4 }}>My Projects</div>
+                )}
+                {filtered.map(p => (
+                  <ProjectCard key={p.id} project={p} role="owner" statusColors={statusColors} onOpen={() => { data.loadProjectDetail(p.id); setDetailProject(p) }} onDelete={() => data.deleteProject(p.id)} />
+                ))}
+              </>
             )}
-            {filtered.map(p => (
-              <ProjectCard key={p.id} project={p} role="owner" statusColors={statusColors} onOpen={() => { data.loadProjectDetail(p.id); setDetailProject(p) }} onDelete={() => data.deleteProject(p.id)} />
-            ))}
             {filteredShared.length > 0 && (
               <>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: 10 }}>Shared with Me</div>

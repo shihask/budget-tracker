@@ -616,9 +616,8 @@ function AppContent({ session }: { session: Session }) {
         <NotificationsSheet
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
-          invites={[]}
           sharedProjects={projectsSummary.sharedProjects}
-          onOpenProject={() => { setNotificationsOpen(false); setProjectsOpen(true) }}
+          onViewProject={() => { setNotificationsOpen(false); setProjectsOpen(true) }}
         />
 
         {settingsOpen && (
