@@ -245,12 +245,27 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, flex: 1 }}>{p.name}</div>
-                  <div style={{
-                    font: '700 10px Plus Jakarta Sans', color: statusColors[p.status],
-                    background: `${statusColors[p.status]}18`,
-                    padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase',
-                  }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                      font: '700 10px Plus Jakarta Sans', color: statusColors[p.status],
+                      background: `${statusColors[p.status]}18`,
+                      padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase',
+                    }}>
                     {p.status}
+                    </div>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation()
+                        if (confirm(`Delete "${p.name}"? This will remove all members, transactions, and attachments.`)) {
+                          data.deleteProject(p.id)
+                        }
+                      }}
+                      style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
                 {p.description && (
