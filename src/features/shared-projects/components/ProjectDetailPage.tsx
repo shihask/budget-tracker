@@ -225,7 +225,7 @@ export function ProjectDetailPage({ project, data, onClose, onSwipeProgress, onP
       </div>
 
       {/* Tab content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px 120px', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px 120px', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
         {tab === 'overview' && (
           <OverviewTab project={project} summary={summary} memberSummaries={memberSummaries} transactions={transactions} />
         )}

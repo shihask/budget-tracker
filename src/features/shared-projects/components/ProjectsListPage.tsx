@@ -213,7 +213,7 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
       </div>
 
       {/* List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 100px', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 100px', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
         {loading ? (
           <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted, textAlign: 'center', paddingTop: 40 }}>Loading…</div>
         ) : filtered.length === 0 ? (
