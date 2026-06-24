@@ -9,7 +9,7 @@ ALTER TABLE project_collaborators
 ALTER TABLE project_collaborators
   ADD COLUMN IF NOT EXISTS invited_email text,
   ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'
-    CHECK (status IN ('active', 'pending'));
+    CHECK (status IN ('active', 'pending', 'invited'));
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_project_collab_email
   ON project_collaborators(project_id, invited_email)
@@ -341,7 +341,7 @@ BEGIN
 
   IF v_email IS NOT NULL THEN
     UPDATE project_collaborators
-    SET user_id = auth.uid(), status = 'active'
+    SET user_id = auth.uid(), status = 'invited'
     WHERE invited_email = lower(v_email)
       AND status = 'pending'
       AND user_id IS NULL;

@@ -156,6 +156,9 @@ function AppContent({ session }: { session: Session }) {
   const [projectsOpen, setProjectsOpen] = useState(false)
   const [projectsAddOnOpen, setProjectsAddOnOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [seenSharedIds, setSeenSharedIds] = useState<Set<string>>(() => {
+    try { const ids = JSON.parse(localStorage.getItem('mp_seen_shared_' + session.user.id) || '[]'); return new Set(ids) } catch { return new Set() }
+  })
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
@@ -171,6 +174,14 @@ function AppContent({ session }: { session: Session }) {
   const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
   const projectsSummary = useProjectsSummary(session.user.id)
+  const unseenSharedCount = projectsSummary.sharedProjects.filter(p => !seenSharedIds.has(p.id)).length
+  const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount
+  const markNotificationsRead = () => {
+    const allIds = projectsSummary.sharedProjects.map(p => p.id)
+    const next = new Set([...seenSharedIds, ...allIds])
+    setSeenSharedIds(next)
+    try { localStorage.setItem('mp_seen_shared_' + session.user.id, JSON.stringify([...next])) } catch {}
+  }
 
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
   const [challengeWin, setChallengeWin] = useState<{ amount: number } | null>(null)
@@ -282,7 +293,7 @@ function AppContent({ session }: { session: Session }) {
             borderBottom: `1px solid ${c.faint}`,
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'none' : 'block',
           }}>
-            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={projectsSummary.sharedProjects.length} onNotifications={() => setNotificationsOpen(true)} />
+            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} />
           </div>
 
           <div style={{
@@ -616,7 +627,10 @@ function AppContent({ session }: { session: Session }) {
         <NotificationsSheet
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
+          pendingInvites={projectsSummary.pendingInvites}
           sharedProjects={projectsSummary.sharedProjects}
+          onAccept={projectsSummary.acceptInvite}
+          onDecline={projectsSummary.declineInvite}
           onViewProject={() => { setNotificationsOpen(false); setProjectsOpen(true) }}
         />
 

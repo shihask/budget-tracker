@@ -2,9 +2,17 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '../types'
 
+export interface PendingInvite {
+  id: string
+  project_id: string
+  role: string
+  project: Project
+}
+
 export function useProjectsSummary(userId: string) {
   const [activeProjects, setActiveProjects] = useState<Project[]>([])
   const [sharedProjects, setSharedProjects] = useState<Project[]>([])
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [loading, setLoading] = useState(true)
   const mountedRef = useRef(true)
 
@@ -17,7 +25,7 @@ export function useProjectsSummary(userId: string) {
   async function fetchActive() {
     setLoading(true)
 
-    const [ownedRes, collabRes] = await Promise.all([
+    const [ownedRes, activeCollabRes, invitedCollabRes] = await Promise.all([
       supabase
         .from('projects')
         .select('*')
@@ -30,27 +38,66 @@ export function useProjectsSummary(userId: string) {
         .select('project_id')
         .eq('user_id', userId)
         .eq('status', 'active'),
+      supabase
+        .from('project_collaborators')
+        .select('id, project_id, role')
+        .eq('user_id', userId)
+        .eq('status', 'invited'),
     ])
 
     let shared: Project[] = []
-    const collabRows = collabRes.data ?? []
-    if (collabRows.length > 0) {
+    const activeRows = activeCollabRes.data ?? []
+    if (activeRows.length > 0) {
       const { data: sharedData } = await supabase
         .from('projects')
         .select('*')
-        .in('id', collabRows.map(c => c.project_id))
+        .in('id', activeRows.map(c => c.project_id))
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(3)
       shared = sharedData ?? []
     }
 
+    let invites: PendingInvite[] = []
+    const invitedRows = invitedCollabRes.data ?? []
+    if (invitedRows.length > 0) {
+      const { data: inviteProjects } = await supabase
+        .from('projects')
+        .select('*')
+        .in('id', invitedRows.map(c => c.project_id))
+      if (inviteProjects) {
+        const projectMap = new Map(inviteProjects.map(p => [p.id, p]))
+        invites = invitedRows
+          .filter(r => projectMap.has(r.project_id))
+          .map(r => ({ id: r.id, project_id: r.project_id, role: r.role, project: projectMap.get(r.project_id)! }))
+      }
+    }
+
     if (mountedRef.current) {
       setActiveProjects(ownedRes.data ?? [])
       setSharedProjects(shared)
+      setPendingInvites(invites)
       setLoading(false)
     }
   }
 
-  return { activeProjects, sharedProjects, loading, refetch: fetchActive }
+  const acceptInvite = async (collaboratorId: string) => {
+    const { error } = await supabase
+      .from('project_collaborators')
+      .update({ status: 'active' })
+      .eq('id', collaboratorId)
+    if (error) throw error
+    await fetchActive()
+  }
+
+  const declineInvite = async (collaboratorId: string) => {
+    const { error } = await supabase
+      .from('project_collaborators')
+      .delete()
+      .eq('id', collaboratorId)
+    if (error) throw error
+    setPendingInvites(prev => prev.filter(i => i.id !== collaboratorId))
+  }
+
+  return { activeProjects, sharedProjects, pendingInvites, loading, refetch: fetchActive, acceptInvite, declineInvite }
 }

@@ -45,7 +45,7 @@ export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll,
         </div>
       </div>
 
-      {projects.length === 0 ? (
+      {projects.length === 0 && sharedProjects.length === 0 ? (
         <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
           No active projects.{' '}
           <span onClick={onAdd} style={{ color: c.accent, cursor: 'pointer' }}>Create one</span>

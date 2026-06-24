@@ -60,7 +60,7 @@ export interface ProjectCollaborator {
   user_id: string | null
   invited_email: string | null
   role: CollaboratorRole
-  status: 'active' | 'pending'
+  status: 'active' | 'pending' | 'invited'
   created_at: string
 }
 
