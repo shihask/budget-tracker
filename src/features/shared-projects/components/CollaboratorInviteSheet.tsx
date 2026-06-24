@@ -15,18 +15,22 @@ export function CollaboratorInviteSheet({ open, onClose, onInvite }: Props) {
   const [role, setRole] = useState<'editor' | 'viewer'>('viewer')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const valid = email.trim().includes('@')
 
   const handleInvite = async () => {
     if (!valid || sending) return
     setSending(true)
+    setError(null)
     try {
       await onInvite(email.trim(), role)
       setSent(true)
-      setTimeout(() => { setSent(false); setEmail(''); onClose() }, 1500)
-    } catch (e) {
-      console.error('Failed to invite collaborator', e)
+      setTimeout(() => { setSent(false); setEmail(''); setError(null); onClose() }, 1500)
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to send invitation'
+      if (msg.includes('Cannot add yourself')) setError('You cannot invite yourself')
+      else setError(msg)
     } finally {
       setSending(false)
     }
@@ -99,11 +103,17 @@ export function CollaboratorInviteSheet({ open, onClose, onInvite }: Props) {
               </div>
             </div>
 
+            {error && (
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: '#EF4444', background: '#EF444412', padding: '10px 14px', borderRadius: 12, marginTop: 16 }}>
+                {error}
+              </div>
+            )}
+
             <button
               onClick={handleInvite}
               disabled={!valid || sending}
               style={{
-                width: '100%', padding: '14px 0', marginTop: 24, borderRadius: 16,
+                width: '100%', padding: '14px 0', marginTop: error ? 12 : 24, borderRadius: 16,
                 border: 'none', background: valid ? c.accent : c.faint,
                 color: '#fff', font: '700 16px Plus Jakarta Sans',
                 cursor: valid ? 'pointer' : 'default',
