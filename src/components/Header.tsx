@@ -11,9 +11,11 @@ interface HeaderProps {
   onSignOut: () => void
   onSettings: () => void
   onCategories: () => void
+  notificationCount?: number
+  onNotifications?: () => void
 }
 
-export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories }: HeaderProps) {
+export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications }: HeaderProps) {
   const c = useTheme()
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -26,6 +28,7 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
     background: c.surface, border: `1px solid ${c.faint}`,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     cursor: 'pointer', boxShadow: c.cardShadow,
+    position: 'relative',
   }
 
   const menuItemStyle: React.CSSProperties = {
@@ -40,7 +43,6 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px 14px' }}>
       {/* Logo + App name + Greeting */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        {/* Icon */}
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="36" height="36" style={{ flexShrink: 0, borderRadius: 10, boxShadow: `0 2px 8px #16C98A55` }}>
           <defs>
             <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1">
@@ -71,10 +73,26 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
         </div>
       </div>
 
-      {/* Right: theme toggle + avatar */}
+      {/* Right: notification bell + avatar */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <button onClick={onToggleTheme} aria-label="Toggle theme" style={iconBtnStyle}>
-          <Glyph name={dark ? 'sun' : 'moon'} color={c.ink} size={18} />
+        <button onClick={onNotifications} aria-label="Notifications" style={iconBtnStyle}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          {notificationCount > 0 && (
+            <span style={{
+              position: 'absolute', top: -2, right: -2,
+              minWidth: 18, height: 18, borderRadius: 999,
+              background: '#EF4444', color: '#fff',
+              font: '800 10px Plus Jakarta Sans',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '0 4px',
+              border: `2px solid ${c.bg}`,
+            }}>
+              {notificationCount}
+            </span>
+          )}
         </button>
 
         {/* Avatar + dropdown */}
@@ -100,7 +118,6 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
           </button>
 
           {menuOpen && (
-            /* Backdrop absorbs the click so nothing beneath the menu fires */
             <div
               style={{ position: 'fixed', inset: 0, zIndex: 399 }}
               onClick={() => setMenuOpen(false)}
@@ -127,6 +144,15 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
               </div>
 
               <div style={{ height: 1, background: c.faint, margin: '4px 0' }} />
+
+              {/* Dark mode toggle */}
+              <button
+                onClick={() => { onToggleTheme(); setMenuOpen(false) }}
+                style={menuItemStyle}
+              >
+                <Glyph name={dark ? 'sun' : 'moon'} color={c.ink} size={15} />
+                {dark ? 'Light Mode' : 'Dark Mode'}
+              </button>
 
               {/* Categories */}
               <button

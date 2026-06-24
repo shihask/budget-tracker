@@ -59,6 +59,7 @@ import { ProjectsDashboardCard } from '@/features/shared-projects/components/Pro
 import { ProjectsListPage } from '@/features/shared-projects/components/ProjectsListPage'
 import { PublicProjectPage } from '@/features/shared-projects/components/PublicProjectPage'
 import { useProjectsSummary } from '@/features/shared-projects/hooks/useProjectsSummary'
+import { NotificationsSheet } from '@/features/shared-projects/components/NotificationsSheet'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -154,6 +155,7 @@ function AppContent({ session }: { session: Session }) {
   const [cashflowSetupOpen, setCashflowSetupOpen] = useState(false)
   const [projectsOpen, setProjectsOpen] = useState(false)
   const [projectsAddOnOpen, setProjectsAddOnOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
@@ -280,7 +282,7 @@ function AppContent({ session }: { session: Session }) {
             borderBottom: `1px solid ${c.faint}`,
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'none' : 'block',
           }}>
-            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} />
+            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={projectsSummary.sharedProjects.length} onNotifications={() => setNotificationsOpen(true)} />
           </div>
 
           <div style={{
@@ -610,6 +612,14 @@ function AppContent({ session }: { session: Session }) {
             />
           )}
         </div>
+
+        <NotificationsSheet
+          open={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          invites={[]}
+          sharedProjects={projectsSummary.sharedProjects}
+          onOpenProject={() => { setNotificationsOpen(false); setProjectsOpen(true) }}
+        />
 
         {settingsOpen && (
           <>
