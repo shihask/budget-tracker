@@ -65,17 +65,18 @@ export function calcSettlement(
     return { creditors: [], debtors: [], settlements: [] }
   }
 
-  const totalExpenses = transactions
-    .filter(t => t.transaction_type === 'expense')
-    .reduce((s, t) => s + t.amount, 0)
+  // Only member-paid expenses affect settlement; project fund expenses are excluded
+  const memberExpenses = transactions
+    .filter(t => t.transaction_type === 'expense' && t.member_id != null)
+  const totalMemberExpenses = memberExpenses.reduce((s, t) => s + t.amount, 0)
 
   const totalRatio = activeMembers.reduce((s, m) => s + m.share_ratio, 0)
 
   const balances = activeMembers.map(member => {
-    const paid = transactions
-      .filter(t => t.member_id === member.id && t.transaction_type === 'expense')
+    const paid = memberExpenses
+      .filter(t => t.member_id === member.id)
       .reduce((s, t) => s + t.amount, 0)
-    const fairShare = totalRatio > 0 ? (member.share_ratio / totalRatio) * totalExpenses : 0
+    const fairShare = totalRatio > 0 ? (member.share_ratio / totalRatio) * totalMemberExpenses : 0
     return {
       memberId: member.id,
       memberName: member.name,

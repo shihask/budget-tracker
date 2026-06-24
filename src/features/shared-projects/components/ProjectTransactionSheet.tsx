@@ -55,12 +55,12 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
 
   const handleSave = async () => {
     const amt = parseFloat(amount)
-    if (!amt || amt <= 0 || saving) return
+    if (!amt || amt <= 0 || saving || !valid) return
     setSaving(true)
     try {
       await onSave({
         project_id: projectId,
-        member_id: memberId || null,
+        member_id: (memberId && memberId !== '__fund__') ? memberId : null,
         transaction_type: mode,
         amount: amt,
         description: description.trim() || undefined,
@@ -89,7 +89,9 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   }
 
   const isContribution = mode === 'contribution'
-  const valid = parseFloat(amount) > 0
+  const hasAmount = parseFloat(amount) > 0
+  const hasSelection = members.length === 0 || !!memberId
+  const valid = hasAmount && hasSelection
 
   return (
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
@@ -107,7 +109,14 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
                 onChange={e => setMemberId(e.target.value)}
                 style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}
               >
-                <option value="">Select member</option>
+                {isContribution ? (
+                  <option value="">Select member</option>
+                ) : (
+                  <>
+                    <option value="">Select who paid</option>
+                    <option value="__fund__">Project Fund (from contributions)</option>
+                  </>
+                )}
                 {members.filter(m => m.is_active).map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
