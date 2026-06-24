@@ -321,10 +321,6 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                   </div>
                   {expanded && (
                     <div style={{ padding: '4px 0 10px 18px', borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
-                        <span style={{ font: `600 12px ${F}`, color: c.muted }}>{spending ? 'Spent so far' : 'Saved so far'}</span>
-                        <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(current)}</span>
-                      </div>
                       {items.map((item, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
                           <span style={{ font: `600 12px ${F}`, color: c.ink }}>+ {item.title}</span>
