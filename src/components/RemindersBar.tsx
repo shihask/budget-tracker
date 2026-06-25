@@ -10,7 +10,7 @@ interface Props {
   onMarkPaid?: (cm: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
 }
 
-interface Reminder {
+export interface Reminder {
   id: string
   type: 'credit_card_due' | 'credit_card_bill' | 'commitment_due'
   title: string
@@ -28,7 +28,7 @@ function getDaysUntil(day: number): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-function buildReminders(state: AppState): Reminder[] {
+export function buildReminders(state: AppState): Reminder[] {
   const reminders: Reminder[] = []
   const now = new Date()
 

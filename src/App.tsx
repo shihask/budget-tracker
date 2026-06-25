@@ -34,7 +34,7 @@ import { CategoriesPage } from '@/components/CategoriesPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
 import { AffordabilityChecker } from '@/components/AffordabilityChecker'
 import { GoalsSection } from '@/components/GoalsSection'
-import { RemindersBar } from '@/components/RemindersBar'
+import { RemindersBar, buildReminders } from '@/components/RemindersBar'
 import { SavingsSuggestions } from '@/components/SavingsSuggestions'
 import { BottomSheet } from '@/components/BottomSheet'
 import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
@@ -175,7 +175,6 @@ function AppContent({ session }: { session: Session }) {
 
   const projectsSummary = useProjectsSummary(session.user.id)
   const unseenSharedCount = projectsSummary.sharedProjects.filter(p => !seenSharedIds.has(p.id)).length
-  const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount
   const markNotificationsRead = () => {
     const allIds = projectsSummary.sharedProjects.map(p => p.id)
     const next = new Set([...seenSharedIds, ...allIds])
@@ -228,6 +227,12 @@ function AppContent({ session }: { session: Session }) {
   const showReflectionBanner = !loading &&
     state.settings.last_reflection_date !== todayStr &&
     state.transactions.some(t => t.transaction_date === yesterdayStr && t.transaction_type === 'expense')
+
+  const alertReminders = buildReminders(state)
+  const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount
+    + alertReminders.length
+    + (d.weeklyPct >= 90 ? 1 : 0)
+    + (showReflectionBanner ? 1 : 0)
 
   const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
     const prevPct = d.weeklyPct
@@ -632,6 +637,14 @@ function AppContent({ session }: { session: Session }) {
           onAccept={projectsSummary.acceptInvite}
           onDecline={projectsSummary.declineInvite}
           onViewProject={() => { setNotificationsOpen(false); setProjectsOpen(true) }}
+          state={state}
+          budgetPct={d.weeklyPct}
+          budgetSpent={d.weeklySpent}
+          budgetTotal={d.weeklyBudget}
+          budgetPeriod={state.settings.budget_period ?? 'weekly'}
+          showReflection={showReflectionBanner}
+          onReflection={() => { setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
+          onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)}
         />
 
         {settingsOpen && (

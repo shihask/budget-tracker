@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { BottomSheet } from '@/components/BottomSheet'
+import { fmt } from '@/lib/utils'
+import { buildReminders, type Reminder } from '@/components/RemindersBar'
 import type { Project } from '../types'
 import type { PendingInvite } from '../hooks/useProjectsSummary'
+import type { AppState, Commitment } from '@/types'
 
 interface Props {
   open: boolean
@@ -12,13 +15,40 @@ interface Props {
   onAccept: (collaboratorId: string) => Promise<void>
   onDecline: (collaboratorId: string) => Promise<void>
   onViewProject: () => void
+  // Extra alert data
+  state?: AppState
+  budgetPct?: number
+  budgetSpent?: number
+  budgetTotal?: number
+  budgetPeriod?: string
+  showReflection?: boolean
+  onReflection?: () => void
+  onMarkPaid?: (cm: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
 }
 
-export function NotificationsSheet({ open, onClose, pendingInvites, sharedProjects, onAccept, onDecline, onViewProject }: Props) {
+export function NotificationsSheet({
+  open, onClose, pendingInvites, sharedProjects,
+  onAccept, onDecline, onViewProject,
+  state, budgetPct = 0, budgetSpent = 0, budgetTotal = 0,
+  budgetPeriod = 'weekly', showReflection, onReflection, onMarkPaid,
+}: Props) {
   const c = useTheme()
   const [processing, setProcessing] = useState<string | null>(null)
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
-  const hasContent = pendingInvites.length > 0 || sharedProjects.length > 0
+  const [dismissedReminders, setDismissedReminders] = useState<Set<string>>(new Set())
+  const [dismissedBudget, setDismissedBudget] = useState(false)
+  const [dismissedReflection, setDismissedReflection] = useState(false)
+
+  const reminders: Reminder[] = state ? buildReminders(state).filter(r => !dismissedReminders.has(r.id)) : []
+  const showBudgetAlert = budgetPct >= 90 && !dismissedBudget
+  const showReflectionAlert = !!showReflection && !dismissedReflection
+
+  const hasContent =
+    pendingInvites.length > 0 ||
+    sharedProjects.length > 0 ||
+    showBudgetAlert ||
+    reminders.length > 0 ||
+    showReflectionAlert
 
   const handleAccept = async (id: string) => {
     setProcessing(id)
@@ -34,6 +64,8 @@ export function NotificationsSheet({ open, onClose, pendingInvites, sharedProjec
     try { await onDecline(id) } catch (e) { console.error(e) }
     setProcessing(null)
   }
+
+  const periodLabel = budgetPeriod === 'daily' ? 'daily' : budgetPeriod === 'monthly' ? 'monthly' : 'weekly'
 
   return (
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
@@ -52,6 +84,132 @@ export function NotificationsSheet({ open, onClose, pendingInvites, sharedProjec
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+            {/* Budget alert */}
+            {showBudgetAlert && (
+              <div style={{
+                background: budgetPct >= 100 ? '#FEF2F2' : '#FFFBEB',
+                borderRadius: 16, padding: '14px 16px',
+                border: `1.5px solid ${budgetPct >= 100 ? '#FECACA' : '#FDE68A'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: budgetPct >= 100 ? '#EF444420' : '#F59E0B20',
+                    color: budgetPct >= 100 ? '#EF4444' : '#F59E0B',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ font: '700 14px Plus Jakarta Sans', color: budgetPct >= 100 ? '#991B1B' : '#92400E' }}>
+                      {budgetPct >= 100 ? 'Budget exceeded!' : 'Budget almost spent'}
+                    </div>
+                    <div style={{ font: '500 12px Plus Jakarta Sans', color: budgetPct >= 100 ? '#991B1BAA' : '#92400EAA', marginTop: 2 }}>
+                      {fmt(budgetSpent)} of {fmt(budgetTotal)} {periodLabel} budget ({Math.round(budgetPct)}%)
+                    </div>
+                  </div>
+                  <button onClick={() => setDismissedBudget(true)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: budgetPct >= 100 ? '#991B1B80' : '#92400E80', flexShrink: 0 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Commitment & credit card reminders */}
+            {reminders.map(r => {
+              const bgColor = r.urgent ? '#FEF2F2' : '#FFFBEB'
+              const borderColor = r.urgent ? '#FECACA' : '#FDE68A'
+              const iconColor = r.urgent ? '#EF4444' : '#F59E0B'
+              const textColor = r.urgent ? '#991B1B' : '#92400E'
+
+              return (
+                <div key={r.id} style={{
+                  background: bgColor, borderRadius: 16, padding: '14px 16px',
+                  border: `1.5px solid ${borderColor}`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 10,
+                      background: iconColor + '20', color: iconColor,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      {r.type === 'credit_card_due' || r.type === 'credit_card_bill' ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                          <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: textColor }}>{r.title}</div>
+                      <div style={{ font: '500 11px Plus Jakarta Sans', color: textColor + 'AA', marginTop: 2 }}>{r.subtitle}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <div style={{ background: iconColor, borderRadius: 8, padding: '4px 8px', textAlign: 'center' }}>
+                        <div style={{ font: '800 13px Plus Jakarta Sans', color: '#fff', lineHeight: 1 }}>{r.daysLeft}</div>
+                        <div style={{ font: '600 8px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', lineHeight: 1, marginTop: 1 }}>days</div>
+                      </div>
+                      <button onClick={() => setDismissedReminders(s => new Set([...s, r.id]))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: textColor + '80' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Reflection reminder */}
+            {showReflectionAlert && (
+              <div
+                onClick={() => { onReflection?.(); onClose() }}
+                style={{
+                  background: '#16C98A08', borderRadius: 16, padding: '14px 16px',
+                  border: `1.5px solid #16C98A30`, cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: '#16C98A18', color: '#16C98A',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Yesterday's Reflection</div>
+                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>See how yesterday went and grow today</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                    <button
+                      onClick={e => { e.stopPropagation(); setDismissedReflection(true) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: c.muted + '80' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Pending invitations — need accept/decline */}
             {pendingInvites.map(invite => (
               <div
