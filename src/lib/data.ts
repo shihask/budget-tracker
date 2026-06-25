@@ -4,6 +4,8 @@
 import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData, JourneyMilestone, JourneyReplayEvent, JourneyHealthItem, JourneyFlowItem } from '@/types'
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ADJUSTMENT_GROUP } from '@/lib/constants'
+import { getIncomePattern } from '@/lib/income-pattern'
+import { estimateHistoricalDailyIncome, calculateAvgDailySpending, calculateSafeUntilDays, calculateTodaySummary, calculateWeekSummary } from '@/lib/variable-income'
 
 // System transactions (opening_balance, balance_adjustment) must never count as real income/expense.
 // Also covers legacy transactions created before the dedicated types existed (category-group fallback).
@@ -79,13 +81,14 @@ const remainingCommitments = state.commitments
   const weeklyRemaining = weeklyBudget - weeklySpent
   const weeklyPct = weeklyBudget ? (weeklySpent / weeklyBudget) * 100 : 0
 
-  // Salary-cycle-based metrics (auto budget mode)
+  // Income-cycle-based metrics (auto budget mode)
+  const pattern = getIncomePattern(state.settings)
   const salaryDate = state.settings.salary_date
   let cycleSpent = 0, cycleRemaining = realFreeMoney
   let safeDailySpend = 0, safeWeeklySpend = 0
   let cycleDaysLeft = 0, cycleWeeksLeft = 0
 
-  if (salaryDate && salaryDate >= 1 && salaryDate <= 31) {
+  if (pattern === 'monthly' && salaryDate && salaryDate >= 1 && salaryDate <= 31) {
     const t = new Date()
     const y = t.getFullYear(), m = t.getMonth(), day = t.getDate()
     const cycleStart = day >= salaryDate
@@ -102,12 +105,53 @@ const remainingCommitments = state.commitments
     cycleRemaining = realFreeMoney
     safeDailySpend  = realFreeMoney / cycleDaysLeft
     safeWeeklySpend = realFreeMoney / cycleWeeksLeft
+  } else if (pattern === 'weekly') {
+    const incDay = state.settings.income_day ?? 5
+    const weekStart = getWeekStart(now, incDay)
+    const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6)
+    const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    cycleDaysLeft = Math.max(1, Math.round((weekEnd.getTime() - todayMid.getTime()) / 86400000) + 1)
+    cycleWeeksLeft = 1
+
+    cycleSpent = state.transactions
+      .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= weekStart)
+      .reduce((s, tx) => s + tx.amount, 0)
+    cycleRemaining = realFreeMoney
+    safeDailySpend  = realFreeMoney / cycleDaysLeft
+    safeWeeklySpend = realFreeMoney
+  }
+
+  // Variable/business income metrics
+  let safeUntilDays: number | undefined
+  let avgDailyIncome: number | undefined
+  let avgDailySpendingVal: number | undefined
+  let incomeConfidence: import('@/types').EstimateConfidence | undefined
+  let todayIncome: number | undefined, todaySpending: number | undefined, todaySaving: number | undefined
+  let weekEarned: number | undefined, weekSpentVar: number | undefined, weekSaved: number | undefined
+
+  if (pattern === 'variable' || pattern === 'business') {
+    avgDailySpendingVal = calculateAvgDailySpending(state)
+    safeUntilDays = calculateSafeUntilDays(realFreeMoney, avgDailySpendingVal)
+    const hist = estimateHistoricalDailyIncome(state)
+    avgDailyIncome = state.settings.average_daily_income ?? hist?.avgDailyIncome ?? 0
+    incomeConfidence = state.settings.average_daily_income ? 'high' : hist?.confidence ?? 'none'
+    const today = calculateTodaySummary(state)
+    todayIncome = today.todayIncome
+    todaySpending = today.todaySpending
+    todaySaving = today.todaySaving
+    const week = calculateWeekSummary(state, state.settings)
+    weekEarned = week.weekEarned
+    weekSpentVar = week.weekSpent
+    weekSaved = week.weekSaved
   }
 
   return {
     actualBalance, emergencyFund, availableBalance, remainingCommitments,
     realFreeMoney, weeklyBudget, weeklySpent, weeklyRemaining, weeklyPct,
     cycleSpent, cycleRemaining, safeDailySpend, safeWeeklySpend, cycleDaysLeft, cycleWeeksLeft,
+    safeUntilDays, avgDailyIncome, avgDailySpending: avgDailySpendingVal, incomeConfidence,
+    todayIncome, todaySpending, todaySaving,
+    weekEarned, weekSpent: weekSpentVar, weekSaved,
   }
 }
 
@@ -223,9 +267,13 @@ const SAVINGS_TYPE_LABEL: Record<string, string> = {
 
 export function journeyData(state: AppState): JourneyData {
   const now = TODAY
+  const pattern = getIncomePattern(state.settings)
   const salaryDate = state.settings.salary_date
   let cycleStart: Date
-  if (salaryDate && salaryDate >= 1 && salaryDate <= 31) {
+  if (pattern === 'weekly') {
+    const incDay = state.settings.income_day ?? 5
+    cycleStart = getWeekStart(now, incDay)
+  } else if (pattern === 'monthly' && salaryDate && salaryDate >= 1 && salaryDate <= 31) {
     const day = now.getDate()
     cycleStart = day >= salaryDate
       ? new Date(now.getFullYear(), now.getMonth(), salaryDate)
@@ -419,7 +467,9 @@ export function journeyData(state: AppState): JourneyData {
   // Previous cycle — for comparison
   const prevCycleEnd = new Date(cycleStart.getTime() - 86400000)
   let prevCycleStart: Date
-  if (salaryDate && salaryDate >= 1 && salaryDate <= 31) {
+  if (pattern === 'weekly') {
+    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth(), cycleStart.getDate() - 7)
+  } else if (pattern === 'monthly' && salaryDate && salaryDate >= 1 && salaryDate <= 31) {
     prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, salaryDate)
   } else {
     prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, 1)

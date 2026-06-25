@@ -245,7 +245,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
       setDeleteProtect(sv)
       return
     }
-    if (!await confirm('Delete this savings entry?')) return
+    if (!await confirm(`Delete "${sv?.name || 'this investment'}"? This cannot be undone.`)) return
     setDeleting(id)
     try { await onDelete(id) } catch (_) {}
     setDeleting(null)

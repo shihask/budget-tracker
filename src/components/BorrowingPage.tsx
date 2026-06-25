@@ -426,9 +426,18 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
       {/* ── List ─────────────────────────────────────────────────────────────────── */}
       <div style={{ padding: '8px 16px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
         {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', font: '600 14px Plus Jakarta Sans', color: c.muted }}>
-            {state.borrowings.length === 0 ? 'No entries yet. Tap + to add.' : 'No entries match your filters.'}
-          </div>
+          state.borrowings.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+              <div style={{ width: 60, height: 60, borderRadius: 18, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              </div>
+              <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Track Shared Money</div>
+              <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 24 }}>Lent money to a friend? Borrowed from someone? Track it here so nothing slips through the cracks.</div>
+              <button onClick={openAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '13px 28px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Add your first entry</button>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '60px 0', font: '600 14px Plus Jakarta Sans', color: c.muted }}>No entries match your filters.</div>
+          )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
             {filtered.map(b => {

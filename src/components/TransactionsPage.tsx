@@ -748,7 +748,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <button onClick={() => setQuickCatTx(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
           <button onClick={handleQuickCatSave} disabled={quickCatSaving} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: quickCatSaving ? 'not-allowed' : 'pointer', opacity: quickCatSaving ? 0.7 : 1 }}>
-            {quickCatSaving ? 'Saving...' : 'Save'}
+            {quickCatSaving ? 'Saving...' : 'Save Category'}
           </button>
         </div>
       </BottomSheet>

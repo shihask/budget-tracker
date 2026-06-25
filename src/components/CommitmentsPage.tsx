@@ -301,10 +301,13 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
           )}
 
           {active.length === 0 ? (
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '32px 0', textAlign: 'center' }}>
-              No bills or obligations added yet.{' '}
-              <span onClick={openAdd} style={{ color: c.accent, cursor: 'pointer' }}>Add one</span>
-              {' '}— rent, electricity, loan EMIs, subscriptions and any recurring payment.
+            <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+              <div style={{ width: 60, height: 60, borderRadius: 18, background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a1 1 0 0 0 1 1h4"/></svg>
+              </div>
+              <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Stay Ahead of Bills</div>
+              <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 24 }}>Never miss another payment. Add rent, electricity, loan EMIs, subscriptions and any recurring bills.</div>
+              <button onClick={openAdd} style={{ background: '#8B5CF6', color: '#fff', border: 'none', borderRadius: 14, padding: '13px 28px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Add your first bill</button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>

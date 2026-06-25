@@ -1,6 +1,8 @@
 export type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet'
 export type BudgetBucket = 'needs' | 'wants' | 'savings'
 export type BudgetStrategyType = 'none' | 'balanced' | 'stable' | 'growth' | 'custom'
+export type IncomePattern = 'monthly' | 'weekly' | 'variable' | 'business'
+export type EstimateConfidence = 'high' | 'medium' | 'low' | 'none'
 export type TransactionType = 'expense' | 'income' | 'transfer' | 'commitment' | 'borrowing' | 'borrowing_repayment' | 'savings_contribution' | 'savings_withdrawal' | 'opening_balance' | 'balance_adjustment' | 'credit_card_payment' | 'cc_opening_balance' | 'cc_balance_adjustment'
 
 export const SYSTEM_TX_TYPES = new Set<TransactionType>(['opening_balance', 'balance_adjustment', 'credit_card_payment', 'cc_opening_balance', 'cc_balance_adjustment'])
@@ -132,6 +134,12 @@ export interface Settings {
   challenge_success_days?:      number
   last_reflection_date?:        string | null
   monthly_salary?:              number | null
+  income_pattern?:              IncomePattern
+  weekly_income?:               number | null
+  income_day?:                  number | null
+  average_daily_income?:        number | null
+  working_days_per_week?:       number | null
+  business_monthly_drawings?:   number | null
 }
 
 export type ForecastMode = 'planned' | 'lifestyle'
@@ -277,6 +285,17 @@ export interface DerivedMetrics {
   safeWeeklySpend: number
   cycleDaysLeft: number
   cycleWeeksLeft: number
+  // Variable/business income metrics
+  safeUntilDays?: number
+  avgDailyIncome?: number
+  avgDailySpending?: number
+  incomeConfidence?: EstimateConfidence
+  todayIncome?: number
+  todaySpending?: number
+  todaySaving?: number
+  weekEarned?: number
+  weekSpent?: number
+  weekSaved?: number
 }
 
 export interface TrendPoint { label: string; date: string; value: number }

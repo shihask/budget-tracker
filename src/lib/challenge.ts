@@ -1,5 +1,6 @@
-import { TODAY, iso, addDays } from '@/lib/utils'
+import { TODAY, iso, addDays, getWeekStart } from '@/lib/utils'
 import type { AppState } from '@/types'
+import { getIncomePattern } from '@/lib/income-pattern'
 
 export interface PlantGrowth {
   leaves: number
@@ -119,10 +120,18 @@ export function computeChallenge(
   const emergencyFund = settings.emergency_fund ?? 0
   const availableSpendable = Math.max(0, spendableCash - pendingBills - emergencyFund)
 
-  // Days horizon
+  // Days horizon — income-pattern-aware
   let daysRemaining: number
   let planningMode: ChallengeCalc['planningMode']
-  if (settings.salary_date) {
+  const pattern = getIncomePattern(settings)
+  if (pattern === 'weekly') {
+    const incDay = settings.income_day ?? 5
+    const weekStart = getWeekStart(now, incDay)
+    const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6)
+    const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    daysRemaining = Math.max(1, Math.round((weekEnd.getTime() - todayMid.getTime()) / 86400000) + 1)
+    planningMode = 'salary_cycle'
+  } else if (pattern === 'monthly' && settings.salary_date) {
     daysRemaining = computeCycleDays(settings.salary_date)
     planningMode = 'salary_cycle'
   } else {

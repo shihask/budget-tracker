@@ -4,7 +4,8 @@ import { fmt } from '@/lib/utils'
 import { loadPublicProject } from '../lib/publicApi'
 import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSummary } from '../lib/calculations'
 import { BudgetBreakdownSection } from './BudgetBreakdownSection'
-import type { Project, ProjectMember, ProjectTransaction, ProjectAttachment, ProjectBudget } from '../types'
+import { ActivityLogTab } from './ActivityLogTab'
+import type { Project, ProjectMember, ProjectTransaction, ProjectAttachment, ProjectBudget, ProjectActivityLog } from '../types'
 
 interface Props {
   shareCode: string
@@ -18,8 +19,9 @@ export function PublicProjectPage({ shareCode }: Props) {
   const [transactions, setTransactions] = useState<ProjectTransaction[]>([])
   const [attachments, setAttachments] = useState<ProjectAttachment[]>([])
   const [budgets, setBudgets] = useState<ProjectBudget[]>([])
+  const [activityLog, setActivityLog] = useState<ProjectActivityLog[]>([])
   const [notFound, setNotFound] = useState(false)
-  const [tab, setTab] = useState<'overview' | 'expenses' | 'members' | 'settlement'>('overview')
+  const [tab, setTab] = useState<'overview' | 'expenses' | 'members' | 'settlement' | 'activity'>('overview')
 
   useEffect(() => {
     loadPublicProject(shareCode).then(result => {
@@ -29,6 +31,7 @@ export function PublicProjectPage({ shareCode }: Props) {
         setTransactions(result.transactions)
         setAttachments(result.attachments)
         setBudgets(result.budgets)
+        setActivityLog(result.activityLog)
       } else {
         setNotFound(true)
       }
@@ -79,6 +82,7 @@ export function PublicProjectPage({ shareCode }: Props) {
     { id: 'expenses' as const, label: 'Transactions' },
     { id: 'members' as const, label: 'Members' },
     ...(members.length >= 2 ? [{ id: 'settlement' as const, label: 'Settlement' }] : []),
+    { id: 'activity' as const, label: 'Activity' },
   ]
 
   return (
@@ -186,7 +190,11 @@ export function PublicProjectPage({ shareCode }: Props) {
         {tab === 'expenses' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {transactions.length === 0 ? (
-              <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted, textAlign: 'center', paddingTop: 30 }}>No transactions yet</div>
+              <div style={{ textAlign: 'center', padding: '40px 24px' }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>📭</div>
+                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Project hasn't started yet</div>
+                <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>The owner hasn't recorded any contributions or expenses.</div>
+              </div>
             ) : transactions.map(txn => {
               const isContrib = txn.transaction_type === 'contribution'
               const txnAttach = attachments.filter(a => a.project_transaction_id === txn.id)
@@ -271,6 +279,10 @@ export function PublicProjectPage({ shareCode }: Props) {
               </div>
             )}
           </div>
+        )}
+
+        {tab === 'activity' && (
+          <ActivityLogTab activityLog={activityLog} />
         )}
       </div>
     </div>

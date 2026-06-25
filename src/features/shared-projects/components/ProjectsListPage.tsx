@@ -215,16 +215,13 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
         {loading ? (
           <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted, textAlign: 'center', paddingTop: 40 }}>Loading…</div>
         ) : filtered.length === 0 && filteredShared.length === 0 ? (
-          <div style={{ textAlign: 'center', paddingTop: 40 }}>
-            <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted }}>No projects found</div>
-            <button
-              onClick={() => setAddOpen(true)}
-              style={{
-                marginTop: 12, padding: '10px 24px', borderRadius: 14,
-                border: 'none', background: c.accent, color: '#fff',
-                font: '700 14px Plus Jakarta Sans', cursor: 'pointer',
-              }}
-            >Create your first project</button>
+          <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+            <div style={{ width: 60, height: 60, borderRadius: 18, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </div>
+            <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Start Your First Project</div>
+            <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 24 }}>Plan a group trip, track home renovation costs or split expenses with flatmates.</div>
+            <button onClick={() => setAddOpen(true)} style={{ background: '#6366F1', color: '#fff', border: 'none', borderRadius: 14, padding: '13px 28px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Create your first project</button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>

@@ -3,6 +3,7 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { estimateForecastSalary, SALARY_SOURCE_LABEL } from '@/lib/cashflow'
+import { getIncomePattern } from '@/lib/income-pattern'
 import type { AppState, Settings, ForecastSettings } from '@/types'
 
 interface Props {
@@ -19,6 +20,7 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
   const c = useTheme()
   const s = state.settings
   const fs = state.forecast_settings
+  const pattern = getIncomePattern(s)
 
   const activeCommitments = useMemo(() => state.commitments.filter(x => x.is_active !== false && x.remaining > 0), [state.commitments])
   const activeSavings = useMemo(() => state.savings.filter(x => x.is_active !== false && x.is_recurring), [state.savings])
@@ -102,9 +104,9 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
           <div style={{ background: c.accentSoft, borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
             <div style={{ font: `700 12px ${F}`, color: c.accent, marginBottom: 8 }}>How Forecast Setup Works</div>
             {[
-              { label: 'Salary Date', desc: 'The day you receive your salary. Used to calculate salary cycles and forecast income.' },
+              { label: pattern === 'monthly' ? 'Salary Date' : 'Income Schedule', desc: pattern === 'monthly' ? 'The day you receive your salary. Used to calculate salary cycles and forecast income.' : 'Your income schedule determines how forecast cycles are calculated.' },
               { label: 'Estimated Salary', desc: 'Auto-detected from your salary history. Use custom estimate if it\'s inaccurate or if you expect a different amount.' },
-              { label: 'Forecast Period', desc: 'How far ahead the forecast looks. 30 days covers this month, 60 days covers the next salary cycle too, 90 days gives a longer view.' },
+              { label: 'Forecast Period', desc: 'How far ahead the forecast looks. 30 days covers this month, 60 days covers the next income cycle too, 90 days gives a longer view.' },
               { label: 'Commitments', desc: 'Recurring bills and obligations (EMI, rent, insurance). Unchecked items are excluded from the forecast.' },
               { label: 'Savings Plans', desc: 'Recurring savings contributions (SIP, RD, Gold, Chit). Unchecked items are excluded from the forecast.' },
             ].map(h => (
@@ -119,14 +121,20 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
         )}
 
         {/* Salary date */}
-        <label style={lbl}>Salary date</label>
-        {s.salary_date != null ? (
-          <div style={{ ...inp, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default' }}>
-            <span>{s.salary_date}{['th', 'st', 'nd', 'rd'][(s.salary_date % 10 > 3 || (s.salary_date > 10 && s.salary_date < 14)) ? 0 : s.salary_date % 10]} of each month</span>
-            <span style={{ font: `600 11px ${F}`, color: c.muted }}>from your budget settings</span>
-          </div>
+        <label style={lbl}>{pattern === 'monthly' ? 'Salary date' : 'Income schedule'}</label>
+        {pattern === 'monthly' ? (
+          s.salary_date != null ? (
+            <div style={{ ...inp, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default' }}>
+              <span>{s.salary_date}{['th', 'st', 'nd', 'rd'][(s.salary_date % 10 > 3 || (s.salary_date > 10 && s.salary_date < 14)) ? 0 : s.salary_date % 10]} of each month</span>
+              <span style={{ font: `600 11px ${F}`, color: c.muted }}>from your budget settings</span>
+            </div>
+          ) : (
+            <input value={salaryDay} onChange={e => setSalaryDay(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="Day of month, e.g. 28" style={inp} />
+          )
         ) : (
-          <input value={salaryDay} onChange={e => setSalaryDay(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="Day of month, e.g. 28" style={inp} />
+          <div style={{ ...inp, cursor: 'default', font: `600 13px ${F}`, color: c.muted }}>
+            Income settings are managed in the Budget section of Settings
+          </div>
         )}
 
         {/* Estimated salary with source transparency */}

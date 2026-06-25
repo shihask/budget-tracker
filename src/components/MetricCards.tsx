@@ -3,7 +3,7 @@ import { useTheme } from '@/lib/theme-context'
 import { toneColor, toneSoft } from '@/lib/tokens'
 import { fmt } from '@/lib/utils'
 import { Glyph, type GlyphName } from './Glyph'
-import type { DerivedMetrics, Layout } from '@/types'
+import type { DerivedMetrics, IncomePattern, Layout } from '@/types'
 import type { ToneKey } from '@/lib/tokens'
 
 interface Metric {
@@ -13,6 +13,7 @@ interface Metric {
   hint: string
   tone: ToneKey
   icon: GlyphName
+  suffix?: string
 }
 
 type FormulaRow =
@@ -69,6 +70,12 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
       { separator: true },
       { label: 'Weekly remaining', value: d.weeklyRemaining },
     ]
+    case 'safe': return [
+      { label: 'Real free money', value: d.realFreeMoney },
+      { label: 'Avg daily spending (30d)', value: d.avgDailySpending ?? 0, muted: true },
+      { separator: true },
+      { label: 'Safe for (days)', value: d.safeUntilDays ?? 0 },
+    ]
     default: return []
   }
 }
@@ -89,19 +96,29 @@ function LeafHint({ text, color, metricKey }: { text: string; color: string; met
   )
 }
 
-function buildMetrics(d: DerivedMetrics): Metric[] {
-  return [
+function buildMetrics(d: DerivedMetrics, incomePattern?: IncomePattern): Metric[] {
+  const metrics: Metric[] = [
     { key: 'actual',  label: 'Actual Balance',      value: d.actualBalance,       hint: 'All active accounts',       tone: 'ink',    icon: 'wallet' },
     { key: 'avail',   label: 'Spendable Balance',   value: d.availableBalance,    hint: 'Emergency fund protected',  tone: 'accent', icon: 'shield' },
     { key: 'free',    label: 'Real Free Money',     value: d.realFreeMoney,       hint: 'After bills & obligations', tone: 'good',   icon: 'spark'  },
+  ]
+  if ((incomePattern === 'variable' || incomePattern === 'business') && d.safeUntilDays != null) {
+    const days = d.safeUntilDays
+    const tone: ToneKey = days > 14 ? 'good' : days > 7 ? 'warn' : 'bad'
+    const hint = days > 14 ? 'Comfortable runway' : days > 7 ? 'Watch spending' : 'Low runway'
+    metrics.push({ key: 'safe', label: 'Safe For', value: days, hint, tone, icon: 'shield', suffix: ' days' })
+  }
+  metrics.push(
     { key: 'emerg',   label: 'Emergency Fund',      value: d.emergencyFund,       hint: 'Reserved',                  tone: 'warn',   icon: 'lock'   },
     { key: 'commit',  label: 'Bills & Obligations', value: d.remainingCommitments, hint: 'Still owed this cycle',    tone: 'bad',    icon: 'doc'    },
-  ]
+  )
+  return metrics
 }
 
 interface MetricCardsProps {
   d: DerivedMetrics
   layout: Layout
+  incomePattern?: IncomePattern
   onEditBudget?: () => void
   onEditEmergencyFund?: () => void
   commitmentItems?: CommitmentItem[]
@@ -110,9 +127,9 @@ interface MetricCardsProps {
   onInfoClose?: () => void
 }
 
-export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, commitmentItems, accountItems, infoOpen = false, onInfoClose }: MetricCardsProps) {
+export function MetricCards({ d, layout, incomePattern, onEditBudget, onEditEmergencyFund, commitmentItems, accountItems, infoOpen = false, onInfoClose }: MetricCardsProps) {
   const c = useTheme()
-  const metrics = buildMetrics(d)
+  const metrics = buildMetrics(d, incomePattern)
   const [activePopup, setActivePopup] = useState<string | null>(null)
 
   const activeMetric = activePopup ? metrics.find(m => m.key === activePopup) : null
@@ -142,7 +159,7 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
                 <Glyph name={m.icon} color={col} />
               </div>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 14 }}>{m.label}</div>
-              <div style={{ font: '800 21px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 3 }}>{fmt(m.value)}</div>
+              <div style={{ font: '800 21px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 3 }}>{m.suffix ? `${m.value}${m.suffix}` : fmt(m.value)}</div>
               <div style={{ font: '600 11px Plus Jakarta Sans', color: col, marginTop: 5 }}><LeafHint text={m.hint} color={col} metricKey={m.key} /></div>
             </div>
           )
@@ -168,7 +185,7 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
                 <div style={{ font: '600 14px Plus Jakarta Sans', color: c.ink }}>{m.label}</div>
                 <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}><LeafHint text={m.hint} color={col} metricKey={m.key} /></div>
               </div>
-              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>{fmt(m.value)}</div>
+              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>{m.suffix ? `${m.value}${m.suffix}` : fmt(m.value)}</div>
             </div>
           )
         })}
@@ -205,7 +222,7 @@ export function MetricCards({ d, layout, onEditBudget, onEditEmergencyFund, comm
                 )}
               </div>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 12 }}>{m.label}</div>
-              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 2 }}>{fmt(m.value)}</div>
+              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 2 }}>{m.suffix ? `${m.value}${m.suffix}` : fmt(m.value)}</div>
               <div style={{ font: '600 11px Plus Jakarta Sans', color: col, marginTop: 4 }}><LeafHint text={m.hint} color={col} metricKey={m.key} /></div>
             </div>
           )

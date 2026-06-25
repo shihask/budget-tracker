@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, getWeekStart } from '@/lib/utils'
 import type { AppState, BudgetBucket, BudgetStrategySettings, BudgetStrategyType, DerivedMetrics } from '@/types'
+import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
 
 interface BudgetStrategyCardProps {
   state: AppState
@@ -66,22 +67,35 @@ export function useStrategyData(state: AppState, d: DerivedMetrics) {
     const pcts = getStrategyPcts(state.budget_strategy_settings)
     if (!pcts) return null
 
+    const pattern = getIncomePattern(state.settings)
+
     const base = state.budget_strategy_settings.budget_strategy_base ?? 'income'
 
     const now = new Date()
-    const sd = state.settings.salary_date
     let periodStart: Date
 
-    if (sd && sd >= 1 && sd <= 31) {
-      const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-      periodStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
-    } else {
+    if (pattern === 'weekly') {
+      const incDay = state.settings.income_day ?? 5
+      periodStart = getWeekStart(now, incDay)
+    } else if (pattern === 'variable' || pattern === 'business') {
       periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    } else {
+      const sd = state.settings.salary_date
+      if (sd && sd >= 1 && sd <= 31) {
+        const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
+        periodStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
+      } else {
+        periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      }
     }
 
     const income = base === 'available_funds'
       ? Math.max(0, d.availableBalance)
-      : (state.settings.monthly_salary ?? 0)
+      : pattern === 'weekly'
+        ? (state.settings.weekly_income ?? 0)
+        : pattern === 'variable' || pattern === 'business'
+          ? getVariableMonthlyIncome(state.settings)
+          : (state.settings.monthly_salary ?? 0)
 
     const actuals: Record<BudgetBucket, number> = { needs: 0, wants: 0, savings: 0 }
     const catTotals: Record<BudgetBucket, Record<string, number>> = { needs: {}, wants: {}, savings: {} }
@@ -229,7 +243,6 @@ export function BudgetStrategyCard({ state, d, onOpenSettings }: BudgetStrategyC
       </div>
 
       {noBase ? (
-        /* No income (or no available funds) — show context instead of empty bars */
         <div style={{ padding: '4px 0 8px' }}>
           <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
             Budget Strategy analyzes how income is allocated.
@@ -250,10 +263,10 @@ export function BudgetStrategyCard({ state, d, onOpenSettings }: BudgetStrategyC
             </div>
             <div style={{ flex: 1, background: c.surface2, borderRadius: 12, padding: '10px 12px' }}>
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                {income > 0 ? 'Monthly Salary' : 'Available to Spend'}
+                Available to Spend
               </div>
-              <div style={{ font: '800 15px Plus Jakarta Sans', color: income > 0 ? c.good : c.ink }}>
-                {fmt(income > 0 ? income : d.realFreeMoney)}
+              <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>
+                {fmt(d.realFreeMoney)}
               </div>
             </div>
           </div>

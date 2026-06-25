@@ -6,6 +6,7 @@ import { buildCashFlowForecast } from '@/lib/cashflow'
 import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
+import { getIncomePattern } from '@/lib/income-pattern'
 import { computeChallenge } from '@/lib/challenge'
 import { getStrategyPcts, getCategoryBucket } from './BudgetStrategyCard'
 import { getCreditCardBilling } from '@/lib/credit-card'
@@ -215,7 +216,11 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     parts.push(
       `Cash-flow forecast (known events, next 60d; spendable-now ₹${fc.currentBalance.toLocaleString()}):` +
       `\nLowest projected ₹${fc.lowestBalance.toLocaleString()}${fc.lowestBalanceDate ? ` on ${fc.lowestBalanceDate}` : ''}` +
-      `${fc.nextSalaryDate ? ` | next salary ${fc.nextSalaryDate}` : ' | next salary: unknown'}` +
+      `${fc.nextSalaryDate
+        ? ` | ${getIncomePattern(state.settings) === 'monthly' ? 'next salary' : 'next income'} ${fc.nextSalaryDate}`
+        : getIncomePattern(state.settings) === 'variable' || getIncomePattern(state.settings) === 'business'
+        ? ' | next income: not projected'
+        : ' | next salary: unknown'}` +
       `${upcoming ? `\nUpcoming: ${upcoming}` : ''}`
     )
   }

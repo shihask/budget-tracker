@@ -1,15 +1,23 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { ACCENT_OPTIONS } from '@/lib/tokens'
-import type { Layout } from '@/types'
+import type { IncomePattern, Layout } from '@/types'
 import { requestAndSubscribe, unsubscribeFromPush, getPermissionState, isPushSupported } from '@/lib/notifications'
+import { INCOME_PATTERN_OPTIONS } from '@/lib/income-pattern'
 
 interface SettingsPanelProps {
   accent: string
   dark: boolean
   layout: Layout
+  incomePattern: IncomePattern
   salaryDate: number | null
   monthlySalary: number | null
+  weeklyIncome: number | null
+  incomeDay: number | null
+  averageDailyIncome: number | null
+  workingDaysPerWeek: number | null
+  businessMonthlyDrawings: number | null
+  historicalDailyIncome: number | null
   trackCreditCards: boolean
   trackBorrowings: boolean
   trackSavings: boolean
@@ -27,8 +35,10 @@ interface SettingsPanelProps {
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
+  onIncomePattern: (v: IncomePattern) => Promise<void>
   onSalaryDate: (v: number | null) => Promise<void>
   onMonthlySalary: (v: number | null) => Promise<void>
+  onIncomeSettings: (patch: Record<string, unknown>) => Promise<void>
   onTrackCreditCards: (v: boolean) => Promise<void>
   onTrackBorrowings: (v: boolean) => Promise<void>
   onTrackSavings: (v: boolean) => Promise<void>
@@ -44,11 +54,17 @@ interface SettingsPanelProps {
   onDashboardLayout: () => void
 }
 
-export function SettingsPanel({ accent, dark, layout, salaryDate, monthlySalary, trackCreditCards, trackBorrowings, trackSavings, trackProjects, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, onAccent, onDark, onLayout, onSalaryDate, onMonthlySalary, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
+  const [weeklyIncomeInput, setWeeklyIncomeInput] = useState(weeklyIncome != null ? String(weeklyIncome) : '')
+  const [incomeDayInput, setIncomeDayInput] = useState(incomeDay ?? 5)
+  const [avgDailyInput, setAvgDailyInput] = useState(averageDailyIncome != null ? String(averageDailyIncome) : '')
+  const [workingDaysInput, setWorkingDaysInput] = useState(workingDaysPerWeek ?? 6)
+  const [businessDrawingsInput, setBusinessDrawingsInput] = useState(businessMonthlyDrawings != null ? String(businessMonthlyDrawings) : '')
   const [savingSalary, setSavingSalary] = useState(false)
+  const [savingIncomeSettings, setSavingIncomeSettings] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifError, setNotifError] = useState<string | null>(null)
 
@@ -169,51 +185,229 @@ export function SettingsPanel({ accent, dark, layout, salaryDate, monthlySalary,
         </span>
         Budget
       </div>
+
+      {/* Income Pattern selector */}
+      <div style={{ paddingBottom: 8, borderBottom: `1px solid ${c.faint}` }}>
+        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Income pattern</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {INCOME_PATTERN_OPTIONS.map(opt => {
+            const sel = incomePattern === opt.value
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onIncomePattern(opt.value)}
+                style={{
+                  padding: '6px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  font: '700 11px Plus Jakarta Sans',
+                  background: sel ? c.accent : c.surface2,
+                  color: sel ? '#fff' : c.muted,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Pattern-specific fields */}
       <div style={{ paddingBottom: 4, borderBottom: `1px solid ${c.faint}` }}>
-        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Salary credit date</div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+        {/* Monthly */}
+        {incomePattern === 'monthly' && (<>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 8 }}>Salary credit date</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <input
+              type="number"
+              value={salaryInput}
+              onChange={e => setSalaryInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSalarySave()}
+              placeholder="e.g. 28"
+              min="1" max="31"
+              style={{
+                flex: 1, background: c.surface2, border: `1.5px solid ${c.faint}`,
+                borderRadius: 11, padding: '11px 12px',
+                font: '800 16px Plus Jakarta Sans', color: c.ink,
+                outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+            <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, whiteSpace: 'nowrap' }}>of month</span>
+          </div>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 10 }}>Monthly salary</div>
           <input
             type="number"
-            value={salaryInput}
-            onChange={e => setSalaryInput(e.target.value)}
+            value={salaryAmountInput}
+            onChange={e => setSalaryAmountInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSalarySave()}
-            placeholder="e.g. 28"
-            min="1" max="31"
+            placeholder="e.g. 50000"
             style={{
-              flex: 1, background: c.surface2, border: `1.5px solid ${c.faint}`,
+              width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
               borderRadius: 11, padding: '11px 12px',
               font: '800 16px Plus Jakarta Sans', color: c.ink,
-              outline: 'none', boxSizing: 'border-box',
+              outline: 'none', marginBottom: 8,
             }}
           />
-          <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, whiteSpace: 'nowrap' }}>of month</span>
-        </div>
-        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 10 }}>Monthly salary</div>
-        <input
-          type="number"
-          value={salaryAmountInput}
-          onChange={e => setSalaryAmountInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSalarySave()}
-          placeholder="e.g. 50000"
-          style={{
-            width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
-            borderRadius: 11, padding: '11px 12px',
-            font: '800 16px Plus Jakarta Sans', color: c.ink,
-            outline: 'none', marginBottom: 8,
-          }}
-        />
-        <button
-          onClick={handleSalarySave}
-          disabled={savingSalary}
-          style={{
-            width: '100%', background: c.accent, color: '#fff', border: 'none',
-            borderRadius: 11, padding: '11px', marginBottom: 14,
-            font: '700 13px Plus Jakarta Sans',
-            cursor: savingSalary ? 'not-allowed' : 'pointer', opacity: savingSalary ? 0.6 : 1,
-          }}
-        >
-          {savingSalary ? 'Saving...' : 'Save Salary Details'}
-        </button>
+          <button
+            onClick={handleSalarySave}
+            disabled={savingSalary}
+            style={{
+              width: '100%', background: c.accent, color: '#fff', border: 'none',
+              borderRadius: 11, padding: '11px', marginBottom: 14,
+              font: '700 13px Plus Jakarta Sans',
+              cursor: savingSalary ? 'not-allowed' : 'pointer', opacity: savingSalary ? 0.6 : 1,
+            }}
+          >
+            {savingSalary ? 'Saving...' : 'Save Salary Details'}
+          </button>
+        </>)}
+
+        {/* Weekly */}
+        {incomePattern === 'weekly' && (<>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 8 }}>Average weekly income</div>
+          <input
+            type="number"
+            value={weeklyIncomeInput}
+            onChange={e => setWeeklyIncomeInput(e.target.value)}
+            placeholder="e.g. 12000"
+            style={{
+              width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
+              borderRadius: 11, padding: '11px 12px',
+              font: '800 16px Plus Jakarta Sans', color: c.ink,
+              outline: 'none', marginBottom: 8,
+            }}
+          />
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 10 }}>Income day</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => {
+              const sel = incomeDayInput === i
+              return (
+                <button key={i} onClick={() => setIncomeDayInput(i)} style={{
+                  padding: '6px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  font: '700 11px Plus Jakarta Sans',
+                  background: sel ? c.accent : c.surface2,
+                  color: sel ? '#fff' : c.muted,
+                }}>
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            onClick={async () => {
+              setSavingIncomeSettings(true)
+              const wi = parseFloat(weeklyIncomeInput)
+              await onIncomeSettings({ weekly_income: wi > 0 ? Math.round(wi) : null, income_day: incomeDayInput })
+              setSavingIncomeSettings(false)
+            }}
+            disabled={savingIncomeSettings}
+            style={{
+              width: '100%', background: c.accent, color: '#fff', border: 'none',
+              borderRadius: 11, padding: '11px', marginBottom: 14,
+              font: '700 13px Plus Jakarta Sans',
+              cursor: savingIncomeSettings ? 'not-allowed' : 'pointer', opacity: savingIncomeSettings ? 0.6 : 1,
+            }}
+          >
+            {savingIncomeSettings ? 'Saving...' : 'Save Income Details'}
+          </button>
+        </>)}
+
+        {/* Variable */}
+        {incomePattern === 'variable' && (<>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 8 }}>Average daily income</div>
+          <input
+            type="number"
+            value={avgDailyInput}
+            onChange={e => setAvgDailyInput(e.target.value)}
+            placeholder="e.g. 900"
+            style={{
+              width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
+              borderRadius: 11, padding: '11px 12px',
+              font: '800 16px Plus Jakarta Sans', color: c.ink,
+              outline: 'none', marginBottom: 8,
+            }}
+          />
+          {historicalDailyIncome != null && historicalDailyIncome !== averageDailyIncome && (
+            <div style={{ background: c.accentSoft, borderRadius: 11, padding: '10px 12px', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div>
+                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.accent }}>Based on your history</div>
+                <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>₹{historicalDailyIncome.toLocaleString('en-IN')}/day</div>
+              </div>
+              <button
+                onClick={() => setAvgDailyInput(String(historicalDailyIncome))}
+                style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', flexShrink: 0 }}
+              >
+                Use this
+              </button>
+            </div>
+          )}
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 10 }}>Working days per week</div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            {[5, 6, 7].map(d => {
+              const sel = workingDaysInput === d
+              return (
+                <button key={d} onClick={() => setWorkingDaysInput(d)} style={{
+                  flex: 1, padding: '8px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  font: '700 13px Plus Jakarta Sans',
+                  background: sel ? c.accent : c.surface2,
+                  color: sel ? '#fff' : c.muted,
+                }}>
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            onClick={async () => {
+              setSavingIncomeSettings(true)
+              const adi = parseFloat(avgDailyInput)
+              await onIncomeSettings({ average_daily_income: adi > 0 ? Math.round(adi) : null, working_days_per_week: workingDaysInput })
+              setSavingIncomeSettings(false)
+            }}
+            disabled={savingIncomeSettings}
+            style={{
+              width: '100%', background: c.accent, color: '#fff', border: 'none',
+              borderRadius: 11, padding: '11px', marginBottom: 14,
+              font: '700 13px Plus Jakarta Sans',
+              cursor: savingIncomeSettings ? 'not-allowed' : 'pointer', opacity: savingIncomeSettings ? 0.6 : 1,
+            }}
+          >
+            {savingIncomeSettings ? 'Saving...' : 'Save Income Details'}
+          </button>
+        </>)}
+
+        {/* Business */}
+        {incomePattern === 'business' && (<>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 8 }}>Average monthly take home</div>
+          <input
+            type="number"
+            value={businessDrawingsInput}
+            onChange={e => setBusinessDrawingsInput(e.target.value)}
+            placeholder="e.g. 30000"
+            style={{
+              width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
+              borderRadius: 11, padding: '11px 12px',
+              font: '800 16px Plus Jakarta Sans', color: c.ink,
+              outline: 'none', marginBottom: 8,
+            }}
+          />
+          <button
+            onClick={async () => {
+              setSavingIncomeSettings(true)
+              const bd = parseFloat(businessDrawingsInput)
+              await onIncomeSettings({ business_monthly_drawings: bd > 0 ? Math.round(bd) : null })
+              setSavingIncomeSettings(false)
+            }}
+            disabled={savingIncomeSettings}
+            style={{
+              width: '100%', background: c.accent, color: '#fff', border: 'none',
+              borderRadius: 11, padding: '11px', marginBottom: 14,
+              font: '700 13px Plus Jakarta Sans',
+              cursor: savingIncomeSettings ? 'not-allowed' : 'pointer', opacity: savingIncomeSettings ? 0.6 : 1,
+            }}
+          >
+            {savingIncomeSettings ? 'Saving...' : 'Save Income Details'}
+          </button>
+        </>)}
       </div>
 
       <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>

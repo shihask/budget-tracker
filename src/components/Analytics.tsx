@@ -76,7 +76,11 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
         )}
         {tab === 'category' && (
           cats.length === 0
-            ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No lifestyle spend this month yet.</div>
+            ? <div style={{ padding: '24px 0', textAlign: 'center' }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>📊</div>
+                <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Start tracking your spending</div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>Category insights will appear after your first lifestyle expense.</div>
+              </div>
             : <CategoryDonut data={cats} />
         )}
       </div>

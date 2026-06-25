@@ -46,9 +46,11 @@ export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll,
       </div>
 
       {projects.length === 0 && sharedProjects.length === 0 ? (
-        <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
-          No active projects.{' '}
-          <span onClick={onAdd} style={{ color: c.accent, cursor: 'pointer' }}>Create one</span>
+        <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>📁</div>
+          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Start Your First Project</div>
+          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Plan a trip, track a renovation or split expenses with friends — all in one place.</div>
+          <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Create a project</button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

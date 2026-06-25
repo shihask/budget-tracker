@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { SplashScreen } from './SplashScreen'
 import { FeatureOnboarding } from './FeatureOnboarding'
-import type { Settings } from '@/types'
+import type { IncomePattern, Settings } from '@/types'
+import { INCOME_PATTERN_OPTIONS, suggestBudgetByIncomePattern } from '@/lib/income-pattern'
 
 type AccountType = 'bank' | 'cash' | 'wallet'
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'autopilot_enabled' | 'notifications_enabled'
@@ -25,6 +26,8 @@ const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
   { value: 'wallet', label: 'Wallet' },
 ]
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 function BackArrow() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -33,16 +36,37 @@ function BackArrow() {
   )
 }
 
+// Steps: 1=Splash, 2=IncomePattern, 3=Accounts, 4=PatternSetup, 5=FeatureOnboarding
+type Step = 1 | 2 | 3 | 4 | 5
+
 export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, userId }: Props) {
-  const [step, setStep]       = useState<1 | 2 | 3 | 4>(1)
+  const [step, setStep]       = useState<Step>(1)
   const [splashPhase, setSplashPhase] = useState<1 | 2 | 3>(1)
 
+  // Income pattern
+  const [incomePattern, setIncomePattern] = useState<IncomePattern>('monthly')
+
+  // Accounts
   const [accounts, setAccounts] = useState<AccountDraft[]>([
     { name: '', type: 'bank', balance: '' },
   ])
+
+  // Monthly fields
   const [salaryDay, setSalaryDay]       = useState('1')
   const [monthlyIncome, setMonthlyIncome] = useState('')
-  const [saving, setSaving]             = useState(false)
+
+  // Weekly fields
+  const [weeklyIncome, setWeeklyIncome] = useState('')
+  const [incomeDay, setIncomeDay]       = useState(5) // Friday
+
+  // Variable fields
+  const [avgDailyIncome, setAvgDailyIncome]     = useState('')
+  const [workingDays, setWorkingDays]             = useState('6')
+
+  // Business fields
+  const [businessDrawings, setBusinessDrawings] = useState('')
+
+  const [saving, setSaving] = useState(false)
 
   // Account helpers
   const addAccount    = () => setAccounts(prev => [...prev, { name: '', type: 'bank', balance: '' }])
@@ -50,12 +74,6 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
   const updateAccount = (i: number, patch: Partial<AccountDraft>) =>
     setAccounts(prev => prev.map((a, j) => j === i ? { ...a, ...patch } : a))
   const hasValidAccount = accounts.some(a => a.name.trim())
-
-  const suggestedBudget = (income: string) => {
-    const n = parseFloat(income)
-    if (!n || n <= 0) return null
-    return Math.round(n / 4.3 / 500) * 500
-  }
 
   const finish = async (features: Record<FeatureKey, boolean>) => {
     setSaving(true)
@@ -69,11 +87,40 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
           })
         }
       }
-      const patch: Partial<Settings> = {}
-      const day = parseInt(salaryDay)
-      if (day >= 1 && day <= 31) patch.salary_date = day
-      const budget = suggestedBudget(monthlyIncome)
-      if (budget) patch.weekly_budget = budget
+      const patch: Partial<Settings> = { income_pattern: incomePattern }
+
+      switch (incomePattern) {
+        case 'monthly': {
+          const day = parseInt(salaryDay)
+          if (day >= 1 && day <= 31) patch.salary_date = day
+          const salary = parseFloat(monthlyIncome)
+          if (salary > 0) patch.monthly_salary = Math.round(salary)
+          const budget = suggestBudgetByIncomePattern('monthly', salary || null)
+          if (budget) patch.weekly_budget = budget
+          break
+        }
+        case 'weekly': {
+          const wi = parseFloat(weeklyIncome)
+          if (wi > 0) patch.weekly_income = Math.round(wi)
+          patch.income_day = incomeDay
+          const budget = suggestBudgetByIncomePattern('weekly', wi || null)
+          if (budget) patch.weekly_budget = budget
+          break
+        }
+        case 'variable': {
+          const adi = parseFloat(avgDailyIncome)
+          if (adi > 0) patch.average_daily_income = Math.round(adi)
+          const wd = parseInt(workingDays)
+          if (wd >= 1 && wd <= 7) patch.working_days_per_week = wd
+          break
+        }
+        case 'business': {
+          const bd = parseFloat(businessDrawings)
+          if (bd > 0) patch.business_monthly_drawings = Math.round(bd)
+          break
+        }
+      }
+
       Object.assign(patch, features)
       if (Object.keys(patch).length) await onUpdateSettings(patch)
     } catch (_) {}
@@ -129,12 +176,15 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
       initialPhase={splashPhase}
     />
   )
-  if (step === 4) return (
+  if (step === 5) return (
     <FeatureOnboarding
       onComplete={f => finish(f)}
-      onBack={() => setStep(3)}
+      onBack={() => setStep(4)}
     />
   )
+
+  // Progress: 3 segments for steps 2, 3, 4
+  const progressStep = step - 1 // 1, 2, 3
 
   return (
     <div style={{
@@ -148,25 +198,79 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
     }}>
       <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column' }}>
 
-        {/* Progress bar */}
+        {/* Progress bar — 3 segments */}
         <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-          {[2, 3].map(s => (
+          {[1, 2, 3].map(s => (
             <div key={s} style={{
               flex: 1, height: 3.5, borderRadius: 999,
-              background: s <= step ? ACCENT : BORDER,
+              background: s <= progressStep ? ACCENT : BORDER,
               transition: 'background 0.3s',
             }} />
           ))}
         </div>
 
-        {/* ── Step 2: Account Setup ─────────────────────────────────────── */}
+        {/* ── Step 2: Income Pattern ───────────────────────────────────── */}
         {step === 2 && (
           <div>
-            {/* Back to splash welcome card */}
             <button
               style={backBtn}
               onClick={() => { setSplashPhase(3); setStep(1) }}
             >
+              <BackArrow /> Back
+            </button>
+
+            <div style={{ marginBottom: 22 }}>
+              <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                How do you usually receive income?
+              </div>
+              <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
+                This helps MoneyPlant tailor budgets and forecasts to your situation.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
+              {INCOME_PATTERN_OPTIONS.map(opt => {
+                const selected = incomePattern === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => setIncomePattern(opt.value)}
+                    style={{
+                      width: '100%', textAlign: 'left',
+                      background: selected ? 'rgba(22,201,138,0.08)' : SURFACE,
+                      border: `1.5px solid ${selected ? ACCENT : BORDER}`,
+                      borderRadius: 14, padding: '14px 16px',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      font: `${selected ? '700' : '600'} 14px "Plus Jakarta Sans"`,
+                      color: selected ? ACCENT : INK,
+                      marginBottom: 3,
+                    }}>
+                      {opt.label}
+                    </div>
+                    <div style={{
+                      font: '500 12px "Plus Jakarta Sans"',
+                      color: MUTED,
+                    }}>
+                      {opt.description}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <button style={primary} onClick={() => setStep(3)}>
+              Continue
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 3: Account Setup ────────────────────────────────────── */}
+        {step === 3 && (
+          <div>
+            <button style={backBtn} onClick={() => setStep(2)}>
               <BackArrow /> Back
             </button>
 
@@ -179,7 +283,6 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
               </div>
             </div>
 
-            {/* Account cards */}
             {accounts.map((acc, i) => (
               <div key={i} style={{
                 background: SURFACE, borderRadius: 16,
@@ -187,7 +290,6 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                 padding: '14px 14px 16px',
                 marginBottom: 10,
               }}>
-                {/* Card header with remove button */}
                 {accounts.length > 1 && (
                   <div style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -269,7 +371,6 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
               </div>
             ))}
 
-            {/* Add another account */}
             <button
               onClick={addAccount}
               style={{
@@ -287,7 +388,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
 
             <button
               style={{ ...primary, opacity: !hasValidAccount || saving ? 0.4 : 1, cursor: !hasValidAccount ? 'default' : 'pointer' }}
-              onClick={() => setStep(3)}
+              onClick={() => setStep(4)}
               disabled={!hasValidAccount}
             >
               Continue
@@ -295,69 +396,240 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
           </div>
         )}
 
-        {/* ── Step 3: Salary Setup ──────────────────────────────────────── */}
-        {step === 3 && (
+        {/* ── Step 4: Pattern-specific Setup ────────────────────────────── */}
+        {step === 4 && (
           <div>
-            <button style={backBtn} onClick={() => setStep(2)}>
+            <button style={backBtn} onClick={() => setStep(3)}>
               <BackArrow /> Back
             </button>
 
-            <div style={{ marginBottom: 26 }}>
-              <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
-                When do you get paid?
-              </div>
-              <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
-                Helps with affordability planning and budget suggestions.
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 18 }}>
-              <span style={fieldLabel}>Salary Credit Date</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <input
-                  value={salaryDay}
-                  onChange={e => setSalaryDay(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                  placeholder="1"
-                  inputMode="numeric"
-                  maxLength={2}
-                  onFocus={e => e.target.select()}
-                  style={{
-                    ...inp, width: 90, textAlign: 'center',
-                    fontSize: 22, fontWeight: '800', padding: '12px',
-                  }}
-                />
-                <span style={{ font: '500 14px "Plus Jakarta Sans"', color: MUTED }}>of every month</span>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 28 }}>
-              <span style={fieldLabel}>
-                Monthly Income{' '}
-                <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-              </span>
-              <div style={{ position: 'relative' }}>
-                <span style={{
-                  position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                  font: '600 15px "Plus Jakarta Sans"', color: MUTED,
-                }}>₹</span>
-                <input
-                  value={monthlyIncome}
-                  onChange={e => setMonthlyIncome(e.target.value.replace(/\D/g, ''))}
-                  placeholder="50,000"
-                  inputMode="numeric"
-                  onFocus={e => e.target.select()}
-                  style={{ ...inp, paddingLeft: 30 }}
-                />
-              </div>
-              {suggestedBudget(monthlyIncome) && (
-                <div style={{ marginTop: 8, font: '500 12px "Plus Jakarta Sans"', color: ACCENT }}>
-                  Suggested weekly budget: ₹{suggestedBudget(monthlyIncome)!.toLocaleString('en-IN')}
+            {/* Monthly Salary */}
+            {incomePattern === 'monthly' && (
+              <>
+                <div style={{ marginBottom: 26 }}>
+                  <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                    When do you get paid?
+                  </div>
+                  <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
+                    Helps with affordability planning and budget suggestions.
+                  </div>
                 </div>
-              )}
-            </div>
 
-            <button style={primary} onClick={() => setStep(4)}>Continue</button>
-            <button style={ghost} onClick={() => setStep(4)}>Skip for now</button>
+                <div style={{ marginBottom: 18 }}>
+                  <span style={fieldLabel}>Salary Credit Date</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      value={salaryDay}
+                      onChange={e => setSalaryDay(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                      placeholder="1"
+                      inputMode="numeric"
+                      maxLength={2}
+                      onFocus={e => e.target.select()}
+                      style={{
+                        ...inp, width: 90, textAlign: 'center',
+                        fontSize: 22, fontWeight: '800', padding: '12px',
+                      }}
+                    />
+                    <span style={{ font: '500 14px "Plus Jakarta Sans"', color: MUTED }}>of every month</span>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 28 }}>
+                  <span style={fieldLabel}>
+                    Monthly Income{' '}
+                    <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                  </span>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{
+                      position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                      font: '600 15px "Plus Jakarta Sans"', color: MUTED,
+                    }}>₹</span>
+                    <input
+                      value={monthlyIncome}
+                      onChange={e => setMonthlyIncome(e.target.value.replace(/\D/g, ''))}
+                      placeholder="50,000"
+                      inputMode="numeric"
+                      onFocus={e => e.target.select()}
+                      style={{ ...inp, paddingLeft: 30 }}
+                    />
+                  </div>
+                  {(() => {
+                    const budget = suggestBudgetByIncomePattern('monthly', parseFloat(monthlyIncome) || null)
+                    return budget ? (
+                      <div style={{ marginTop: 8, font: '500 12px "Plus Jakarta Sans"', color: ACCENT }}>
+                        Suggested weekly budget: ₹{budget.toLocaleString('en-IN')}
+                      </div>
+                    ) : null
+                  })()}
+                </div>
+              </>
+            )}
+
+            {/* Weekly Income */}
+            {incomePattern === 'weekly' && (
+              <>
+                <div style={{ marginBottom: 26 }}>
+                  <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                    Your weekly income
+                  </div>
+                  <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
+                    Helps set your weekly budget and forecast.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 18 }}>
+                  <span style={fieldLabel}>Average Weekly Income</span>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{
+                      position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                      font: '600 15px "Plus Jakarta Sans"', color: MUTED,
+                    }}>₹</span>
+                    <input
+                      value={weeklyIncome}
+                      onChange={e => setWeeklyIncome(e.target.value.replace(/\D/g, ''))}
+                      placeholder="12,000"
+                      inputMode="numeric"
+                      onFocus={e => e.target.select()}
+                      style={{ ...inp, paddingLeft: 30 }}
+                    />
+                  </div>
+                  {(() => {
+                    const budget = suggestBudgetByIncomePattern('weekly', parseFloat(weeklyIncome) || null)
+                    return budget ? (
+                      <div style={{ marginTop: 8, font: '500 12px "Plus Jakarta Sans"', color: ACCENT }}>
+                        Suggested weekly budget: ₹{budget.toLocaleString('en-IN')}
+                      </div>
+                    ) : null
+                  })()}
+                </div>
+
+                <div style={{ marginBottom: 28 }}>
+                  <span style={fieldLabel}>Income Day</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {DAY_NAMES.map((name, i) => {
+                      const selected = incomeDay === i
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setIncomeDay(i)}
+                          style={{
+                            padding: '9px 14px', borderRadius: 10,
+                            border: `1.5px solid ${selected ? ACCENT : BORDER}`,
+                            background: selected ? 'rgba(22,201,138,0.08)' : SURFACE,
+                            color: selected ? ACCENT : INK,
+                            font: `${selected ? '700' : '600'} 13px "Plus Jakarta Sans"`,
+                            cursor: 'pointer', transition: 'all 0.15s',
+                          }}
+                        >
+                          {name.slice(0, 3)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Daily / Variable Income */}
+            {incomePattern === 'variable' && (
+              <>
+                <div style={{ marginBottom: 26 }}>
+                  <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                    Your daily income
+                  </div>
+                  <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
+                    A rough estimate helps with forecasting. You can skip this and MoneyPlant will learn from your history.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 18 }}>
+                  <span style={fieldLabel}>
+                    Average Daily Income{' '}
+                    <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                  </span>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{
+                      position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                      font: '600 15px "Plus Jakarta Sans"', color: MUTED,
+                    }}>₹</span>
+                    <input
+                      value={avgDailyIncome}
+                      onChange={e => setAvgDailyIncome(e.target.value.replace(/\D/g, ''))}
+                      placeholder="900"
+                      inputMode="numeric"
+                      onFocus={e => e.target.select()}
+                      style={{ ...inp, paddingLeft: 30 }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 28 }}>
+                  <span style={fieldLabel}>Working Days Per Week</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[5, 6, 7].map(d => {
+                      const selected = parseInt(workingDays) === d
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => setWorkingDays(String(d))}
+                          style={{
+                            flex: 1, padding: '12px 8px', borderRadius: 12,
+                            border: `1.5px solid ${selected ? ACCENT : BORDER}`,
+                            background: selected ? 'rgba(22,201,138,0.08)' : SURFACE,
+                            color: selected ? ACCENT : INK,
+                            font: `${selected ? '700' : '600'} 15px "Plus Jakarta Sans"`,
+                            cursor: 'pointer', transition: 'all 0.15s',
+                          }}
+                        >
+                          {d}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ font: '500 12px "Plus Jakarta Sans"', color: MUTED, marginTop: 6 }}>
+                    days per week
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Business Owner */}
+            {incomePattern === 'business' && (
+              <>
+                <div style={{ marginBottom: 26 }}>
+                  <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                    Your business income
+                  </div>
+                  <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
+                    How much do you typically take home each month? You can skip this and update later.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 28 }}>
+                  <span style={fieldLabel}>
+                    Average Monthly Take Home{' '}
+                    <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                  </span>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{
+                      position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                      font: '600 15px "Plus Jakarta Sans"', color: MUTED,
+                    }}>₹</span>
+                    <input
+                      value={businessDrawings}
+                      onChange={e => setBusinessDrawings(e.target.value.replace(/\D/g, ''))}
+                      placeholder="30,000"
+                      inputMode="numeric"
+                      onFocus={e => e.target.select()}
+                      style={{ ...inp, paddingLeft: 30 }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <button style={primary} onClick={() => setStep(5)}>Continue</button>
+            <button style={ghost} onClick={() => setStep(5)}>Skip for now</button>
           </div>
         )}
 

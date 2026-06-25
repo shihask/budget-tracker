@@ -389,7 +389,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <HelpToggle />
                 {editingId && (
-                  <button onClick={async () => { if (await confirm('Delete this card?')) { await onDelete(editingId); closeSheet() } }}
+                  <button onClick={async () => { if (await confirm(`Delete "${form.name || 'this card'}"? This cannot be undone.`)) { await onDelete(editingId); closeSheet() } }}
                     style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>

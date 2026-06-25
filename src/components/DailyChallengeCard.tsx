@@ -2,6 +2,7 @@ import { useMemo, useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, iso, addDays, TODAY } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
+import { getIncomePattern } from '@/lib/income-pattern'
 import { STAGE_THRESHOLDS } from './PlantSVG'
 import { MoneyPlantWatermark } from './MoneyPlantWatermark'
 import type { AppState, DerivedMetrics } from '@/types'
@@ -308,7 +309,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
                 ? `${calc.daysRemaining} days until salary`
                 : `${calc.daysRemaining} days until month end`}
             </span>
-            {calc.planningMode === 'month_end' && (
+            {calc.planningMode === 'month_end' && getIncomePattern(settings) === 'monthly' && (
               <>
                 <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>·</span>
                 <button

@@ -9,7 +9,8 @@ import { ShareSheet } from './ShareSheet'
 import { BudgetBreakdownSection } from './BudgetBreakdownSection'
 import { BudgetManageSheet } from './BudgetManageSheet'
 import { CollaboratorInviteSheet } from './CollaboratorInviteSheet'
-import type { Project, ProjectTab, ProjectMember, ProjectTransaction, ProjectStatus, ProjectRole } from '../types'
+import { ActivityLogTab } from './ActivityLogTab'
+import type { Project, ProjectTab, ProjectMember, ProjectTransaction, ProjectAttachment, ProjectStatus, ProjectRole } from '../types'
 
 interface Props {
   project: Project
@@ -139,27 +140,40 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
     setEditMember(null)
   }
 
-  const handleAddTxn = async (form: Parameters<typeof data.addProjectTransaction>[0]) => {
+  const handleAddTxn = async (form: Parameters<typeof data.addProjectTransaction>[0] & { files?: File[] }) => {
+    const { files, ...txnForm } = form
+    let txnId: string
     if (editTxn) {
       await data.updateProjectTransaction(editTxn.id, {
-        member_id: form.member_id,
-        amount: form.amount,
-        description: form.description || null,
-        category: form.category || null,
-        notes: form.notes || null,
-        transaction_date: form.transaction_date,
+        member_id: txnForm.member_id,
+        amount: txnForm.amount,
+        description: txnForm.description || null,
+        category: txnForm.category || null,
+        notes: txnForm.notes || null,
+        transaction_date: txnForm.transaction_date,
       })
+      txnId = editTxn.id
       setEditTxn(null)
     } else {
-      await data.addProjectTransaction(form)
+      const txn = await data.addProjectTransaction(txnForm)
+      txnId = txn.id
+    }
+    if (files?.length) {
+      for (const file of files) {
+        await data.uploadAttachment(file, project.id, txnId)
+      }
+      data.logActivity(project.id, 'attachment_added', `Added ${files.length} attachment${files.length > 1 ? 's' : ''}`)
     }
   }
+
+  const activityLog = data.detail?.activityLog ?? []
 
   const tabs: { id: ProjectTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'expenses', label: 'Transactions' },
     { id: 'members', label: 'Members' },
     ...(members.length >= 2 ? [{ id: 'settlement' as ProjectTab, label: 'Settlement' }] : []),
+    { id: 'activity', label: 'Activity' },
   ]
 
   const inputStyle: React.CSSProperties = {
@@ -261,9 +275,12 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
           <TransactionsTab
             transactions={transactions}
             attachments={attachments}
+            canEdit={canEdit}
             onAdd={mode => setAddMode(mode)}
             onEdit={txn => { setEditTxn(txn); setAddMode(txn.transaction_type) }}
             onDelete={id => data.deleteProjectTransaction(id)}
+            onViewAttachment={path => data.getAttachmentUrl(path).then(url => { if (url) window.open(url, '_blank') })}
+            onDeleteAttachment={att => data.deleteAttachment(att)}
           />
         )}
         {tab === 'members' && (
@@ -319,6 +336,9 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
         {tab === 'settlement' && (
           <SettlementTab settlement={settlement} />
         )}
+        {tab === 'activity' && (
+          <ActivityLogTab activityLog={activityLog} />
+        )}
       </div>
 
       {/* FAB for adding transactions */}
@@ -363,6 +383,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
           onSave={handleAddTxn}
           editTxn={editTxn}
           budgets={budgets}
+          existingAttachmentCount={editTxn ? attachments.filter(a => a.project_transaction_id === editTxn.id).length : 0}
         />
       )}
 
@@ -388,6 +409,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onInvite={(email, role) => data.addCollaborator(project.id, email, role)}
+        projectName={project.name}
       />
 
       {/* Add member dialog */}
@@ -679,12 +701,15 @@ function OverviewTab({ project, summary, memberSummaries, transactions, budgetSu
   )
 }
 
-function TransactionsTab({ transactions, attachments, onAdd, onEdit, onDelete }: {
+function TransactionsTab({ transactions, attachments, canEdit, onAdd, onEdit, onDelete, onViewAttachment, onDeleteAttachment }: {
   transactions: ProjectTransaction[]
-  attachments: { project_transaction_id: string; file_name: string; path: string }[]
+  attachments: ProjectAttachment[]
+  canEdit: boolean
   onAdd: (mode: 'contribution' | 'expense') => void
   onEdit: (txn: ProjectTransaction) => void
   onDelete: (id: string) => void
+  onViewAttachment: (path: string) => void
+  onDeleteAttachment: (att: ProjectAttachment) => void
 }) {
   const c = useTheme()
   const [filter, setFilter] = useState<'all' | 'contribution' | 'expense'>('all')
@@ -715,11 +740,13 @@ function TransactionsTab({ transactions, attachments, onAdd, onEdit, onDelete }:
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', paddingTop: 30 }}>
-          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>No transactions yet</div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 12 }}>
-            <button onClick={() => onAdd('contribution')} style={{ padding: '8px 16px', borderRadius: 12, border: 'none', background: '#10B981', color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>+ Contribution</button>
-            <button onClick={() => onAdd('expense')} style={{ padding: '8px 16px', borderRadius: 12, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>+ Expense</button>
+        <div style={{ textAlign: 'center', padding: '40px 24px' }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>💰</div>
+          <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Track contributions and expenses</div>
+          <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5, marginBottom: 16 }}>Record contributions from members or log project expenses to start tracking progress.</div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <button onClick={() => onAdd('contribution')} style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: '#10B981', color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>+ Contribution</button>
+            <button onClick={() => onAdd('expense')} style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>+ Expense</button>
           </div>
         </div>
       ) : (
@@ -766,8 +793,40 @@ function TransactionsTab({ transactions, attachments, onAdd, onEdit, onDelete }:
                       </div>
                     )}
                     {txnAttachments.length > 0 && (
-                      <div style={{ font: '500 11px Plus Jakarta Sans', color: c.accent, marginTop: 3, paddingLeft: 16 }}>
-                        {txnAttachments.length} attachment{txnAttachments.length > 1 ? 's' : ''}
+                      <div style={{ paddingLeft: 16, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {txnAttachments.map(att => {
+                          const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(att.file_name)
+                          return (
+                            <div key={att.id} style={{
+                              display: 'flex', alignItems: 'center', gap: 6,
+                              padding: '4px 8px', borderRadius: 8, background: c.surface2,
+                            }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isImage ? '#6366F1' : c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                {isImage ? (
+                                  <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>
+                                ) : (
+                                  <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></>
+                                )}
+                              </svg>
+                              <span
+                                onClick={() => onViewAttachment(att.path)}
+                                style={{ font: '500 11px Plus Jakarta Sans', color: c.accent, cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                              >
+                                {att.file_name}
+                              </span>
+                              {canEdit && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${att.file_name}?`)) onDeleteAttachment(att) }}
+                                  style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -780,7 +839,7 @@ function TransactionsTab({ transactions, attachments, onAdd, onEdit, onDelete }:
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                         </svg>
                       </button>
-                      <button onClick={() => { if (confirm('Delete this transaction?')) onDelete(txn.id) }} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444' }}>
+                      <button onClick={() => { if (confirm(`Delete "${txn.description}" (${txn.amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })})?`)) onDelete(txn.id) }} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444' }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                         </svg>

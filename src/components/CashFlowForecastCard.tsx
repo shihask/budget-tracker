@@ -4,7 +4,8 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { buildCashFlowForecast, daysUntil, forecastReady } from '@/lib/cashflow'
 import { buildLifestyleForecast } from '@/features/forecast/lib/lifestyleForecast'
-import type { AppState, DerivedMetrics } from '@/types'
+import { getIncomePattern } from '@/lib/income-pattern'
+import type { AppState, DerivedMetrics, IncomePattern } from '@/types'
 
 interface Props {
   state: AppState
@@ -23,10 +24,14 @@ export function forecastHealth(lowestBalance: number): Health {
   return 'healthy'
 }
 
-export const HEALTH_MESSAGE: Record<Health, string> = {
-  healthy: 'You are covered until payday',
-  warning: 'Getting tight before payday',
-  critical: 'May run short before payday',
+export function getHealthMessage(health: Health, pattern: IncomePattern): string {
+  const anchor = pattern === 'monthly' ? 'payday' : 'next income'
+  const messages: Record<Health, string> = {
+    healthy: `You are covered until ${anchor}`,
+    warning: `Getting tight before ${anchor}`,
+    critical: `May run short before ${anchor}`,
+  }
+  return messages[health]
 }
 
 export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
@@ -52,15 +57,17 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
   )
 
   // ── Not ready / disabled → "Set up Forecast" ──
+  const pattern = getIncomePattern(state.settings)
   if (!enabled || !ready) {
-    const reason = !enabled ? 'Tap to set up your forecast'
-      : state.settings.salary_date == null ? 'Add your salary date to begin'
-        : 'Add a commitment, savings plan, or salary to forecast'
+    const reason = !enabled ? 'Tell us how you receive income to unlock cash flow forecasting.'
+      : pattern === 'monthly' && state.settings.salary_date == null ? 'Add your salary date so we can project your cash flow.'
+      : pattern === 'weekly' && !(state.settings.weekly_income && state.settings.income_day != null) ? 'Set your weekly income to project your cash flow.'
+      : 'Add a commitment or savings plan to see what lies ahead.'
     return (
       <Card pad={0} style={{ overflow: 'hidden', cursor: 'pointer' }}>
         <div onClick={onSetup} style={{ padding: 18, fontFamily: `${F}, sans-serif` }}>
           <Title tone={c.accent} soft={c.accentSoft} />
-          <div style={{ font: `700 14px ${F}`, color: c.ink, marginBottom: 4 }}>Set up Forecast</div>
+          <div style={{ font: `700 14px ${F}`, color: c.ink, marginBottom: 4 }}>Plan Ahead</div>
           <div style={{ font: `600 12px ${F}`, color: c.muted }}>{reason}</div>
         </div>
       </Card>
@@ -72,7 +79,7 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
   const health = forecastHealth(lowestBalance)
   const toneColor = health === 'critical' ? c.bad : health === 'warning' ? c.warn : c.good
   const toneSoft = health === 'critical' ? c.badSoft : health === 'warning' ? c.warnSoft : c.goodSoft
-  const message = projections.length === 0 ? 'No upcoming events in this period' : HEALTH_MESSAGE[health]
+  const message = projections.length === 0 ? 'No upcoming events in this period' : getHealthMessage(health, pattern)
   const salaryDays = nextSalaryDate ? daysUntil(nextSalaryDate) : null
 
   return (
@@ -88,9 +95,9 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
             <span style={{ font: `700 12px ${F}`, color: lifestyleData.risk === 'risk' ? c.bad : lifestyleData.risk === 'watch' ? c.warn : c.good }}>{lifestyleData.safeUntilLabel}</span>
           </div>
         )}
-        {salaryDays != null && (
+        {salaryDays != null && (pattern === 'monthly' || pattern === 'weekly') && (
           <div style={{ marginTop: 10, font: `600 12px ${F}`, color: c.muted }}>
-            Salary in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
+            {pattern === 'monthly' ? 'Salary' : 'Income'} in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
           </div>
         )}
       </div>

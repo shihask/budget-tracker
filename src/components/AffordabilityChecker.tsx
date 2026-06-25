@@ -5,6 +5,7 @@ import { BottomSheet } from './BottomSheet'
 import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
 import { simulatePurchase, forecastReady, getForecastDrivers, estimateForecastSalary, daysUntil as forecastDaysUntil } from '@/lib/cashflow'
 import { LOW_CUSHION } from './CashFlowForecastCard'
+import { getIncomePattern } from '@/lib/income-pattern'
 import type { AppState, DerivedMetrics, Settings, Transaction, PlannedExpense } from '@/types'
 
 interface SaveGoalData {
@@ -106,7 +107,12 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
 
   const freeMoney = d.realFreeMoney
   const weeklyBudget = d.weeklyBudget
-  const weeksRemaining = settings.salary_date
+  const pattern = getIncomePattern(settings)
+  const weeksRemaining = pattern === 'weekly'
+    ? (settings.income_day != null ? Math.ceil(daysUntil(settings.income_day) / 7) : 0)
+    : pattern === 'variable' || pattern === 'business'
+    ? 0
+    : settings.salary_date
     ? Math.ceil(daysUntil(settings.salary_date) / 7)
     : 0
   const reservedBudget = weeksRemaining * weeklyBudget
@@ -197,11 +203,16 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     if (isNaN(a)) return
     setAiLoading(true)
     setAiInsight(null)
-    const daysLeft = settings.salary_date ? daysUntil(settings.salary_date) : null
+    const daysLeft = pattern === 'weekly'
+      ? (settings.income_day != null ? daysUntil(settings.income_day) : null)
+      : pattern === 'variable' || pattern === 'business'
+      ? null
+      : settings.salary_date ? daysUntil(settings.salary_date) : null
     const insight = await affordabilityInsightWithAI(item, a, {
       freeMoney,
       safePurchasingPower,
       daysUntilSalary: daysLeft,
+      incomePatternLabel: pattern === 'monthly' ? 'salary' : 'income',
       weeklyBudget,
       weeklySpent: d.weeklySpent,
       spendingByGroup: spendingData.spendingByGroup,
@@ -271,7 +282,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
 
     if (exceedsFreeMoney) {
       const sub = simResult && prePaydayExpenses > 0
-        ? `You have ${fmt(balance)} available. Before your next salary, ${fmt(prePaydayExpenses)} in payments are due. Buying this now could leave you short by ${fmt(Math.abs(simResult.lowestBalance))}.`
+        ? `You have ${fmt(balance)} available. Before your ${pattern === 'monthly' ? 'next salary' : pattern === 'weekly' ? 'next income' : 'upcoming'} payments, ${fmt(prePaydayExpenses)} in payments are due. Buying this now could leave you short by ${fmt(Math.abs(simResult.lowestBalance))}.`
         : `You have ${fmt(balance)} available but this purchase costs ${fmt(amt)}.`
       return { tier: 'critical' as Tier, color: c.bad, bg: '#FEE2E2', label: 'Not Affordable', sub }
     }
@@ -279,7 +290,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
       return {
         tier: 'critical' as Tier, color: c.bad, bg: '#FEE2E2',
         label: 'Will Cause Shortfall',
-        sub: `You can cover this today, but ${fmt(prePaydayExpenses)} in payments are due before salary. Your balance would drop to ${fmt(simResult!.lowestBalance)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''}.`,
+        sub: `You can cover this today, but ${fmt(prePaydayExpenses)} in payments are due before ${pattern === 'monthly' ? 'salary' : 'your next income'}. Your balance would drop to ${fmt(simResult!.lowestBalance)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''}.`,
       }
     }
     if (exceedsSPP) return {
@@ -292,7 +303,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     if (forecastTight) return {
       tier: 'tight' as Tier, color: '#D97706', bg: '#FEF3C7',
       label: 'Tight — Cuts It Close',
-      sub: `You can afford this, but your balance drops to ${fmt(simLowest!)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''} before payday.`,
+      sub: `You can afford this, but your balance drops to ${fmt(simLowest!)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''} before ${pattern === 'monthly' ? 'payday' : 'your next income'}.`,
     }
     return {
       tier: 'safe' as Tier, color: c.good, bg: '#DCFCE7',
@@ -696,7 +707,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                           {salaryEvent && (
                             <>
                               <div style={{ height: 1, background: c.good + '40', margin: '4px 0' }} />
-                              <TimelineRow label="Salary" amount={salaryEvent.event.amount} balance={salaryEvent.balanceAfter} date={shortDate(salaryEvent.event.date)} isIncome isRecovery />
+                              <TimelineRow label={pattern === 'monthly' ? 'Salary' : 'Income'} amount={salaryEvent.event.amount} balance={salaryEvent.balanceAfter} date={shortDate(salaryEvent.event.date)} isIncome isRecovery />
                             </>
                           )}
 
@@ -860,7 +871,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                         <div style={{ background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
                           <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Purchase Plan</div>
                           <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
-                            We need salary information to estimate when you could afford this purchase.
+                            We need income information to estimate when you could afford this purchase.
                           </div>
                           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 10, lineHeight: 1.5 }}>
                             Add salary details in <strong style={{ color: c.ink }}>Settings</strong> or record salary transactions to enable purchase planning.
@@ -884,7 +895,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                           </button>
                           {showCalc && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8 }}>
-                              <Row label="Salary" value={fmt(plan.salary)} />
+                              <Row label={pattern === 'monthly' ? 'Salary' : 'Income'} value={fmt(plan.salary)} />
                               <Row label="Commitments" value={`− ${fmt(plan.commitments)}`} muted />
                               <Row label="Savings plans" value={`− ${fmt(plan.savings)}`} muted />
                               <Row label="Typical spending" value={`− ${fmt(plan.typicalSpending)}`} muted />
@@ -925,7 +936,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                           </button>
                           {showCalc && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8 }}>
-                              <Row label="Salary" value={fmt(plan.salary)} info="Your estimated monthly income" />
+                              <Row label={pattern === 'monthly' ? 'Salary' : 'Income'} value={fmt(plan.salary)} info="Your estimated monthly income" />
                               <Row label="Commitments" value={`− ${fmt(plan.commitments)}`} muted info="Recurring bills like EMI, rent, insurance" />
                               <Row label="Savings plans" value={`− ${fmt(plan.savings)}`} muted info="SIP, gold, chit fund contributions" />
                               <Row label="Typical spending" value={`− ${fmt(plan.typicalSpending)}`} muted info="Your average monthly lifestyle spending" />

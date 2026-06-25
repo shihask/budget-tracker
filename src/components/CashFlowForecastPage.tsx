@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
-import { forecastHealth, HEALTH_MESSAGE } from '@/components/CashFlowForecastCard'
+import { forecastHealth, getHealthMessage } from '@/components/CashFlowForecastCard'
+import { getIncomePattern } from '@/lib/income-pattern'
 import { useStrategyData, getCategoryBucket } from './BudgetStrategyCard'
 import { CategorySelect } from './CategorySelect'
 import { simulatePurchase } from '@/lib/cashflow'
@@ -289,10 +290,11 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
     setTimeout(() => setSnapping(false), 300)
   }
 
+  const pattern = getIncomePattern(state.settings)
   const health = forecastHealth(lowestBalance)
   const toneColor = health === 'critical' ? c.bad : health === 'warning' ? c.warn : c.good
   const toneSoft = health === 'critical' ? c.badSoft : health === 'warning' ? c.warnSoft : c.goodSoft
-  const message = projections.length === 0 ? 'No upcoming events' : HEALTH_MESSAGE[health]
+  const message = projections.length === 0 ? 'No upcoming events' : getHealthMessage(health, pattern)
   const salaryDays = nextSalaryDate ? daysUntil(nextSalaryDate) : null
   const days = state.forecast_settings.days ?? 60
   const topCauses = drivers.slice(0, 3)
@@ -409,15 +411,15 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         {/* Status / lowest + warning causes */}
         <div style={{ background: toneSoft, borderRadius: 16, padding: 16, marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ font: `700 12px ${F}`, color: toneColor, display: 'flex', alignItems: 'center' }}>Lowest Balance<InfoTip id="lowest" text="The minimum your balance will reach after all known upcoming events. If negative, you may run short before payday." openId={openInfoId} setOpenId={setOpenInfoId} color={toneColor} /></span>
+            <span style={{ font: `700 12px ${F}`, color: toneColor, display: 'flex', alignItems: 'center' }}>Lowest Balance<InfoTip id="lowest" text="The minimum your balance will reach after all known upcoming events. If negative, you may run short before next income." openId={openInfoId} setOpenId={setOpenInfoId} color={toneColor} /></span>
             <span style={{ font: `800 20px ${F}`, color: toneColor }}>{fmt(lowestBalance)}</span>
           </div>
           <div style={{ marginTop: 6, font: `700 13px ${F}`, color: toneColor }}>
             {message}{lowestBalanceDate && health !== 'healthy' ? ` · around ${shortDate(lowestBalanceDate)}` : ''}
           </div>
-          {salaryDays != null && (
+          {salaryDays != null && (pattern === 'monthly' || pattern === 'weekly') && (
             <div style={{ marginTop: 4, font: `600 13px ${F}`, color: c.muted }}>
-              Next salary in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
+              {pattern === 'monthly' ? 'Next salary' : 'Next income'} in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
             </div>
           )}
           {health !== 'healthy' && topCauses.length > 0 && (
@@ -435,10 +437,10 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           {recoveryDate && recoveryBalance != null && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ font: `700 12px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Recovery Date<InfoTip id="recovery" text="The date your balance returns to positive after going negative. Usually after salary credit." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                <span style={{ font: `700 12px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Recovery Date<InfoTip id="recovery" text="The date your balance returns to positive after going negative. Usually after income credit." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `800 14px ${F}`, color: c.good }}>{shortDate(recoveryDate)}</span>
               </div>
-              <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>After Salary Credit · Balance {fmt(recoveryBalance)}</div>
+              <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>After Income Credit · Balance {fmt(recoveryBalance)}</div>
             </div>
           )}
           {health === 'healthy' && projections.length > 0 && (
@@ -457,7 +459,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             </div>
             {forecastOutcome.income > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                <span style={{ font: `600 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Income Received<InfoTip id="income" text="Expected salary credit based on your salary history or custom estimate." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                <span style={{ font: `600 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Income Received<InfoTip id="income" text="Expected income based on your history or settings." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `700 14px ${F}`, color: c.good }}>{fmt(forecastOutcome.income)}</span>
               </div>
             )}
@@ -698,7 +700,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                           </div>
                         ))}
                         {!showCurrentSpend && items.length === 0 && (
-                          <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '5px 0', fontStyle: 'italic' }}>No upcoming items</div>
+                          <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '5px 0', fontStyle: 'italic' }}>Nothing planned in this period</div>
                         )}
                         {(showCurrentSpend || items.length > 1) && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0 0', marginTop: 4, borderTop: `1px solid ${c.faint}` }}>
@@ -753,8 +755,9 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         </div>
 
         {projections.length === 0 ? (
-          <div style={{ margin: '20px 0 0 46px', font: `600 13px ${F}`, color: c.muted }}>
-            No upcoming money events in the next {days} days.
+          <div style={{ margin: '20px 0 0 46px' }}>
+            <div style={{ font: `700 13px ${F}`, color: c.ink, marginBottom: 4 }}>You're all caught up</div>
+            <div style={{ font: `600 12px ${F}`, color: c.muted, lineHeight: 1.5 }}>No bills, savings or income events in the next {days} days. Add commitments or savings to see them here.</div>
           </div>
         ) : (
           (() => {
@@ -884,11 +887,11 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         <div style={{ marginTop: 28, padding: 16, borderRadius: 14, background: c.surface2 }}>
           <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>What this forecast includes</div>
           {[
-            'Salary (when confidently known)',
+            pattern === 'monthly' ? 'Salary (when confidently known)' : pattern === 'weekly' ? 'Weekly income' : 'Projected income (when configured)',
             'Commitments & bills',
             'Credit-card bills due',
             'Savings plan contributions',
-            'Borrowed money you owe (at payday)',
+            'Borrowed money you owe (at next income)',
             ...(mode === 'lifestyle' ? ['Estimated daily spending (projection)'] : []),
           ].map(t => (
             <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>

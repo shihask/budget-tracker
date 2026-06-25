@@ -2,6 +2,8 @@ import type { AppState, DerivedMetrics, ForecastMode } from '@/types'
 import type { CashFlowEvent, CashFlowForecast, CashFlowProjection } from '@/lib/cashflow'
 import { buildCashFlowForecast, estimateForecastSalary } from '@/lib/cashflow'
 import { getStrategyPcts, getCategoryBucket } from '@/components/BudgetStrategyCard'
+import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
+import { getWeekStart } from '@/lib/utils'
 
 export type { ForecastMode }
 
@@ -37,28 +39,42 @@ function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySp
   if (!pcts) return null
 
   const base = state.budget_strategy_settings.budget_strategy_base ?? 'income'
-  const income = base === 'available_funds'
+  const pattern = getIncomePattern(state.settings)
+  const incomeAmount = base === 'available_funds'
     ? Math.max(0, d.availableBalance)
+    : pattern === 'weekly'
+    ? (state.settings.weekly_income ?? 0)
+    : pattern === 'variable' || pattern === 'business'
+    ? getVariableMonthlyIncome(state.settings)
     : (state.settings.monthly_salary ?? 0)
 
-  if (income <= 0) return null
+  if (incomeAmount <= 0) return null
 
   const now = new Date()
-  const sd = state.settings.salary_date
   let periodStart: Date
   let periodEnd: Date
 
-  if (sd && sd >= 1 && sd <= 31) {
-    const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-    periodStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
-    periodEnd = day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd)
-  } else {
+  if (pattern === 'weekly') {
+    const incDay = state.settings.income_day ?? 5
+    periodStart = getWeekStart(now, incDay)
+    periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 7)
+  } else if (pattern === 'variable' || pattern === 'business') {
     periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
     periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  } else {
+    const sd = state.settings.salary_date
+    if (sd && sd >= 1 && sd <= 31) {
+      const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
+      periodStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
+      periodEnd = day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd)
+    } else {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    }
   }
 
-  const needsTarget = Math.round(income * pcts.needs / 100)
-  const wantsTarget = Math.round(income * pcts.wants / 100)
+  const needsTarget = Math.round(incomeAmount * pcts.needs / 100)
+  const wantsTarget = Math.round(incomeAmount * pcts.wants / 100)
 
   const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
 
@@ -235,12 +251,13 @@ export function buildLifestyleForecast(state: AppState, d: DerivedMetrics): Life
   let safeUntilLabel: string
   if (staysPositive) {
     safeUntilDate = null
-    safeUntilLabel = nextSalaryDate ? 'Beyond Next Salary' : 'End of Forecast'
+    const incomeLabel = getIncomePattern(state.settings) === 'monthly' ? 'Beyond Next Salary' : 'Beyond Next Income'
+    safeUntilLabel = nextSalaryDate ? incomeLabel : 'End of Forecast'
   } else {
     safeUntilDate = prevPositiveDate
     const salaryEst = estimateForecastSalary(state)
     if (salaryEst.amount && nextSalaryDate && prevPositiveDate && prevPositiveDate >= nextSalaryDate) {
-      safeUntilLabel = 'Next Salary ✓'
+      safeUntilLabel = getIncomePattern(state.settings) === 'monthly' ? 'Next Salary ✓' : 'Next Income ✓'
     } else if (safeUntilDate) {
       safeUntilLabel = new Date(safeUntilDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
     } else {
@@ -249,7 +266,13 @@ export function buildLifestyleForecast(state: AppState, d: DerivedMetrics): Life
   }
 
   // Risk indicator
-  const monthlyIncome = estimateForecastSalary(state).amount ?? (state.settings.monthly_salary ?? 0)
+  const pat = getIncomePattern(state.settings)
+  const fallbackIncome = pat === 'weekly'
+    ? (state.settings.weekly_income ?? 0)
+    : pat === 'variable' || pat === 'business'
+    ? getVariableMonthlyIncome(state.settings)
+    : (state.settings.monthly_salary ?? 0)
+  const monthlyIncome = estimateForecastSalary(state).amount ?? fallbackIncome
   const threshold = Math.round(monthlyIncome * 0.25)
 
   let risk: LifestyleRisk

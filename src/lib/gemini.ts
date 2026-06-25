@@ -55,6 +55,7 @@ export interface AffordabilityContext {
   freeMoney: number
   safePurchasingPower: number
   daysUntilSalary: number | null
+  incomePatternLabel?: string
   weeklyBudget: number
   weeklySpent: number
   spendingByGroup: Record<string, number>
@@ -91,7 +92,7 @@ export async function affordabilityInsightWithAI(
     const context = [
       `Real Free Money: ₹${Math.round(ctx.freeMoney).toLocaleString('en-IN')}`,
       `Safe Purchasing Power: ₹${Math.round(ctx.safePurchasingPower).toLocaleString('en-IN')}`,
-      ctx.daysUntilSalary != null ? `Days until next salary: ${ctx.daysUntilSalary}` : null,
+      ctx.daysUntilSalary != null ? `Days until next ${ctx.incomePatternLabel ?? 'salary'}: ${ctx.daysUntilSalary}` : null,
       `Weekly budget: ₹${Math.round(ctx.weeklyBudget).toLocaleString('en-IN')}, this week spent: ₹${Math.round(ctx.weeklySpent).toLocaleString('en-IN')}`,
       `Last 30-day expense breakdown:\n${groupLines || '  (no data)'}`,
       `Total 30-day spend: ₹${Math.round(ctx.totalSpent30d).toLocaleString('en-IN')}`,

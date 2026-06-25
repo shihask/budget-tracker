@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.41.0'
+const APP_VERSION = '1.43.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
@@ -8,6 +8,8 @@ import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
 import { fmt, iso, TODAY } from '@/lib/utils'
+import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
+import { getIncomePattern } from '@/lib/income-pattern'
 import type { Layout, DashboardSectionId } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 
@@ -54,6 +56,7 @@ import { BudgetStrategyCard } from '@/components/BudgetStrategyCard'
 import { CategoryBucketMapper } from '@/components/CategoryBucketMapper'
 import { BudgetStrategySheet } from '@/components/BudgetStrategySheet'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
+import { PostIncomeSheet } from '@/components/PostIncomeSheet'
 import { computeChallenge } from '@/lib/challenge'
 import { ProjectsDashboardCard } from '@/features/shared-projects/components/ProjectsDashboardCard'
 import { ProjectsListPage } from '@/features/shared-projects/components/ProjectsListPage'
@@ -133,6 +136,7 @@ function AppContent({ session }: { session: Session }) {
   const [layout, setLayout] = useState<Layout>('grid')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [postIncomeAmount, setPostIncomeAmount] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
   const [showOnboardingFlow, setShowOnboardingFlow] = useState(() => {
@@ -250,6 +254,18 @@ function AppContent({ session }: { session: Session }) {
     ) {
       setExcludePromptTxnId(newTx.id)
       setTimeout(() => setExcludePromptTxnId(null), 5000)
+    }
+
+    // Post-income allocation suggestion for variable/business users
+    const incPattern = getIncomePattern(state.settings)
+    if (
+      newTx &&
+      form.transaction_type === 'income' &&
+      (incPattern === 'variable' || incPattern === 'business') &&
+      state.budget_strategy_settings.budget_strategy !== 'none' &&
+      form.amount > 0
+    ) {
+      setPostIncomeAmount(form.amount)
     }
 
     // Budget alert: fire when crossing the 90% threshold
@@ -370,7 +386,7 @@ function AppContent({ session }: { session: Session }) {
                     case 'metrics':
                       el = <div>
                         <SectionTitle action="Customize" onAction={() => setLayoutOpen(true)} onInfo={() => setMetricsInfoOpen(true)}>Your money</SectionTitle>
-                        <MetricCards d={d} layout={layout} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} infoOpen={metricsInfoOpen} onInfoClose={() => setMetricsInfoOpen(false)} />
+                        <MetricCards d={d} layout={layout} incomePattern={getIncomePattern(state.settings)} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} infoOpen={metricsInfoOpen} onInfoClose={() => setMetricsInfoOpen(false)} />
                       </div>
                       break
                     case 'analytics':
@@ -480,6 +496,14 @@ function AppContent({ session }: { session: Session }) {
               </div>
             )}
           </div>
+
+          {/* Post-income allocation suggestion */}
+          <PostIncomeSheet
+            open={postIncomeAmount != null}
+            onClose={() => setPostIncomeAmount(null)}
+            amount={postIncomeAmount ?? 0}
+            budgetStrategySettings={state.budget_strategy_settings}
+          />
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
@@ -652,8 +676,15 @@ function AppContent({ session }: { session: Session }) {
             <div onClick={() => setSettingsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
             <SettingsPanel
               accent={accent} dark={dark} layout={layout}
+              incomePattern={state.settings.income_pattern ?? 'monthly'}
               salaryDate={state.settings.salary_date}
               monthlySalary={state.settings.monthly_salary ?? null}
+              weeklyIncome={state.settings.weekly_income ?? null}
+              incomeDay={state.settings.income_day ?? null}
+              averageDailyIncome={state.settings.average_daily_income ?? null}
+              workingDaysPerWeek={state.settings.working_days_per_week ?? null}
+              businessMonthlyDrawings={state.settings.business_monthly_drawings ?? null}
+              historicalDailyIncome={estimateHistoricalDailyIncome(state)?.avgDailyIncome ?? null}
               trackCreditCards={state.settings.track_credit_cards ?? false}
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackSavings={state.settings.track_savings ?? false}
@@ -669,8 +700,10 @@ function AppContent({ session }: { session: Session }) {
               notifyCommitments={state.settings.notify_commitments ?? true}
               notifyWeeklySummary={state.settings.notify_weekly_summary ?? true}
               onAccent={setAccent} onDark={setDark} onLayout={setLayout}
+              onIncomePattern={v => updateSettings({ income_pattern: v })}
               onSalaryDate={v => updateSettings({ salary_date: v })}
               onMonthlySalary={v => updateSettings({ monthly_salary: v })}
+              onIncomeSettings={patch => updateSettings(patch as Partial<typeof state.settings>)}
               onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
               onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
               onTrackSavings={v => updateSettings({ track_savings: v })}
@@ -838,7 +871,7 @@ function AppContent({ session }: { session: Session }) {
                   }}
                   style={{ flex: 2, background: c.warn, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: savingEmergency ? 'not-allowed' : 'pointer', opacity: savingEmergency ? 0.7 : 1 }}
                 >
-                  {savingEmergency ? 'Saving...' : 'Save'}
+                  {savingEmergency ? 'Saving...' : 'Save Emergency Fund'}
                 </button>
               </div>
         </BottomSheet>
