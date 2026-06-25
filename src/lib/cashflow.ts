@@ -139,13 +139,13 @@ export function forecastReady(state: AppState): boolean {
 function nextWeekday(dayOfWeek: number, from: Date): Date {
   const d = midnight(from)
   const diff = (dayOfWeek - d.getDay() + 7) % 7
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + (diff === 0 ? 7 : diff))
+  return diff === 0 ? d : new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff)
 }
 
 function allWeekdays(dayOfWeek: number, from: Date, until: Date): Date[] {
   const dates: Date[] = []
-  let d = nextWeekday(dayOfWeek, from)
-  if (d.getTime() === midnight(from).getTime()) d = nextWeekday(dayOfWeek, new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1))
+  const tomorrow = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1)
+  let d = nextWeekday(dayOfWeek, tomorrow)
   while (d <= until) {
     dates.push(d)
     d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7)

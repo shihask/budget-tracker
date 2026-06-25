@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.43.0'
+const APP_VERSION = '1.44.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
@@ -198,6 +198,7 @@ function AppContent({ session }: { session: Session }) {
   }, [loading, state.accounts.length])
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
+  const historicalIncome = useMemo(() => estimateHistoricalDailyIncome(state)?.avgDailyIncome ?? null, [state])
 
   // Merge saved sections with defaults so newly added sections always appear
   const dashboardSections = useMemo(() => {
@@ -684,7 +685,7 @@ function AppContent({ session }: { session: Session }) {
               averageDailyIncome={state.settings.average_daily_income ?? null}
               workingDaysPerWeek={state.settings.working_days_per_week ?? null}
               businessMonthlyDrawings={state.settings.business_monthly_drawings ?? null}
-              historicalDailyIncome={estimateHistoricalDailyIncome(state)?.avgDailyIncome ?? null}
+              historicalDailyIncome={historicalIncome}
               trackCreditCards={state.settings.track_credit_cards ?? false}
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackSavings={state.settings.track_savings ?? false}

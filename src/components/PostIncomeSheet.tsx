@@ -15,7 +15,7 @@ export function PostIncomeSheet({ open, onClose, amount, budgetStrategySettings 
   const c = useTheme()
   const pcts = getStrategyPcts(budgetStrategySettings)
 
-  if (!pcts) return null
+  if (!pcts || amount <= 0) return null
 
   const needs = Math.round(amount * pcts.needs / 100)
   const wants = Math.round(amount * pcts.wants / 100)

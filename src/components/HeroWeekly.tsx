@@ -68,7 +68,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   const c = useTheme()
   const pattern = getIncomePattern(settings)
   const isAutoMode = (settings.budget_mode ?? 'manual') === 'auto'
-  const hasIncomeCycle = pattern === 'monthly' ? !!settings.salary_date : pattern === 'weekly'
+  const hasIncomeCycle = pattern === 'monthly' ? !!settings.salary_date : pattern === 'weekly' || pattern === 'variable' || pattern === 'business'
 
   // ── Edit form state ──────────────────────────────────────────────────────────
   const [salaryDateInput, setSalaryDateInput] = useState(String(settings.salary_date || ''))
@@ -325,12 +325,23 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
 
                 {/* Safe Until — primary metric (tappable for breakdown) */}
                 <div style={{ marginTop: 10, cursor: 'pointer' }} onClick={() => setPopup('safeUntil')}>
+                  {(d.avgDailySpending ?? 0) === 0 && (d.avgDailyIncome ?? 0) === 0 ? (
+                    <div>
+                      <div style={{ font: '800 28px Plus Jakarta Sans', color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                        Learning your pattern
+                      </div>
+                      <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)', marginTop: 6, lineHeight: 1.5 }}>
+                        Record your earnings and expenses for a few days. MoneyPlant will calculate your safe spending automatically.
+                      </div>
+                    </div>
+                  ) : (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <div style={{ font: '800 40px Plus Jakarta Sans', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.05 }}>
                       {(d.safeUntilDays ?? 0) > 90 ? '90+' : (d.safeUntilDays ?? 0)} days
                     </div>
                     <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.5)' }}>safe</span>
                   </div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                     <div style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -696,62 +707,101 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
       {/* ── Budget Edit Sheet ─────────────────────────────────────────────────────── */}
       <BottomSheet open={editOpen} onClose={onEditClose} maxHeight="90svh">
         <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Budget Settings</div>
-        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 20 }}>Income cycle, spending scope, and budget mode</div>
+        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 20 }}>
+          {(pattern === 'variable' || pattern === 'business') ? 'Income estimate, spending scope, and budget mode' : 'Income cycle, spending scope, and budget mode'}
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
-          {/* ── Section 1: Income Cycle ────────────────────────────────────────── */}
-          <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-            {pattern === 'monthly' ? 'Salary Cycle' : pattern === 'weekly' ? 'Weekly Cycle' : 'Income Cycle'}
-          </div>
+          {/* ── Section 1: Income / Cycle ────────────────────────────────────── */}
+          {(pattern === 'variable' || pattern === 'business') ? (<>
+            <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Your Income</div>
 
-          {pattern === 'monthly' && (
-            <div style={{ marginBottom: 14 }}>
-              <label style={lbl}>Salary credit date (day of month)</label>
-              <HelpText>When your salary arrives each month — drives safe spend calculations in Auto mode.</HelpText>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input type="number" value={salaryDateInput} onChange={e => setSalaryDateInput(e.target.value)}
-                  placeholder="e.g. 28" min="1" max="31" style={{ ...inp, width: 100 }} />
-                <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>of every month</span>
+            {(d.avgDailyIncome ?? 0) > 0 ? (
+              <div style={{ background: c.accentSoft, borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                  <div>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Estimated Daily Income</div>
+                    <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginTop: 2 }}>{fmt(d.avgDailyIncome ?? 0)}</div>
+                  </div>
+                  {d.incomeConfidence && d.incomeConfidence !== 'none' && (
+                    <div style={{
+                      background: d.incomeConfidence === 'high' ? c.goodSoft : d.incomeConfidence === 'medium' ? c.warnSoft : c.badSoft,
+                      color: d.incomeConfidence === 'high' ? c.good : d.incomeConfidence === 'medium' ? c.warn : c.bad,
+                      borderRadius: 8, padding: '4px 10px',
+                      font: '700 11px Plus Jakarta Sans',
+                    }}>
+                      {d.incomeConfidence === 'high' ? 'High' : d.incomeConfidence === 'medium' ? 'Medium' : 'Low'} confidence
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Avg daily spending</span>
+                  <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(d.avgDailySpending ?? 0)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Safe for</span>
+                  <span style={{ font: '700 12px Plus Jakarta Sans', color: (d.safeUntilDays ?? 0) > 14 ? c.good : (d.safeUntilDays ?? 0) > 7 ? c.warn : c.bad }}>{d.safeUntilDays ?? 0} days</span>
+                </div>
+                <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 10, lineHeight: 1.5 }}>
+                  {settings.average_daily_income ? 'Based on your manual estimate.' : 'Based on the last 60 days of earnings. Uses median to avoid outlier influence.'}
+                </div>
               </div>
-            </div>
-          )}
-          {pattern === 'weekly' && (
-            <div style={{ marginBottom: 14, background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
-                Your budget cycle resets weekly on your income day. Configure income details in Settings.
+            ) : (
+              <div style={{ background: c.surface2, borderRadius: 14, padding: '16px', marginBottom: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>📊</div>
+                <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Learning your income</div>
+                <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+                  Record your earnings for about two weeks. MoneyPlant will build your budget automatically.
+                </div>
               </div>
+            )}
+          </>) : (<>
+            <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+              {pattern === 'monthly' ? 'Salary Cycle' : 'Weekly Cycle'}
             </div>
-          )}
-          {(pattern === 'variable' || pattern === 'business') && (
-            <div style={{ marginBottom: 14, background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
-                Budget calculations use a monthly cycle. Configure income details in Settings.
-              </div>
-            </div>
-          )}
 
-          {cycle && (
-            <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
-              <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>
-                Current cycle: {cycle.startLabel} → {cycle.endLabel}
-              </div>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div>
-                  <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{cycle.daysRemaining}</div>
-                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>days left</div>
-                </div>
-                <div>
-                  <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{cycle.weeksRemaining.toFixed(1)}</div>
-                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>weeks left</div>
-                </div>
-                <div>
-                  <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{fmt(d.realFreeMoney)}</div>
-                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>free money</div>
+            {pattern === 'monthly' && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={lbl}>Salary credit date (day of month)</label>
+                <HelpText>When your salary arrives each month — drives safe spend calculations in Auto mode.</HelpText>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input type="number" value={salaryDateInput} onChange={e => setSalaryDateInput(e.target.value)}
+                    placeholder="e.g. 28" min="1" max="31" style={{ ...inp, width: 100 }} />
+                  <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>of every month</span>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+            {pattern === 'weekly' && (
+              <div style={{ marginBottom: 14, background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                  Your budget cycle resets weekly on your income day. Configure income details in Settings.
+                </div>
+              </div>
+            )}
+
+            {cycle && (
+              <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>
+                  Current cycle: {cycle.startLabel} → {cycle.endLabel}
+                </div>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <div>
+                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{cycle.daysRemaining}</div>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>days left</div>
+                  </div>
+                  <div>
+                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{cycle.weeksRemaining.toFixed(1)}</div>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>weeks left</div>
+                  </div>
+                  <div>
+                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{fmt(d.realFreeMoney)}</div>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>free money</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>)}
 
           <div style={sectionDiv} />
 
@@ -929,16 +979,23 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 border: `1.5px solid ${budgetMode === mode ? c.accent : c.faint}`,
                 borderRadius: 10, padding: '10px 0',
                 font: '700 14px Plus Jakarta Sans', cursor: 'pointer',
-                textTransform: 'capitalize',
               }}>
-                {mode === 'auto' ? 'Auto' : 'Manual'}
+                {mode === 'auto' ? ((pattern === 'variable' || pattern === 'business') ? 'Adaptive' : 'Auto') : 'Manual'}
               </button>
             ))}
           </div>
 
           {budgetMode === 'auto' ? (
-            /* Auto mode: show safe spend preview */
-            cycle ? (
+            (pattern === 'variable' || pattern === 'business') ? (
+              <div style={{ background: c.accentSoft, borderRadius: 14, padding: '14px 16px' }}>
+                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.accent, marginBottom: 10 }}>
+                  Budget adapts to your earnings
+                </div>
+                <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+                  Your spending targets update as you record income. Needs, Wants, and Savings are calculated from your earning history.
+                </div>
+              </div>
+            ) : cycle ? (
               <div style={{ background: c.accentSoft, borderRadius: 14, padding: '14px 16px' }}>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.accent, marginBottom: 10 }}>
                   MoneyPlant calculates automatically
@@ -972,8 +1029,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             /* Manual mode: period selector + budget input */
             <>
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Budget period</label>
-                <HelpText>How frequently your budget resets.</HelpText>
+                <label style={lbl}>{(pattern === 'variable' || pattern === 'business') ? 'Planning view' : 'Budget period'}</label>
+                <HelpText>{(pattern === 'variable' || pattern === 'business') ? 'Choose how you want to review your spending progress.' : 'How frequently your budget resets.'}</HelpText>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {(['daily', 'weekly', 'monthly'] as const).map(p => (
                     <button key={p} onClick={() => setBudgetPeriod(p)} style={{
@@ -990,7 +1047,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 </div>
               </div>
 
-              {budgetPeriod === 'weekly' && (
+              {budgetPeriod === 'weekly' && pattern !== 'variable' && pattern !== 'business' && (
                 <div style={{ marginBottom: 14 }}>
                   <label style={lbl}>Week starts on</label>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -1009,7 +1066,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 </div>
               )}
 
-              {budgetPeriod === 'monthly' && (
+              {budgetPeriod === 'monthly' && pattern !== 'variable' && pattern !== 'business' && (
                 <div style={{ marginBottom: 14 }}>
                   <label style={lbl}>Month starts on</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1020,8 +1077,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 </div>
               )}
 
-              {/* Suggested budget from cycle */}
-              {cycle && suggested !== null && suggested > 0 && (
+              {/* Suggested budget from cycle — not shown for variable/business */}
+              {cycle && suggested !== null && suggested > 0 && pattern !== 'variable' && pattern !== 'business' && (
                 <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 6 }}>
                     {fmt(d.realFreeMoney)} ÷ {budgetPeriod === 'daily' ? `${cycle.daysRemaining} days` : budgetPeriod === 'monthly' ? '1 month' : `${cycle.weeksRemaining.toFixed(1)} weeks`}
@@ -1040,7 +1097,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               )}
 
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>{budgetPeriod === 'daily' ? 'Daily' : budgetPeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget</label>
+                <label style={lbl}>{(pattern === 'variable' || pattern === 'business') ? `${budgetPeriod === 'daily' ? 'Daily' : budgetPeriod === 'monthly' ? 'Monthly' : 'Weekly'} spending target` : `${budgetPeriod === 'daily' ? 'Daily' : budgetPeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget`}</label>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input type="number" inputMode="decimal" value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
