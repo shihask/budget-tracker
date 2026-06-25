@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type {
   Project, ProjectMember, ProjectTransaction, ProjectAttachment,
-  ProjectCollaborator, ProjectBudget, CollaboratorRole
+  ProjectCollaborator, ProjectBudget, ProjectActivityLog, CollaboratorRole
 } from '../types'
 
 interface ProjectDetail {
@@ -11,6 +11,7 @@ interface ProjectDetail {
   attachments: ProjectAttachment[]
   collaborators: ProjectCollaborator[]
   budgets: ProjectBudget[]
+  activityLog: ProjectActivityLog[]
 }
 
 export function useProjectsData(userId: string) {
@@ -69,6 +70,23 @@ export function useProjectsData(userId: string) {
     }
   }, [userId])
 
+  // ── Activity logging ───────────────────────────────────────────────────
+
+  const logActivity = useCallback(async (
+    projectId: string,
+    actionType: string,
+    description: string,
+    metadata: Record<string, unknown> = {}
+  ) => {
+    supabase.from('project_activity_log').insert({
+      project_id: projectId,
+      user_id: userId,
+      action_type: actionType,
+      description,
+      metadata,
+    }).then(() => {}, () => {})
+  }, [userId])
+
   // ── Project CRUD ──────────────────────────────────────────────────────
 
   const addProject = useCallback(async (form: {
@@ -93,8 +111,9 @@ export function useProjectsData(userId: string) {
     if (error) throw error
     setProjects(prev => [data, ...prev])
     setProjectRoles(prev => new Map(prev).set(data.id, 'owner'))
+    logActivity(data.id, 'project_created', `Created project "${form.name}"`)
     return data
-  }, [userId])
+  }, [userId, logActivity])
 
   const updateProject = useCallback(async (
     id: string,
@@ -124,7 +143,7 @@ export function useProjectsData(userId: string) {
 
   const loadProjectDetail = useCallback(async (projectId: string) => {
     setDetailProjectId(projectId)
-    const [membersRes, txnsRes, attachRes, collabRes, budgetsRes] = await Promise.all([
+    const [membersRes, txnsRes, attachRes, collabRes, budgetsRes, activityRes] = await Promise.all([
       supabase
         .from('project_members')
         .select('*')
@@ -156,6 +175,12 @@ export function useProjectsData(userId: string) {
         .select('*')
         .eq('project_id', projectId)
         .order('display_order', { ascending: true }),
+      supabase
+        .from('project_activity_log')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ])
 
     const members = membersRes.data ?? []
@@ -163,6 +188,7 @@ export function useProjectsData(userId: string) {
     const attachments = attachRes.data ?? []
     const collaborators = collabRes.data ?? []
     const budgets = budgetsRes.data ?? []
+    const activityLog = activityRes.data ?? []
 
     const memberMap = new Map(members.map(m => [m.id, m]))
     const txnsWithMembers = transactions.map(t => ({
@@ -171,7 +197,7 @@ export function useProjectsData(userId: string) {
     }))
 
     if (mountedRef.current) {
-      setDetail({ members, transactions: txnsWithMembers, attachments, collaborators, budgets })
+      setDetail({ members, transactions: txnsWithMembers, attachments, collaborators, budgets, activityLog })
     }
   }, [])
 
@@ -196,8 +222,9 @@ export function useProjectsData(userId: string) {
       .single()
     if (error) throw error
     setDetail(prev => prev ? { ...prev, members: [...prev.members, data] } : prev)
+    logActivity(projectId, 'member_added', `Added member "${form.name}"`, { member_id: data.id })
     return data
-  }, [detail])
+  }, [detail, logActivity])
 
   const updateMember = useCallback(async (
     id: string,
@@ -215,13 +242,17 @@ export function useProjectsData(userId: string) {
   }, [])
 
   const removeMember = useCallback(async (id: string) => {
+    const member = detail?.members.find(m => m.id === id)
     const { error } = await supabase.from('project_members').delete().eq('id', id)
     if (error) throw error
     setDetail(prev => prev ? {
       ...prev,
       members: prev.members.filter(m => m.id !== id),
     } : prev)
-  }, [])
+    if (member && detailProjectId) {
+      logActivity(detailProjectId, 'member_removed', `Removed member "${member.name}"`, { member_id: id })
+    }
+  }, [detail, detailProjectId, logActivity])
 
   // ── Project Transactions ──────────────────────────────────────────────
 
@@ -261,8 +292,12 @@ export function useProjectsData(userId: string) {
       ...prev,
       transactions: [txn, ...prev.transactions],
     } : prev)
+    const label = form.transaction_type === 'contribution'
+      ? `Added contribution of ₹${form.amount.toLocaleString()}`
+      : `Added expense of ₹${form.amount.toLocaleString()}${form.category ? ` (${form.category})` : ''}`
+    logActivity(form.project_id, 'transaction_added', label, { transaction_id: data.id, type: form.transaction_type, amount: form.amount })
     return txn
-  }, [detail])
+  }, [detail, logActivity])
 
   const updateProjectTransaction = useCallback(async (
     id: string,
@@ -288,6 +323,7 @@ export function useProjectsData(userId: string) {
   }, [detail])
 
   const deleteProjectTransaction = useCallback(async (id: string) => {
+    const txn = detail?.transactions.find(t => t.id === id)
     const { error } = await supabase.from('project_transactions').delete().eq('id', id)
     if (error) throw error
     setDetail(prev => prev ? {
@@ -295,7 +331,10 @@ export function useProjectsData(userId: string) {
       transactions: prev.transactions.filter(t => t.id !== id),
       attachments: prev.attachments.filter(a => a.project_transaction_id !== id),
     } : prev)
-  }, [])
+    if (txn && detailProjectId) {
+      logActivity(detailProjectId, 'transaction_deleted', `Deleted ${txn.transaction_type} of ₹${txn.amount.toLocaleString()}`, { type: txn.transaction_type, amount: txn.amount })
+    }
+  }, [detail, detailProjectId, logActivity])
 
   // ── Sharing ───────────────────────────────────────────────────────────
 
@@ -308,8 +347,9 @@ export function useProjectsData(userId: string) {
         ? { ...p, share_code: code, is_public: true, shared_at: new Date().toISOString() }
         : p
     ))
+    logActivity(projectId, 'share_enabled', 'Generated public share link')
     return code
-  }, [])
+  }, [logActivity])
 
   const revokeShareCode = useCallback(async (projectId: string) => {
     const { error } = await supabase
@@ -322,7 +362,8 @@ export function useProjectsData(userId: string) {
         ? { ...p, share_code: null, is_public: false }
         : p
     ))
-  }, [])
+    logActivity(projectId, 'share_revoked', 'Revoked public share link')
+  }, [logActivity])
 
   // ── Collaborators ─────────────────────────────────────────────────────
 
@@ -339,10 +380,12 @@ export function useProjectsData(userId: string) {
       .eq('project_id', projectId)
       .order('created_at', { ascending: true })
     setDetail(prev => prev ? { ...prev, collaborators: collabs ?? [] } : prev)
+    logActivity(projectId, 'collaborator_invited', `Invited ${email} as ${role}`, { email, role })
     return data
-  }, [])
+  }, [logActivity])
 
   const removeCollaborator = useCallback(async (projectId: string, collaboratorId: string) => {
+    const collab = detail?.collaborators.find(c => c.id === collaboratorId)
     const { error } = await supabase.rpc('mp_remove_collaborator', {
       p_project_id: projectId,
       p_collaborator_id: collaboratorId,
@@ -352,7 +395,8 @@ export function useProjectsData(userId: string) {
       ...prev,
       collaborators: prev.collaborators.filter(c => c.id !== collaboratorId),
     } : prev)
-  }, [])
+    logActivity(projectId, 'collaborator_removed', `Removed collaborator ${collab?.invited_email || ''}`, { collaborator_id: collaboratorId })
+  }, [detail, logActivity])
 
   const updateCollaboratorRole = useCallback(async (collaboratorId: string, role: CollaboratorRole) => {
     const { error } = await supabase
@@ -423,7 +467,7 @@ export function useProjectsData(userId: string) {
     const storagePath = `${userId}/${projectId}/${crypto.randomUUID()}.${ext}`
 
     const { error: uploadErr } = await supabase.storage
-      .from('project_attachments')
+      .from('project-attachments')
       .upload(storagePath, file, { contentType: file.type })
     if (uploadErr) throw uploadErr
 
@@ -443,13 +487,18 @@ export function useProjectsData(userId: string) {
   }, [userId])
 
   const deleteAttachment = useCallback(async (attachment: ProjectAttachment) => {
-    await supabase.storage.from('project_attachments').remove([attachment.path])
+    await supabase.storage.from('project-attachments').remove([attachment.path])
     const { error } = await supabase.from('project_attachments').delete().eq('id', attachment.id)
     if (error) throw error
     setDetail(prev => prev ? {
       ...prev,
       attachments: prev.attachments.filter(a => a.id !== attachment.id),
     } : prev)
+  }, [])
+
+  const getAttachmentUrl = useCallback(async (path: string): Promise<string | null> => {
+    const { data } = await supabase.storage.from('project-attachments').createSignedUrl(path, 3600)
+    return data?.signedUrl ?? null
   }, [])
 
   return {
@@ -480,5 +529,7 @@ export function useProjectsData(userId: string) {
     removeBudget,
     uploadAttachment,
     deleteAttachment,
+    getAttachmentUrl,
+    logActivity,
   }
 }

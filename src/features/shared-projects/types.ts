@@ -1,6 +1,6 @@
 export type ProjectStatus = 'active' | 'completed' | 'archived'
 export type ProjectTransactionType = 'contribution' | 'expense'
-export type ProjectTab = 'overview' | 'expenses' | 'members' | 'settlement'
+export type ProjectTab = 'overview' | 'expenses' | 'members' | 'settlement' | 'activity'
 export type CollaboratorRole = 'owner' | 'editor' | 'viewer'
 
 export interface Project {
@@ -126,4 +126,14 @@ export interface BudgetSummary {
   unallocatedAmount: number
   breakdowns: BudgetBreakdown[]
   uncategorizedSpend: number
+}
+
+export interface ProjectActivityLog {
+  id: string
+  project_id: string
+  user_id: string | null
+  action_type: string
+  description: string
+  metadata: Record<string, unknown>
+  created_at: string
 }

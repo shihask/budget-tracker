@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { supabase } from '@/lib/supabase'
 import { BottomSheet } from '@/components/BottomSheet'
 import type { CollaboratorRole } from '../types'
 
@@ -7,9 +8,10 @@ interface Props {
   open: boolean
   onClose: () => void
   onInvite: (email: string, role: CollaboratorRole) => Promise<unknown>
+  projectName?: string
 }
 
-export function CollaboratorInviteSheet({ open, onClose, onInvite }: Props) {
+export function CollaboratorInviteSheet({ open, onClose, onInvite, projectName }: Props) {
   const c = useTheme()
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'editor' | 'viewer'>('viewer')
@@ -25,6 +27,9 @@ export function CollaboratorInviteSheet({ open, onClose, onInvite }: Props) {
     setError(null)
     try {
       await onInvite(email.trim(), role)
+      supabase.functions.invoke('send-invite-email', {
+        body: { to_email: email.trim(), project_name: projectName || 'a project', role },
+      }).then(() => {}, () => {})
       setSent(true)
       setTimeout(() => { setSent(false); setEmail(''); setError(null); onClose() }, 1500)
     } catch (e: any) {

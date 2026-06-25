@@ -19,13 +19,14 @@ interface Props {
     category?: string
     notes?: string
     transaction_date: string
+    files?: File[]
   }) => Promise<void>
-  onUploadAttachment?: (file: File, projectId: string, transactionId: string) => Promise<void>
   editTxn?: ProjectTransaction | null
   budgets?: ProjectBudget[]
+  existingAttachmentCount?: number
 }
 
-export function ProjectTransactionSheet({ open, onClose, mode, members, projectId, onSave, editTxn, budgets = [] }: Props) {
+export function ProjectTransactionSheet({ open, onClose, mode, members, projectId, onSave, editTxn, budgets = [], existingAttachmentCount = 0 }: Props) {
   const c = useTheme()
   const [memberId, setMemberId] = useState<string>('')
   const [amount, setAmount] = useState('')
@@ -34,7 +35,9 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   const [notes, setNotes] = useState('')
   const [date, setDate] = useState(iso(TODAY))
   const [saving, setSaving] = useState(false)
+  const [files, setFiles] = useState<File[]>([])
   const amountRef = useRef<HTMLInputElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open && editTxn) {
@@ -51,6 +54,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
       setCategory('')
       setNotes('')
       setDate(iso(TODAY))
+      setFiles([])
     }
   }, [open, editTxn, members])
 
@@ -68,6 +72,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
         category: category.trim() || undefined,
         notes: notes.trim() || undefined,
         transaction_date: date,
+        files: files.length > 0 ? files : undefined,
       })
       onClose()
     } catch (e) {
@@ -207,6 +212,71 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
               rows={2}
               style={{ ...inputStyle, resize: 'vertical', minHeight: 48 }}
             />
+          </div>
+
+          {/* Attachments */}
+          <div>
+            <div style={labelStyle}>Attachments</div>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+              onChange={e => {
+                if (e.target.files) setFiles(prev => [...prev, ...Array.from(e.target.files!)])
+              }}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              style={{
+                width: '100%', padding: '10px 14px', borderRadius: 14,
+                border: `1.5px dashed ${c.faint}`, background: 'transparent',
+                font: '600 13px Plus Jakarta Sans', color: c.muted,
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', gap: 8,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+              Attach files
+            </button>
+            {editTxn && existingAttachmentCount > 0 && (
+              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.accent, marginTop: 4 }}>
+                {existingAttachmentCount} existing attachment{existingAttachmentCount > 1 ? 's' : ''}
+              </div>
+            )}
+            {files.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                {files.map((f, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '6px 10px', borderRadius: 10, background: c.surface2,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span style={{ font: '500 12px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {f.name}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))}
+                      style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
