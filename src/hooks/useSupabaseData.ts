@@ -53,6 +53,9 @@ const DEFAULT_CATEGORIES: { name: string; group_name: string; is_system?: boolea
   { name: 'Groceries',            group_name: 'Lifestyle' },
   { name: 'Shopping',             group_name: 'Lifestyle' },
   { name: 'Entertainment',        group_name: 'Lifestyle' },
+  { name: 'Personal Care',        group_name: 'Lifestyle' },
+  { name: 'Clothing',             group_name: 'Lifestyle' },
+  { name: 'Gifts',                group_name: 'Lifestyle' },
   // Utilities
   { name: 'Electricity',          group_name: 'Utilities' },
   { name: 'Water',                group_name: 'Utilities' },
@@ -64,7 +67,7 @@ const DEFAULT_CATEGORIES: { name: string; group_name: string; is_system?: boolea
   { name: 'Fuel',                 group_name: 'Transport' },
   { name: 'Bus',                  group_name: 'Transport' },
   { name: 'Train',                group_name: 'Transport' },
-  { name: 'Taxi / Auto',          group_name: 'Transport' },
+  { name: 'Taxi & Ride',           group_name: 'Transport' },
   { name: 'Parking',              group_name: 'Transport' },
   { name: 'Vehicle Maintenance',  group_name: 'Transport' },
   // Health
@@ -74,13 +77,12 @@ const DEFAULT_CATEGORIES: { name: string; group_name: string; is_system?: boolea
   { name: 'Lab Test',             group_name: 'Health' },
   // Family
   { name: 'Child Care',           group_name: 'Family' },
-  { name: 'Diapers',              group_name: 'Family' },
   { name: 'Education',            group_name: 'Family' },
-  { name: 'Gifts',                group_name: 'Family' },
+  { name: 'Pet Care',             group_name: 'Family' },
   { name: 'Family Expense',       group_name: 'Family' },
   // Obligations
   { name: 'Loan EMI',             group_name: 'Obligations' },
-  { name: 'Credit Card Payment',  group_name: 'Obligations' },
+  { name: 'Credit Card Bill',     group_name: 'Obligations' },
   { name: 'Insurance Premium',    group_name: 'Obligations' },
   { name: 'Rent',                 group_name: 'Obligations' },
   { name: 'School Fees',          group_name: 'Obligations' },
@@ -115,13 +117,15 @@ const SAVINGS_TYPE_LABEL: Record<string, string> = {
   rd:      'Recurring Deposit',
   fd:      'Fixed Deposit',
   ppf_nps: 'PPF / NPS',
+  ppf:     'PPF',
+  nps:     'NPS',
   chit:    'Chit Fund',
   custom:  'Savings',
 }
 const savingsContribNote = (type: string) => `${SAVINGS_TYPE_LABEL[type] ?? 'Savings'} Contribution`
 const savingsWithdrawNote = (type: string, isChit: boolean) =>
   isChit ? 'Chit Fund Payout' : `${SAVINGS_TYPE_LABEL[type] ?? 'Savings'} Redemption`
-const SAVINGS_CATEGORIES = ['SIP', 'Gold Scheme', 'Recurring Deposit', 'Fixed Deposit', 'PPF / NPS', 'Chit Fund']
+const SAVINGS_CATEGORIES = ['SIP', 'Mutual Fund', 'Gold Scheme', 'Recurring Deposit', 'Fixed Deposit', 'PPF', 'NPS', 'Chit Fund']
 
 const TXN_PAGE_SIZE = 200
 
