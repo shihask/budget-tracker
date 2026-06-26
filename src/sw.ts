@@ -10,9 +10,11 @@ declare const self: ServiceWorkerGlobalScope
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
-// Required for both prompt and autoUpdate modes — without this listener
-// the SKIP_WAITING message from the client is silently dropped and the
-// new service worker never activates.
+self.addEventListener('install', () => self.skipWaiting())
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
+
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
