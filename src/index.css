@@ -168,6 +168,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   position: sticky;
   top: 0;
   z-index: 100;
+  padding-top: env(safe-area-inset-top, 0px);
   transition: background 0.25s, box-shadow 0.25s;
 }
 
@@ -182,7 +183,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
   min-height: 68px;
-  padding-top: 8px;
+  padding-top: 10px;
   display: flex;
   align-items: center;
   gap: 16px;
