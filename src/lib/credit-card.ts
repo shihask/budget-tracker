@@ -31,15 +31,21 @@ export function getCreditCardBilling(
   const lastBill = getLastBillDate(card.bill_day, today)
   const lastBillStr = lastBill.toISOString().slice(0, 10)
 
-  const unbilledAmount = transactions
-    .filter(t =>
-      t.credit_card_id === card.id &&
-      CC_SPEND_TYPES.has(t.transaction_type) &&
-      t.transaction_date > lastBillStr
-    )
-    .reduce((sum, t) => sum + t.amount, 0)
+  // Reconstruct balance at last bill date by reversing all post-bill activity
+  let balanceAtBill = card.current_balance
+  for (const t of transactions) {
+    if (t.credit_card_id !== card.id || t.transaction_date <= lastBillStr) continue
+    if (CC_SPEND_TYPES.has(t.transaction_type)) {
+      balanceAtBill -= t.amount
+    } else if (t.transaction_type === 'credit_card_payment') {
+      balanceAtBill += t.amount
+    } else if (t.transaction_type === 'cc_balance_adjustment') {
+      balanceAtBill += t.is_credit ? -t.amount : t.amount
+    }
+  }
 
-  const billedAmount = Math.max(0, card.current_balance - unbilledAmount)
+  const billedAmount = Math.max(0, balanceAtBill)
+  const unbilledAmount = Math.max(0, card.current_balance - billedAmount)
 
   return {
     totalOutstanding: card.current_balance,

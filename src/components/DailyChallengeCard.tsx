@@ -307,7 +307,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
             <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
               {calc.planningMode === 'salary_cycle'
-                ? `${calc.daysRemaining} days until salary`
+                ? (getIncomePattern(settings) === 'monthly' ? `${calc.daysRemaining} days until salary` : `${calc.daysRemaining} days until income`)
                 : `${calc.daysRemaining} days until month end`}
             </span>
             {calc.planningMode === 'month_end' && getIncomePattern(settings) === 'monthly' && (
@@ -366,7 +366,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
             marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
-              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 2 }}>Salary Survival</div>
+              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 2 }}>{getIncomePattern(settings) === 'monthly' ? 'Salary Survival' : getIncomePattern(settings) === 'weekly' ? 'Income Survival' : 'Cash Runway'}</div>
               <div style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
                 Your pace {fmt(Math.round(calc.currentPace))}/day
                 <span style={{ font: '400 11px Plus Jakarta Sans', color: c.muted }}> (last 7 days)</span>

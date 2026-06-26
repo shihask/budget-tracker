@@ -218,9 +218,11 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
       `\nLowest projected ₹${fc.lowestBalance.toLocaleString()}${fc.lowestBalanceDate ? ` on ${fc.lowestBalanceDate}` : ''}` +
       `${fc.nextSalaryDate
         ? ` | ${getIncomePattern(state.settings) === 'monthly' ? 'next salary' : 'next income'} ${fc.nextSalaryDate}`
-        : getIncomePattern(state.settings) === 'variable' || getIncomePattern(state.settings) === 'business'
-        ? ' | next income: not projected'
-        : ' | next salary: unknown'}` +
+        : getIncomePattern(state.settings) === 'monthly'
+        ? ' | next salary: unknown'
+        : getIncomePattern(state.settings) === 'weekly'
+        ? ' | next income: unknown'
+        : ' | no projected income available yet'}` +
       `${upcoming ? `\nUpcoming: ${upcoming}` : ''}`
     )
   }

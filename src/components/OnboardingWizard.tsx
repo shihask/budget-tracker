@@ -147,7 +147,7 @@ export function OnboardingWizard({ containerWidth, onAddAccount, onUpdateSetting
         {step === 2 && (
           <div>
             <Progress />
-            <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>Salary & budget</div>
+            <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>Income & budget</div>
             <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5, marginBottom: 20 }}>
               These power your "weeks until payday" and affordability checks. You can change them anytime in Settings.
             </div>

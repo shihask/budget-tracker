@@ -505,7 +505,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                   <Row label="Available money" value={fmt(freeMoney)} bold info="What you have after all commitments" />
                   {hasWeeklyContext && (
                     <>
-                      <Row label={`Weekly Budget × ${weeksRemaining}w`} value={`− ${fmt(reservedBudget)}`} muted info="Reserved to follow your weekly spending plan till salary" />
+                      <Row label={`Weekly Budget × ${weeksRemaining}w`} value={`− ${fmt(reservedBudget)}`} muted info={pattern === 'monthly' ? 'Reserved until your next salary.' : pattern === 'weekly' ? 'Reserved until your next income.' : 'Reserved to support your spending plan.'} />
                       <Divider />
                       <Row label="Safe to Spend" value={fmt(Math.max(0, safePurchasingPower))} bold accent info="What you can spend right now without affecting your budget" />
                     </>
@@ -743,7 +743,11 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                   <div style={{ font: '800 14px Plus Jakarta Sans', color: '#92400E' }}>Recommendation</div>
                 </div>
                 <div style={{ font: '700 14px Plus Jakarta Sans', color: '#92400E', marginBottom: 10 }}>
-                  Wait {timingAdvice.daysAway} day{timingAdvice.daysAway !== 1 ? 's' : ''} until salary ({shortDate(timingAdvice.salaryDate)}).
+                  {pattern === 'monthly'
+                    ? `Wait ${timingAdvice.daysAway} day${timingAdvice.daysAway !== 1 ? 's' : ''} until your next salary (${shortDate(timingAdvice.salaryDate)}).`
+                    : pattern === 'weekly'
+                    ? `Wait ${timingAdvice.daysAway} day${timingAdvice.daysAway !== 1 ? 's' : ''} until your next income (${shortDate(timingAdvice.salaryDate)}).`
+                    : 'Wait a few more earning days before making this purchase.'}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {simResult && simResult.lowestBalance < 0 && (
@@ -771,7 +775,11 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                       <circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/>
                     </svg>
                     <span style={{ font: '600 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.5 }}>
-                      After salary, this purchase becomes affordable with an estimated balance of {fmt(timingAdvice.postLowest)}.
+                      {pattern === 'monthly'
+                        ? `After your next salary, this purchase becomes affordable with an estimated balance of ${fmt(timingAdvice.postLowest)}.`
+                        : pattern === 'weekly'
+                        ? `After your next income, this purchase becomes affordable with an estimated balance of ${fmt(timingAdvice.postLowest)}.`
+                        : `After your next expected earnings, this purchase becomes affordable with an estimated balance of ${fmt(timingAdvice.postLowest)}.`}
                     </span>
                   </div>
                 </div>
@@ -796,7 +804,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                     <>
                       <Row label="Weeks remaining" value={`${weeksRemaining} weeks`} muted />
                       <Row label="Weekly budget" value={fmt(weeklyBudget)} muted info="Your planned weekly spending limit" />
-                      <Row label="Reserved for budget" value={`− ${fmt(reservedBudget)}`} muted info="Kept aside for your weekly plan till salary" />
+                      <Row label="Reserved for budget" value={`− ${fmt(reservedBudget)}`} muted info={pattern === 'monthly' ? 'Kept aside until your next salary.' : pattern === 'weekly' ? 'Kept aside until your next income.' : 'Reserved for your spending plan.'} />
                       <Divider />
                       <Row label="Safe to spend" value={fmt(Math.max(0, safePurchasingPower))} bold info="What you can spend right now without affecting your budget" />
                     </>
@@ -875,7 +883,13 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                             We need income information to estimate when you could afford this purchase.
                           </div>
                           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 10, lineHeight: 1.5 }}>
-                            Add salary details in <strong style={{ color: c.ink }}>Settings</strong> or record salary transactions to enable purchase planning.
+                            {pattern === 'monthly'
+                              ? <>Add your salary details in <strong style={{ color: c.ink }}>Settings</strong>.</>
+                              : pattern === 'weekly'
+                              ? <>Add your weekly income details in <strong style={{ color: c.ink }}>Settings</strong>.</>
+                              : pattern === 'variable'
+                              ? 'Add your estimated daily income or record a few days of earnings.'
+                              : 'Add your monthly drawings or record income transactions.'}
                           </div>
                         </div>
                       ) : plan.canSaveMonthly === 0 ? (

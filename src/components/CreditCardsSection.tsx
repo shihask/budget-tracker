@@ -13,7 +13,7 @@ interface Props {
   onUpdate: (id: string, form: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
-  onAdjustBalance: (cardId: string, actualBalance: number) => Promise<void>
+  onAdjustBalance: (cardId: string, actualBalance: number, billedAmount?: number) => Promise<void>
 }
 
 type CardForm = {
@@ -60,6 +60,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   const [infoOpen, setInfoOpen] = useState(false)
   const [adjustTarget, setAdjustTarget] = useState<CreditCard | null>(null)
   const [adjustAmount, setAdjustAmount] = useState('')
+  const [adjustBilled, setAdjustBilled] = useState('')
   const [adjusting, setAdjusting] = useState(false)
 
   const accounts = state.accounts.filter(a => a.is_active)
@@ -124,7 +125,10 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
     if (!adjustTarget || !adjustAmount) return
     setAdjusting(true)
     try {
-      await onAdjustBalance(adjustTarget.id, parseFloat(adjustAmount))
+      const billing = getCreditCardBilling(adjustTarget, state.transactions)
+      const newBilled = adjustBilled ? parseFloat(adjustBilled) : undefined
+      const billedChanged = newBilled !== undefined && Math.abs(newBilled - billing.billedAmount) > 0.01
+      await onAdjustBalance(adjustTarget.id, parseFloat(adjustAmount), billedChanged ? newBilled : undefined)
       setAdjustTarget(null)
     } catch (_) {}
     setAdjusting(false)
@@ -308,7 +312,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                       </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
                         <button
-                          onClick={() => { setAdjustTarget(card); setAdjustAmount(String(card.current_balance)) }}
+                          onClick={() => { setAdjustTarget(card); setAdjustAmount(String(card.current_balance)); setAdjustBilled(String(billing.billedAmount)) }}
                           style={{ flex: 1, background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 10, padding: '8px 0', font: '700 11px Plus Jakarta Sans', color: c.ink, cursor: 'pointer' }}
                         >
                           Adjust Balance
@@ -504,35 +508,60 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
 
       {/* Adjust balance sheet */}
       <BottomSheet open={!!adjustTarget} onClose={() => setAdjustTarget(null)} zIndex={350} showHelpButton={false}>
-            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Adjust Balance</div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>
-              {adjustTarget?.name} · Current outstanding {adjustTarget ? fmt(adjustTarget.current_balance) : ''}
-            </div>
-            <div>
-              <label style={lbl}>Actual Balance Today</label>
-              <HelpText>Enter the real outstanding amount from your bank app. A balance adjustment transaction will be created automatically.</HelpText>
-              <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="0" style={inp} />
-            </div>
-            {adjustTarget && parseFloat(adjustAmount) !== adjustTarget.current_balance && adjustAmount !== '' && (
-              <div style={{ marginTop: 10, background: c.surface2, borderRadius: 10, padding: '8px 12px', font: '600 12px Plus Jakarta Sans', color: c.muted }}>
-                {(() => {
-                  const diff = parseFloat(adjustAmount) - adjustTarget.current_balance
-                  return diff > 0
-                    ? `Outstanding increases by ${fmt(diff)}`
-                    : `Outstanding decreases by ${fmt(Math.abs(diff))}`
-                })()}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button onClick={() => setAdjustTarget(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
-              <button
-                onClick={handleAdjustBalance}
-                disabled={adjusting || !adjustAmount || (adjustTarget ? parseFloat(adjustAmount) === adjustTarget.current_balance : true)}
-                style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: adjusting ? 0.7 : 1 }}
-              >
-                {adjusting ? 'Adjusting...' : 'Adjust Balance'}
-              </button>
-            </div>
+            {(() => {
+              const billing = adjustTarget ? getCreditCardBilling(adjustTarget, state.transactions) : null
+              const totalChanged = adjustTarget && adjustAmount !== '' && Math.abs(parseFloat(adjustAmount) - adjustTarget.current_balance) > 0.01
+              const billedChanged = billing && adjustBilled !== '' && Math.abs(parseFloat(adjustBilled) - billing.billedAmount) > 0.01
+              const hasChange = totalChanged || billedChanged
+              return <>
+                <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Adjust Balance</div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>
+                  {adjustTarget?.name} · Current outstanding {adjustTarget ? fmt(adjustTarget.current_balance) : ''}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div>
+                    <label style={lbl}>Total Outstanding</label>
+                    <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="0" style={inp} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Billed Amount</label>
+                    <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={adjustBilled} onChange={e => {
+                      const val = e.target.value
+                      const total = parseFloat(adjustAmount) || 0
+                      if (val !== '' && parseFloat(val) > total) return
+                      setAdjustBilled(val)
+                    }} placeholder="0" style={inp} />
+                    {adjustAmount && adjustBilled !== '' && (
+                      <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted, marginTop: 4 }}>
+                        Unbilled: {fmt(Math.max(0, (parseFloat(adjustAmount) || 0) - (parseFloat(adjustBilled) || 0)))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {hasChange && (
+                  <div style={{ marginTop: 10, background: c.surface2, borderRadius: 10, padding: '8px 12px', font: '600 12px Plus Jakarta Sans', color: c.muted, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {totalChanged && (() => {
+                      const diff = parseFloat(adjustAmount) - adjustTarget!.current_balance
+                      return <div>Outstanding {diff > 0 ? 'increases' : 'decreases'} by {fmt(Math.abs(diff))}</div>
+                    })()}
+                    {billedChanged && (() => {
+                      const diff = parseFloat(adjustBilled) - billing!.billedAmount
+                      return <div>Billed {diff > 0 ? 'increases' : 'decreases'} by {fmt(Math.abs(diff))}</div>
+                    })()}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                  <button onClick={() => setAdjustTarget(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
+                  <button
+                    onClick={handleAdjustBalance}
+                    disabled={adjusting || !hasChange}
+                    style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: adjusting ? 0.7 : 1 }}
+                  >
+                    {adjusting ? 'Adjusting...' : 'Adjust Balance'}
+                  </button>
+                </div>
+              </>
+            })()}
       </BottomSheet>
       {dialogNode}
     </>

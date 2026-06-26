@@ -100,7 +100,8 @@ export async function affordabilityInsightWithAI(
     ].filter(Boolean).join('\n')
 
     const itemLabel = item.trim() || 'this item'
-    const message = `Should I buy ${itemLabel} for ₹${amount.toLocaleString('en-IN')}? Give me a direct, honest opinion based on my spending patterns, free money, and days until salary. 2-3 sentences max.`
+    const incomeWord = ctx.incomePatternLabel ?? 'income'
+    const message = `Should I buy ${itemLabel} for ₹${amount.toLocaleString('en-IN')}? Give me a direct, honest opinion based on my spending patterns, free money, and days until next ${incomeWord}. 2-3 sentences max.`
 
     const res = await fetch(EDGE_URL, {
       method: 'POST',

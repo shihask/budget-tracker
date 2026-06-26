@@ -105,7 +105,7 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
             <div style={{ font: `700 12px ${F}`, color: c.accent, marginBottom: 8 }}>How Forecast Setup Works</div>
             {[
               { label: pattern === 'monthly' ? 'Salary Date' : 'Income Schedule', desc: pattern === 'monthly' ? 'The day you receive your salary. Used to calculate salary cycles and forecast income.' : 'Your income schedule determines how forecast cycles are calculated.' },
-              { label: 'Estimated Salary', desc: 'Auto-detected from your salary history. Use custom estimate if it\'s inaccurate or if you expect a different amount.' },
+              { label: pattern === 'monthly' ? 'Estimated Salary' : pattern === 'weekly' ? 'Estimated Weekly Income' : pattern === 'variable' ? 'Estimated Daily Income' : 'Estimated Monthly Drawings', desc: pattern === 'monthly' ? 'Auto-detected from your salary history. Use custom estimate if it\'s inaccurate or if you expect a different amount.' : pattern === 'weekly' ? 'Based on your weekly income.' : pattern === 'variable' ? 'Estimated from your recent earnings.' : 'Estimated from your recorded drawings.' },
               { label: 'Forecast Period', desc: 'How far ahead the forecast looks. 30 days covers this month, 60 days covers the next income cycle too, 90 days gives a longer view.' },
               { label: 'Commitments', desc: 'Recurring bills and obligations (EMI, rent, insurance). Unchecked items are excluded from the forecast.' },
               { label: 'Savings Plans', desc: 'Recurring savings contributions (SIP, RD, Gold, Chit). Unchecked items are excluded from the forecast.' },
@@ -138,7 +138,7 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
         )}
 
         {/* Estimated salary with source transparency */}
-        <label style={{ ...lbl, marginTop: 18 }}>Estimated salary</label>
+        <label style={{ ...lbl, marginTop: 18 }}>{pattern === 'monthly' ? 'Estimated salary' : pattern === 'weekly' ? 'Estimated weekly income' : pattern === 'variable' ? 'Estimated daily income' : 'Estimated monthly drawings'}</label>
         {salaryEst.amount != null ? (
           <div style={{ background: c.surface2, borderRadius: 12, padding: '12px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -172,7 +172,7 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
               value={customAmt}
               onChange={e => setCustomAmt(e.target.value.replace(/[^0-9]/g, ''))}
               inputMode="numeric"
-              placeholder="Enter your expected salary"
+              placeholder={pattern === 'monthly' ? 'Enter your expected salary' : pattern === 'weekly' ? 'Enter your expected weekly income' : pattern === 'variable' ? 'Enter your expected daily income' : 'Enter your expected monthly drawings'}
               onFocus={e => e.target.select()}
               style={inp}
             />

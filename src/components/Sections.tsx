@@ -196,7 +196,7 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
       ) : txns.map((t) => {
         const cat = catMap[t.category_id!]
         const col = (cat && CAT_COLORS[cat.name]) || c.muted
-        const acc = acctById[t.from_account_id!] ?? (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'opening_balance' || t.transaction_type === 'cc_opening_balance' || t.transaction_type === 'cc_balance_adjustment' ? acctById[t.to_account_id!] : undefined)
+        const acc = acctById[t.from_account_id!] ?? (t.credit_card_id ? acctById[t.credit_card_id] : undefined) ?? (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'opening_balance' || t.transaction_type === 'cc_opening_balance' || t.transaction_type === 'cc_balance_adjustment' ? acctById[t.to_account_id!] : undefined)
         const toAcc = t.transaction_type === 'transfer' && t.to_account_id ? acctById[t.to_account_id] : null
         const isDeleting = deleting === t.id
         const typeLabel = (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'cc_balance_adjustment') ? 'Balance Adjustment'

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings } from '@/types'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
+import { getCreditCardBilling } from '@/lib/credit-card'
 
 const delta = (type: TransactionType, amount: number) => {
   switch (type) {
@@ -1391,30 +1392,58 @@ export function useSupabaseData(userId: string) {
     }))
   }, [userId])
 
-  const adjustCreditCardBalance = useCallback(async (cardId: string, actualBalance: number) => {
+  const adjustCreditCardBalance = useCallback(async (cardId: string, actualBalance: number, newBilled?: number) => {
     const card = stateRef.current.credit_cards.find(c => c.id === cardId)
     if (!card) return
-    const difference = actualBalance - card.current_balance
-    if (difference === 0) return
 
     const today = new Date().toISOString().slice(0, 10)
-    const { data, error } = await supabase.rpc('mp_execute_transaction', {
-      p_user_id: userId, p_transaction_date: today,
-      p_description: `${card.name} Balance Adjustment`,
-      p_amount: Math.abs(difference),
-      p_transaction_type: 'cc_balance_adjustment',
-      p_credit_card_id: cardId, p_cc_delta: difference,
-      p_from_account_id: null, p_to_account_id: null, p_from_delta: null, p_to_delta: null,
-      p_notes: `Adjusted: ₹${card.current_balance.toLocaleString('en-IN')} → ₹${actualBalance.toLocaleString('en-IN')}`,
-      p_category_id: null, p_borrowing_id: null, p_savings_id: null, p_is_credit: null,
-    })
-    if (error) throw error
+    const totalDiff = actualBalance - card.current_balance
+    const newTxns: Transaction[] = []
 
-    const newTx: Transaction = { ...(data as Transaction), category: undefined }
+    // Billed adjustment — dated on last bill date so it falls in billed period
+    let billedDiff = 0
+    if (newBilled !== undefined) {
+      const billing = getCreditCardBilling(card, stateRef.current.transactions)
+      billedDiff = newBilled - billing.billedAmount
+      if (Math.abs(billedDiff) > 0.01) {
+        const { data, error } = await supabase.rpc('mp_execute_transaction', {
+          p_user_id: userId, p_transaction_date: billing.lastBillDate,
+          p_description: `${card.name} Billed Adjustment`,
+          p_amount: Math.abs(billedDiff),
+          p_transaction_type: 'cc_balance_adjustment',
+          p_credit_card_id: cardId, p_cc_delta: billedDiff,
+          p_from_account_id: null, p_to_account_id: null, p_from_delta: null, p_to_delta: null,
+          p_notes: `Billed adjusted: ₹${(newBilled - billedDiff).toLocaleString('en-IN')} → ₹${newBilled.toLocaleString('en-IN')}`,
+          p_category_id: null, p_borrowing_id: null, p_savings_id: null, p_is_credit: billedDiff > 0,
+        })
+        if (error) throw error
+        newTxns.push({ ...(data as Transaction), category: undefined })
+      }
+    }
+
+    // Unbilled adjustment — remaining total difference after billed portion, dated today
+    const unbilledDiff = totalDiff - billedDiff
+    if (Math.abs(unbilledDiff) > 0.01) {
+      const { data, error } = await supabase.rpc('mp_execute_transaction', {
+        p_user_id: userId, p_transaction_date: today,
+        p_description: `${card.name} Balance Adjustment`,
+        p_amount: Math.abs(unbilledDiff),
+        p_transaction_type: 'cc_balance_adjustment',
+        p_credit_card_id: cardId, p_cc_delta: unbilledDiff,
+        p_from_account_id: null, p_to_account_id: null, p_from_delta: null, p_to_delta: null,
+        p_notes: `Adjusted: ₹${card.current_balance.toLocaleString('en-IN')} → ₹${actualBalance.toLocaleString('en-IN')}`,
+        p_category_id: null, p_borrowing_id: null, p_savings_id: null, p_is_credit: unbilledDiff > 0,
+      })
+      if (error) throw error
+      newTxns.push({ ...(data as Transaction), category: undefined })
+    }
+
+    if (newTxns.length === 0) return
+
     setState(s => ({
       ...s,
       credit_cards: s.credit_cards.map(c => c.id === cardId ? { ...c, current_balance: actualBalance } : c),
-      transactions: [newTx, ...s.transactions],
+      transactions: [...newTxns, ...s.transactions],
     }))
   }, [userId])
 
