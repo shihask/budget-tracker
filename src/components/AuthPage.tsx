@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   BarChart3, Bell, Bot, Briefcase, CalendarCheck, Check,
-  ChevronDown, Cloud, CloudOff, CreditCard, Flame, GraduationCap, LineChart,
-  Lock, PiggyBank, Receipt, Repeat, Shield, ShieldCheck, Sprout,
+  ChevronDown, Cloud, CloudOff, CreditCard, Flame, FolderOpen, GraduationCap,
+  LineChart, Lock, PiggyBank, Receipt, Repeat, Shield, ShieldCheck, Sprout,
   Star, Target, TrendingUp, Trophy, Users, Wallet, X as XIcon, Zap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -65,6 +65,12 @@ const tourFeatures = [
     mock: 'goals',
   },
   {
+    id: 'projects', icon: FolderOpen,
+    title: 'Shared Projects',
+    desc: 'Split expenses for trips, events or shared households. Track contributions, manage budgets, see who owes whom, and settle up — all in one place.',
+    mock: 'projects',
+  },
+  {
     id: 'bills', icon: CalendarCheck,
     title: 'Bills & Commitments',
     desc: 'Track EMIs, subscriptions, school fees, rent and recurring payments in one place.',
@@ -94,6 +100,7 @@ const badges = [
   { icon: Flame, label: 'Daily Challenge' },
   { icon: Sprout, label: 'Plant Growth' },
   { icon: Trophy, label: 'Goal Tracking' },
+  { icon: FolderOpen, label: 'Shared Projects' },
   { icon: Receipt, label: 'Expense Tracking' },
   { icon: TrendingUp, label: 'Income Tracking' },
   { icon: LineChart, label: 'Cash Flow Forecast' },
@@ -114,8 +121,8 @@ const badges = [
 
 const personas = [
   { icon: Briefcase, title: 'Salaried Employees', desc: 'Know whether you’ll comfortably reach your next salary.' },
-  { icon: Users, title: 'Families', desc: 'Plan bills, school fees, groceries and savings together.' },
-  { icon: Zap, title: 'Freelancers', desc: 'Handle irregular income with forecasting.' },
+  { icon: Users, title: 'Families', desc: 'Plan bills, school fees, groceries and savings together. Use shared projects to split and settle expenses.' },
+  { icon: Zap, title: 'Freelancers & Business', desc: 'Manage variable income, irregular cash flow and business expenses with forecasting.' },
   { icon: GraduationCap, title: 'Students', desc: 'Track spending and stay within budget.' },
 ] as const
 
@@ -134,6 +141,7 @@ const galleryScreens = [
   { type: 'forecast', label: 'Forecast' },
   { type: 'budget', label: 'Budget' },
   { type: 'goals', label: 'Goals' },
+  { type: 'projects', label: 'Shared Projects' },
   { type: 'analytics', label: 'Analytics' },
   { type: 'mintai', label: 'Mint AI' },
   { type: 'savings', label: 'Savings' },
@@ -870,6 +878,25 @@ function MockScreen({ type }: { type: string }) {
           <div><span>Needs</span><div className="mp-mock__bar"><div style={{ width: '72%', background: '#3B82F6' }} /></div><span>72%</span></div>
           <div><span>Wants</span><div className="mp-mock__bar"><div style={{ width: '45%', background: '#F59E0B' }} /></div><span>45%</span></div>
           <div><span>Savings</span><div className="mp-mock__bar"><div style={{ width: '90%', background: accent }} /></div><span>90%</span></div>
+        </div>
+      </div>
+    )
+    case 'projects': return (
+      <div className="mp-mock">
+        {hdr}
+        <div className="mp-mock__card mp-mock__card--blue">
+          <small>Goa Trip</small>
+          <strong>₹24,000</strong>
+        </div>
+        <div className="mp-mock__label">Members</div>
+        <div className="mp-mock__rows">
+          <div><span className="mp-mock__dot" style={{ background: accent }} /><span className="mp-mock__text">Rahul</span><span className="mp-mock__amt">₹8,400</span></div>
+          <div><span className="mp-mock__dot" style={{ background: '#3B82F6' }} /><span className="mp-mock__text">Priya</span><span className="mp-mock__amt">₹6,200</span></div>
+          <div><span className="mp-mock__dot" style={{ background: '#F59E0B' }} /><span className="mp-mock__text">Anil</span><span className="mp-mock__amt">₹9,400</span></div>
+        </div>
+        <div className="mp-mock__label" style={{ marginTop: 6 }}>Settlement</div>
+        <div style={{ fontSize: 8, fontWeight: 700, color: '#3c3028', background: '#F5F0EA', borderRadius: 6, padding: '5px 8px' }}>
+          Priya owes Anil <span style={{ color: '#EF4444' }}>₹1,600</span>
         </div>
       </div>
     )
