@@ -347,15 +347,18 @@ function Screen({ children, onLegal }: { children: React.ReactNode; onLegal?: (p
       fontFamily: 'Plus Jakarta Sans, sans-serif',
       padding: 'calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))',
       boxSizing: 'border-box',
+      position: 'relative', overflow: 'hidden',
     }}>
+      <LeafWatermark />
       <div style={{
         width: '100%', maxWidth: 400,
         background: '#FDFAF7', borderRadius: 24, padding: '28px 24px',
         boxShadow: '0 4px 32px rgba(0,0,0,0.08)',
+        position: 'relative', zIndex: 1,
       }}>
         {children}
       </div>
-      <div style={{ textAlign: 'center', marginTop: 12 }}>
+      <div style={{ textAlign: 'center', marginTop: 12, position: 'relative', zIndex: 1 }}>
         <div style={{ font: '500 11px Plus Jakarta Sans', color: '#C4BCB4' }}>
           v{version}
         </div>
@@ -391,6 +394,45 @@ function ErrorBox({ msg }: { msg: string }) {
     <div style={{ background: '#FEE2E2', color: '#EF4444', borderRadius: 10, padding: '10px 14px', font: '600 13px Plus Jakarta Sans', marginBottom: 14 }}>
       {msg}
     </div>
+  )
+}
+
+export function LeafWatermark() {
+  return (
+    <>
+      <svg
+        xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80"
+        aria-hidden="true"
+        style={{
+          position: 'absolute', top: -30, right: -40,
+          width: 220, height: 176, opacity: 0.045,
+          transform: 'rotate(15deg)',
+          pointerEvents: 'none', zIndex: 0,
+        }}
+      >
+        <path d="M50 42 V 26" fill="none" stroke="#16C98A" strokeWidth="3.4" strokeLinecap="round"/>
+        <path d="M49.4 33.5 C 41.6 33.5 36.2 29.1 34.3 21 C 42.1 21 47.5 25.4 49.4 33.5 Z" fill="#16C98A"/>
+        <path d="M50.6 33.5 C 58.4 33.5 63.8 29.1 65.7 21 C 57.9 21 52.5 25.4 50.6 33.5 Z" fill="#16C98A"/>
+        <path d="M46.5 30.5 C 43.5 28 40.5 25.8 37.5 24.5" fill="none" stroke="#16C98A" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M53.5 30.5 C 56.5 28 59.5 25.8 62.5 24.5" fill="none" stroke="#16C98A" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+      <svg
+        xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80"
+        aria-hidden="true"
+        style={{
+          position: 'absolute', bottom: -20, left: -50,
+          width: 200, height: 160, opacity: 0.035,
+          transform: 'rotate(-25deg)',
+          pointerEvents: 'none', zIndex: 0,
+        }}
+      >
+        <path d="M50 42 V 26" fill="none" stroke="#16C98A" strokeWidth="3.4" strokeLinecap="round"/>
+        <path d="M49.4 33.5 C 41.6 33.5 36.2 29.1 34.3 21 C 42.1 21 47.5 25.4 49.4 33.5 Z" fill="#16C98A"/>
+        <path d="M50.6 33.5 C 58.4 33.5 63.8 29.1 65.7 21 C 57.9 21 52.5 25.4 50.6 33.5 Z" fill="#16C98A"/>
+        <path d="M46.5 30.5 C 43.5 28 40.5 25.8 37.5 24.5" fill="none" stroke="#16C98A" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M53.5 30.5 C 56.5 28 59.5 25.8 62.5 24.5" fill="none" stroke="#16C98A" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    </>
   )
 }
 

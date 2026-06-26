@@ -1,4 +1,5 @@
 import { ArrowLeft } from 'lucide-react'
+import { LeafWatermark } from './AuthPage'
 
 const accent = '#16C98A'
 
@@ -9,12 +10,14 @@ const wrap: React.CSSProperties = {
   padding: 'calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))',
   boxSizing: 'border-box',
   display: 'flex', flexDirection: 'column', alignItems: 'center',
+  position: 'relative', overflow: 'hidden',
 }
 
 const card: React.CSSProperties = {
   width: '100%', maxWidth: 600,
   background: '#FDFAF7', borderRadius: 24, padding: '28px 24px',
   boxShadow: '0 4px 32px rgba(0,0,0,0.08)',
+  position: 'relative', zIndex: 1,
 }
 
 const h1: React.CSSProperties = {
@@ -46,6 +49,7 @@ const CONTACT_EMAIL = 'budgettrackee@gmail.com'
 export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
   return (
     <div style={wrap}>
+      <LeafWatermark />
       <div style={card}>
         <button onClick={onBack} style={backBtn}>
           <ArrowLeft size={16} /> Back
@@ -120,6 +124,7 @@ export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
 export function TermsOfService({ onBack }: { onBack: () => void }) {
   return (
     <div style={wrap}>
+      <LeafWatermark />
       <div style={card}>
         <button onClick={onBack} style={backBtn}>
           <ArrowLeft size={16} /> Back
