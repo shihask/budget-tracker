@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Check, X as XIcon } from 'lucide-react'
+import { Check, X as XIcon, Wallet, TrendingUp, PiggyBank, Shield } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { version } from '../../package.json'
+import { PrivacyPolicy, TermsOfService } from './LegalPages'
 
 type Mode = 'login' | 'signup' | 'check-email' | 'forgot' | 'forgot-sent'
+type LegalPage = 'privacy' | 'terms' | null
 
 const accent = '#16C98A'
 
@@ -23,8 +25,16 @@ const oauthBtn: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+const features = [
+  { icon: Wallet,      title: 'Track Expenses',    desc: 'Log daily spending in seconds' },
+  { icon: TrendingUp,  title: 'Smart Budgets',     desc: 'Weekly limits & AI categorization' },
+  { icon: PiggyBank,   title: 'Savings & Goals',   desc: 'Watch your money grow over time' },
+  { icon: Shield,      title: 'Private & Secure',  desc: 'Your data stays yours, always' },
+] as const
+
 export function AuthPage() {
   const [mode, setMode] = useState<Mode>('login')
+  const [legalPage, setLegalPage] = useState<LegalPage>(null)
   const [name, setName]             = useState('')
   const [email, setEmail]           = useState('')
   const [password, setPassword]     = useState('')
@@ -33,6 +43,9 @@ export function AuthPage() {
   const [error, setError]           = useState<string | null>(null)
 
   const clearError = () => setError(null)
+
+  if (legalPage === 'privacy') return <PrivacyPolicy onBack={() => setLegalPage(null)} />
+  if (legalPage === 'terms') return <TermsOfService onBack={() => setLegalPage(null)} />
 
   const handleOAuth = async (provider: 'google') => {
     clearError(); setLoading(true)
@@ -155,7 +168,7 @@ export function AuthPage() {
   const isSignup = mode === 'signup'
 
   return (
-    <Screen>
+    <Screen onLegal={setLegalPage}>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="48" height="48" style={{ borderRadius: 14, flexShrink: 0 }}>
@@ -184,6 +197,27 @@ export function AuthPage() {
           </div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: '#9C938A' }}>Plan Smart. Grow Better.</div>
         </div>
+      </div>
+
+      {/* Features */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+        {features.map(f => (
+          <div key={f.title} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: '#F5F0EA', borderRadius: 12, padding: '10px 12px',
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8,
+              background: accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <f.icon size={15} color={accent} strokeWidth={2.5} />
+            </div>
+            <div>
+              <div style={{ font: '700 11.5px Plus Jakarta Sans', color: '#1C1410', lineHeight: 1.2 }}>{f.title}</div>
+              <div style={{ font: '500 10px Plus Jakarta Sans', color: '#9C938A', lineHeight: 1.3, marginTop: 1 }}>{f.desc}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Toggle */}
@@ -290,8 +324,12 @@ export function AuthPage() {
       </button>
 
       {isSignup && (
-        <div style={{ font: '600 11px Plus Jakarta Sans', color: '#9C938A', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
-          We'll send a confirmation email. Please verify before signing in.
+        <div style={{ font: '500 11px Plus Jakarta Sans', color: '#9C938A', textAlign: 'center', marginTop: 14, lineHeight: 1.6 }}>
+          By signing up you agree to our{' '}
+          <button onClick={() => setLegalPage('terms')} style={{ background: 'none', border: 'none', color: accent, font: '600 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Terms</button>
+          {' '}and{' '}
+          <button onClick={() => setLegalPage('privacy')} style={{ background: 'none', border: 'none', color: accent, font: '600 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Privacy Policy</button>.
+          <br />We'll send a confirmation email to verify your account.
         </div>
       )}
     </Screen>
@@ -300,7 +338,7 @@ export function AuthPage() {
 
 // ── Small shared components ───────────────────────────────────────────────────
 
-function Screen({ children }: { children: React.ReactNode }) {
+function Screen({ children, onLegal }: { children: React.ReactNode; onLegal?: (page: 'privacy' | 'terms') => void }) {
   return (
     <div style={{
       minHeight: '100svh', width: '100%',
@@ -317,8 +355,21 @@ function Screen({ children }: { children: React.ReactNode }) {
       }}>
         {children}
       </div>
-      <div style={{ font: '500 11px Plus Jakarta Sans', color: '#C4BCB4', textAlign: 'center', marginTop: 12 }}>
-        v{version}
+      <div style={{ textAlign: 'center', marginTop: 12 }}>
+        <div style={{ font: '500 11px Plus Jakarta Sans', color: '#C4BCB4' }}>
+          v{version}
+        </div>
+        {onLegal && (
+          <div style={{ font: '500 11px Plus Jakarta Sans', color: '#C4BCB4', marginTop: 6, display: 'flex', justifyContent: 'center', gap: 6 }}>
+            <button onClick={() => onLegal('privacy')} style={{ background: 'none', border: 'none', color: '#9C938A', font: '500 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+              Privacy Policy
+            </button>
+            <span style={{ color: '#D5CFC8' }}>|</span>
+            <button onClick={() => onLegal('terms')} style={{ background: 'none', border: 'none', color: '#9C938A', font: '500 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+              Terms of Service
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-const APP_VERSION = '1.48.0'
+const APP_VERSION = '1.49.0'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
@@ -58,6 +58,8 @@ import { BudgetStrategySheet } from '@/components/BudgetStrategySheet'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
 import { computeChallenge } from '@/lib/challenge'
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import { ProjectsDashboardCard } from '@/features/shared-projects/components/ProjectsDashboardCard'
 import { ProjectsListPage } from '@/features/shared-projects/components/ProjectsListPage'
 import { PublicProjectPage } from '@/features/shared-projects/components/PublicProjectPage'
@@ -877,6 +879,8 @@ function AppContent({ session }: { session: Session }) {
               </div>
         </BottomSheet>
       </div>
+      <VercelAnalytics />
+      <SpeedInsights />
     </ThemeContext.Provider>
   )
 }
