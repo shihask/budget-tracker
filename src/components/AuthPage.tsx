@@ -1,8 +1,24 @@
 import { useState } from 'react'
-import { Check, X as XIcon, Wallet, TrendingUp, PiggyBank, Shield } from 'lucide-react'
+import {
+  BellRing,
+  Bot,
+  CalendarCheck,
+  Check,
+  CheckCircle2,
+  PiggyBank,
+  ReceiptText,
+  Shield,
+  ShieldCheck,
+  Sprout,
+  Target,
+  TrendingUp,
+  Wallet,
+  X as XIcon,
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { version } from '../../package.json'
 import { PrivacyPolicy, TermsOfService } from './LegalPages'
+import { PlantSVG } from './PlantSVG'
 
 type Mode = 'login' | 'signup' | 'check-email' | 'forgot' | 'forgot-sent'
 type LegalPage = 'privacy' | 'terms' | null
@@ -30,6 +46,27 @@ const features = [
   { icon: TrendingUp,  title: 'Smart Budgets',     desc: 'Weekly limits & AI categorization' },
   { icon: PiggyBank,   title: 'Savings & Goals',   desc: 'Watch your money grow over time' },
   { icon: Shield,      title: 'Private & Secure',  desc: 'Your data stays yours, always' },
+] as const
+
+const landingProblems = [
+  'You do not know how much is safe to spend before the next salary.',
+  'Bills, EMIs, credit cards, savings, and borrowings live in different places.',
+  'Budget apps show charts, but not what decision to make today.',
+] as const
+
+const landingFeatures = [
+  { icon: ReceiptText, title: 'Fast daily tracking', desc: 'Add income, expenses, transfers, and notes before you forget the small spends.' },
+  { icon: CalendarCheck, title: 'Bills and commitments', desc: 'Track rent, EMIs, subscriptions, school fees, and recurring payments together.' },
+  { icon: TrendingUp, title: 'Safe-to-spend budget', desc: 'See what remains after commitments, emergency money, and upcoming cash flow.' },
+  { icon: PiggyBank, title: 'Savings and goals', desc: 'Follow SIPs, gold schemes, deposits, chit funds, goals, and progress in one place.' },
+  { icon: Bot, title: 'AI money coach', desc: 'Get categorization, affordability checks, and plain-language insights when you need a second look.' },
+  { icon: BellRing, title: 'Helpful reminders', desc: 'Get nudges for daily logs, due commitments, budget alerts, and weekly summaries.' },
+] as const
+
+const landingProof = [
+  { label: 'Before spending', value: 'Know if it is safe' },
+  { label: 'Every week', value: 'See where money went' },
+  { label: 'Every month', value: 'Grow savings habits' },
 ] as const
 
 export function AuthPage() {
@@ -168,7 +205,8 @@ export function AuthPage() {
   const isSignup = mode === 'signup'
 
   return (
-    <Screen onLegal={setLegalPage}>
+    <LandingScreen onLegal={setLegalPage}>
+      <AuthCard>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="48" height="48" style={{ borderRadius: 14, flexShrink: 0 }}>
@@ -332,11 +370,130 @@ export function AuthPage() {
           <br />We'll send a confirmation email to verify your account.
         </div>
       )}
-    </Screen>
+      </AuthCard>
+    </LandingScreen>
   )
 }
 
 // ── Small shared components ───────────────────────────────────────────────────
+
+function LandingScreen({ children, onLegal }: { children: React.ReactNode; onLegal: (page: 'privacy' | 'terms') => void }) {
+  return (
+    <div className="mp-landing">
+      <LeafWatermark />
+      <header className="mp-landing__nav">
+        <a className="mp-landing__brand" href="#top" aria-label="MoneyPlant home">
+          <span className="mp-landing__brandmark"><Sprout size={20} /></span>
+          <span><strong>Money</strong><b>Plant</b></span>
+        </a>
+        <nav className="mp-landing__links" aria-label="Landing navigation">
+          <a href="#features">Features</a>
+          <a href="#security">Privacy</a>
+          <a href="#start">Start</a>
+        </nav>
+      </header>
+
+      <main id="top" className="mp-landing__hero">
+        <section className="mp-landing__story" aria-labelledby="landing-title">
+          <div className="mp-landing__eyebrow">
+            <Sprout size={15} />
+            Personal finance that grows with your habits
+          </div>
+          <h1 id="landing-title">MoneyPlant</h1>
+          <p className="mp-landing__lead">
+            MoneyPlant helps you understand what you can safely spend today, what is already committed, and how your savings can keep growing.
+          </p>
+
+          <div className="mp-landing__plant-stage" aria-label="MoneyPlant growth preview">
+            <div className="mp-landing__plant-copy">
+              <span>Spend with clarity</span>
+              <strong>Grow money habits one day at a time.</strong>
+            </div>
+            <PlantSVG stageIdx={6} viewBoxOverride="0 48 200 250" style={{ maxWidth: 240 }} />
+          </div>
+
+          <div className="mp-landing__actions">
+            <a className="mp-landing__primary" href="#start">Create free account</a>
+            <a className="mp-landing__secondary" href="#features">See how it helps</a>
+          </div>
+
+          <div className="mp-landing__proof">
+            {landingProof.map(item => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <aside id="start" className="mp-landing__auth" aria-label="Sign in or create account">
+          {children}
+        </aside>
+      </main>
+
+      <section className="mp-landing__problems" aria-labelledby="problems-title">
+        <div>
+          <span className="mp-landing__section-label">The problem</span>
+          <h2 id="problems-title">Most people do not need another spreadsheet.</h2>
+        </div>
+        <div className="mp-landing__problem-list">
+          {landingProblems.map(problem => (
+            <div key={problem}>
+              <CheckCircle2 size={18} />
+              <span>{problem}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="features" className="mp-landing__features" aria-labelledby="features-title">
+        <span className="mp-landing__section-label">How MoneyPlant helps</span>
+        <h2 id="features-title">One calm place for daily money decisions.</h2>
+        <div className="mp-landing__feature-grid">
+          {landingFeatures.map(feature => (
+            <article key={feature.title} className="mp-landing__feature">
+              <div><feature.icon size={20} /></div>
+              <h3>{feature.title}</h3>
+              <p>{feature.desc}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="security" className="mp-landing__security" aria-labelledby="security-title">
+        <div>
+          <ShieldCheck size={24} />
+          <span className="mp-landing__section-label">Built for trust</span>
+          <h2 id="security-title">Your money data should feel private, clear, and under your control.</h2>
+        </div>
+        <p>
+          MoneyPlant uses authenticated accounts, privacy-first legal pages, and clear feature controls. It is a personal finance tracker, not financial advice.
+        </p>
+      </section>
+
+      <footer className="mp-landing__footer">
+        <span>v{version}</span>
+        <button onClick={() => onLegal('privacy')}>Privacy Policy</button>
+        <button onClick={() => onLegal('terms')}>Terms of Service</button>
+      </footer>
+    </div>
+  )
+}
+
+function AuthCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      width: '100%',
+      background: '#FDFAF7', borderRadius: 24, padding: '28px 24px',
+      boxShadow: '0 18px 50px rgba(49, 35, 22, 0.12)',
+      border: '1px solid rgba(133, 97, 64, 0.12)',
+      position: 'relative', zIndex: 1,
+    }}>
+      {children}
+    </div>
+  )
+}
 
 function Screen({ children, onLegal }: { children: React.ReactNode; onLegal?: (page: 'privacy' | 'terms') => void }) {
   return (
