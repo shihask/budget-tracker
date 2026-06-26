@@ -28,3 +28,24 @@ ALTER TABLE project_activity_log
 ALTER TABLE project_activity_log
   ADD CONSTRAINT project_activity_log_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- budget_strategy_settings.user_id
+ALTER TABLE budget_strategy_settings
+  DROP CONSTRAINT budget_strategy_settings_user_id_fkey;
+ALTER TABLE budget_strategy_settings
+  ADD CONSTRAINT budget_strategy_settings_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- goal_contributions.user_id
+ALTER TABLE goal_contributions
+  DROP CONSTRAINT goal_contributions_user_id_fkey;
+ALTER TABLE goal_contributions
+  ADD CONSTRAINT goal_contributions_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- planned_expenses.user_id
+ALTER TABLE planned_expenses
+  DROP CONSTRAINT planned_expenses_user_id_fkey;
+ALTER TABLE planned_expenses
+  ADD CONSTRAINT planned_expenses_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CircleDot, Sprout, Leaf, TreePine, Flower2, TreeDeciduous, Check, PartyPopper } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
@@ -21,7 +22,11 @@ interface Props {
 }
 
 const STAGE_LABELS_PLAIN = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing', 'Mature', 'Blooming']
-const STAGE_LABELS_RICH  = ['🌰 Seed', '🌱 Sprout', '🍃 First Leaves', '🌿 Young Plant', '🪴 Growing', '🌳 Mature', '🌺 Blooming']
+const STAGE_ICONS = [CircleDot, Sprout, Leaf, TreePine, TreePine, TreeDeciduous, Flower2] as const
+function StageLabel({ stage, size = 14 }: { stage: number; size?: number }) {
+  const Icon = STAGE_ICONS[stage]
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon size={size} /> {STAGE_LABELS_PLAIN[stage]}</span>
+}
 const STAGE_MESSAGES = [
   'Your MoneyPlant is waiting.\nComplete today\'s goal to sprout your first stem.',
   'Your first sprout emerged.\nKeep going to grow your first leaf.',
@@ -256,7 +261,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Your MoneyPlant</div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{STAGE_LABELS_RICH[stageIdx]} · {leaves} {leaves === 1 ? 'leaf' : 'leaves'}</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}><StageLabel stage={stageIdx} size={12} /> · {leaves} {leaves === 1 ? 'leaf' : 'leaves'}</div>
           </div>
           <button onClick={onToggleTheme} style={{ width: 36, height: 36, borderRadius: 999, background: c.surface2, border: `1px solid ${c.faint}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <Glyph name={dark ? 'sun' : 'moon'} color={c.ink} size={16} />
@@ -301,7 +306,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
               font: isCurrent ? '700 12px Plus Jakarta Sans' : '600 11px Plus Jakarta Sans',
               color: isCurrent ? '#fff' : isPast ? c.good : c.muted,
             }}>
-              {isPast ? `✓ ${label}` : label}
+              {isPast ? <><Check size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> {label}</> : label}
             </div>
           )
         })}
@@ -345,7 +350,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
             pointerEvents: 'none', whiteSpace: 'nowrap',
             textShadow: '0 2px 8px rgba(0,0,0,0.12)',
           }}>
-            +{floatLeavesCount} 🍃
+            +{floatLeavesCount} <Leaf size={16} style={{ display: 'inline', verticalAlign: 'middle' }} />
           </div>
         )}
       </div>
@@ -353,12 +358,12 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
       {/* ── Stage summary (compact, under plant) ──────────────────────────────── */}
       <div style={{ textAlign: 'center', padding: '10px 24px 0' }}>
         <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>
-          {STAGE_LABELS_RICH[stageIdx]}
+          <StageLabel stage={stageIdx} />
         </div>
         <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>
           Age: {ageDays} {ageDays === 1 ? 'day' : 'days'}
           {stageIdx < 6 && nextGoal > 0 && (
-            <> · Next: {STAGE_LABELS_RICH[stageIdx + 1]} — {nextGoal} {nextGoal === 1 ? 'leaf' : 'leaves'} needed</>
+            <> · Next: <StageLabel stage={stageIdx + 1} /> — {nextGoal} {nextGoal === 1 ? 'leaf' : 'leaves'} needed</>
           )}
           {stageIdx === 6 && <> · Fully bloomed</>}
         </div>
@@ -399,7 +404,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
                 </div>
                 {stageIdx < 6 && nextGoal > 0 && (
                   <div style={{ font: '600 12px Plus Jakarta Sans', color: c.accent, marginTop: 6 }}>
-                    {nextGoal} {nextGoal === 1 ? 'leaf' : 'leaves'} away from {STAGE_LABELS_RICH[stageIdx + 1]}
+                    {nextGoal} {nextGoal === 1 ? 'leaf' : 'leaves'} away from <StageLabel stage={stageIdx + 1} />
                   </div>
                 )}
               </div>
@@ -464,7 +469,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
         <div style={{ margin: '12px 20px 0', background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px' }}>
           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>Next Growth</div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink }}>{STAGE_LABELS_RICH[stageIdx + 1]}</div>
+            <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink }}><StageLabel stage={stageIdx + 1} size={15} /></div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>{nextGoal} {nextGoal === 1 ? 'leaf' : 'leaves'} away</div>
           </div>
           <div style={{ height: 6, borderRadius: 99, background: c.surface2, overflow: 'hidden', marginBottom: 8 }}>
@@ -478,17 +483,15 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
       <div style={{ margin: '12px 20px 0', background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '14px 16px' }}>
         <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 12 }}>Growth Journey</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {STAGE_LABELS_RICH.map((label, i) => {
+          {STAGE_LABELS_PLAIN.map((_, i) => {
             const isReached  = i < stageIdx
             const isCurrent  = i === stageIdx
             const threshold  = STAGE_THRESHOLDS[i]
-            // leaves needed to ENTER this stage (not to leave it)
             const leavesNeeded = Math.max(0, threshold - leaves)
 
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, position: 'relative' }}>
-                {/* Connector line */}
-                {i < STAGE_LABELS_RICH.length - 1 && (
+                {i < STAGE_LABELS_PLAIN.length - 1 && (
                   <div style={{
                     position: 'absolute', left: 13, top: 26, width: 2, height: 24,
                     background: isReached ? c.good + '55' : c.faint,
@@ -509,9 +512,9 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
                   }
                 </div>
                 {/* Label + detail */}
-                <div style={{ flex: 1, paddingBottom: i < STAGE_LABELS_RICH.length - 1 ? 20 : 0 }}>
+                <div style={{ flex: 1, paddingBottom: i < STAGE_LABELS_PLAIN.length - 1 ? 20 : 0 }}>
                   <div style={{ font: `${isCurrent ? '700' : '600'} 13px Plus Jakarta Sans`, color: isReached ? c.good : isCurrent ? c.ink : c.muted }}>
-                    {label}
+                    <StageLabel stage={i} size={13} />
                   </div>
                   <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
                     {isReached
@@ -553,7 +556,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
             {/* Background glow */}
             <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: 300, height: 300, borderRadius: 999, background: '#16C98A', opacity: 0.08, filter: 'blur(60px)', pointerEvents: 'none' }} />
 
-            <div style={{ font: '500 40px', marginBottom: 8, animation: 'bloomPulse 2s ease infinite' }}>🌺</div>
+            <div style={{ marginBottom: 8, animation: 'bloomPulse 2s ease infinite', display: 'flex', justifyContent: 'center' }}><Flower2 size={40} color="#D946EF" /></div>
             <div style={{ font: '800 24px Plus Jakarta Sans', color: '#fff', letterSpacing: '-0.02em', textAlign: 'center', marginBottom: 6 }}>
               Your MoneyPlant Has Bloomed
             </div>
@@ -595,9 +598,9 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
               onClick={e => e.stopPropagation()}
               style={{ background: c.surface, borderRadius: 24, padding: '28px 24px 24px', width: '100%', maxWidth: 400, animation: 'celebFadeIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both', textAlign: 'center' }}
             >
-              <div style={{ font: '500 28px', marginBottom: 6 }}>🎉</div>
+              <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}><PartyPopper size={28} color={c.accent} /></div>
               <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginBottom: 4 }}>New Growth!</div>
-              <div style={{ font: '600 14px Plus Jakarta Sans', color: c.accent, marginBottom: 8 }}>{STAGE_LABELS_RICH[celebrateStage]}</div>
+              <div style={{ font: '600 14px Plus Jakarta Sans', color: c.accent, marginBottom: 8 }}><StageLabel stage={celebrateStage} /></div>
               <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
                 {STAGE_MESSAGES[celebrateStage].split('\n')[0]}
               </div>

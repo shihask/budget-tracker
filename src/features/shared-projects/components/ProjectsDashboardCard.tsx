@@ -1,3 +1,4 @@
+import { FolderOpen } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from '@/components/Card'
@@ -47,7 +48,7 @@ export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll,
 
       {projects.length === 0 && sharedProjects.length === 0 ? (
         <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>📁</div>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><FolderOpen size={28} color="#A09890" /></div>
           <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Start Your First Project</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Plan a trip, track a renovation or split expenses with friends — all in one place.</div>
           <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Create a project</button>

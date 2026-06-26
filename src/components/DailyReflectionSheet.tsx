@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Check } from 'lucide-react'
 import { BottomSheet } from '@/components/BottomSheet'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
@@ -148,7 +149,7 @@ export function DailyReflectionSheet({ open, onClose, state, onGoalContribution 
 
         {done && (
           <div style={{ background: c.goodSoft, borderRadius: 14, padding: 18, textAlign: 'center' }}>
-            <div style={{ font: '800 15px Plus Jakarta Sans', color: c.good, marginBottom: 4 }}>Added ✓</div>
+            <div style={{ font: '800 15px Plus Jakarta Sans', color: c.good, marginBottom: 4 }}>Added <Check size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /></div>
             <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>
               That’s real progress. See you tomorrow.
             </div>

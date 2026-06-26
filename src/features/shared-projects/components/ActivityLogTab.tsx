@@ -1,17 +1,18 @@
+import { Sprout, User, Coins, Trash2, Mail, Link, Paperclip, Circle } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import type { ProjectActivityLog } from '../types'
 
-const ACTION_ICONS: Record<string, { icon: string; color: string }> = {
-  project_created: { icon: '🌱', color: '#10B981' },
-  member_added: { icon: '👤', color: '#6366F1' },
-  member_removed: { icon: '👤', color: '#EF4444' },
-  transaction_added: { icon: '💰', color: '#10B981' },
-  transaction_deleted: { icon: '🗑️', color: '#EF4444' },
-  collaborator_invited: { icon: '✉️', color: '#6366F1' },
-  collaborator_removed: { icon: '✉️', color: '#EF4444' },
-  share_enabled: { icon: '🔗', color: '#10B981' },
-  share_revoked: { icon: '🔗', color: '#EF4444' },
-  attachment_added: { icon: '📎', color: '#6366F1' },
+const ACTION_ICONS: Record<string, { icon: React.ComponentType<{ size?: number }>; color: string }> = {
+  project_created: { icon: Sprout, color: '#10B981' },
+  member_added: { icon: User, color: '#6366F1' },
+  member_removed: { icon: User, color: '#EF4444' },
+  transaction_added: { icon: Coins, color: '#10B981' },
+  transaction_deleted: { icon: Trash2, color: '#EF4444' },
+  collaborator_invited: { icon: Mail, color: '#6366F1' },
+  collaborator_removed: { icon: Mail, color: '#EF4444' },
+  share_enabled: { icon: Link, color: '#10B981' },
+  share_revoked: { icon: Link, color: '#EF4444' },
+  attachment_added: { icon: Paperclip, color: '#6366F1' },
 }
 
 function timeAgo(dateStr: string): string {
@@ -55,7 +56,7 @@ export function ActivityLogTab({ activityLog }: Props) {
         const entryDate = new Date(entry.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
         const showDate = entryDate !== lastDate
         lastDate = entryDate
-        const meta = ACTION_ICONS[entry.action_type] || { icon: '•', color: c.muted }
+        const meta = ACTION_ICONS[entry.action_type] || { icon: Circle, color: c.muted }
 
         return (
           <div key={entry.id}>
@@ -77,9 +78,9 @@ export function ActivityLogTab({ activityLog }: Props) {
                 width: 32, height: 32, borderRadius: 10,
                 background: `${meta.color}14`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0, fontSize: 14,
+                flexShrink: 0,
               }}>
-                {meta.icon}
+                <meta.icon size={14} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{

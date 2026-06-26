@@ -60,7 +60,7 @@ registerRoute(
 self.addEventListener('push', (event) => {
   if (!event.data) return
   let payload: { title: string; body: string; url?: string; tag?: string } = {
-    title: '🌱 MoneyPlant',
+    title: 'MoneyPlant',
     body: event.data.text(),
   }
   try { payload = event.data.json() } catch (_) {}

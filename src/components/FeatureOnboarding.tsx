@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Sparkles } from 'lucide-react'
 
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'autopilot_enabled' | 'notifications_enabled'
 
@@ -232,7 +233,7 @@ function MintAIDemo() {
           'Checks if you can afford something',
         ].map(f => (
           <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: '#16C98A', font: '700 13px "Plus Jakarta Sans"', flexShrink: 0 }}>✦</span>
+            <Sparkles size={13} style={{ color: '#16C98A', flexShrink: 0 }} />
             <span style={{ font: '500 13px "Plus Jakarta Sans"', color: '#8A8178' }}>{f}</span>
           </div>
         ))}

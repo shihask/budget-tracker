@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Landmark } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt } from '@/lib/utils'
@@ -173,7 +174,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
 
         {accs.length === 0 ? (
           <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>🏦</div>
+            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Landmark size={28} color="#A09890" /></div>
             <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>No accounts yet</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Add a bank account or cash wallet to track where your money lives.</div>
             <button

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt } from '@/lib/utils'
@@ -381,7 +382,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
                         {cm.is_recurring
                           ? paidThisMonth
-                            ? `✓ Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                            ? `Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
                             : (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
                           : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}${cm.due_date ? ` · Due ${new Date(cm.due_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}`
                         }
@@ -409,12 +410,12 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                             disabled={isPaying}
                             style={{ background: c.goodSoft, color: c.good, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer', opacity: isPaying ? 0.6 : 1 }}
                           >
-                            {isPaying ? '...' : '✓ Mark Paid'}
+                            {isPaying ? '...' : <><Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Mark Paid</>}
                           </button>
                         )}
                         {paidThisMonth && (
                           <span style={{ font: '600 11px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 8, padding: '5px 10px' }}>
-                            ✓ Paid this month
+                            <Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Paid this month
                           </span>
                         )}
                       </div>
@@ -670,7 +671,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                     }}
                     style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
                   >
-                    {isCreditCard ? '✓ Yes, add to outstanding' : '✓ Yes, record as expense'}
+                    {isCreditCard ? <><Check size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> Yes, add to outstanding</> : <><Check size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> Yes, record as expense</>}
                   </button>
                   <button
                     onClick={async () => {

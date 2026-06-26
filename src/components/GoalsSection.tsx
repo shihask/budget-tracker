@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { X, AlertTriangle, Flame } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet, HelpText } from './BottomSheet'
@@ -554,7 +555,7 @@ export function GoalsSection({
                   <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{goal.name}</div>
                   <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{cfg.label} Goal · {tShort}</div>
                 </div>
-                <button onClick={() => { setDetailGoal(null); setDeleteConfirm(false) }} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', font: '700 13px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>✕</button>
+                <button onClick={() => { setDetailGoal(null); setDeleteConfirm(false) }} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', font: '700 13px Plus Jakarta Sans', color: c.muted, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
               </div>
 
               {st.isComplete ? (
@@ -757,7 +758,7 @@ export function GoalsSection({
                       border: `1px solid ${momentum.daysSinceLast > 21 ? '#F59E0B30' : '#10B98130'}`,
                       display: 'flex', alignItems: 'center', gap: 10,
                     }}>
-                      <span style={{ fontSize: 16, lineHeight: 1 }}>{momentum.daysSinceLast > 21 ? '⚠' : '🔥'}</span>
+                      <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}>{momentum.daysSinceLast > 21 ? <AlertTriangle size={16} /> : <Flame size={16} />}</span>
                       <div>
                         {momentum.daysSinceLast > 21 ? (
                           <span style={{ font: '600 12px Plus Jakarta Sans', color: '#D97706' }}>

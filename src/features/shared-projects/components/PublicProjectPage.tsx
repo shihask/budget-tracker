@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Inbox } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { loadPublicProject } from '../lib/publicApi'
@@ -191,7 +192,7 @@ export function PublicProjectPage({ shareCode }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {transactions.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 24px' }}>
-                <div style={{ fontSize: 24, marginBottom: 6 }}>📭</div>
+                <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}><Inbox size={24} color="#A09890" /></div>
                 <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Project hasn't started yet</div>
                 <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>The owner hasn't recorded any contributions or expenses.</div>
               </div>

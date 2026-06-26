@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { BottomSheet } from './BottomSheet'
 import { STRATEGY_PRESETS } from './BudgetStrategyCard'
@@ -110,7 +111,7 @@ export function BudgetStrategySheet({ open, onClose, budgetStrategy, customNeeds
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ font: '600 11px Plus Jakarta Sans', color: customValid ? c.good : c.bad }}>
-                Total: {customTotal}% {customValid ? '✓' : '(must be 100%)'}
+                Total: {customTotal}% {customValid ? <Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : '(must be 100%)'}
               </span>
               <button
                 onClick={handleCustomSave}

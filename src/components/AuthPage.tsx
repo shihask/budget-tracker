@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Check, X as XIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { version } from '../../package.json'
 
@@ -245,7 +246,7 @@ export function AuthPage() {
                 font: '700 12px Plus Jakarta Sans',
                 color: confirm === password ? '#10B981' : '#EF4444',
               }}>
-                {confirm === password ? '✓ Match' : '✗ No match'}
+                {confirm === password ? <><Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Match</> : <><XIcon size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> No match</>}
               </div>
             )}
           </div>
@@ -434,7 +435,7 @@ export function ResetPasswordPage({ onDone }: { onDone: () => void }) {
               />
               {confirm.length > 0 && (
                 <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', font: '700 12px Plus Jakarta Sans', color: confirm === password ? '#10B981' : '#EF4444' }}>
-                  {confirm === password ? '✓ Match' : '✗ No match'}
+                  {confirm === password ? <><Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Match</> : <><XIcon size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> No match</>}
                 </div>
               )}
             </div>

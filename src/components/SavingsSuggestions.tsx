@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
@@ -222,7 +223,7 @@ export function SavingsSuggestions({ state, d, autopilotEnabled }: Props) {
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Savings Suggestions</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Based on your last 30 days</div>
           </div>
-          <button onClick={() => setOpen(false)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', font: '700 14px', color: c.muted }}>✕</button>
+          <button onClick={() => setOpen(false)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', font: '700 14px', color: c.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
 
         {suggestions.length === 0 ? (

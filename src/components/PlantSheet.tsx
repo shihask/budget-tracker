@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
@@ -327,7 +328,7 @@ export function PlantSheet({ open, onClose, state }: Props) {
               font: isCurrent ? '700 13px Plus Jakarta Sans' : '600 11px Plus Jakarta Sans',
               color: isCurrent ? '#fff' : isPast ? c.good : c.muted,
             }}>
-              {isPast ? `✓ ${label}` : label}
+              {isPast ? <><Check size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> {label}</> : label}
             </div>
           )
         })}

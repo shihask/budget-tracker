@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Handshake } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
@@ -46,7 +47,7 @@ export function BorrowingSection({ state, onSeeAll, onAdd }: Props) {
 
       {state.borrowings.length === 0 ? (
         <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🤝</div>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Handshake size={28} color="#A09890" /></div>
           <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Track Shared Money</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Keep track of money you've lent or borrowed so nothing gets forgotten.</div>
           <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Add an entry</button>

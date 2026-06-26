@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
@@ -454,7 +455,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
               {hasWeeklyContext ? 'Includes your upcoming budget' : 'Based on your available money'}
             </div>
           </div>
-          <button onClick={close} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
+          <button onClick={close} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 32, height: 32, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
 
         {!checked ? (

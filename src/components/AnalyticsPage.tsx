@@ -1,5 +1,6 @@
 ﻿import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { Sprout, Leaf, Flame, TreeDeciduous, Flower2, Coins, TrendingUp, Target, ShoppingCart, UtensilsCrossed, Lightbulb, Fuel, ShoppingBag, Hospital, CircleDot } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
@@ -12,8 +13,19 @@ import {
   PieChart, Pie, Cell as PieCell,
 } from 'recharts'
 
+const ICON_MAP: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
+  sprout: Sprout, leaf: Leaf, flame: Flame, tree: TreeDeciduous, flower: Flower2,
+  coins: Coins, 'trending-up': TrendingUp, target: Target, 'shopping-cart': ShoppingCart,
+  utensils: UtensilsCrossed, lightbulb: Lightbulb, fuel: Fuel, 'shopping-bag': ShoppingBag,
+  hospital: Hospital, 'circle-dot': CircleDot,
+}
+function IconByName({ name, size = 16, style }: { name: string; size?: number; style?: React.CSSProperties }) {
+  const Icon = ICON_MAP[name]
+  return Icon ? <Icon size={size} style={style} /> : null
+}
+
 type Tab = 'trend' | 'weeks' | 'category' | 'timeline' | 'journey'
-const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline'], ['journey', '🌱 Journey']]
+const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline'], ['journey', 'Journey']]
 const GROUP_PALETTE = ['#F59E0B', '#10B981', '#7C3AED', '#0EA5E9', '#EF4444', '#F97316', '#EC4899', '#6366F1']
 const BAR_MAX_H = 72
 const DAY_W = 32
@@ -34,7 +46,7 @@ function JourneyMilestones({ items, section, color }: { items: JourneyMilestone[
     <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
       {relevant.map(m => (
         <div key={m.text} style={{ display: 'flex', alignItems: 'center', gap: 8, background: color + '14', borderRadius: 10, padding: '7px 10px' }}>
-          <span style={{ fontSize: 14, lineHeight: 1 }}>{m.emoji}</span>
+          <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}><IconByName name={m.emoji} size={14} /></span>
           <span style={{ font: '600 11px Plus Jakarta Sans', color }}>{m.text}</span>
         </div>
       ))}
@@ -528,14 +540,14 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
           const stageLabel  = ['Seedling', 'Sprouting', 'Young Plant', 'Growing', 'Blooming'][plantStage - 1]
           const nextLabel   = ['Sprouting', 'Young Plant', 'Growing', 'Blooming', '—'][plantStage - 1]
           const nextPts     = plantStage < 5 ? [20,40,60,80,100][plantStage - 1] - journey.healthScore : 0
-          const plantEmoji  = ['🌱', '🌿', '🌲', '🌳', '🌸'][plantStage - 1]
+          const PlantIcon   = [Sprout, Leaf, TreeDeciduous, TreeDeciduous, Flower2][plantStage - 1]
           const hColor      = journey.healthScore >= 80 ? '#D946EF' : journey.healthScore >= 60 ? '#0D9488' : journey.healthScore >= 40 ? '#16A34A' : journey.healthScore >= 20 ? '#D97706' : '#9CA3AF'
           const treeStages = [
-            { emoji: '🌺', label: 'Flowers', value: journey.activeGoals > 0 ? `${journey.activeGoals} active` : '—', color: J.flower, has: journey.activeGoals > 0 },
-            { emoji: '🌳', label: 'Branches', value: journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—', color: J.branch, has: journey.totalWealth > 0 },
-            { emoji: '🌿', label: 'Stem', value: journey.challengeEnabled && journey.successDays > 0 ? `${journey.successDays} wins` : '—', color: J.stem, has: journey.challengeEnabled && journey.successDays > 0 },
-            { emoji: '🌱', label: 'Roots', value: journey.rootsTotal > 0 ? fmt(journey.rootsTotal) : '—', color: J.roots, has: journey.rootsTotal > 0 },
-            { emoji: '🌰', label: 'Seed', value: journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—', color: J.seed, has: journey.totalIncome > 0 },
+            { icon: 'flower', label: 'Flowers', value: journey.activeGoals > 0 ? `${journey.activeGoals} active` : '—', color: J.flower, has: journey.activeGoals > 0 },
+            { icon: 'tree', label: 'Branches', value: journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—', color: J.branch, has: journey.totalWealth > 0 },
+            { icon: 'leaf', label: 'Stem', value: journey.challengeEnabled && journey.successDays > 0 ? `${journey.successDays} wins` : '—', color: J.stem, has: journey.challengeEnabled && journey.successDays > 0 },
+            { icon: 'sprout', label: 'Roots', value: journey.rootsTotal > 0 ? fmt(journey.rootsTotal) : '—', color: J.roots, has: journey.rootsTotal > 0 },
+            { icon: 'circle-dot', label: 'Seed', value: journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—', color: J.seed, has: journey.totalIncome > 0 },
           ]
           return (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -554,7 +566,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                     color: journeyView === v ? c.ink : c.muted,
                     boxShadow: journeyView === v ? c.cardShadow : 'none',
                   }}>
-                    {v === 'flow' ? 'Flow' : v === 'timeline' ? 'Timeline' : '🌱 Plant'}
+                    {v === 'flow' ? 'Flow' : v === 'timeline' ? 'Timeline' : 'Plant'}
                   </button>
                 ))}
               </div>
@@ -567,7 +579,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 {/* Income */}
                 <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid ${c.faint}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: journey.incomeItems.length > 0 ? 12 : 0 }}>
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>💰</span>
+                    <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}><Coins size={22} /></span>
                     <div style={{ flex: 1 }}>
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Income</div>
                       <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—'}</div>
@@ -600,7 +612,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 {/* Saved & Invested */}
                 <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid #10B98120` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>🌱</span>
+                    <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}><Sprout size={22} /></span>
                     <div style={{ flex: 1 }}>
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Saved & Invested</div>
                       <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{journey.rootsTotal > 0 ? fmt(journey.rootsTotal) : '—'}</div>
@@ -639,7 +651,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 {/* Lifestyle Spending */}
                 <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid #F59E0B20` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: journey.lifestyleCategories.length > 0 ? 10 : 0 }}>
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>🛒</span>
+                    <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}><ShoppingCart size={22} /></span>
                     <div style={{ flex: 1 }}>
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Lifestyle Spending</div>
                       <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{journey.lifestyleSpending > 0 ? fmt(journey.lifestyleSpending) : '—'}</div>
@@ -672,7 +684,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 {/* Wealth Built */}
                 <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid #6366F120` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: journey.wealthItems.length > 0 ? 12 : 0 }}>
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>📈</span>
+                    <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}><TrendingUp size={22} /></span>
                     <div style={{ flex: 1 }}>
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Wealth Built</div>
                       <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—'}</div>
@@ -707,7 +719,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 {/* Goals */}
                 <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid #D946EF20` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: journey.goalItems.length > 0 ? 12 : 0 }}>
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>🎯</span>
+                    <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}><Target size={22} /></span>
                     <div style={{ flex: 1 }}>
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Goals</div>
                       <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{journey.activeGoals > 0 ? `${journey.activeGoals} Active` : '—'}</div>
@@ -797,7 +809,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                                 <div style={{ flex: 1, paddingBottom: isLast ? 0 : 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                   {allShown.map((ev, ei) => (
                                     <div key={ei} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                      <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{ev.emoji}</span>
+                                      <span style={{ lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}><IconByName name={ev.emoji} size={17} /></span>
                                       <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
                                         {ev.subtitle && <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{ev.subtitle}</div>}
@@ -811,7 +823,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                                   ))}
                                   {hiddenExpenses.length > 0 && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                      <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>🛒</span>
+                                      <span style={{ lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}><ShoppingCart size={17} /></span>
                                       <div style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.muted }}>{hiddenExpenses.length} more expense{hiddenExpenses.length > 1 ? 's' : ''}</div>
                                       <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>{fmt(hiddenTotal)}</div>
                                     </div>
@@ -832,8 +844,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
               <div>
                 {/* Plant + score */}
                 <div style={{ background: c.surface, borderRadius: 20, padding: '28px 20px 22px', boxShadow: c.cardShadow, border: `1px solid ${hColor}22`, marginBottom: 14, textAlign: 'center' }}>
-                  <div style={{ fontSize: 72, lineHeight: 1, marginBottom: 14, display: 'inline-block', animation: 'sway 3s ease-in-out infinite', transformOrigin: 'bottom center' }}>
-                    {plantEmoji}
+                  <div style={{ lineHeight: 1, marginBottom: 14, display: 'inline-flex', animation: 'sway 3s ease-in-out infinite', transformOrigin: 'bottom center' }}>
+                    <PlantIcon size={72} color={hColor} />
                   </div>
                   <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Growth Score</div>
                   <div style={{ font: '800 42px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 2 }}>{journey.healthScore}</div>
@@ -844,20 +856,20 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                   <div style={{ font: '700 15px Plus Jakarta Sans', color: hColor }}>Stage: {stageLabel}</div>
                   {plantStage < 5
                     ? <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 5 }}>Next: {nextLabel} · {nextPts} pts away</div>
-                    : <div style={{ font: '600 11px Plus Jakarta Sans', color: '#D946EF', marginTop: 5 }}>🌸 Fully bloomed — keep growing!</div>
+                    : <div style={{ font: '600 11px Plus Jakarta Sans', color: '#D946EF', marginTop: 5 }}><Flower2 size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Fully bloomed — keep growing!</div>
                   }
                 </div>
 
                 {/* Key metrics */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
                   {[
-                    { label: 'Income', value: journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—', icon: '💰' },
-                    { label: 'Saved', value: journey.rootsTotal > 0 ? fmt(journey.rootsTotal) : '—', icon: '🌱' },
-                    { label: 'Wealth', value: journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—', icon: '📈' },
-                    { label: 'Goals', value: journey.activeGoals > 0 ? `${journey.activeGoals} active` : '—', icon: '🎯' },
+                    { label: 'Income', value: journey.totalIncome > 0 ? fmt(journey.totalIncome) : '—', icon: 'coins' },
+                    { label: 'Saved', value: journey.rootsTotal > 0 ? fmt(journey.rootsTotal) : '—', icon: 'sprout' },
+                    { label: 'Wealth', value: journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—', icon: 'trending-up' },
+                    { label: 'Goals', value: journey.activeGoals > 0 ? `${journey.activeGoals} active` : '—', icon: 'target' },
                   ].map(item => (
                     <div key={item.label} style={{ background: c.surface, borderRadius: 14, padding: '12px 14px', boxShadow: c.cardShadow, border: `1px solid ${c.faint}` }}>
-                      <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted, marginBottom: 3 }}>{item.icon} {item.label}</div>
+                      <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}><IconByName name={item.icon} size={12} /> {item.label}</div>
                       <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>{item.value}</div>
                     </div>
                   ))}
@@ -888,7 +900,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {journey.milestones.map(m => (
                         <div key={m.text} style={{ display: 'flex', alignItems: 'center', gap: 10, background: c.surface2, borderRadius: 10, padding: '8px 12px' }}>
-                          <span style={{ fontSize: 14, lineHeight: 1 }}>{m.emoji}</span>
+                          <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}><IconByName name={m.emoji} size={14} /></span>
                           <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>{m.text}</span>
                         </div>
                       ))}
@@ -904,9 +916,9 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
               {/* ── Animated Growth Tree ── */}
             <div style={{ background: c.surface, borderRadius: 20, padding: '20px 20px 18px', boxShadow: c.cardShadow, border: `1px solid ${c.faint}`, marginBottom: 14 }}>
               {treeStages.map((stage, i, arr) => (
-                <div key={stage.emoji}>
+                <div key={stage.icon}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, animation: `growUp 0.4s ease ${(arr.length - 1 - i) * 120}ms both`, opacity: stage.has ? 1 : 0.3 }}>
-                    <span style={{ fontSize: 26, lineHeight: 1, width: 32, textAlign: 'center', flexShrink: 0 }}>{stage.emoji}</span>
+                    <span style={{ lineHeight: 1, width: 32, textAlign: 'center', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconByName name={stage.icon} size={26} /></span>
                     <div style={{ flex: 1 }}>
                       <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stage.label}</div>
                       <div style={{ font: '800 15px Plus Jakarta Sans', color: stage.has ? stage.color : c.muted, letterSpacing: '-0.01em' }}>{stage.value}</div>

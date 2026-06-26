@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Check, AlertTriangle } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
@@ -674,12 +675,12 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ font: `800 15px ${F}`, color: ok ? c.good : c.warn }}>{pct}%</span>
-                      <span style={{ fontSize: 14, color: ok ? c.good : c.warn }}>{ok ? '✓' : '⚠'}</span>
+                      <span style={{ color: ok ? c.good : c.warn, display: 'flex', alignItems: 'center' }}>{ok ? <Check size={14} /> : <AlertTriangle size={14} />}</span>
                     </div>
                   </div>
                   {!expanded && (
                     <div style={{ padding: '0 0 8px 18px', font: `600 11px ${F}`, color: ok ? c.good : c.warn, borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
-                      {ok ? '✓' : '⚠'} {status}
+                      {ok ? <Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />} {status}
                     </div>
                   )}
                   {expanded && (() => {
@@ -714,7 +715,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                         </div>
                         {diff > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 0' }}>
-                            <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn }}>{ok ? '✓' : '⚠'} {status}</span>
+                            <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn, display: 'inline-flex', alignItems: 'center', gap: 4 }}>{ok ? <Check size={12} /> : <AlertTriangle size={12} />} {status}</span>
                             <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn }}>{spending ? (ok ? '' : `+${fmt(diff)}`) : (ok ? `+${fmt(diff)}` : `−${fmt(diff)}`)}</span>
                           </div>
                         )}

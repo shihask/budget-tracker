@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { BORROWING_GROUP } from '@/lib/constants'
@@ -283,7 +284,7 @@ export function CategoriesPage({
                     <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUpdateCategory()} style={{ ...inp, flex: 1 }} autoFocus />
-                        <button onClick={() => { setEditingCategory(null); setInputVal(''); setEditingCategoryGroup('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap' }}>✕</button>
+                        <button onClick={() => { setEditingCategory(null); setInputVal(''); setEditingCategoryGroup('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
                         <button onClick={handleUpdateCategory} disabled={saving} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', whiteSpace: 'nowrap', opacity: saving ? 0.6 : 1 }}>Save</button>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -353,7 +354,7 @@ export function CategoriesPage({
             {canAddCategory(group) && (showAddCategory === group.name ? (
               <div style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCategory(group.name)} placeholder="Category name" style={{ ...inp, flex: 1 }} />
-                <button onClick={() => { setShowAddCategory(null); setInputVal('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>✕</button>
+                <button onClick={() => { setShowAddCategory(null); setInputVal('') }} style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
                 <button onClick={() => handleAddCategory(group.name)} disabled={saving || !inputVal.trim()} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 10px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>Add</button>
               </div>
             ) : (

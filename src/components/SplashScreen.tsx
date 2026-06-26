@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Sparkles, Sprout } from 'lucide-react'
 import { MintAnimation } from './MintAnimation'
 
 const WORDS    = ['Know', 'Plan', 'Afford', 'Grow']
@@ -105,7 +106,7 @@ export function SplashScreen({ onContinue, initialPhase = 1 }: Props) {
                 letterSpacing: '0.02em',
                 animation: 'mpFadeIn 0.5s 0.8s ease both',
               }}>
-                Powered by Mint AI ✦
+                Powered by Mint AI <Sparkles size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />
               </div>
             </div>
           )}
@@ -151,7 +152,7 @@ export function SplashScreen({ onContinue, initialPhase = 1 }: Props) {
               font: '700 18px Plus Jakarta Sans',
               color: '#1C1410', marginBottom: 10,
             }}>
-              Welcome! 🌱
+              Welcome! <Sprout size={18} style={{ display: 'inline', verticalAlign: 'middle' }} />
             </div>
             <div style={{
               font: '500 14px Plus Jakarta Sans',

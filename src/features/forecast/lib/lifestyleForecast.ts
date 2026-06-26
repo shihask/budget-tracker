@@ -257,7 +257,7 @@ export function buildLifestyleForecast(state: AppState, d: DerivedMetrics): Life
     safeUntilDate = prevPositiveDate
     const salaryEst = estimateForecastSalary(state)
     if (salaryEst.amount && nextSalaryDate && prevPositiveDate && prevPositiveDate >= nextSalaryDate) {
-      safeUntilLabel = getIncomePattern(state.settings) === 'monthly' ? 'Next Salary ✓' : 'Next Income ✓'
+      safeUntilLabel = getIncomePattern(state.settings) === 'monthly' ? 'Next Salary' : 'Next Income'
     } else if (safeUntilDate) {
       safeUntilLabel = new Date(safeUntilDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
     } else {

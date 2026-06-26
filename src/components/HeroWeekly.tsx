@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { X, BarChart3 } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, iso, TODAY, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ProgressRing } from './ProgressRing'
@@ -605,7 +606,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   : (isAutoMode ? 'Cycle Spent' : `${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} Spent`)
                 }
               </div>
-              <button onClick={() => setPopup(null)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted }}>✕</button>
+              <button onClick={() => setPopup(null)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
             </div>
 
             {popup === 'safeUntil' ? (
@@ -749,7 +750,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               </div>
             ) : (
               <div style={{ background: c.surface2, borderRadius: 14, padding: '16px', marginBottom: 14, textAlign: 'center' }}>
-                <div style={{ fontSize: 24, marginBottom: 6 }}>📊</div>
+                <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}><BarChart3 size={24} color="#A09890" /></div>
                 <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Learning your income</div>
                 <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
                   Record your earnings for about two weeks. MoneyPlant will build your budget automatically.

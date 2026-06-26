@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useRef, useState } from 'react'
+import { Star } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, iso, addDays, TODAY } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
@@ -344,7 +345,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
                   }}
                 >
                   <span style={{ font: '700 11px Plus Jakarta Sans', color: selected ? '#fff' : c.sub }}>
-                    {opt.label}{isRec && !selected ? ' ★' : ''}
+                    {opt.label}{isRec && !selected ? <> <Star size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /></> : ''}
                   </span>
                   <span style={{ font: '800 13px Plus Jakarta Sans', color: selected ? '#fff' : c.ink }}>
                     {fmt(Math.round(calc.targets[opt.key]))}
@@ -355,7 +356,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
           </div>
           {calc.recommendedDifficulty !== difficulty && (
             <p style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, margin: '-8px 0 14px', textAlign: 'center' }}>
-              ★ Recommended based on your 30-day average ({fmt(Math.round(calc.avgDailySpend30))}/day)
+              <Star size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> Recommended based on your 30-day average ({fmt(Math.round(calc.avgDailySpend30))}/day)
             </p>
           )}
 

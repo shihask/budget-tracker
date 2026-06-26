@@ -351,20 +351,20 @@ export function journeyData(state: AppState): JourneyData {
   // Milestones — inline achievements per section
   const milestones: JourneyMilestone[] = []
   if (totalIncome > 0 && rootsPct >= 30)
-    milestones.push({ emoji: '🌱', text: `${rootsPct}% of income invested — strong roots!`, section: 'roots' })
+    milestones.push({ emoji: 'sprout', text: `${rootsPct}% of income invested — strong roots!`, section: 'roots' })
   else if (rootsTotal > 0 && rootsPct > 0)
-    milestones.push({ emoji: '🌱', text: `${rootsPct}% of income directed to the future`, section: 'roots' })
+    milestones.push({ emoji: 'sprout', text: `${rootsPct}% of income directed to the future`, section: 'roots' })
   if (challengeEnabled) {
-    if (streak >= 14) milestones.push({ emoji: '🔥', text: `${streak}-day streak — unstoppable!`, section: 'stem' })
-    else if (streak >= 7) milestones.push({ emoji: '🌿', text: `${streak}-day streak — keep going!`, section: 'stem' })
-    else if (successDays === 1) milestones.push({ emoji: '🌿', text: 'First challenge win this cycle!', section: 'stem' })
+    if (streak >= 14) milestones.push({ emoji: 'flame', text: `${streak}-day streak — unstoppable!`, section: 'stem' })
+    else if (streak >= 7) milestones.push({ emoji: 'leaf', text: `${streak}-day streak — keep going!`, section: 'stem' })
+    else if (successDays === 1) milestones.push({ emoji: 'leaf', text: 'First challenge win this cycle!', section: 'stem' })
   }
   if (totalWealth >= 100000)
-    milestones.push({ emoji: '🌳', text: 'Wealth crossed ₹1 lakh!', section: 'branch' })
+    milestones.push({ emoji: 'tree', text: 'Wealth crossed ₹1 lakh!', section: 'branch' })
   else if (totalWealth >= 50000)
-    milestones.push({ emoji: '🌳', text: 'Wealth crossed ₹50,000!', section: 'branch' })
+    milestones.push({ emoji: 'tree', text: 'Wealth crossed ₹50,000!', section: 'branch' })
   if (completedGoals >= 1)
-    milestones.push({ emoji: '🌺', text: `${completedGoals} goal${completedGoals > 1 ? 's' : ''} achieved this cycle!`, section: 'flower' })
+    milestones.push({ emoji: 'flower', text: `${completedGoals} goal${completedGoals > 1 ? 's' : ''} achieved this cycle!`, section: 'flower' })
 
   // Story line — one human sentence
   const brief = (n: number) => '₹' + (n >= 100000 ? +(n / 100000).toFixed(1) + 'L' : n >= 1000 ? Math.round(n / 1000) + 'k' : n)
@@ -435,26 +435,26 @@ export function journeyData(state: AppState): JourneyData {
   // Replay events — full chronological log with eventType for rendering
   const expenseCatEmoji = (catName?: string) => {
     const n = (catName || '').toLowerCase()
-    if (n.includes('food') || n.includes('dining')) return '🍱'
-    if (n.includes('medical') || n.includes('health')) return '🏥'
-    if (n.includes('fuel') || n.includes('transport')) return '⛽'
-    if (n.includes('shopping')) return '🛍️'
-    if (n.includes('utility') || n.includes('electric') || n.includes('bill')) return '💡'
-    return '🛒'
+    if (n.includes('food') || n.includes('dining')) return 'utensils'
+    if (n.includes('medical') || n.includes('health')) return 'hospital'
+    if (n.includes('fuel') || n.includes('transport')) return 'fuel'
+    if (n.includes('shopping')) return 'shopping-bag'
+    if (n.includes('utility') || n.includes('electric') || n.includes('bill')) return 'lightbulb'
+    return 'shopping-cart'
   }
   const replayEvents: JourneyReplayEvent[] = []
   state.transactions
     .filter(t => t.transaction_type === 'income' && new Date(t.transaction_date) >= cycleStart)
-    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: '💰', title: t.description, subtitle: catMap[t.category_id ?? '']?.name, amount: t.amount, eventType: 'income' }))
+    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'coins', title: t.description, subtitle: catMap[t.category_id ?? '']?.name, amount: t.amount, eventType: 'income' }))
   state.transactions
     .filter(t => t.transaction_type === 'savings_contribution' && new Date(t.transaction_date) >= cycleStart)
-    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: '📈', title: t.description, amount: t.amount, eventType: 'savings' }))
+    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'trending-up', title: t.description, amount: t.amount, eventType: 'savings' }))
   state.transactions
     .filter(t => t.transaction_type === 'commitment' && new Date(t.transaction_date) >= cycleStart)
-    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: '🌱', title: t.description, amount: t.amount, eventType: 'commitment' }))
+    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'sprout', title: t.description, amount: t.amount, eventType: 'commitment' }))
   state.goal_contributions
     .filter(gc => new Date(gc.created_at) >= cycleStart)
-    .forEach(gc => replayEvents.push({ date: gc.created_at.slice(0, 10), emoji: '🎯', title: state.goals.find(g => g.id === gc.goal_id)?.name ?? 'Goal funded', amount: gc.amount, eventType: 'goal' }))
+    .forEach(gc => replayEvents.push({ date: gc.created_at.slice(0, 10), emoji: 'target', title: state.goals.find(g => g.id === gc.goal_id)?.name ?? 'Goal funded', amount: gc.amount, eventType: 'goal' }))
   lifestyleTxns.forEach(t => {
     const catName = catMap[t.category_id ?? '']?.name
     replayEvents.push({ date: t.transaction_date, emoji: expenseCatEmoji(catName), title: t.description, subtitle: catName, amount: t.amount, eventType: 'expense' })

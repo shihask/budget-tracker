@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { Coins } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSummary } from '../lib/calculations'
@@ -741,7 +742,7 @@ function TransactionsTab({ transactions, attachments, canEdit, onAdd, onEdit, on
 
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px 24px' }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>💰</div>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Coins size={28} color="#A09890" /></div>
           <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Track contributions and expenses</div>
           <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5, marginBottom: 16 }}>Record contributions from members or log project expenses to start tracking progress.</div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>

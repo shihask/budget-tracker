@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CategorySelect } from './CategorySelect'
@@ -672,7 +673,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               ? <>You gave <strong style={{ color: c.ink }}>{fmt(pendingAddForm.total_amount)}</strong> to <strong style={{ color: c.ink }}>{pendingAddForm.person_name}</strong>. Add this as an expense and deduct from your account?</>
               : <><strong style={{ color: c.ink }}>{pendingAddForm.person_name}</strong> gave you <strong style={{ color: c.ink }}>{fmt(pendingAddForm.total_amount)}</strong>. Add this as an income transaction?</>
           }
-          yesLabel={pendingAddForm.direction === 'lent' ? '✓ Yes, add as expense' : '✓ Yes, add as income'}
+          yesLabel={pendingAddForm.direction === 'lent' ? 'Yes, add as expense' : 'Yes, add as income'}
           noLabel="No, just track it"
           yesColor={pendingAddForm.direction === 'lent' ? c.accent : c.good}
           onYes={() => doAdd(true)}
@@ -689,7 +690,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               ? <><strong style={{ color: c.ink }}>{payTarget.person_name}</strong> paid you back <strong style={{ color: c.ink }}>{fmt(parseFloat(payForm.amount))}</strong>. Add this to your income transactions?</>
               : <>You're paying <strong style={{ color: c.ink }}>{fmt(parseFloat(payForm.amount))}</strong> to <strong style={{ color: c.ink }}>{payTarget.person_name}</strong>. Add this as an expense transaction?</>
           }
-          yesLabel={payForm.incoming ? '✓ Yes, add as income' : '✓ Yes, add as expense'}
+          yesLabel={payForm.incoming ? 'Yes, add as income' : 'Yes, add as expense'}
           noLabel="No, just update tracker"
           yesColor={payForm.incoming ? c.good : c.accent}
           onYes={() => doPayment(true)}
