@@ -8,6 +8,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { version } from '../../package.json'
 import { PrivacyPolicy, TermsOfService } from './LegalPages'
+import { MintAnimation } from './MintAnimation'
 
 type Mode = 'login' | 'signup' | 'check-email' | 'forgot' | 'forgot-sent'
 type LegalPage = 'privacy' | 'terms' | null
@@ -490,7 +491,7 @@ function LandingScreen({ onSignIn, onSignUp, onLegal }: {
       <header className={`mp-nav ${navStuck ? 'mp-nav--stuck' : ''}`}>
         <div className="mp-nav__inner">
           <a className="mp-nav__brand" href="#top" onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
-            <span className="mp-nav__brandmark"><Sprout size={18} /></span>
+            <MoneyPlantLogo size={36} />
             <span><strong>Money</strong><b>Plant</b></span>
           </a>
           <nav className="mp-nav__links" aria-label="Landing navigation">
@@ -578,7 +579,14 @@ function LandingScreen({ onSignIn, onSignUp, onLegal }: {
           <Reveal key={f.id}>
             <div className={`mp-tour__item ${i % 2 !== 0 ? 'mp-tour__item--reverse' : ''}`}>
               <div className="mp-tour__text">
-                <span className="mp-section-label"><f.icon size={16} /> {f.title}</span>
+                {f.id === 'mintai' ? (
+                  <div className="mp-tour__mint-label">
+                    <MintAnimation variant="transform" size={32} />
+                    <span className="mp-section-label">{f.title}</span>
+                  </div>
+                ) : (
+                  <span className="mp-section-label"><f.icon size={16} /> {f.title}</span>
+                )}
                 <h3>{f.title}</h3>
                 <p>{f.desc}</p>
               </div>
@@ -947,6 +955,31 @@ function MockScreen({ type }: { type: string }) {
 }
 
 // ── Shared UI components ──────────────────────────────────────────────────────
+
+function MoneyPlantLogo({ size = 36 }: { size?: number }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width={size} height={size} style={{ borderRadius: size * 0.28, flexShrink: 0, boxShadow: '0 6px 18px rgba(22, 201, 138, 0.22)' }}>
+      <defs>
+        <linearGradient id="mp-nav-bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#16C98A"/>
+          <stop offset="100%" stopColor="#0A7A56"/>
+        </linearGradient>
+      </defs>
+      <rect width="100" height="100" rx="22.5" fill="url(#mp-nav-bg)"/>
+      <circle cx="50" cy="64" r="25.5" fill="none" stroke="#FFFFFF" strokeWidth="5.2"/>
+      <circle cx="50" cy="64" r="19.5" fill="none" stroke="#FFFFFF" strokeWidth="1.6" opacity="0.45"/>
+      <text x="50" y="65.5" textAnchor="middle" dominantBaseline="central"
+        fontFamily="'Plus Jakarta Sans','Montserrat',Arial,sans-serif" fontWeight="800" fontSize="30" fill="#FFFFFF">₹</text>
+      <path d="M50 42 V 26" fill="none" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round"/>
+      <path d="M49.4 33.5 C 41.6 33.5 36.2 29.1 34.3 21 C 42.1 21 47.5 25.4 49.4 33.5 Z" fill="#FFFFFF"/>
+      <path d="M50.6 33.5 C 58.4 33.5 63.8 29.1 65.7 21 C 57.9 21 52.5 25.4 50.6 33.5 Z" fill="#FFFFFF"/>
+      <g fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" opacity="0.42">
+        <path d="M46.5 30.5 C 43.5 28 40.5 25.8 37.5 24.5"/>
+        <path d="M53.5 30.5 C 56.5 28 59.5 25.8 62.5 24.5"/>
+      </g>
+    </svg>
+  )
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
