@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   BarChart3, Bell, Bot, Briefcase, CalendarCheck, Check,
-  ChevronDown, Cloud, CloudOff, CreditCard, GraduationCap, LineChart,
+  ChevronDown, Cloud, CloudOff, CreditCard, Flame, GraduationCap, LineChart,
   Lock, PiggyBank, Receipt, Repeat, Shield, ShieldCheck, Sprout,
-  Star, Target, TrendingUp, Users, Wallet, X as XIcon, Zap,
+  Star, Target, TrendingUp, Trophy, Users, Wallet, X as XIcon, Zap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { version } from '../../package.json'
@@ -40,6 +40,12 @@ const heroBullets = [
 
 const tourFeatures = [
   {
+    id: 'challenge', icon: Flame,
+    title: 'Daily Challenge & Plant Growth',
+    desc: 'Get a personal daily spending target based on your income, bills and commitments. Stay under it, grow your streak, and watch your virtual MoneyPlant bloom from seed to full bloom as you build better money habits.',
+    mock: 'challenge',
+  },
+  {
     id: 'forecast', icon: LineChart,
     title: 'Cash Flow Forecast',
     desc: 'See how your balance changes over the coming days after income, bills, savings, planned expenses and recurring payments.',
@@ -50,6 +56,12 @@ const tourFeatures = [
     title: 'Budget Strategy',
     desc: 'Plan spending across Needs, Wants and Savings with real progress tracking.',
     mock: 'budget',
+  },
+  {
+    id: 'goals', icon: Trophy,
+    title: 'Goals & Affordability',
+    desc: 'Set savings goals for purchases, trips or milestones. Track contributions, see progress, and check if you can afford something before you buy it.',
+    mock: 'goals',
   },
   {
     id: 'bills', icon: CalendarCheck,
@@ -78,6 +90,9 @@ const tourFeatures = [
 ] as const
 
 const badges = [
+  { icon: Flame, label: 'Daily Challenge' },
+  { icon: Sprout, label: 'Plant Growth' },
+  { icon: Trophy, label: 'Goal Tracking' },
   { icon: Receipt, label: 'Expense Tracking' },
   { icon: TrendingUp, label: 'Income Tracking' },
   { icon: LineChart, label: 'Cash Flow Forecast' },
@@ -114,8 +129,10 @@ const trustBadges = [
 
 const galleryScreens = [
   { type: 'dashboard', label: 'Dashboard' },
+  { type: 'challenge', label: 'Daily Challenge' },
   { type: 'forecast', label: 'Forecast' },
   { type: 'budget', label: 'Budget' },
+  { type: 'goals', label: 'Goals' },
   { type: 'analytics', label: 'Analytics' },
   { type: 'mintai', label: 'Mint AI' },
   { type: 'savings', label: 'Savings' },
@@ -754,6 +771,63 @@ function MockScreen({ type }: { type: string }) {
           <div><span className="mp-mock__dot" style={{ background: '#EF4444' }} /><span className="mp-mock__line" /><span className="mp-mock__amt">−₹340</span></div>
           <div><span className="mp-mock__dot" style={{ background: '#F59E0B' }} /><span className="mp-mock__line" /><span className="mp-mock__amt">−₹1,200</span></div>
           <div><span className="mp-mock__dot" style={{ background: accent }} /><span className="mp-mock__line" /><span className="mp-mock__amt">+₹45,000</span></div>
+        </div>
+      </div>
+    )
+    case 'challenge': return (
+      <div className="mp-mock">
+        {hdr}
+        <div className="mp-mock__card mp-mock__card--green">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <small>Today's Challenge</small>
+            <span style={{ fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 2 }}>🔥 7</span>
+          </div>
+          <strong>₹850 left</strong>
+        </div>
+        <div className="mp-mock__bar"><div style={{ width: '35%', background: '#F59E0B' }} /></div>
+        <div className="mp-mock__label">Daily limit: ₹1,300</div>
+        <div style={{ textAlign: 'center', margin: '6px 0 4px' }}>
+          <svg width="40" height="50" viewBox="0 48 200 250" style={{ opacity: 0.9 }}>
+            <path d="M73,252 L68,285 L132,285 L127,252 Z" fill="#B5581A" />
+            <rect x="70" y="244" width="60" height="10" rx="5" fill="#D4784F" />
+            <path d="M100,254 C100,200 100,170 100,130" stroke="#4E7A40" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+            <ellipse cx="85" cy="160" rx="15" ry="6" transform="rotate(-35,85,160)" fill="#8CC96A" />
+            <ellipse cx="115" cy="175" rx="15" ry="6" transform="rotate(35,115,175)" fill="#5B9E4A" />
+            <ellipse cx="88" cy="140" rx="12" ry="5" transform="rotate(-30,88,140)" fill="#C5E8A0" />
+          </svg>
+        </div>
+        <div style={{ textAlign: 'center', fontSize: 7, fontWeight: 800, color: '#0a7a56' }}>Stage: Growing 🌿</div>
+      </div>
+    )
+    case 'goals': return (
+      <div className="mp-mock">
+        {hdr}
+        <div className="mp-mock__label" style={{ marginTop: 8 }}>My Goals</div>
+        <div className="mp-mock__progress">
+          <div style={{ background: '#F5F0EA', borderRadius: 8, padding: '6px 8px', marginBottom: 2 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#1c1410' }}>New Laptop</span>
+              <span style={{ fontSize: 8, fontWeight: 700, color: accent }}>72%</span>
+            </div>
+            <div className="mp-mock__bar"><div style={{ width: '72%', background: accent }} /></div>
+            <div style={{ fontSize: 7, color: '#9c938a', fontWeight: 600, marginTop: 2 }}>₹54,000 / ₹75,000</div>
+          </div>
+          <div style={{ background: '#F5F0EA', borderRadius: 8, padding: '6px 8px', marginBottom: 2 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#1c1410' }}>Family Trip</span>
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#3B82F6' }}>45%</span>
+            </div>
+            <div className="mp-mock__bar"><div style={{ width: '45%', background: '#3B82F6' }} /></div>
+            <div style={{ fontSize: 7, color: '#9c938a', fontWeight: 600, marginTop: 2 }}>₹22,500 / ₹50,000</div>
+          </div>
+          <div style={{ background: '#F5F0EA', borderRadius: 8, padding: '6px 8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#1c1410' }}>Emergency Fund</span>
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#F59E0B' }}>30%</span>
+            </div>
+            <div className="mp-mock__bar"><div style={{ width: '30%', background: '#F59E0B' }} /></div>
+            <div style={{ fontSize: 7, color: '#9c938a', fontWeight: 600, marginTop: 2 }}>₹30,000 / ₹1,00,000</div>
+          </div>
         </div>
       </div>
     )
