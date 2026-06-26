@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import {
   BarChart3, Bell, Bot, Briefcase, CalendarCheck, Check,
   ChevronDown, Cloud, CloudOff, CreditCard, Flame, FolderOpen, GraduationCap,
-  LineChart, Lock, PiggyBank, Receipt, Repeat, Shield, ShieldCheck, Sprout,
-  Star, Target, TrendingUp, Trophy, Users, Wallet, X as XIcon, Zap,
+  LayoutDashboard, LineChart, Lock, PiggyBank, Receipt, Repeat, Shield,
+  ShieldCheck, Sprout, Star, Target, TrendingUp, Trophy, Users, Wallet,
+  X as XIcon, Zap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { version } from '../../package.json'
@@ -115,6 +116,7 @@ const badges = [
   { icon: BarChart3, label: 'Multiple Accounts' },
   { icon: Bell, label: 'Recurring Bills' },
   { icon: LineChart, label: 'Analytics' },
+  { icon: LayoutDashboard, label: 'Custom Dashboard' },
   { icon: CloudOff, label: 'Offline Support' },
   { icon: Cloud, label: 'Secure Cloud Sync' },
 ] as const
@@ -197,6 +199,11 @@ export function AuthPage() {
   const [error, setError]           = useState<string | null>(null)
 
   const clearError = () => setError(null)
+
+  const isPwa = typeof window !== 'undefined' && (
+    window.matchMedia('(display-mode: standalone)').matches
+    || (navigator as any).standalone === true
+  )
 
   const openAuth = (m: 'login' | 'signup') => {
     setMode(m); setShowAuth(true); clearError()
@@ -455,6 +462,42 @@ export function AuthPage() {
     )
   }
 
+  if (isPwa) {
+    return (
+      <div style={{
+        minHeight: '100svh', width: '100%',
+        background: '#EDE7DD',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'Plus Jakarta Sans, sans-serif',
+        padding: 'calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))',
+        boxSizing: 'border-box',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <LeafWatermark />
+        <div style={{
+          width: '100%', maxWidth: 400,
+          background: '#FDFAF7', borderRadius: 24, padding: '28px 24px',
+          boxShadow: '0 4px 32px rgba(0,0,0,0.08)',
+          position: 'relative', zIndex: 1,
+        }}>
+          {renderAuthContent()}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 12, position: 'relative', zIndex: 1 }}>
+          <div style={{ font: '500 11px Plus Jakarta Sans', color: '#C4BCB4' }}>v{version}</div>
+          <div style={{ font: '500 11px Plus Jakarta Sans', color: '#C4BCB4', marginTop: 6, display: 'flex', justifyContent: 'center', gap: 6 }}>
+            <button onClick={() => setLegalPage('privacy')} style={{ background: 'none', border: 'none', color: '#9C938A', font: '500 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+              Privacy Policy
+            </button>
+            <span style={{ color: '#D5CFC8' }}>|</span>
+            <button onClick={() => setLegalPage('terms')} style={{ background: 'none', border: 'none', color: '#9C938A', font: '500 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+              Terms of Service
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <LandingScreen
@@ -569,6 +612,7 @@ function LandingScreen({ onSignIn, onSignUp, onLegal }: {
                 <li>Budget planning</li>
                 <li>Commitment tracking</li>
                 <li>Financial forecasting</li>
+                <li>Personalised dashboard</li>
               </ul>
             </div>
           </div>
