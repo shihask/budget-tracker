@@ -8,16 +8,19 @@ import type { AppState } from '@/types'
 import { weeklyTrend, weeklyBars, categorySplit } from '@/lib/data'
 
 type Tab = 'trend' | 'weeks' | 'category'
+type TrendRange = 7 | 15 | 30
 const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category']]
+const TREND_RANGES: [TrendRange, string][] = [[7, '7D'], [15, '15D'], [30, '30D']]
 
 interface AnalyticsProps { state: AppState; onSeeAll?: () => void }
 
 export function Analytics({ state, onSeeAll }: AnalyticsProps) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>('trend')
+  const [trendRange, setTrendRange] = useState<TrendRange>(7)
   const [infoOpen, setInfoOpen] = useState(false)
 
-  const trend = weeklyTrend(state)
+  const trend = weeklyTrend(state, trendRange)
   const bars  = weeklyBars(state)
   const cats  = categorySplit(state)
   const trendTotal = trend.reduce((s, x) => s + x.value, 0)
@@ -62,9 +65,20 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
       <div style={{ marginTop: 14 }}>
         {tab === 'trend' && (
           <div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
               <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink }}>{fmt(trendTotal)}</div>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>last 7 days</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>last {trendRange} days</div>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: c.surface2, borderRadius: 8, padding: 3 }}>
+                {TREND_RANGES.map(([r, l]) => (
+                  <button key={r} onClick={() => setTrendRange(r)} style={{
+                    border: 'none', cursor: 'pointer', borderRadius: 6, padding: '4px 8px',
+                    font: '700 10.5px Plus Jakarta Sans', transition: 'all 0.2s',
+                    background: trendRange === r ? c.surface : 'transparent',
+                    color: trendRange === r ? c.ink : c.muted,
+                    boxShadow: trendRange === r ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}>{l}</button>
+                ))}
+              </div>
             </div>
             <AreaTrend data={trend} />
           </div>
@@ -103,7 +117,7 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
                   title: 'Trend',
-                  desc: 'Daily spending over the past 7 days so you can spot your heaviest spending moments.',
+                  desc: 'Daily spending over the past 7, 15, or 30 days so you can spot your heaviest spending moments.',
                 },
                 {
                   svg: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="17" y="11" width="4" height="10"/></svg>,

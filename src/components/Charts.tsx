@@ -8,12 +8,14 @@ import { CAT_COLORS } from '@/lib/tokens'
 import { fmt } from '@/lib/utils'
 import type { TrendPoint, BarPoint, CatPoint } from '@/types'
 
-// ── Area Trend (last 7 days) ──────────────────────────────────────────────────
+// ── Area Trend ────────────────────────────────────────────────────────────────
 interface AreaTrendProps { data: TrendPoint[] }
 
 export function AreaTrend({ data }: AreaTrendProps) {
   const c = useTheme()
   const gradId = 'trend-grad-' + c.accent.replace('#', '')
+  const n = data.length
+  const tickInterval = n <= 7 ? 0 : n <= 15 ? 2 : 4
   return (
     <ResponsiveContainer width="100%" height={132}>
       <AreaChart data={data} margin={{ top: 10, right: 4, left: 4, bottom: 0 }}>
@@ -23,7 +25,7 @@ export function AreaTrend({ data }: AreaTrendProps) {
             <stop offset="100%" stopColor={c.accent} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <XAxis dataKey="label" tick={{ fontSize: 11, fontFamily: 'ui-monospace, monospace', fill: c.muted }} axisLine={false} tickLine={false} />
+        <XAxis dataKey="label" tick={{ fontSize: n <= 7 ? 11 : 9, fontFamily: 'ui-monospace, monospace', fill: c.muted }} axisLine={false} tickLine={false} interval={tickInterval} />
         <YAxis hide />
         <Tooltip
           contentStyle={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 10, fontFamily: 'Plus Jakarta Sans', fontSize: 12, color: c.ink }}
@@ -40,6 +42,7 @@ export function AreaTrend({ data }: AreaTrendProps) {
           dot={(props: any) => {
             const { cx, cy, index } = props
             const isLast = index === data.length - 1
+            if (n > 7 && !isLast) return <g key={index} />
             return (
               <g key={index}>
                 {isLast && <circle cx={cx} cy={cy} r={6.5} fill={c.accent} fillOpacity={0.18} />}

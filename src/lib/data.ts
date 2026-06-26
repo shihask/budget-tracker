@@ -155,14 +155,17 @@ const remainingCommitments = state.commitments
   }
 }
 
-export function weeklyTrend(state: AppState): TrendPoint[] {
+export function weeklyTrend(state: AppState, days: number = 7): TrendPoint[] {
   const catMap = catById(state.categories)
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = addDays(TODAY, -(6 - i))
+  return Array.from({ length: days }, (_, i) => {
+    const d = addDays(TODAY, -(days - 1 - i))
     const total = state.transactions
       .filter(t => isLifestyle(t, catMap) && t.transaction_date === iso(d))
       .reduce((s, t) => s + t.amount, 0)
-    return { label: ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()], date: iso(d), value: total }
+    const label = days <= 7
+      ? ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()]
+      : `${d.getDate()}/${d.getMonth() + 1}`
+    return { label, date: iso(d), value: total }
   })
 }
 

@@ -25,7 +25,9 @@ function IconByName({ name, size = 16, style }: { name: string; size?: number; s
 }
 
 type Tab = 'trend' | 'weeks' | 'category' | 'timeline' | 'journey'
+type TrendRange = 7 | 15 | 30
 const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline'], ['journey', 'Journey']]
+const TREND_RANGES: [TrendRange, string][] = [[7, '7D'], [15, '15D'], [30, '30D']]
 const GROUP_PALETTE = ['#F59E0B', '#10B981', '#7C3AED', '#0EA5E9', '#EF4444', '#F97316', '#EC4899', '#6366F1']
 const BAR_MAX_H = 72
 const DAY_W = 32
@@ -77,6 +79,7 @@ function TimelineDayRuler({ daysInMonth, todayDay, mutedColor, accentColor }: { 
 export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>('trend')
+  const [trendRange, setTrendRange] = useState<TrendRange>(7)
   const [insight, setInsight] = useState<string | null>(null)
   const [loadingInsight, setLoadingInsight] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
@@ -149,7 +152,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
     }
   }
 
-  const trend    = useMemo(() => weeklyTrend(state), [state])
+  const trend    = useMemo(() => weeklyTrend(state, trendRange), [state, trendRange])
   const bars     = useMemo(() => weeklyBars(state), [state])
   const cats     = useMemo(() => categorySplit(state), [state])
   const timeline = useMemo(() => monthTimeline(state), [state])
@@ -265,21 +268,34 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         {/* ── Trend ─────────────────────────────────────────── */}
         {tab === 'trend' && (
           <div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink }}>{fmt(trendTotal)}</div>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>last 7 days</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>last {trendRange} days</div>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: c.surface2, borderRadius: 8, padding: 3 }}>
+                {TREND_RANGES.map(([r, l]) => (
+                  <button key={r} onClick={() => setTrendRange(r)} style={{
+                    border: 'none', cursor: 'pointer', borderRadius: 6, padding: '4px 8px',
+                    font: '700 10.5px Plus Jakarta Sans', transition: 'all 0.2s',
+                    background: trendRange === r ? c.surface : 'transparent',
+                    color: trendRange === r ? c.ink : c.muted,
+                    boxShadow: trendRange === r ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}>{l}</button>
+                ))}
+              </div>
             </div>
             <AreaTrend data={trend} />
-            <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
-              {trend.map(t => (
-                <div key={t.date} style={{ background: c.surface2, borderRadius: 10, padding: '8px 4px', textAlign: 'center' }}>
-                  <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>{t.label}</div>
-                  <div style={{ font: '700 11px Plus Jakarta Sans', color: t.value > 0 ? c.ink : c.muted, marginTop: 3 }}>
-                    {t.value > 0 ? `₹${Math.round(t.value / 1000) > 0 ? (t.value / 1000).toFixed(1) + 'k' : Math.round(t.value)}` : '—'}
+            {trendRange === 7 && (
+              <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+                {trend.map(t => (
+                  <div key={t.date} style={{ background: c.surface2, borderRadius: 10, padding: '8px 4px', textAlign: 'center' }}>
+                    <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>{t.label}</div>
+                    <div style={{ font: '700 11px Plus Jakarta Sans', color: t.value > 0 ? c.ink : c.muted, marginTop: 3 }}>
+                      {t.value > 0 ? `₹${Math.round(t.value / 1000) > 0 ? (t.value / 1000).toFixed(1) + 'k' : Math.round(t.value)}` : '—'}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -27,7 +27,7 @@ export function forecastHealth(lowestBalance: number): Health {
 export function getHealthMessage(health: Health, pattern: IncomePattern): string {
   const anchor = pattern === 'monthly' ? 'payday' : 'next income'
   const messages: Record<Health, string> = {
-    healthy: `You are covered until ${anchor}`,
+    healthy: `Cash flow looks healthy until ${anchor}`,
     warning: `Getting tight before ${anchor}`,
     critical: `May run short before ${anchor}`,
   }
@@ -92,7 +92,7 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
         {lifestyleData && lifestyleData.dailySpend.source && (
           <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ font: `600 12px ${F}`, color: c.muted }}>Safe Until</span>
-            <span style={{ font: `700 12px ${F}`, color: lifestyleData.risk === 'risk' ? c.bad : lifestyleData.risk === 'watch' ? c.warn : c.good }}>{lifestyleData.safeUntilLabel}</span>
+            <span style={{ font: `700 12px ${F}`, color: lifestyleData.risk === 'risk' || lifestyleData.risk === 'critical' ? c.bad : lifestyleData.risk === 'tight' ? c.warn : c.good }}>{lifestyleData.safeUntilLabel}</span>
           </div>
         )}
         {salaryDays != null && (pattern === 'monthly' || pattern === 'weekly') && (

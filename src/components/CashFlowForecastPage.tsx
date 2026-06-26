@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, AlertTriangle } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
 import { forecastHealth, getHealthMessage } from '@/components/CashFlowForecastCard'
 import { getIncomePattern } from '@/lib/income-pattern'
-import { useStrategyData, getCategoryBucket } from './BudgetStrategyCard'
+import { useStrategyData } from './BudgetStrategyCard'
 import { CategorySelect } from './CategorySelect'
 import { simulatePurchase } from '@/lib/cashflow'
 import { buildLifestyleForecast } from '@/features/forecast/lib/lifestyleForecast'
-import type { AppState, BudgetBucket, DerivedMetrics, ForecastMode, ForecastSettings, PlannedExpense } from '@/types'
+import { CashFlowGraph } from './CashFlowGraph'
+import type { AppState, DerivedMetrics, ForecastMode, ForecastSettings, PlannedExpense } from '@/types'
 
 interface Props {
   state: AppState
@@ -27,6 +27,20 @@ interface Props {
 
 const F = 'Plus Jakarta Sans'
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+
+const EVENT_COLORS: Record<string, string> = {
+  salary: '#22C55E',
+  commitment: '#EF4444',
+  card: '#EF4444',
+  borrowing: '#EF4444',
+  saving: '#8B5CF6',
+  lifestyle: '#3B82F6',
+  planned: '#F97316',
+}
+
+function eventColor(source: string, fallback: string): string {
+  return EVENT_COLORS[source] ?? fallback
+}
 
 function InfoTip({ id, text, openId, setOpenId, color }: { id: string; text: string; openId: string | null; setOpenId: (v: string | null) => void; color: string }) {
   const isOpen = openId === id
@@ -69,10 +83,16 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
     let cardTotal = 0
     let borrowingTotal = 0
     let prizedChitTotal = 0
+    let savingsTotal = 0
+    let commitmentTotal = 0
     let plannedTotal = 0
+    let lifestyleTotal = 0
+    let lifestyleDays = 0
     const cardItems: { title: string; amount: number }[] = []
     const borrowingItems: { title: string; amount: number }[] = []
     const prizedChitItems: { title: string; amount: number }[] = []
+    const savingsItems: { title: string; amount: number }[] = []
+    const commitmentItems: { title: string; amount: number }[] = []
     const plannedItems: { title: string; amount: number }[] = []
 
     for (const p of projections) {
@@ -88,98 +108,31 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
       } else if (ev.source === 'saving' && ev.is_prized) {
         prizedChitTotal += ev.amount
         prizedChitItems.push({ title: ev.title, amount: ev.amount })
+      } else if (ev.source === 'saving') {
+        savingsTotal += ev.amount
+        savingsItems.push({ title: ev.title, amount: ev.amount })
+      } else if (ev.source === 'commitment') {
+        commitmentTotal += ev.amount
+        commitmentItems.push({ title: ev.title, amount: ev.amount })
       } else if (ev.source === 'planned') {
         plannedTotal += ev.amount
         plannedItems.push({ title: ev.title, amount: ev.amount })
+      } else if (ev.source === 'lifestyle') {
+        lifestyleTotal += ev.amount
+        lifestyleDays++
       }
     }
 
     const debt = cardTotal + borrowingTotal + prizedChitTotal
-    if (income === 0 && debt === 0 && plannedTotal === 0) return null
-    return { income, debt, plannedTotal, plannedItems, available: income - debt - plannedTotal, cardTotal, cardItems, borrowingTotal, borrowingItems, prizedChitTotal, prizedChitItems }
-  }, [projections])
+    const totalOut = debt + savingsTotal + commitmentTotal + plannedTotal + lifestyleTotal
+    if (income === 0 && totalOut === 0) return null
+    return { income, debt, savingsTotal, savingsItems, commitmentTotal, commitmentItems, plannedTotal, plannedItems, lifestyleTotal, lifestyleDays, lifestyleDaily: lifestyleDays > 0 ? Math.round(lifestyleTotal / lifestyleDays) : 0, available: currentBalance + income - totalOut, cardTotal, cardItems, borrowingTotal, borrowingItems, prizedChitTotal, prizedChitItems }
+  }, [projections, currentBalance])
 
-  const [budgetPeriod, setBudgetPeriod] = useState<'current' | 'next'>('current')
-
-  const projectedBudget = useMemo(() => {
-    if (!strategyData) return null
-    const { actuals, targets, pcts } = strategyData
-
-    const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    const sd = state.settings.salary_date
-    const now = new Date()
-
-    let periodStart: string
-    let periodEnd: string
-
-    if (sd && sd >= 1 && sd <= 31) {
-      const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-      if (budgetPeriod === 'current') {
-        const s = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
-        periodStart = toIso(s)
-        periodEnd = toIso(day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd))
-      } else {
-        const s = day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd)
-        periodStart = toIso(s)
-        periodEnd = toIso(new Date(s.getFullYear(), s.getMonth() + 1, sd))
-      }
-    } else {
-      if (budgetPeriod === 'current') {
-        periodStart = toIso(new Date(now.getFullYear(), now.getMonth(), 1))
-        periodEnd = toIso(new Date(now.getFullYear(), now.getMonth() + 1, 1))
-      } else {
-        const s = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-        periodStart = toIso(s)
-        periodEnd = toIso(new Date(s.getFullYear(), s.getMonth() + 1, 1))
-      }
-    }
-
-    const isCurrent = budgetPeriod === 'current'
-    const baseActuals = isCurrent ? actuals : { needs: 0, wants: 0, savings: 0 }
-    const projected: Record<BudgetBucket, number> = { ...baseActuals }
-    const forecastItems: Record<BudgetBucket, { title: string; amount: number }[]> = { needs: [], wants: [], savings: [] }
-    const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
-    let hasProjection = false
-
-    for (const p of projections) {
-      const ev = p.event
-      if (ev.type !== 'expense') continue
-      if (ev.source === 'card' || ev.source === 'borrowing') continue
-      if (ev.source === 'saving' && ev.is_prized) continue
-      if (ev.date < periodStart || ev.date >= periodEnd) continue
-
-      let bucket: BudgetBucket | null = null
-      if (ev.source === 'saving') {
-        bucket = 'savings'
-      } else if (ev.source === 'commitment' || ev.source === 'planned') {
-        const cat = ev.category_id ? catMap[ev.category_id] : null
-        bucket = cat ? getCategoryBucket(cat, state.groups) : (ev.source === 'commitment' ? 'needs' : null)
-      }
-
-      if (bucket) {
-        projected[bucket] += ev.amount
-        forecastItems[bucket].push({ title: ev.title, amount: ev.amount })
-        hasProjection = true
-      }
-    }
-
-    const hasBuckets = hasProjection || (isCurrent && (actuals.needs > 0 || actuals.wants > 0 || actuals.savings > 0))
-    return {
-      periodStart,
-      periodEnd,
-      isCurrent,
-      buckets: hasBuckets ? [
-        { label: 'Needs', pct: targets.needs > 0 ? Math.round(projected.needs / targets.needs * 100) : 0, color: '#3B82F6', spending: true, target: targets.needs, targetPct: pcts.needs, projected: projected.needs, currentSpend: baseActuals.needs, items: forecastItems.needs },
-        { label: 'Wants', pct: targets.wants > 0 ? Math.round(projected.wants / targets.wants * 100) : 0, color: '#F97316', spending: true, target: targets.wants, targetPct: pcts.wants, projected: projected.wants, currentSpend: baseActuals.wants, items: forecastItems.wants },
-        { label: 'Savings', pct: targets.savings > 0 ? Math.round(projected.savings / targets.savings * 100) : 0, color: c.accent, spending: false, target: targets.savings, targetPct: pcts.savings, projected: projected.savings, currentSpend: baseActuals.savings, items: forecastItems.savings },
-      ] as const : null,
-    }
-  }, [strategyData, projections, state, c.accent, budgetPeriod])
-
-  const [expandedBucket, setExpandedBucket] = useState<string | null>(null)
   const [debtExpanded, setDebtExpanded] = useState(false)
   const [debtDetailExpanded, setDebtDetailExpanded] = useState(false)
   const [plannedExpanded, setPlannedExpanded] = useState(false)
+  const [lifestyleExpanded, setLifestyleExpanded] = useState(false)
   const [openInfoId, setOpenInfoId] = useState<string | null>(null)
   const [peAdding, setPeAdding] = useState(false)
   const [peTitle, setPeTitle] = useState('')
@@ -190,6 +143,45 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   const [peSaving, setPeSaving] = useState(false)
 
   const pendingPlanned = useMemo(() => state.planned_expenses.filter(p => !p.is_completed), [state.planned_expenses])
+
+  const lifestyleDetail = useMemo(() => {
+    if (!lifestyleForecast || !lifestyleForecast.dailySpend.source) return null
+    const today = new Date()
+    const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+    if (lifestyleForecast.dailySpend.source === 'budget_strategy') {
+      const rec = lifestyleForecast.recommendation
+      if (!rec) return null
+      return {
+        type: 'budget_strategy' as const,
+        strategy: rec.strategy,
+        needsTarget: rec.needsTarget, needsSpent: rec.needsSpent, needsRemaining: Math.max(0, rec.needsTarget - rec.needsSpent),
+        wantsTarget: rec.wantsTarget, wantsSpent: rec.wantsSpent, wantsRemaining: Math.max(0, rec.wantsTarget - rec.wantsSpent),
+        daysRemaining: rec.daysRemaining,
+        needsDaily: rec.needsDaily,
+        wantsDaily: rec.wantsDaily,
+      }
+    }
+
+    const histDays = lifestyleForecast.dailySpend.days ?? 30
+    const cutoffIso = toIso(new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - histDays))
+    const todayIso = toIso(today0)
+    const EXCLUDED_TYPES = new Set(['opening_balance', 'balance_adjustment', 'credit_card_payment', 'cc_opening_balance', 'cc_balance_adjustment', 'savings_contribution', 'borrowing_given', 'borrowing_repayment', 'income', 'transfer'])
+    const EXCLUDED_GROUPS = new Set(['Income', 'Transfer', 'Borrowings', 'Adjustments', 'Savings'])
+    const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
+    const txns = state.transactions
+      .filter(t => {
+        if (t.transaction_date < cutoffIso || t.transaction_date > todayIso) return false
+        if (EXCLUDED_TYPES.has(t.transaction_type)) return false
+        const cat = catMap[t.category_id ?? '']
+        if (cat && EXCLUDED_GROUPS.has(cat.group_name)) return false
+        return t.amount > 0
+      })
+      .sort((a, b) => a.transaction_date < b.transaction_date ? 1 : -1)
+
+    return { type: 'historical' as const, txns, histDays }
+  }, [lifestyleForecast, state, d])
 
   const resetPeForm = () => { setPeTitle(''); setPeAmount(''); setPeDate(''); setPeCategoryId(''); setPeEditId(null); setPeAdding(false) }
 
@@ -326,7 +318,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ font: `800 20px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>Cash Flow Forecast</div>
-            <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 1 }}>Next {days} days · {mode === 'lifestyle' ? 'includes daily spending' : 'known events only'}</div>
+            <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 1 }}>Next {days} days · {mode === 'lifestyle' ? 'known events + estimated daily spending' : 'known events only'}</div>
           </div>
         </div>
       </div>
@@ -340,67 +332,139 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
         </div>
 
         {/* Mode Toggle */}
-        <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3, marginBottom: 14 }}>
-          {(['planned', 'lifestyle'] as const).map(m => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              style={{
-                flex: 1, border: 'none', cursor: 'pointer', borderRadius: 10, padding: '10px 0',
-                font: `700 13px ${F}`,
-                background: mode === m ? c.bg : 'transparent',
-                color: mode === m ? c.ink : c.muted,
-                boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.2s',
-              }}
-            >
-              {m === 'planned' ? 'Planned' : 'Lifestyle'}
-              {m === 'lifestyle' && <span style={{ font: `600 9px ${F}`, color: c.accent, marginLeft: 4, verticalAlign: 'super' }}>BETA</span>}
-            </button>
-          ))}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', background: c.surface2, borderRadius: 12, padding: 3 }}>
+            {(['planned', 'lifestyle'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                style={{
+                  flex: 1, border: 'none', cursor: 'pointer', borderRadius: 10, padding: '10px 0',
+                  font: `700 13px ${F}`,
+                  background: mode === m ? c.bg : 'transparent',
+                  color: mode === m ? c.ink : c.muted,
+                  boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {m === 'planned' ? 'Planned' : 'Smart'}
+                {m === 'lifestyle' && <span style={{ font: `600 9px ${F}`, color: c.accent, marginLeft: 4, verticalAlign: 'super' }}>BETA</span>}
+              </button>
+            ))}
+          </div>
+          <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 6, textAlign: 'center' }}>
+            {mode === 'planned' ? 'Only known future events' : 'Known events + estimated daily spending'}
+          </div>
         </div>
 
-        {/* Lifestyle Summary Card */}
-        {mode === 'lifestyle' && lifestyleForecast && lifestyleForecast.dailySpend.source && (
-          <div style={{ background: `${c.accent}10`, border: `1.5px solid ${c.accent}30`, borderRadius: 16, padding: 16, marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-              <div>
-                <div style={{ font: `700 11px ${F}`, color: c.accent, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Est. Daily Spend</div>
-                <div style={{ font: `800 26px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>{fmt(lifestyleForecast.dailySpend.amount)}<span style={{ font: `600 13px ${F}`, color: c.muted }}>/day</span></div>
+        {/* Smart Forecast Summary Cards */}
+        {mode === 'lifestyle' && lifestyleForecast && lifestyleForecast.dailySpend.source && (() => {
+          const ds = lifestyleForecast.dailySpend
+          const riskColor = lifestyleForecast.risk === 'critical' || lifestyleForecast.risk === 'risk' ? c.bad : lifestyleForecast.risk === 'tight' ? c.warn : c.good
+          const riskMsg = lifestyleForecast.risk === 'healthy' ? 'Cash flow looks healthy'
+            : lifestyleForecast.risk === 'tight' ? 'Getting tight — watch spending'
+            : lifestyleForecast.risk === 'risk' ? 'May run short — recovery expected'
+            : 'Cash flow at risk — no recovery in sight'
+          const sourceDesc = ds.source === 'hybrid'
+            ? `${Math.round((ds.historyWeight ?? 0) * 100)}% Recent Spending · ${Math.round((1 - (ds.historyWeight ?? 0)) * 100)}% Budget Strategy`
+            : ds.source === 'historical' ? `Based on your last ${ds.days ?? 30} days`
+            : 'Based on budget strategy'
+          const rec = lifestyleForecast.recommendation
+          const showRec = rec && ds.source !== 'budget_strategy'
+          return (
+            <>
+              {/* Card 1: Forecast Daily Spending */}
+              <div style={{ background: `${c.accent}10`, border: `1.5px solid ${c.accent}30`, borderRadius: 16, padding: 16, marginBottom: showRec ? 8 : 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ font: `700 11px ${F}`, color: c.accent, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Forecast Daily Spending</div>
+                    <div style={{ font: `800 26px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>{fmt(ds.amount)}<span style={{ font: `600 13px ${F}`, color: c.muted }}>/day</span></div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ font: `700 11px ${F}`, color: c.accent, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Safe Until</div>
+                    <div style={{ font: `800 18px ${F}`, color: riskColor }}>{lifestyleForecast.safeUntilLabel}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: riskColor }} />
+                  <span style={{ font: `700 12px ${F}`, color: riskColor }}>{riskMsg}</span>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ font: `600 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 4 }}>Based on:</div>
+                  {(ds.source === 'hybrid' || ds.source === 'historical') && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      <span style={{ font: `600 11px ${F}`, color: c.ink }}>Recent spending{ds.days ? ` (${ds.days} days)` : ''}</span>
+                    </div>
+                  )}
+                  {(ds.source === 'hybrid' || ds.source === 'budget_strategy') && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      <span style={{ font: `600 11px ${F}`, color: c.ink }}>Your budget plan</span>
+                    </div>
+                  )}
+                </div>
+                {ds.confidence && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                    <span style={{ font: `600 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Confidence</span>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      {['low', 'medium', 'high', 'very_high'].map((lvl, i) => {
+                        const filled = ['low', 'medium', 'high', 'very_high'].indexOf(ds.confidence!) >= i
+                        return <div key={lvl} style={{ width: 14, height: 4, borderRadius: 2, background: filled ? c.accent : `${c.muted}30` }} />
+                      })}
+                    </div>
+                    <span style={{ font: `600 10px ${F}`, color: c.ink, textTransform: 'capitalize' }}>{ds.confidence.replace('_', ' ')}</span>
+                  </div>
+                )}
+                <div style={{ font: `500 11px ${F}`, color: c.muted, marginTop: 6, lineHeight: 1.4 }}>
+                  This forecast assumes you continue spending around {fmt(ds.amount)}/day.
+                </div>
+                {ds.source === 'hybrid' && ds.historyAmount != null && ds.budgetAmount != null && (
+                  <details style={{ marginTop: 8 }}>
+                    <summary style={{ font: `600 10px ${F}`, color: c.accent, cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                      Why this forecast?
+                    </summary>
+                    <div style={{ marginTop: 6, padding: '8px 10px', background: c.surface2, borderRadius: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                        <span style={{ font: `500 11px ${F}`, color: c.muted }}>History average</span>
+                        <span style={{ font: `600 11px ${F}`, color: c.ink }}>{fmt(ds.historyAmount)}/day</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                        <span style={{ font: `500 11px ${F}`, color: c.muted }}>Budget recommendation</span>
+                        <span style={{ font: `600 11px ${F}`, color: c.ink }}>{fmt(ds.budgetAmount)}/day</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0 0', borderTop: `1px solid ${c.faint}`, marginTop: 3 }}>
+                        <span style={{ font: `600 11px ${F}`, color: c.ink }}>Forecast</span>
+                        <span style={{ font: `700 11px ${F}`, color: c.accent }}>{fmt(ds.amount)}/day</span>
+                      </div>
+                    </div>
+                  </details>
+                )}
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ font: `700 11px ${F}`, color: c.accent, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Safe Until</div>
-                <div style={{ font: `800 18px ${F}`, color: lifestyleForecast.risk === 'risk' ? c.bad : lifestyleForecast.risk === 'watch' ? c.warn : c.good }}>{lifestyleForecast.safeUntilLabel}</div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: 999, flexShrink: 0,
-                background: lifestyleForecast.risk === 'risk' ? c.bad : lifestyleForecast.risk === 'watch' ? c.warn : c.good,
-              }} />
-              <span style={{
-                font: `700 12px ${F}`,
-                color: lifestyleForecast.risk === 'risk' ? c.bad : lifestyleForecast.risk === 'watch' ? c.warn : c.good,
-              }}>
-                {lifestyleForecast.risk === 'safe' ? 'Cash flow looks healthy' : lifestyleForecast.risk === 'watch' ? 'Getting tight — watch spending' : 'May run short — reduce spending'}
-              </span>
-            </div>
-            {lifestyleForecast.dailySpend.breakdown && (
-              <div style={{ display: 'flex', gap: 12, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.accent}20` }}>
-                <div style={{ font: `600 11px ${F}`, color: c.muted }}>Needs <span style={{ font: `700 11px ${F}`, color: c.ink }}>{fmt(lifestyleForecast.dailySpend.breakdown.needs)}</span></div>
-                <div style={{ font: `600 11px ${F}`, color: c.muted }}>Wants <span style={{ font: `700 11px ${F}`, color: c.ink }}>{fmt(lifestyleForecast.dailySpend.breakdown.wants)}</span></div>
-              </div>
-            )}
-            <div style={{ font: `600 10px ${F}`, color: c.muted, marginTop: 8 }}>
-              Based on: {lifestyleForecast.dailySpend.source === 'budget_strategy' ? 'Budget Strategy' : 'Last 30 Days'}
-            </div>
-          </div>
-        )}
+
+              {/* Card 2: Recommended Daily Spending (budget guidance) */}
+              {showRec && (
+                <div style={{ background: c.surface2, borderRadius: 16, padding: 14, marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Recommended Daily Spending</div>
+                    <span style={{ font: `800 18px ${F}`, color: c.ink }}>{fmt(rec.amount)}<span style={{ font: `500 11px ${F}`, color: c.muted }}>/day</span></span>
+                  </div>
+                  <div style={{ font: `500 11px ${F}`, color: c.muted, marginBottom: 6 }}>Based on remaining budget · {rec.daysRemaining} day{rec.daysRemaining === 1 ? '' : 's'} left</div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ font: `600 11px ${F}`, color: c.muted }}>Needs <span style={{ font: `700 11px ${F}`, color: c.ink }}>{fmt(rec.needsDaily)}</span></div>
+                    <div style={{ font: `600 11px ${F}`, color: c.muted }}>Wants <span style={{ font: `700 11px ${F}`, color: c.ink }}>{fmt(rec.wantsDaily)}</span></div>
+                  </div>
+                </div>
+              )}
+            </>
+          )
+        })()}
 
         {mode === 'lifestyle' && lifestyleForecast && !lifestyleForecast.dailySpend.source && (
           <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 14 }}>
-            <div style={{ font: `700 13px ${F}`, color: c.ink, marginBottom: 4 }}>Lifestyle Forecast needs data</div>
-            <div style={{ font: `600 12px ${F}`, color: c.muted, lineHeight: 1.5 }}>Set up a Budget Strategy or record at least a few days of spending to enable lifestyle projections.</div>
+            <div style={{ font: `700 13px ${F}`, color: c.ink, marginBottom: 4 }}>Not enough data yet</div>
+            <div style={{ font: `600 12px ${F}`, color: c.muted, lineHeight: 1.5 }}>Continue tracking expenses for a few weeks or set up a Budget Strategy to enable Smart Forecast.</div>
           </div>
         )}
 
@@ -409,58 +473,107 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           <button onClick={onSetup} style={{ flex: 1, background: c.surface2, color: c.ink, border: 'none', borderRadius: 12, padding: '11px', font: `700 13px ${F}`, cursor: 'pointer' }}>Edit Forecast</button>
         </div>
 
-        {/* Status / lowest + warning causes */}
-        <div style={{ background: toneSoft, borderRadius: 16, padding: 16, marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ font: `700 12px ${F}`, color: toneColor, display: 'flex', alignItems: 'center' }}>Lowest Balance<InfoTip id="lowest" text="The minimum your balance will reach after all known upcoming events. If negative, you may run short before next income." openId={openInfoId} setOpenId={setOpenInfoId} color={toneColor} /></span>
-            <span style={{ font: `800 20px ${F}`, color: toneColor }}>{fmt(lowestBalance)}</span>
-          </div>
-          <div style={{ marginTop: 6, font: `700 13px ${F}`, color: toneColor }}>
-            {message}{lowestBalanceDate && health !== 'healthy' ? ` · around ${shortDate(lowestBalanceDate)}` : ''}
-          </div>
-          {salaryDays != null && (pattern === 'monthly' || pattern === 'weekly') && (
-            <div style={{ marginTop: 4, font: `600 13px ${F}`, color: c.muted }}>
-              {pattern === 'monthly' ? 'Next salary' : 'Next income'} in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
-            </div>
-          )}
-          {health !== 'healthy' && topCauses.length > 0 && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${toneColor}22` }}>
-              <div style={{ font: `700 11px ${F}`, color: toneColor, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Main causes</div>
-              {topCauses.map((dr, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: 999, background: toneColor, flexShrink: 0 }} />
-                  <span style={{ flex: 1, font: `600 13px ${F}`, color: toneColor }}>{dr.title}</span>
-                  <span style={{ font: `700 13px ${F}`, color: toneColor }}>{fmt(dr.amount)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {recoveryDate && recoveryBalance != null && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ font: `700 12px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Recovery Date<InfoTip id="recovery" text="The date your balance returns to positive after going negative. Usually after income credit." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
-                <span style={{ font: `800 14px ${F}`, color: c.good }}>{shortDate(recoveryDate)}</span>
+        {/* Forecast Status */}
+        {projections.length > 0 && (() => {
+          const lf = mode === 'lifestyle' && lifestyleForecast ? lifestyleForecast : null
+          const statusRisk = lf ? lf.risk : (health === 'critical' ? 'risk' : health === 'warning' ? 'tight' : 'healthy')
+          const statusColor = statusRisk === 'risk' || statusRisk === 'critical' ? c.bad : statusRisk === 'tight' ? c.warn : c.good
+          const statusMsg = statusRisk === 'healthy' ? 'Safe throughout forecast'
+            : statusRisk === 'tight' ? 'Cash buffer is getting low'
+            : statusRisk === 'critical' ? 'You may run out of money'
+            : 'You may run short'
+          return (
+            <div style={{ background: `${statusColor}10`, border: `1.5px solid ${statusColor}25`, borderRadius: 16, padding: 16, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 999, background: statusColor }} />
+                <span style={{ font: `800 14px ${F}`, color: statusColor, textTransform: 'capitalize' }}>{statusRisk}</span>
               </div>
-              <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>After Income Credit · Balance {fmt(recoveryBalance)}</div>
+              <div style={{ font: `600 13px ${F}`, color: c.ink, marginBottom: 10 }}>{statusMsg}</div>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div>
+                  <div style={{ font: `600 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 2 }}>Lowest Balance</div>
+                  <div style={{ font: `800 18px ${F}`, color: statusColor }}>{fmt(lowestBalance)}</div>
+                  {lowestBalanceDate && statusRisk !== 'healthy' && (
+                    <div style={{ font: `500 10px ${F}`, color: c.muted, marginTop: 1 }}>Expected {shortDate(lowestBalanceDate)}</div>
+                  )}
+                </div>
+                <div>
+                  <div style={{ font: `600 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 2 }}>Recovery</div>
+                  {recoveryDate ? (
+                    <>
+                      <div style={{ font: `800 18px ${F}`, color: c.good }}>{shortDate(recoveryDate)}</div>
+                      <div style={{ font: `500 10px ${F}`, color: c.muted, marginTop: 1 }}>After {pattern === 'monthly' ? 'salary' : 'income'}</div>
+                    </>
+                  ) : (
+                    <div style={{ font: `700 14px ${F}`, color: statusColor === c.good ? c.good : c.muted }}>{statusRisk === 'healthy' ? 'Not needed' : 'None in forecast'}</div>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
-          {health === 'healthy' && projections.length > 0 && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${toneColor}22`, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-              <span style={{ font: `700 12px ${F}`, color: c.good }}>Cash Flow Remains Positive</span>
-            </div>
-          )}
-        </div>
+          )
+        })()}
 
-        {/* Forecast Outcome */}
+        {/* Forecast Health */}
+        {projections.length > 0 && (() => {
+          const lf2 = mode === 'lifestyle' && lifestyleForecast ? lifestyleForecast : null
+          const riskLevel = lf2 ? lf2.risk : (health === 'critical' ? 'risk' : health === 'warning' ? 'tight' : 'healthy')
+          const riskColor = riskLevel === 'risk' || riskLevel === 'critical' ? c.bad : riskLevel === 'tight' ? c.warn : c.good
+          const daysToDeficit = lowestBalanceDate ? daysUntil(lowestBalanceDate) : days
+          let suggestion: string
+          if (lowestBalance < 0 && daysToDeficit > 0) {
+            const reduceBy = Math.ceil(Math.abs(lowestBalance) / daysToDeficit)
+            suggestion = `Reduce spending by ~${fmt(reduceBy)}/day for the next ${daysToDeficit} days to stay positive`
+          } else if (riskLevel === 'tight') {
+            suggestion = 'Watch discretionary spending — buffer is thin'
+          } else {
+            suggestion = 'Cash flow looks healthy — no action needed'
+          }
+          return (
+            <div style={{ background: c.surface2, borderRadius: 16, padding: 14, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 999, background: riskColor }} />
+                <span style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Forecast Health</span>
+              </div>
+              {topCauses.length > 0 && riskLevel !== 'healthy' && (
+                <div style={{ font: `600 12px ${F}`, color: c.muted, marginBottom: 4 }}>
+                  Reason: {topCauses[0].title} ({fmt(topCauses[0].amount)})
+                </div>
+              )}
+              <div style={{ font: `600 12px ${F}`, color: riskColor, lineHeight: 1.4 }}>{suggestion}</div>
+            </div>
+          )
+        })()}
+
+        {/* Cash Flow Graph */}
+        {projections.length > 0 && (
+          <CashFlowGraph
+            projections={projections}
+            currentBalance={currentBalance}
+            lowestBalance={lowestBalance}
+            lowestBalanceDate={lowestBalanceDate}
+            recoveryDate={recoveryDate}
+            recoveryBalance={recoveryBalance}
+            nextSalaryDate={nextSalaryDate}
+            onPointTap={(idx) => {
+              const el = document.getElementById(`tl-${idx}`)
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                el.style.background = `${c.accent}15`
+                setTimeout(() => { el.style.background = '' }, 2000)
+              }
+            }}
+          />
+        )}
+
+        {/* Forecast Summary */}
         {forecastOutcome && (
-          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: (projectedBudget?.buckets || strategyData) ? 0 : 24 }}>
+          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 14 }}>
             <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center' }}>
-              Forecast Outcome<InfoTip id="outcome" text="Summary of money coming in and going out during the forecast period. Shows income, debt payments, planned expenses, and what remains." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} />
+              Forecast Summary<InfoTip id="outcome" text="Summary of money coming in and going out during the forecast period." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} />
             </div>
             {forecastOutcome.income > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                <span style={{ font: `600 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Income Received<InfoTip id="income" text="Expected income based on your history or settings." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                <span style={{ font: `600 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Income<InfoTip id="income" text="Expected income during the forecast period." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `700 14px ${F}`, color: c.good }}>{fmt(forecastOutcome.income)}</span>
               </div>
             )}
@@ -471,7 +584,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', cursor: 'pointer' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ font: `600 13px ${F}`, color: c.ink }}>Debt & Liability Payments<InfoTip id="debt" text="Credit card bills, borrowing repayments, and prized chit dues. These are obligations that must be paid." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                    <span style={{ font: `600 13px ${F}`, color: c.ink }}>Expenses<InfoTip id="debt" text="Bills and repayments you owe — credit cards, borrowings, and chit dues." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: debtExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
                       <polyline points="6 9 12 15 18 9" />
                     </svg>
@@ -533,12 +646,24 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                 )}
               </>
             )}
+            {forecastOutcome.commitmentTotal > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                <span style={{ font: `600 13px ${F}`, color: c.ink }}>Bills & Commitments</span>
+                <span style={{ font: `700 14px ${F}`, color: c.bad }}>{fmt(forecastOutcome.commitmentTotal)}</span>
+              </div>
+            )}
+            {forecastOutcome.savingsTotal > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                <span style={{ font: `600 13px ${F}`, color: c.ink }}>Savings Contributions</span>
+                <span style={{ font: `700 14px ${F}`, color: '#8B5CF6' }}>{fmt(forecastOutcome.savingsTotal)}</span>
+              </div>
+            )}
             <div
               onClick={() => setPlannedExpanded(!plannedExpanded)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', cursor: 'pointer' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ font: `600 13px ${F}`, color: c.ink }}>Planned Expenses<InfoTip id="planned" text="One-time future spending you know about — bike repairs, school fees, vacations. Tap to manage." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                <span style={{ font: `600 13px ${F}`, color: c.ink }}>Planned Expenses<InfoTip id="planned" text="Future spending you know about — things like repairs, school fees, trips." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: plannedExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
                   <polyline points="6 9 12 15 18 9" />
                 </svg>
@@ -611,127 +736,166 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                 )}
               </div>
             )}
-            {forecastOutcome.income > 0 && (forecastOutcome.debt > 0 || forecastOutcome.plannedTotal > 0) && (
+            {forecastOutcome.lifestyleTotal > 0 && (
+              <>
+                <div
+                  onClick={() => setLifestyleExpanded(!lifestyleExpanded)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ font: `600 13px ${F}`, color: c.ink }}>Estimated Daily Spending<InfoTip id="lifestyle" text="Estimated everyday spending based on your budget strategy or recent spending history." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: lifestyleExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                  <span style={{ font: `700 14px ${F}`, color: c.warn }}>{fmt(forecastOutcome.lifestyleTotal)}</span>
+                </div>
+                <div style={{ font: `500 11px ${F}`, color: c.muted, marginTop: -2, marginBottom: 2 }}>~{fmt(forecastOutcome.lifestyleDaily)}/day x {forecastOutcome.lifestyleDays} days · {lifestyleForecast?.dailySpend.source === 'hybrid' ? 'hybrid forecast' : lifestyleForecast?.dailySpend.source === 'historical' ? `from last ${lifestyleForecast?.dailySpend.days ?? 30} days` : 'from budget strategy'}</div>
+                {lifestyleExpanded && lifestyleDetail && lifestyleDetail.type === 'budget_strategy' && (
+                  <div style={{ padding: '6px 0 4px' }}>
+                    <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>
+                      How this is calculated · {lifestyleDetail.strategy}
+                    </div>
+                    {[
+                      { label: 'Needs', target: lifestyleDetail.needsTarget, spent: lifestyleDetail.needsSpent, remaining: lifestyleDetail.needsRemaining, daily: lifestyleDetail.needsDaily },
+                      { label: 'Wants', target: lifestyleDetail.wantsTarget, spent: lifestyleDetail.wantsSpent, remaining: lifestyleDetail.wantsRemaining, daily: lifestyleDetail.wantsDaily },
+                    ].map(row => (
+                      <div key={row.label} style={{ marginBottom: 10, padding: '8px 10px', background: c.bg, borderRadius: 10 }}>
+                        <div style={{ font: `700 12px ${F}`, color: c.ink, marginBottom: 6 }}>{row.label}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                          <span style={{ font: `500 11px ${F}`, color: c.muted }}>Budget</span>
+                          <span style={{ font: `600 11px ${F}`, color: c.ink }}>{fmt(row.target)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                          <span style={{ font: `500 11px ${F}`, color: c.muted }}>Spent so far</span>
+                          <span style={{ font: `600 11px ${F}`, color: c.bad }}>-{fmt(row.spent)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0 0', borderTop: `1px solid ${c.faint}`, marginTop: 3 }}>
+                          <span style={{ font: `600 11px ${F}`, color: c.ink }}>Remaining</span>
+                          <span style={{ font: `700 11px ${F}`, color: c.ink }}>{fmt(row.remaining)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                          <span style={{ font: `500 11px ${F}`, color: c.muted }}>÷ {lifestyleDetail.daysRemaining} days left</span>
+                          <span style={{ font: `700 11px ${F}`, color: c.warn }}>{fmt(row.daily)}/day</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0 2px', borderTop: `1px solid ${c.faint}` }}>
+                      <span style={{ font: `700 11px ${F}`, color: c.ink }}>Total daily estimate</span>
+                      <span style={{ font: `700 12px ${F}`, color: c.warn }}>{fmt(lifestyleDetail.needsDaily + lifestyleDetail.wantsDaily)}/day</span>
+                    </div>
+                  </div>
+                )}
+                {lifestyleExpanded && lifestyleDetail && lifestyleDetail.type === 'historical' && (
+                  <div style={{ padding: '6px 0 4px', maxHeight: 320, overflowY: 'auto' }}>
+                    <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6 }}>
+                      Transactions from last {lifestyleForecast?.dailySpend.days ?? 30} days ({lifestyleDetail.txns.length})
+                    </div>
+                    {lifestyleDetail.txns.length === 0 && (
+                      <div style={{ font: `600 12px ${F}`, color: c.muted, fontStyle: 'italic', padding: '4px 0' }}>No matching transactions</div>
+                    )}
+                    {lifestyleDetail.txns.map((t, i) => {
+                      const cat = t.category_id ? state.categories.find(cc => cc.id === t.category_id) : null
+                      return (
+                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: i < lifestyleDetail.txns.length - 1 ? `1px solid ${c.faint}` : 'none' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ font: `600 12px ${F}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description || cat?.name || 'Expense'}</div>
+                            <div style={{ font: `500 10px ${F}`, color: c.muted }}>{new Date(t.transaction_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}{cat ? ` · ${cat.name}` : ''}</div>
+                          </div>
+                          <span style={{ font: `700 12px ${F}`, color: c.ink, flexShrink: 0, marginLeft: 8 }}>{fmt(t.amount)}</span>
+                        </div>
+                      )
+                    })}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', marginTop: 4, borderTop: `1px solid ${c.faint}` }}>
+                      <span style={{ font: `700 11px ${F}`, color: c.muted }}>Total ÷ {lifestyleDetail.histDays} days</span>
+                      <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(lifestyleDetail.txns.reduce((s, t) => s + t.amount, 0))} → {fmt(Math.round(lifestyleDetail.txns.reduce((s, t) => s + t.amount, 0) / lifestyleDetail.histDays))}/day</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            {forecastOutcome.income > 0 && (forecastOutcome.debt > 0 || forecastOutcome.commitmentTotal > 0 || forecastOutcome.savingsTotal > 0 || forecastOutcome.plannedTotal > 0 || forecastOutcome.lifestyleTotal > 0) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', marginTop: 4, borderTop: `1px dashed ${c.faint}` }}>
-                <span style={{ font: `700 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Potential Available<InfoTip id="potavail" text="Income minus all debt payments and planned expenses. This is what remains for daily spending, savings, and unplanned needs." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                <span style={{ font: `700 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Remaining Balance<InfoTip id="potavail" text="What remains after all expected income, bills, and spending. This is your projected surplus or shortfall." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `800 14px ${F}`, color: forecastOutcome.available >= 0 ? c.good : c.bad }}>{fmt(forecastOutcome.available)}</span>
               </div>
             )}
           </div>
         )}
 
-        {/* Projected Budget Completion */}
-        {(projectedBudget?.buckets || strategyData) && (
-          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 24, marginTop: forecastOutcome ? 2 : 0, borderTop: forecastOutcome ? `1px solid ${c.faint}` : 'none', borderTopLeftRadius: forecastOutcome ? 0 : 16, borderTopRightRadius: forecastOutcome ? 0 : 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-              <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center' }}>
-                Projected Budget Completion<InfoTip id="budgetproj" text="Shows how known upcoming items (commitments, savings plans, planned expenses) align with your budget strategy targets. Only forecast items — not past spending." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} />
-              </div>
-              <div style={{ display: 'flex', background: c.faint, borderRadius: 8, padding: 2 }}>
-                {(['current', 'next'] as const).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setBudgetPeriod(p)}
-                    style={{
-                      font: `700 10px ${F}`, border: 'none', cursor: 'pointer',
-                      padding: '4px 10px', borderRadius: 6,
-                      background: budgetPeriod === p ? c.surface : 'transparent',
-                      color: budgetPeriod === p ? c.ink : c.muted,
-                      boxShadow: budgetPeriod === p ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                    }}
-                  >
-                    {p === 'current' ? 'This Cycle' : 'Next Cycle'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {projectedBudget && (
-              <div style={{ font: `600 11px ${F}`, color: c.muted, marginBottom: 6 }}>
-                {shortDate(projectedBudget.periodStart)} — {shortDate(projectedBudget.periodEnd)}
-              </div>
-            )}
-            {!projectedBudget?.buckets && (
-              <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '8px 0', fontStyle: 'italic' }}>No known items for this cycle</div>
-            )}
-            {projectedBudget?.buckets?.map(({ label, pct, color, spending, target, targetPct, projected, currentSpend, items }) => {
-              const ok = spending ? pct <= 100 : pct >= 100
-              const expanded = expandedBucket === label
-              const diff = Math.abs(projected - target)
-              const status = spending
-                ? (pct <= 100 ? 'On Track' : `Over by ${fmt(diff)}`)
-                : (pct >= 100 ? 'On Track' : `Behind Target by ${fmt(diff)}`)
+        {/* Budget Progress */}
+        {strategyData && (
+          <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 14 }}>
+            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>Budget Progress</div>
+            {([
+              { label: 'Needs', spent: strategyData.actuals.needs, target: strategyData.targets.needs, color: '#3B82F6' },
+              { label: 'Wants', spent: strategyData.actuals.wants, target: strategyData.targets.wants, color: '#F97316' },
+              { label: 'Savings', spent: strategyData.actuals.savings, target: strategyData.targets.savings, color: c.accent },
+            ] as const).map(row => {
+              const remaining = Math.max(0, row.target - row.spent)
+              const exhausted = row.spent >= row.target
+              const pct = row.target > 0 ? Math.min(100, Math.round(row.spent / row.target * 100)) : 0
               return (
-                <div key={label}>
-                  <div
-                    onClick={() => setExpandedBucket(expanded ? null : label)}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 2px', cursor: 'pointer' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }} />
-                      <span style={{ font: `700 14px ${F}`, color: c.ink }}>{label} <span style={{ font: `600 11px ${F}`, color: c.muted }}>({targetPct}%)</span></span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ font: `800 15px ${F}`, color: ok ? c.good : c.warn }}>{pct}%</span>
-                      <span style={{ color: ok ? c.good : c.warn, display: 'flex', alignItems: 'center' }}>{ok ? <Check size={14} /> : <AlertTriangle size={14} />}</span>
-                    </div>
+                <div key={row.label} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
+                    <span style={{ font: `700 13px ${F}`, color: c.ink }}>{row.label}</span>
+                    <span style={{ font: `700 13px ${F}`, color: exhausted ? c.warn : c.ink }}>{exhausted ? 'Budget exhausted' : `${fmt(remaining)} remaining`}</span>
                   </div>
-                  {!expanded && (
-                    <div style={{ padding: '0 0 8px 18px', font: `600 11px ${F}`, color: ok ? c.good : c.warn, borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
-                      {ok ? <Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />} {status}
-                    </div>
-                  )}
-                  {expanded && (() => {
-                    const itemTotal = items.reduce((s, it) => s + it.amount, 0)
-                    const showCurrentSpend = projectedBudget!.isCurrent && currentSpend > 0
-                    return (
-                      <div style={{ padding: '4px 0 10px 18px', borderBottom: label !== 'Savings' ? `1px solid ${c.faint}` : 'none' }}>
-                        {showCurrentSpend && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
-                            <span style={{ font: `600 12px ${F}`, color: c.muted }}>{spending ? 'Spent so far' : 'Saved so far'}</span>
-                            <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(currentSpend)}</span>
-                          </div>
-                        )}
-                        {items.map((item, i) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
-                            <span style={{ font: `600 12px ${F}`, color: c.ink }}>+ {item.title}</span>
-                            <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(item.amount)}</span>
-                          </div>
-                        ))}
-                        {!showCurrentSpend && items.length === 0 && (
-                          <div style={{ font: `600 12px ${F}`, color: c.muted, padding: '5px 0', fontStyle: 'italic' }}>Nothing planned in this period</div>
-                        )}
-                        {(showCurrentSpend || items.length > 1) && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0 0', marginTop: 4, borderTop: `1px solid ${c.faint}` }}>
-                            <span style={{ font: `700 12px ${F}`, color: c.ink }}>Projected</span>
-                            <span style={{ font: `700 12px ${F}`, color: c.ink }}>{fmt(projected)}</span>
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 0', marginTop: (!showCurrentSpend && items.length <= 1) ? 4 : 0, borderTop: (!showCurrentSpend && items.length <= 1) ? `1px solid ${c.faint}` : 'none' }}>
-                          <span style={{ font: `600 12px ${F}`, color: c.muted }}>Target</span>
-                          <span style={{ font: `700 12px ${F}`, color: c.muted }}>{fmt(target)}</span>
-                        </div>
-                        {diff > 0 && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 0' }}>
-                            <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn, display: 'inline-flex', alignItems: 'center', gap: 4 }}>{ok ? <Check size={12} /> : <AlertTriangle size={12} />} {status}</span>
-                            <span style={{ font: `700 12px ${F}`, color: ok ? c.good : c.warn }}>{spending ? (ok ? '' : `+${fmt(diff)}`) : (ok ? `+${fmt(diff)}` : `−${fmt(diff)}`)}</span>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
+                  <div style={{ height: 6, borderRadius: 3, background: c.faint, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 3, background: exhausted ? c.warn : row.color, width: `${Math.min(100, pct)}%`, transition: 'width 0.3s' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                    <span style={{ font: `500 10px ${F}`, color: c.muted }}>Spent {fmt(row.spent)}</span>
+                    <span style={{ font: `500 10px ${F}`, color: c.muted }}>Target {fmt(row.target)}</span>
+                  </div>
                 </div>
               )
             })}
           </div>
         )}
 
-        {/* Forecast Drivers */}
+        {/* Upcoming Payments */}
+        {(() => {
+          const upcoming = projections
+            .filter(p => p.event.type === 'expense' && (p.event.source === 'commitment' || p.event.source === 'card' || (p.event.source === 'saving' && !p.event.is_prized) || p.event.source === 'planned'))
+            .sort((a, b) => a.event.date !== b.event.date ? (a.event.date < b.event.date ? -1 : 1) : b.event.amount - a.event.amount)
+            .slice(0, 6)
+          if (upcoming.length === 0) return null
+          const badge = (src: string) => {
+            if (src === 'card') return { label: 'Credit Card', color: '#EF4444' }
+            if (src === 'saving') return { label: 'Savings', color: '#8B5CF6' }
+            if (src === 'planned') return { label: 'Planned', color: '#F97316' }
+            return { label: 'Bill', color: '#3B82F6' }
+          }
+          return (
+            <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 14 }}>
+              <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>Upcoming Payments</div>
+              {upcoming.map((p, i) => {
+                const b = badge(p.event.source)
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < upcoming.length - 1 ? `1px solid ${c.faint}` : 'none' }}>
+                    <div style={{ width: 6, height: 6, borderRadius: 999, background: b.color, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ font: `700 13px ${F}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.event.title}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
+                        <span style={{ font: `600 9px ${F}`, color: b.color, background: `${b.color}15`, padding: '1px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{b.label}</span>
+                        <span style={{ font: `500 10px ${F}`, color: c.muted }}>{shortDate(p.event.date)}</span>
+                      </div>
+                    </div>
+                    <span style={{ font: `800 14px ${F}`, color: c.ink, flexShrink: 0 }}>{fmt(p.event.amount)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+        {/* What's Causing This? */}
         {drivers.length > 0 && (
           <div style={{ background: c.surface2, borderRadius: 16, padding: 16, marginBottom: 24 }}>
-            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center' }}>Forecast Drivers<InfoTip id="drivers" text="The largest upcoming expenses in your forecast, ranked by amount. These have the biggest impact on your cash flow." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></div>
+            <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 12, display: 'flex', alignItems: 'center' }}>What's Causing This?<InfoTip id="drivers" text="The largest upcoming expenses in your forecast. These have the biggest impact on your cash flow." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></div>
             {drivers.map((dr, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < drivers.length - 1 ? `1px solid ${c.faint}` : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
@@ -804,7 +968,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                           </div>
                           <div style={{ font: `500 10px ${F}`, color: c.muted, marginTop: 1 }}>{item.dateRange} · projection</div>
                           <div style={{ marginTop: 6, padding: '5px 10px', borderRadius: 8, background: c.surface2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ font: `500 10px ${F}`, color: c.muted, letterSpacing: '0.02em', textTransform: 'uppercase' }}>Balance after</span>
+                            <span style={{ font: `500 10px ${F}`, color: c.muted, letterSpacing: '0.02em', textTransform: 'uppercase' }}>Balance</span>
                             <span style={{ font: `700 12px ${F}`, color: balColor2 }}>{fmt(item.balanceAfter)}</span>
                           </div>
                         </div>
@@ -815,15 +979,16 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
 
                 const p = projections[item.idx]
                 const income = p.event.type === 'income'
+                const evColor = eventColor(p.event.source, c.muted)
                 const isLowest = !!lowestBalanceDate && p.event.date === lowestBalanceDate && p.balanceAfter === lowestBalance
                 const isRecovery = !!recoveryDate && p.event.date === recoveryDate && p.balanceAfter === recoveryBalance
                 const balColor = isLowest ? toneColor : isRecovery ? c.good : p.balanceAfter < 0 ? c.bad : c.ink
                 const balBg = isLowest ? toneSoft : isRecovery ? c.goodSoft : c.surface2
                 return (
-                  <div key={`e${ti}`}>
+                  <div key={`e${ti}`} id={`tl-${item.idx}`}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 8 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 999, background: income ? c.goodSoft : c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={income ? c.good : c.muted} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <div style={{ width: 34, height: 34, borderRadius: 999, background: `${evColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={evColor} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                           {income ? <><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></> : <><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>}
                         </svg>
                       </div>
@@ -837,7 +1002,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                         <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 1 }}>{shortDate(p.event.date)} · {p.event.source}</div>
                         <div style={{ marginTop: 8, padding: '7px 11px', borderRadius: 9, background: balBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ font: `600 11px ${F}`, color: isLowest ? toneColor : isRecovery ? c.good : c.muted, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                            {isLowest ? 'Lowest point' : isRecovery ? 'Back positive' : 'Balance after'}
+                            {isLowest ? 'Lowest' : isRecovery ? 'Recovery' : 'Balance'}
                           </span>
                           <span style={{ font: `800 14px ${F}`, color: balColor }}>{fmt(p.balanceAfter)}</span>
                         </div>
@@ -850,15 +1015,16 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
 
             return projections.map((p, i) => {
               const income = p.event.type === 'income'
+              const evColor = eventColor(p.event.source, c.muted)
               const isLowest = !!lowestBalanceDate && p.event.date === lowestBalanceDate && p.balanceAfter === lowestBalance
               const isRecovery = !!recoveryDate && p.event.date === recoveryDate && p.balanceAfter === recoveryBalance
               const balColor = isLowest ? toneColor : isRecovery ? c.good : p.balanceAfter < 0 ? c.bad : c.ink
               const balBg = isLowest ? toneSoft : isRecovery ? c.goodSoft : c.surface2
               return (
-                <div key={i}>
+                <div key={i} id={`tl-${i}`}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 8 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 999, background: income ? c.goodSoft : c.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={income ? c.good : c.muted} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <div style={{ width: 34, height: 34, borderRadius: 999, background: `${evColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={evColor} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                         {income ? <><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></> : <><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>}
                       </svg>
                     </div>
@@ -872,7 +1038,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                       <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 1 }}>{shortDate(p.event.date)} · {p.event.source}</div>
                       <div style={{ marginTop: 8, padding: '7px 11px', borderRadius: 9, background: balBg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ font: `600 11px ${F}`, color: isLowest ? toneColor : isRecovery ? c.good : c.muted, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                          {isLowest ? 'Lowest point' : isRecovery ? 'Back positive' : 'Balance after'}
+                          {isLowest ? 'Lowest' : isRecovery ? 'Recovery' : 'Balance'}
                         </span>
                         <span style={{ font: `800 14px ${F}`, color: balColor }}>{fmt(p.balanceAfter)}</span>
                       </div>
@@ -884,41 +1050,106 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           })()
         )}
 
-        {/* Disclaimer */}
-        <div style={{ marginTop: 28, padding: 16, borderRadius: 14, background: c.surface2 }}>
-          <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>What this forecast includes</div>
-          {[
-            pattern === 'monthly' ? 'Salary (when confidently known)' : pattern === 'weekly' ? 'Weekly income' : 'Projected income (when configured)',
-            'Commitments & bills',
-            'Credit-card bills due',
-            'Savings plan contributions',
-            'Borrowed money you owe (at next income)',
-            ...(mode === 'lifestyle' ? ['Estimated daily spending (projection)'] : []),
-          ].map(t => (
-            <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-              <span style={{ font: `600 13px ${F}`, color: c.ink }}>{t}</span>
-            </div>
-          ))}
-          <div style={{ height: 1, background: c.faint, margin: '12px 0' }} />
-          <div style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>Not included</div>
-          {(mode === 'lifestyle'
-            ? ['Future unplanned expenses']
-            : ['Daily / everyday spending', 'Future unplanned expenses']
-          ).map(t => (
-            <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-              <div style={{ width: 6, height: 6, borderRadius: 999, background: c.muted, flexShrink: 0, marginLeft: 4, marginRight: 5 }} />
-              <span style={{ font: `600 13px ${F}`, color: c.muted }}>{t}</span>
-            </div>
-          ))}
-          {mode === 'lifestyle' && (
-            <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 10, background: `${c.warn}10`, border: `1px solid ${c.warn}25` }}>
-              <div style={{ font: `600 11px ${F}`, color: c.warn, lineHeight: 1.5 }}>
-                Lifestyle mode uses estimated spending — actual results may vary. Switch to Planned mode for guaranteed-only projections.
+        {/* Forecast Confidence */}
+        {mode === 'lifestyle' && lifestyleForecast?.dailySpend.confidence && (
+          <details style={{ marginTop: 20, background: c.surface2, borderRadius: 14, overflow: 'hidden' }}>
+            <summary style={{ padding: 16, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Forecast Confidence</span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {['low', 'medium', 'high', 'very_high'].map((lvl, i) => {
+                    const filled = ['low', 'medium', 'high', 'very_high'].indexOf(lifestyleForecast.dailySpend.confidence!) >= i
+                    return <div key={lvl} style={{ width: 14, height: 4, borderRadius: 2, background: filled ? c.accent : `${c.muted}30` }} />
+                  })}
+                </div>
+                <span style={{ font: `700 11px ${F}`, color: c.ink, textTransform: 'capitalize' }}>{lifestyleForecast.dailySpend.confidence.replace('_', ' ')}</span>
               </div>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+            </summary>
+            <div style={{ padding: '0 16px 16px' }}>
+              <div style={{ font: `600 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Based on:</div>
+              {lifestyleForecast.dailySpend.days && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  <span style={{ font: `600 11px ${F}`, color: c.ink }}>{lifestyleForecast.dailySpend.days} days of spending history</span>
+                </div>
+              )}
+              {lifestyleForecast.dailySpend.budgetAmount != null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  <span style={{ font: `600 11px ${F}`, color: c.ink }}>Active budget strategy</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                <span style={{ font: `600 11px ${F}`, color: c.ink }}>Outlier protection (trimmed mean)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                <span style={{ font: `600 11px ${F}`, color: c.ink }}>Forecast smoothing</span>
+              </div>
+              {lifestyleForecast.dailySpend.source === 'hybrid' && lifestyleForecast.dailySpend.historyAmount != null && lifestyleForecast.dailySpend.budgetAmount != null && (
+                <div style={{ marginTop: 8, padding: '8px 10px', background: c.faint, borderRadius: 10 }}>
+                  <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 6 }}>Why this forecast?</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                    <span style={{ font: `500 11px ${F}`, color: c.muted }}>History average</span>
+                    <span style={{ font: `600 11px ${F}`, color: c.ink }}>{fmt(lifestyleForecast.dailySpend.historyAmount)}/day</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                    <span style={{ font: `500 11px ${F}`, color: c.muted }}>Budget recommendation</span>
+                    <span style={{ font: `600 11px ${F}`, color: c.ink }}>{fmt(lifestyleForecast.dailySpend.budgetAmount)}/day</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0 0', borderTop: `1px solid ${c.faint}`, marginTop: 3 }}>
+                    <span style={{ font: `600 11px ${F}`, color: c.ink }}>Hybrid forecast</span>
+                    <span style={{ font: `700 11px ${F}`, color: c.accent }}>{fmt(lifestyleForecast.dailySpend.amount)}/day</span>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </details>
+        )}
+
+        {/* About this Forecast */}
+        <details style={{ marginTop: 14, background: c.surface2, borderRadius: 14, overflow: 'hidden' }}>
+          <summary style={{ padding: 16, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ font: `700 11px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase' }}>About this Forecast</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+          </summary>
+          <div style={{ padding: '0 16px 16px' }}>
+            <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 8 }}>Includes</div>
+            {[
+              pattern === 'monthly' ? 'Salary (when confidently known)' : pattern === 'weekly' ? 'Weekly income' : 'Projected income (when configured)',
+              'Commitments & bills',
+              'Credit card bills due',
+              'Savings plan contributions',
+              'Borrowed money you owe',
+              ...(mode === 'lifestyle' ? ['Estimated daily spending'] : []),
+            ].map(t => (
+              <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                <span style={{ font: `600 12px ${F}`, color: c.ink }}>{t}</span>
+              </div>
+            ))}
+            <div style={{ height: 1, background: c.faint, margin: '10px 0' }} />
+            <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 8 }}>Not included</div>
+            {(mode === 'lifestyle'
+              ? ['Future unplanned expenses']
+              : ['Daily / everyday spending', 'Future unplanned expenses']
+            ).map(t => (
+              <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                <div style={{ width: 5, height: 5, borderRadius: 999, background: c.muted, flexShrink: 0, marginLeft: 3, marginRight: 4 }} />
+                <span style={{ font: `600 12px ${F}`, color: c.muted }}>{t}</span>
+              </div>
+            ))}
+            {mode === 'lifestyle' && (
+              <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 10, background: `${c.warn}10`, border: `1px solid ${c.warn}20` }}>
+                <div style={{ font: `600 10px ${F}`, color: c.warn, lineHeight: 1.5 }}>
+                  Smart mode uses estimated spending — actual results may vary. Switch to Planned mode for known-events-only projections.
+                </div>
+              </div>
+            )}
+          </div>
+        </details>
       </div>
     </div>,
     document.body

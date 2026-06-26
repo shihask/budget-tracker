@@ -14,7 +14,7 @@ export interface CashFlowEvent {
   title: string
   amount: number
   type: 'income' | 'expense'
-  source: 'salary' | 'commitment' | 'saving' | 'card' | 'borrowing' | 'planned'
+  source: 'salary' | 'commitment' | 'saving' | 'card' | 'borrowing' | 'planned' | 'lifestyle'
   category_id?: string | null
   card_id?: string
   is_prized?: boolean
