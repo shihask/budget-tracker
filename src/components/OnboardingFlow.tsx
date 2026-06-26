@@ -36,8 +36,20 @@ function BackArrow() {
   )
 }
 
-// Steps: 1=Splash, 2=IncomePattern, 3=Accounts, 4=PatternSetup, 5=FeatureOnboarding
-type Step = 1 | 2 | 3 | 4 | 5
+// Steps: 1=Splash, 2=IncomePattern, 3=Accounts, 4=PatternSetup, 5=FeatureOnboarding, 6=InstallApp
+type Step = 1 | 2 | 3 | 4 | 5 | 6
+
+function getDeviceType(): 'ios' | 'android' | 'desktop' {
+  const ua = navigator.userAgent
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios'
+  if (/Android/.test(ua)) return 'android'
+  return 'desktop'
+}
+
+function isStandalone(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || (navigator as any).standalone === true
+}
 
 export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, userId }: Props) {
   const [step, setStep]       = useState<Step>(1)
@@ -125,7 +137,12 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
       if (Object.keys(patch).length) await onUpdateSettings(patch)
     } catch (_) {}
     try { localStorage.setItem('mp_onboarded_' + userId, '1') } catch (_) {}
-    onComplete()
+    if (!isStandalone()) {
+      setSaving(false)
+      setStep(6)
+    } else {
+      onComplete()
+    }
   }
 
   const BG      = '#EDE7DD'
@@ -181,6 +198,9 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
       onComplete={f => finish(f)}
       onBack={() => setStep(4)}
     />
+  )
+  if (step === 6) return (
+    <InstallAppStep onComplete={onComplete} />
   )
 
   // Progress: 3 segments for steps 2, 3, 4
@@ -638,6 +658,188 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
       <style>{`
         @keyframes ofFadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes ofFadeUp { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+      `}</style>
+    </div>
+  )
+}
+
+// ── Install App Step ────────────────────────────────────────────────────────
+
+const IOS_STEPS = [
+  { num: '1', text: 'Tap the Share button', icon: <ShareIcon /> },
+  { num: '2', text: 'Scroll down and tap "Add to Home Screen"', icon: <PlusSquareIcon /> },
+  { num: '3', text: 'Tap "Add" in the top right', icon: null },
+]
+
+const ANDROID_STEPS = [
+  { num: '1', text: 'Tap the menu button (⋮) in Chrome', icon: <MenuDotsIcon /> },
+  { num: '2', text: 'Tap "Install App" or "Add to Home Screen"', icon: <PlusSquareIcon /> },
+  { num: '3', text: 'Tap "Install" to confirm', icon: null },
+]
+
+function ShareIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" y1="2" x2="12" y2="15" />
+    </svg>
+  )
+}
+
+function PlusSquareIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="12" y1="8" x2="12" y2="16" />
+      <line x1="8" y1="12" x2="16" y2="12" />
+    </svg>
+  )
+}
+
+function MenuDotsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="5" r="1" fill="currentColor" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" />
+      <circle cx="12" cy="19" r="1" fill="currentColor" />
+    </svg>
+  )
+}
+
+function InstallAppStep({ onComplete }: { onComplete: () => void }) {
+  const device = getDeviceType()
+  const steps = device === 'ios' ? IOS_STEPS : ANDROID_STEPS
+
+  const BG      = '#EDE7DD'
+  const INK     = '#1C1410'
+  const ACCENT  = '#16C98A'
+  const MUTED   = '#8A8178'
+  const SURFACE = '#FBF8F4'
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: BG,
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      fontFamily: '"Plus Jakarta Sans", sans-serif',
+      padding: `calc(24px + env(safe-area-inset-top,0px)) 24px calc(36px + env(safe-area-inset-bottom,0px))`,
+      animation: 'ofFadeIn 0.3s ease both',
+    }}>
+      <div style={{ width: '100%', maxWidth: 380, textAlign: 'center' }}>
+        {/* App icon */}
+        <div style={{
+          width: 72, height: 72, borderRadius: 20, margin: '0 auto 24px',
+          background: 'linear-gradient(135deg, #16C98A, #0A7A56)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 8px 24px rgba(22, 201, 138, 0.3)',
+        }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" />
+            <line x1="12" y1="18" x2="12" y2="18.01" strokeWidth="3" />
+          </svg>
+        </div>
+
+        <div style={{ font: '800 24px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 8 }}>
+          Use MoneyPlant as an App
+        </div>
+        <div style={{ font: '500 14px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.5, marginBottom: 28 }}>
+          {device === 'ios'
+            ? 'Add MoneyPlant to your Home Screen for the full app experience — instant access, works offline.'
+            : device === 'android'
+            ? 'Install MoneyPlant on your device for quick access, offline support, and a native app experience.'
+            : 'Install MoneyPlant as a desktop app for quick access and offline support.'}
+        </div>
+
+        {device !== 'desktop' ? (
+          <div style={{
+            background: SURFACE, borderRadius: 18,
+            border: '1.5px solid #E0D9D0',
+            padding: '20px',
+            textAlign: 'left',
+            marginBottom: 28,
+          }}>
+            <div style={{ font: '800 12px "Plus Jakarta Sans"', color: ACCENT, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16 }}>
+              {device === 'ios' ? 'In Safari' : 'In Chrome'}
+            </div>
+            {steps.map((s, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 14,
+                marginBottom: i < steps.length - 1 ? 18 : 0,
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  background: `${ACCENT}15`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                  font: '800 14px "Plus Jakarta Sans"', color: ACCENT,
+                }}>
+                  {s.num}
+                </div>
+                <div style={{ flex: 1, paddingTop: 4 }}>
+                  <div style={{ font: '600 14px "Plus Jakarta Sans"', color: INK, lineHeight: 1.4 }}>
+                    {s.text}
+                  </div>
+                  {s.icon && (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center',
+                      gap: 6, marginTop: 6,
+                      background: '#EDE7DD', borderRadius: 8,
+                      padding: '5px 10px',
+                      color: MUTED,
+                      font: '600 11px "Plus Jakarta Sans"',
+                    }}>
+                      {s.icon}
+                      {device === 'ios' && i === 0 && 'at the bottom'}
+                      {device === 'android' && i === 0 && 'top right corner'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: SURFACE, borderRadius: 18,
+            border: '1.5px solid #E0D9D0',
+            padding: '20px',
+            textAlign: 'left',
+            marginBottom: 28,
+          }}>
+            <div style={{ font: '600 14px "Plus Jakarta Sans"', color: INK, lineHeight: 1.5 }}>
+              Look for the install icon in your browser's address bar, or use the browser menu to install MoneyPlant as an app.
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={onComplete}
+          style={{
+            width: '100%', padding: '16px',
+            background: INK, color: BG,
+            border: 'none', borderRadius: 16,
+            font: '700 15px "Plus Jakarta Sans"',
+            cursor: 'pointer', letterSpacing: '-0.01em',
+          }}
+        >
+          Go to Dashboard
+        </button>
+        <button
+          onClick={onComplete}
+          style={{
+            width: '100%', background: 'none', color: MUTED,
+            border: 'none', borderRadius: 12, padding: '12px',
+            font: '600 13px "Plus Jakarta Sans"',
+            cursor: 'pointer', marginTop: 4,
+          }}
+        >
+          I'll do this later
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes ofFadeIn { from { opacity: 0 } to { opacity: 1 } }
       `}</style>
     </div>
   )
