@@ -8,13 +8,39 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="MoneyPlant" />
     <meta name="theme-color" content="#16C98A" />
-    <meta name="description" content="MoneyPlant — grow your personal finances" />
+    <meta name="description" content="Track expenses, manage budgets, forecast future cash flow, monitor credit cards, savings and bills with MoneyPlant. Know before you spend." />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="MoneyPlant – Personal Finance, Budget & Cash Flow Forecast App" />
+    <meta property="og:description" content="Track expenses, manage budgets, forecast future cash flow, monitor credit cards, savings and bills with MoneyPlant. Know before you spend." />
+    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:site_name" content="MoneyPlant" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="MoneyPlant – Know Before You Spend" />
+    <meta name="twitter:description" content="Personal finance app with cash flow forecasting, budget planning, commitment tracking and savings goals." />
+    <meta name="twitter:image" content="/pwa-512x512.png" />
 
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/pwa.svg" sizes="any" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
 
-    <title>MoneyPlant</title>
+    <title>MoneyPlant – Personal Finance, Budget & Cash Flow Forecast App</title>
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "MoneyPlant",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Web",
+      "description": "Personal finance app with cash flow forecasting, budget planning, commitment tracking and savings goals. Know before you spend.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" }
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
