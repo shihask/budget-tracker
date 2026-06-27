@@ -137,7 +137,8 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
       if (Object.keys(patch).length) await onUpdateSettings(patch)
     } catch (_) {}
     try { localStorage.setItem('mp_onboarded_' + userId, '1') } catch (_) {}
-    if (!isStandalone()) {
+    const device = getDeviceType()
+    if (device !== 'desktop' && !isStandalone()) {
       setSaving(false)
       setStep(6)
     } else {
