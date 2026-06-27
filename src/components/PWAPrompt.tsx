@@ -7,8 +7,8 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-const DISMISS_KEY = 'mp_pwa_dismiss'
-const DISMISS_DAYS = 7
+const DISMISS_KEY = 'mp_pwa_banner_v2'
+const DISMISS_DAYS = 30
 
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches
