@@ -297,7 +297,6 @@ function AppContent({ session }: { session: Session }) {
 
   return (
     <ThemeContext.Provider value={c}>
-      <PWAPrompt />
       <UpdateToast />
       <div style={{
         minHeight: '100svh', width: '100%',
@@ -317,6 +316,7 @@ function AppContent({ session }: { session: Session }) {
             borderBottom: `1px solid ${c.faint}`,
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'none' : 'block',
           }}>
+            <PWAPrompt />
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} />
           </div>
 

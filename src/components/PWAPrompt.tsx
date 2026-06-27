@@ -107,12 +107,12 @@ export function PWAPrompt() {
       {/* Install Banner */}
       <div style={{
         background: c.ink,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        margin: '0 -16px',
+        padding: '0 16px',
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
-          padding: '8px 12px',
-          maxWidth: 600, margin: '0 auto',
+          padding: '8px 0',
         }}>
           <img
             src="/pwa-64x64.png" alt=""
