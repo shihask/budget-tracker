@@ -187,13 +187,13 @@ export function PWAPrompt() {
                 <div style={{ font: '700 11px Plus Jakarta Sans', color: '#16C98A', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                   In Safari
                 </div>
-                <Step num="1" title="Tap the Share button" hint="at the bottom of the screen">
-                  <ShareIcon color={c.muted} />
+                <Step num="1" title='Tap ··· at the bottom right of Safari'>
+                  <DotsIcon color={c.muted} />
                 </Step>
-                <Step num="2" title='Scroll down and tap "Add to Home Screen"'>
+                <Step num="2" title='Tap "Add to Home Screen"'>
                   <PlusBoxIcon color={c.muted} />
                 </Step>
-                <Step num="3" title='Tap "Add" in the top right' />
+                <Step num="3" title='Tap "Add" to confirm' />
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
