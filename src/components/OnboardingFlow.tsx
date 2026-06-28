@@ -747,9 +747,9 @@ function InstallAppStep({ onComplete }: { onComplete: () => void }) {
         </div>
         <div style={{ font: '500 14px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.5, marginBottom: 28 }}>
           {device === 'ios'
-            ? 'Add MoneyPlant to your Home Screen for the full app experience — instant access, works offline.'
+            ? 'Stay on top of your money. Add to Home Screen for a faster, full-screen experience with offline access and timely reminders.'
             : device === 'android'
-            ? 'Install MoneyPlant on your device for quick access, offline support, and a native app experience.'
+            ? 'Stay on top of your money. Install the app for a faster, full-screen experience with push notifications and offline access.'
             : 'Install MoneyPlant as a desktop app for quick access and offline support.'}
         </div>
 
