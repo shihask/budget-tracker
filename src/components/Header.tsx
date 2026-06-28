@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { Glyph } from './Glyph'
 
@@ -22,6 +22,22 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
   const initials = userName.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
 
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+  }, [menuOpen])
 
   const iconBtnStyle: React.CSSProperties = {
     width: 40, height: 40, borderRadius: 999,
@@ -96,7 +112,7 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
         </button>
 
         {/* Avatar + dropdown */}
-        <div style={{ position: 'relative' }}>
+        <div ref={menuRef} style={{ position: 'relative' }}>
           <button
             onClick={() => setMenuOpen(v => !v)}
             style={{
@@ -117,12 +133,6 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
             }} />
           </button>
 
-          {menuOpen && (
-            <div
-              style={{ position: 'fixed', inset: 0, zIndex: 399 }}
-              onClick={() => setMenuOpen(false)}
-            />
-          )}
           {menuOpen && (
             <div style={{
               position: 'absolute', top: 48, right: 0, zIndex: 400,
