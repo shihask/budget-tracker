@@ -26,7 +26,7 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
 
   useEffect(() => {
     if (!menuOpen) return
-    const handler = (e: MouseEvent) => {
+    const handler = (e: Event) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false)
       }
