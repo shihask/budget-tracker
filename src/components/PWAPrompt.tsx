@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 
@@ -151,8 +152,8 @@ export function PWAPrompt() {
         </div>
       </div>
 
-      {/* Install Steps Modal */}
-      {showSteps && (
+      {/* Install Steps Modal — portal to body so it escapes the fixed header */}
+      {showSteps && createPortal(
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 10000,
@@ -221,7 +222,8 @@ export function PWAPrompt() {
               Maybe later
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <style>{`
