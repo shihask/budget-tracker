@@ -667,9 +667,9 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
 // ── Install App Step ────────────────────────────────────────────────────────
 
 const IOS_STEPS = [
-  { num: '1', text: 'Tap ··· at the bottom right of Safari', icon: <MenuDotsIcon /> },
-  { num: '2', text: 'Tap "Add to Home Screen"', icon: <PlusSquareIcon /> },
-  { num: '3', text: 'Tap "Add" to confirm', icon: null },
+  { num: '1', text: 'Tap the Share button', icon: <ShareIcon /> },
+  { num: '2', text: 'Scroll down and tap "Add to Home Screen"', icon: <PlusSquareIcon /> },
+  { num: '3', text: 'Tap "Add" in the top right', icon: null },
 ]
 
 const ANDROID_STEPS = [
