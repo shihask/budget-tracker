@@ -124,7 +124,7 @@ export function PWAPrompt() {
               Get the MoneyPlant app
             </div>
             <div style={{ font: '500 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.6)' }}>
-              Add to Home Screen for a faster, full-screen experience
+              Install for quick access &amp; offline use
             </div>
           </div>
           <button
