@@ -92,7 +92,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
   const [expanded, setExpanded] = useState(false)
 
   const calc = useMemo(
-    () => computeChallenge(state, difficulty),
+    () => computeChallenge(state, difficulty, d.financialCycle),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.transactions, state.accounts, state.commitments, settings]
   )
@@ -306,7 +306,9 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
           {/* Horizon row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
             <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
-              {calc.planningMode === 'salary_cycle'
+              {d.isWaitingForIncome
+                ? 'Income expected — waiting'
+                : calc.planningMode === 'salary_cycle'
                 ? (getIncomePattern(settings) === 'monthly' ? `${calc.daysRemaining} days until salary` : `${calc.daysRemaining} days until income`)
                 : `${calc.daysRemaining} days until month end`}
             </span>

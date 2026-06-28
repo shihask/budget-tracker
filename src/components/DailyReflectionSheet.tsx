@@ -19,7 +19,7 @@ function localToday(): string {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
 }
 
-export function DailyReflectionSheet({ open, onClose, state, onGoalContribution }: Props) {
+export function DailyReflectionSheet({ open, onClose, state, d, onGoalContribution }: Props) {
   const c = useTheme()
   const todayStr = localToday()
 
@@ -32,8 +32,8 @@ export function DailyReflectionSheet({ open, onClose, state, onGoalContribution 
   const challengeOn = state.settings.challenge_enabled ?? false
   const safeLimit = useMemo(() => {
     if (!challengeOn) return 0
-    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium').safeDailyLimit
-  }, [state, challengeOn])
+    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.financialCycle).safeDailyLimit
+  }, [state, challengeOn, d.financialCycle])
 
   const surplus = challengeOn ? Math.max(0, Math.round(safeLimit - todaySpend)) : 0
   const underLimit = challengeOn && todaySpend <= safeLimit

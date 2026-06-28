@@ -1,6 +1,7 @@
-import { TODAY, iso, addDays, getWeekStart } from '@/lib/utils'
+import { TODAY, iso, addDays } from '@/lib/utils'
 import type { AppState } from '@/types'
 import { getIncomePattern } from '@/lib/income-pattern'
+import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
 
 export interface PlantGrowth {
   leaves: number
@@ -47,21 +48,6 @@ const PLANT_MILESTONES: Array<{ threshold: number; label: string; key: PlantGrow
   { threshold: 100, label: 'Blooming',     key: 'blooming'   },
 ]
 
-function computeCycleDays(salaryDate: number): number {
-  const today = new Date()
-  const y = today.getFullYear()
-  const m = today.getMonth()
-  const day = today.getDate()
-  let end: Date
-  if (day >= salaryDate) {
-    end = new Date(y, m + 1, salaryDate - 1)
-  } else {
-    end = new Date(y, m, salaryDate - 1)
-  }
-  const todayMid = new Date(y, m, day)
-  return Math.max(1, Math.round((end.getTime() - todayMid.getTime()) / 86400000) + 1)
-}
-
 function daysUntilMonthEnd(): number {
   const today = new Date()
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
@@ -94,7 +80,8 @@ function getDailyExpenses(transactions: AppState['transactions'], dateStr: strin
 
 export function computeChallenge(
   state: AppState,
-  difficulty: 'easy' | 'medium' | 'hard'
+  difficulty: 'easy' | 'medium' | 'hard',
+  precomputedCycle?: FinancialCycle,
 ): ChallengeCalc {
   const { settings, accounts, commitments, transactions } = state
   const now = new Date()
@@ -120,19 +107,13 @@ export function computeChallenge(
   const emergencyFund = settings.emergency_fund ?? 0
   const availableSpendable = Math.max(0, spendableCash - pendingBills - emergencyFund)
 
-  // Days horizon — income-pattern-aware
+  // Days horizon — Financial Cycle aware
   let daysRemaining: number
   let planningMode: ChallengeCalc['planningMode']
   const pattern = getIncomePattern(settings)
-  if (pattern === 'weekly') {
-    const incDay = settings.income_day ?? 5
-    const weekStart = getWeekStart(now, incDay)
-    const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6)
-    const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    daysRemaining = Math.max(1, Math.round((weekEnd.getTime() - todayMid.getTime()) / 86400000) + 1)
-    planningMode = 'salary_cycle'
-  } else if (pattern === 'monthly' && settings.salary_date) {
-    daysRemaining = computeCycleDays(settings.salary_date)
+  if (pattern === 'monthly' || pattern === 'weekly') {
+    const cycle = precomputedCycle ?? getCurrentFinancialCycle(state)
+    daysRemaining = cycle.daysRemaining
     planningMode = 'salary_cycle'
   } else {
     daysRemaining = daysUntilMonthEnd()

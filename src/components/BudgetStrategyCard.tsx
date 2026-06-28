@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, getWeekStart } from '@/lib/utils'
+import { fmt } from '@/lib/utils'
 import type { AppState, BudgetBucket, BudgetStrategySettings, BudgetStrategyType, DerivedMetrics } from '@/types'
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 
 interface BudgetStrategyCardProps {
   state: AppState
@@ -71,23 +72,8 @@ export function useStrategyData(state: AppState, d: DerivedMetrics) {
 
     const base = state.budget_strategy_settings.budget_strategy_base ?? 'income'
 
-    const now = new Date()
-    let periodStart: Date
-
-    if (pattern === 'weekly') {
-      const incDay = state.settings.income_day ?? 5
-      periodStart = getWeekStart(now, incDay)
-    } else if (pattern === 'variable' || pattern === 'business') {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    } else {
-      const sd = state.settings.salary_date
-      if (sd && sd >= 1 && sd <= 31) {
-        const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-        periodStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
-      } else {
-        periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      }
-    }
+    const cycle = d.financialCycle ?? getCurrentFinancialCycle(state)
+    const periodStart = cycle.cycleStart
 
     const income = base === 'available_funds'
       ? Math.max(0, d.availableBalance)

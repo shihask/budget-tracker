@@ -226,8 +226,8 @@ function AppContent({ session }: { session: Session }) {
 
   const safeDailyLimit = useMemo(() => {
     if (!(state.settings.challenge_enabled)) return 0
-    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium').safeDailyLimit
-  }, [state.accounts, state.commitments, state.settings]) // eslint-disable-line react-hooks/exhaustive-deps
+    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.financialCycle).safeDailyLimit
+  }, [state.accounts, state.commitments, state.settings, d.financialCycle]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const todayStr = iso(TODAY)
   const yesterdayStr = iso(new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - 1))

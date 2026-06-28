@@ -140,6 +140,7 @@ export interface Settings {
   average_daily_income?:        number | null
   working_days_per_week?:       number | null
   business_monthly_drawings?:   number | null
+  primary_income_category_id?:  string | null
 }
 
 export type ForecastMode = 'planned' | 'lifestyle'
@@ -278,13 +279,18 @@ export interface DerivedMetrics {
   weeklySpent: number
   weeklyRemaining: number
   weeklyPct: number
-  // Salary-cycle-based (auto mode)
+  // Financial-cycle-based (auto mode — income-driven)
   cycleSpent: number
   cycleRemaining: number
   safeDailySpend: number
   safeWeeklySpend: number
   cycleDaysLeft: number
   cycleWeeksLeft: number
+  // Financial Cycle (computed once, shared across all consumers)
+  financialCycle?: import('@/lib/financial-cycle').FinancialCycle
+  isWaitingForIncome?: boolean
+  expectedIncomeDate?: Date | null
+  cycleSource?: import('@/lib/financial-cycle').CycleSource
   // Variable/business income metrics
   safeUntilDays?: number
   avgDailyIncome?: number

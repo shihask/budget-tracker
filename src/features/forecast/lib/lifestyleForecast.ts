@@ -3,7 +3,7 @@ import type { CashFlowEvent, CashFlowForecast, CashFlowProjection } from '@/lib/
 import { buildCashFlowForecast, estimateForecastSalary } from '@/lib/cashflow'
 import { getStrategyPcts, getCategoryBucket } from '@/components/BudgetStrategyCard'
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
-import { getWeekStart } from '@/lib/utils'
+import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
 
 export type { ForecastMode }
 
@@ -69,28 +69,9 @@ function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySp
 
   if (incomeAmount <= 0) return null
 
-  const now = new Date()
-  let periodStart: Date
-  let periodEnd: Date
-
-  if (pattern === 'weekly') {
-    const incDay = state.settings.income_day ?? 5
-    periodStart = getWeekStart(now, incDay)
-    periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 7)
-  } else if (pattern === 'variable' || pattern === 'business') {
-    periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  } else {
-    const sd = state.settings.salary_date
-    if (sd && sd >= 1 && sd <= 31) {
-      const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-      periodStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
-      periodEnd = day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd)
-    } else {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    }
-  }
+  const cycle = d.financialCycle ?? getCurrentFinancialCycle(state)
+  const periodStart = cycle.cycleStart
+  const periodEnd = new Date(cycle.cycleEnd.getTime() + 86400000)
 
   const needsTarget = Math.round(incomeAmount * pcts.needs / 100)
   const wantsTarget = Math.round(incomeAmount * pcts.wants / 100)
@@ -111,7 +92,7 @@ function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySp
     else if (bucket === 'wants') wantsSpent += t.amount
   }
 
-  const today = midnight(now)
+  const today = midnight(new Date())
   const daysRemaining = Math.max(1, Math.round((periodEnd.getTime() - today.getTime()) / 86400000))
 
   const needsRemaining = Math.max(0, needsTarget - needsSpent)
@@ -217,46 +198,18 @@ export function calculateBudgetRecommendation(state: AppState, d: DerivedMetrics
 
   if (incomeAmount <= 0) return null
 
-  const now = new Date()
-  let periodEnd: Date
-  if (pattern === 'weekly') {
-    const incDay = state.settings.income_day ?? 5
-    const periodStart = getWeekStart(now, incDay)
-    periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 7)
-  } else if (pattern === 'variable' || pattern === 'business') {
-    periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  } else {
-    const sd = state.settings.salary_date
-    if (sd && sd >= 1 && sd <= 31) {
-      const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-      periodEnd = day >= sd ? new Date(y, m + 1, sd) : new Date(y, m, sd)
-    } else {
-      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    }
-  }
+  const cycle = d.financialCycle ?? getCurrentFinancialCycle(state)
+  const periodStart = cycle.cycleStart
+  const periodEnd = new Date(cycle.cycleEnd.getTime() + 86400000)
 
   const est = estimateFromBudgetStrategy(state, d)
   if (!est || !est.breakdown) return null
 
-  const today = midnight(now)
+  const today = midnight(new Date())
   const daysRemaining = Math.max(1, Math.round((periodEnd.getTime() - today.getTime()) / 86400000))
   const needsTarget = Math.round(incomeAmount * pcts.needs / 100)
   const wantsTarget = Math.round(incomeAmount * pcts.wants / 100)
   const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
-  let periodStart: Date
-  if (pattern === 'weekly') {
-    periodStart = getWeekStart(now, state.settings.income_day ?? 5)
-  } else if (pattern === 'variable' || pattern === 'business') {
-    periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  } else {
-    const sd = state.settings.salary_date
-    if (sd && sd >= 1 && sd <= 31) {
-      const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-      periodStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
-    } else {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    }
-  }
   const periodStartIso = isoOf(periodStart)
   let needsSpent = 0, wantsSpent = 0
   for (const t of state.transactions) {

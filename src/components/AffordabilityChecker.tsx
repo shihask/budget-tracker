@@ -7,6 +7,7 @@ import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
 import { simulatePurchase, forecastReady, getForecastDrivers, estimateForecastSalary, daysUntil as forecastDaysUntil } from '@/lib/cashflow'
 import { LOW_CUSHION } from './CashFlowForecastCard'
 import { getIncomePattern } from '@/lib/income-pattern'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import type { AppState, DerivedMetrics, Settings, Transaction, PlannedExpense } from '@/types'
 
 interface SaveGoalData {
@@ -25,14 +26,6 @@ interface Props {
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   onSaveGoal?: (data: SaveGoalData) => void
   onAddPlannedExpense?: (form: Omit<PlannedExpense, 'id' | 'created_at'>) => Promise<void>
-}
-
-function daysUntil(dayOfMonth: number): number {
-  const today = new Date()
-  const thisMonth = new Date(today.getFullYear(), today.getMonth(), dayOfMonth)
-  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, dayOfMonth)
-  const target = thisMonth > today ? thisMonth : nextMonth
-  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 function generateChips(freeMoney: number): number[] {
@@ -109,13 +102,10 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const freeMoney = d.realFreeMoney
   const weeklyBudget = d.weeklyBudget
   const pattern = getIncomePattern(settings)
-  const weeksRemaining = pattern === 'weekly'
-    ? (settings.income_day != null ? Math.ceil(daysUntil(settings.income_day) / 7) : 0)
-    : pattern === 'variable' || pattern === 'business'
+  const cycle = useMemo(() => d.financialCycle ?? getCurrentFinancialCycle(state), [d.financialCycle, state])
+  const weeksRemaining = (pattern === 'variable' || pattern === 'business')
     ? 0
-    : settings.salary_date
-    ? Math.ceil(daysUntil(settings.salary_date) / 7)
-    : 0
+    : Math.ceil(cycle.daysRemaining / 7)
   const reservedBudget = weeksRemaining * weeklyBudget
   const safePurchasingPower = freeMoney - reservedBudget
   const hasWeeklyContext = weeksRemaining > 0 && weeklyBudget > 0
@@ -204,11 +194,9 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     if (isNaN(a)) return
     setAiLoading(true)
     setAiInsight(null)
-    const daysLeft = pattern === 'weekly'
-      ? (settings.income_day != null ? daysUntil(settings.income_day) : null)
-      : pattern === 'variable' || pattern === 'business'
+    const daysLeft = (pattern === 'variable' || pattern === 'business')
       ? null
-      : settings.salary_date ? daysUntil(settings.salary_date) : null
+      : cycle.daysRemaining
     const insight = await affordabilityInsightWithAI(item, a, {
       freeMoney,
       safePurchasingPower,

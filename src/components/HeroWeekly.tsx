@@ -19,27 +19,6 @@ interface HeroWeeklyProps {
   onEditOpen: () => void
 }
 
-function computeCycle(salaryDate: number) {
-  const today = new Date()
-  const y = today.getFullYear()
-  const m = today.getMonth()
-  const day = today.getDate()
-  let start: Date, end: Date
-  if (day >= salaryDate) {
-    start = new Date(y, m, salaryDate)
-    end = new Date(y, m + 1, salaryDate - 1)
-  } else {
-    start = new Date(y, m - 1, salaryDate)
-    end = new Date(y, m, salaryDate - 1)
-  }
-  const todayMid = new Date(y, m, day)
-  const msDay = 86400000
-  const daysRemaining = Math.max(1, Math.round((end.getTime() - todayMid.getTime()) / msDay) + 1)
-  const weeksRemaining = daysRemaining / 7
-  const fmtD = (d: Date) => d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-  return { start, end, daysRemaining, weeksRemaining, startLabel: fmtD(start), endLabel: fmtD(end) }
-}
-
 function Row({ label, value, muted, accent, bad, bold }: { label: string; value: string; muted?: boolean; accent?: boolean; bad?: boolean; bold?: boolean }) {
   const c = useTheme()
   return (
@@ -133,24 +112,12 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     return scopeGroups.includes(cat.group_name) || scopeCategoryIds.includes(t.category_id ?? '')
   }
 
-  const cycle = useMemo(() => {
-    const sd = parseInt(salaryDateInput)
-    if (!sd || sd < 1 || sd > 31) return null
-    return computeCycle(sd)
-  }, [salaryDateInput])
-
-  const cycleForDisplay = useMemo(() => {
-    const sd = settings.salary_date
-    if (!sd) return null
-    return computeCycle(sd)
-  }, [settings.salary_date])
-
-  const suggested = cycle
+  const suggested = d.cycleDaysLeft > 0
     ? budgetPeriod === 'daily'
-      ? Math.round(d.realFreeMoney / cycle.daysRemaining)
+      ? Math.round(d.realFreeMoney / d.cycleDaysLeft)
       : budgetPeriod === 'monthly'
       ? Math.round(d.realFreeMoney)
-      : Math.round(d.realFreeMoney / cycle.weeksRemaining)
+      : Math.round(d.realFreeMoney / (d.cycleWeeksLeft || 1))
     : null
   const suggestedUnit = budgetPeriod === 'daily' ? 'day' : budgetPeriod === 'monthly' ? 'month' : 'week'
 
@@ -474,16 +441,34 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 </div>
               </div>
 
+              {/* Waiting for income banner */}
+              {d.isWaitingForIncome && (
+                <div style={{ marginTop: 12, background: 'rgba(255,200,50,0.18)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EAB308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)', lineHeight: 1.4 }}>
+                    Income expected — record your income to start the new cycle
+                  </span>
+                </div>
+              )}
+
               {/* Safe spend row */}
               <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ font: '700 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)' }}>
-                  Safe Daily {fmt(d.safeDailySpend)}
-                </span>
-                <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.4)' }}>·</span>
-                <span style={{ font: '700 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)' }}>
-                  Safe Weekly {fmt(d.safeWeeklySpend)}
-                </span>
-                {cycleForDisplay && (
+                {d.isWaitingForIncome ? (
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.5)' }}>
+                    Waiting for income...
+                  </span>
+                ) : (
+                  <>
+                    <span style={{ font: '700 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)' }}>
+                      Safe Daily {fmt(d.safeDailySpend)}
+                    </span>
+                    <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.4)' }}>·</span>
+                    <span style={{ font: '700 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)' }}>
+                      Safe Weekly {fmt(d.safeWeeklySpend)}
+                    </span>
+                  </>
+                )}
+                {hasIncomeCycle && !d.isWaitingForIncome && (
                   <>
                     <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.4)' }}>·</span>
                     <span style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.6)' }}>
@@ -640,7 +625,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 <div style={{ height: 1, background: c.faint }} />
                 <Row label="Free money" value={fmt(d.realFreeMoney)} accent />
                 {isAutoMode ? (
-                  cycleForDisplay ? (
+                  hasIncomeCycle ? (
                     <>
                       <div style={{ height: 1, background: c.faint }} />
                       <Row label="Cycle budget" value={fmt(d.realFreeMoney + d.cycleSpent)} muted />
@@ -648,22 +633,22 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                       <div style={{ height: 1, background: c.faint }} />
                       <Row label="Budget remaining" value={fmt(d.cycleRemaining)} accent={d.cycleRemaining >= 0} bad={d.cycleRemaining < 0} bold />
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '8px 10px', marginTop: 4 }}>
-                        Cycle: {cycleForDisplay.startLabel} → {cycleForDisplay.endLabel} · {d.cycleDaysLeft} days left
+                        {d.cycleDaysLeft} days left{d.isWaitingForIncome ? ' · waiting for income' : ''}
                       </div>
                     </>
                   ) : null
                 ) : (
-                  cycleForDisplay ? (
+                  hasIncomeCycle ? (
                     <>
                       <Row
                         label={activePeriod === 'daily' ? 'Days left in cycle' : activePeriod === 'monthly' ? 'Months left in cycle' : 'Weeks left in cycle'}
-                        value={activePeriod === 'daily' ? `÷ ${cycleForDisplay.daysRemaining} days` : activePeriod === 'monthly' ? '÷ 1 month' : `÷ ${cycleForDisplay.weeksRemaining.toFixed(1)} weeks`}
+                        value={activePeriod === 'daily' ? `÷ ${d.cycleDaysLeft} days` : activePeriod === 'monthly' ? '÷ 1 month' : `÷ ${(d.cycleWeeksLeft).toFixed(1)} weeks`}
                         muted
                       />
                       <div style={{ height: 1, background: c.faint }} />
                       <Row label={`${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget`} value={fmt(d.weeklyBudget)} accent bold />
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '8px 10px', marginTop: 4 }}>
-                        Cycle: {cycleForDisplay.startLabel} → {cycleForDisplay.endLabel} · {cycleForDisplay.daysRemaining} days left
+                        {d.cycleDaysLeft} days left
                       </div>
                     </>
                   ) : (
@@ -677,7 +662,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '10px 12px', marginBottom: 4 }}>
                   {isAutoMode
-                    ? <>Expenses since <strong style={{ color: c.ink }}>{cycleForDisplay?.startLabel}</strong> from: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong></>
+                    ? <>Expenses this cycle from: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong></>
                     : <>Expenses {activePeriod === 'daily' ? 'today' : activePeriod === 'monthly' ? 'this month' : 'this week'} from: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong></>
                   }
                 </div>
@@ -781,18 +766,18 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               </div>
             )}
 
-            {cycle && (
+            {d.cycleDaysLeft > 0 && (
               <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>
-                  Current cycle: {cycle.startLabel} → {cycle.endLabel}
+                  Current cycle {d.isWaitingForIncome ? '(waiting for income)' : ''}
                 </div>
                 <div style={{ display: 'flex', gap: 16 }}>
                   <div>
-                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{cycle.daysRemaining}</div>
+                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{d.cycleDaysLeft}</div>
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>days left</div>
                   </div>
                   <div>
-                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{cycle.weeksRemaining.toFixed(1)}</div>
+                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{(d.cycleWeeksLeft).toFixed(1)}</div>
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>weeks left</div>
                   </div>
                   <div>
@@ -802,6 +787,22 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 </div>
               </div>
             )}
+
+            {/* Primary income category */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Primary income category</label>
+              <HelpText>Which income category starts a new financial cycle when recorded.</HelpText>
+              <select
+                value={settings.primary_income_category_id ?? ''}
+                onChange={e => onUpdateSettings({ primary_income_category_id: e.target.value || null })}
+                style={{ ...inp, appearance: 'auto' }}
+              >
+                <option value="">Auto-detect (any income)</option>
+                {categories.filter(cat => cat.group_name === 'Income').map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
           </>)}
 
           <div style={sectionDiv} />
@@ -996,7 +997,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   Your spending targets update as you record income. Needs, Wants, and Savings are calculated from your earning history.
                 </div>
               </div>
-            ) : cycle ? (
+            ) : d.cycleDaysLeft > 0 ? (
               <div style={{ background: c.accentSoft, borderRadius: 14, padding: '14px 16px' }}>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.accent, marginBottom: 10 }}>
                   MoneyPlant calculates automatically
@@ -1008,7 +1009,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Days remaining</span>
-                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{cycle.daysRemaining}</span>
+                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{d.cycleDaysLeft}</span>
                   </div>
                   <div style={{ height: 1, background: c.faint }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1079,10 +1080,10 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               )}
 
               {/* Suggested budget from cycle — not shown for variable/business */}
-              {cycle && suggested !== null && suggested > 0 && pattern !== 'variable' && pattern !== 'business' && (
+              {d.cycleDaysLeft > 0 && suggested !== null && suggested > 0 && pattern !== 'variable' && pattern !== 'business' && (
                 <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 6 }}>
-                    {fmt(d.realFreeMoney)} ÷ {budgetPeriod === 'daily' ? `${cycle.daysRemaining} days` : budgetPeriod === 'monthly' ? '1 month' : `${cycle.weeksRemaining.toFixed(1)} weeks`}
+                    {fmt(d.realFreeMoney)} ÷ {budgetPeriod === 'daily' ? `${d.cycleDaysLeft} days` : budgetPeriod === 'monthly' ? '1 month' : `${(d.cycleWeeksLeft).toFixed(1)} weeks`}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>

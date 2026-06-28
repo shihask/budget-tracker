@@ -7,6 +7,7 @@ import { MintAnimation } from './MintAnimation'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { computeChallenge } from '@/lib/challenge'
 import { getStrategyPcts, getCategoryBucket } from './BudgetStrategyCard'
 import { getCreditCardBilling } from '@/lib/credit-card'
@@ -283,7 +284,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
 
     if (state.settings.challenge_enabled && intent !== 'spending') {
       const diff = state.settings.challenge_difficulty ?? 'medium'
-      const ch = computeChallenge(state, diff)
+      const ch = computeChallenge(state, diff, d.financialCycle)
       const streak = state.settings.challenge_streak ?? 0
       const totalDays = state.settings.challenge_total_days ?? 0
       const successDays = state.settings.challenge_success_days ?? 0
@@ -386,14 +387,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   if (['financial_health', 'budget', 'general'].includes(intent)) {
     const stratPcts = getStrategyPcts(state.budget_strategy_settings)
     if (stratPcts) {
-      const sd = state.settings.salary_date
-      let stratStart: Date
-      if (sd && sd >= 1 && sd <= 31) {
-        const y = now.getFullYear(), m = now.getMonth(), day = now.getDate()
-        stratStart = day >= sd ? new Date(y, m, sd) : new Date(y, m - 1, sd)
-      } else {
-        stratStart = monthStart
-      }
+      const stratStart = (d.financialCycle ?? getCurrentFinancialCycle(state)).cycleStart
       const stratIncome = state.transactions
         .filter(t => t.transaction_type === 'income' && new Date(t.transaction_date) >= stratStart)
         .reduce((s, t) => s + t.amount, 0)

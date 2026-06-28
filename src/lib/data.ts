@@ -5,6 +5,7 @@ import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, Timeline
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
+import { getCurrentFinancialCycle, isPrimaryIncomeTransaction } from '@/lib/financial-cycle'
 import { estimateHistoricalDailyIncome, calculateAvgDailySpending, calculateSafeUntilDays, calculateTodaySummary, calculateWeekSummary } from '@/lib/variable-income'
 
 // System transactions (opening_balance, balance_adjustment) must never count as real income/expense.
@@ -81,44 +82,29 @@ const remainingCommitments = state.commitments
   const weeklyRemaining = weeklyBudget - weeklySpent
   const weeklyPct = weeklyBudget ? (weeklySpent / weeklyBudget) * 100 : 0
 
-  // Income-cycle-based metrics (auto budget mode)
+  // Financial Cycle — income-driven (auto budget mode)
   const pattern = getIncomePattern(state.settings)
-  const salaryDate = state.settings.salary_date
+  const cycle = getCurrentFinancialCycle(state)
   let cycleSpent = 0, cycleRemaining = realFreeMoney
   let safeDailySpend = 0, safeWeeklySpend = 0
   let cycleDaysLeft = 0, cycleWeeksLeft = 0
 
-  if (pattern === 'monthly' && salaryDate && salaryDate >= 1 && salaryDate <= 31) {
-    const t = new Date()
-    const y = t.getFullYear(), m = t.getMonth(), day = t.getDate()
-    const cycleStart = day >= salaryDate
-      ? new Date(y, m, salaryDate)
-      : new Date(y, m - 1, salaryDate)
-    const cycleEnd = new Date(cycleStart.getFullYear(), cycleStart.getMonth() + 1, salaryDate - 1)
-    const todayMid = new Date(y, m, day)
-    cycleDaysLeft = Math.max(1, Math.round((cycleEnd.getTime() - todayMid.getTime()) / 86400000) + 1)
-    cycleWeeksLeft = cycleDaysLeft / 7
+  if (pattern === 'monthly' || pattern === 'weekly') {
+    cycleDaysLeft = cycle.daysRemaining
+    cycleWeeksLeft = cycle.weeksRemaining
 
     cycleSpent = state.transactions
-      .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= cycleStart)
+      .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= cycle.cycleStart)
       .reduce((s, tx) => s + tx.amount, 0)
     cycleRemaining = realFreeMoney
-    safeDailySpend  = realFreeMoney / cycleDaysLeft
-    safeWeeklySpend = realFreeMoney / cycleWeeksLeft
-  } else if (pattern === 'weekly') {
-    const incDay = state.settings.income_day ?? 5
-    const weekStart = getWeekStart(now, incDay)
-    const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6)
-    const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    cycleDaysLeft = Math.max(1, Math.round((weekEnd.getTime() - todayMid.getTime()) / 86400000) + 1)
-    cycleWeeksLeft = 1
 
-    cycleSpent = state.transactions
-      .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= weekStart)
-      .reduce((s, tx) => s + tx.amount, 0)
-    cycleRemaining = realFreeMoney
-    safeDailySpend  = realFreeMoney / cycleDaysLeft
-    safeWeeklySpend = realFreeMoney
+    if (cycle.status === 'waiting') {
+      safeDailySpend = 0
+      safeWeeklySpend = 0
+    } else {
+      safeDailySpend = realFreeMoney / cycleDaysLeft
+      safeWeeklySpend = pattern === 'weekly' ? realFreeMoney : realFreeMoney / cycleWeeksLeft
+    }
   }
 
   // Variable/business income metrics
@@ -149,6 +135,10 @@ const remainingCommitments = state.commitments
     actualBalance, emergencyFund, availableBalance, remainingCommitments,
     realFreeMoney, weeklyBudget, weeklySpent, weeklyRemaining, weeklyPct,
     cycleSpent, cycleRemaining, safeDailySpend, safeWeeklySpend, cycleDaysLeft, cycleWeeksLeft,
+    financialCycle: cycle,
+    isWaitingForIncome: cycle.isWaitingForIncome,
+    expectedIncomeDate: cycle.expectedIncomeDate,
+    cycleSource: cycle.source,
     safeUntilDays, avgDailyIncome, avgDailySpending: avgDailySpendingVal, incomeConfidence,
     todayIncome, todaySpending, todaySaving,
     weekEarned, weekSpent: weekSpentVar, weekSaved,
@@ -271,19 +261,8 @@ const SAVINGS_TYPE_LABEL: Record<string, string> = {
 export function journeyData(state: AppState): JourneyData {
   const now = TODAY
   const pattern = getIncomePattern(state.settings)
-  const salaryDate = state.settings.salary_date
-  let cycleStart: Date
-  if (pattern === 'weekly') {
-    const incDay = state.settings.income_day ?? 5
-    cycleStart = getWeekStart(now, incDay)
-  } else if (pattern === 'monthly' && salaryDate && salaryDate >= 1 && salaryDate <= 31) {
-    const day = now.getDate()
-    cycleStart = day >= salaryDate
-      ? new Date(now.getFullYear(), now.getMonth(), salaryDate)
-      : new Date(now.getFullYear(), now.getMonth() - 1, salaryDate)
-  } else {
-    cycleStart = getMonthStart(now)
-  }
+  const cycle = getCurrentFinancialCycle(state)
+  const cycleStart = cycle.cycleStart
   const cycleLabel = cycleStart.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   const catMap = catById(state.categories)
 
@@ -467,15 +446,18 @@ export function journeyData(state: AppState): JourneyData {
   // Growth efficiency = rootsTotal as % of totalIncome
   const efficiencyPct = totalIncome > 0 ? Math.round((rootsTotal / totalIncome) * 100) : 0
 
-  // Previous cycle — for comparison
+  // Previous cycle — find the qualifying income before the current cycle's start
   const prevCycleEnd = new Date(cycleStart.getTime() - 86400000)
   let prevCycleStart: Date
-  if (pattern === 'weekly') {
+  const prevIncomeTxns = state.transactions
+    .filter(t => isPrimaryIncomeTransaction(t, state) && new Date(t.transaction_date) < cycleStart)
+    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+  if (prevIncomeTxns.length > 0) {
+    prevCycleStart = new Date(prevIncomeTxns[0].transaction_date)
+  } else if (pattern === 'weekly') {
     prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth(), cycleStart.getDate() - 7)
-  } else if (pattern === 'monthly' && salaryDate && salaryDate >= 1 && salaryDate <= 31) {
-    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, salaryDate)
   } else {
-    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, 1)
+    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, cycleStart.getDate())
   }
   const prevRootsTotal = state.transactions
     .filter(t => ['commitment', 'savings_contribution'].includes(t.transaction_type) &&
