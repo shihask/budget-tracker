@@ -55,12 +55,13 @@ export function derive(state: AppState): DerivedMetrics {
   const emergencyFund = state.settings.emergency_fund
   const availableBalance = actualBalance - emergencyFund
   const now = new Date()
+  const cycle = getCurrentFinancialCycle(state)
 const remainingCommitments = state.commitments
   .filter(c => c.is_active)
   .reduce((s, c) => {
     if (c.is_recurring && c.last_paid_date) {
       const paid = new Date(c.last_paid_date)
-      if (paid.getMonth() === now.getMonth() && paid.getFullYear() === now.getFullYear()) {
+      if (paid >= cycle.cycleStart) {
         return s
       }
     }
@@ -84,7 +85,6 @@ const remainingCommitments = state.commitments
 
   // Financial Cycle — income-driven (auto budget mode)
   const pattern = getIncomePattern(state.settings)
-  const cycle = getCurrentFinancialCycle(state)
   let cycleSpent = 0, cycleRemaining = realFreeMoney
   let safeDailySpend = 0, safeWeeklySpend = 0
   let cycleDaysLeft = 0, cycleWeeksLeft = 0
