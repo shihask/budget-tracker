@@ -54,6 +54,7 @@ function isoOf(d: Date): string {
 
 // ── Budget-strategy-based daily spend ──
 function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySpendEstimate | null {
+  if (d.isWaitingForIncome) return null
   const pcts = getStrategyPcts(state.budget_strategy_settings)
   if (!pcts) return null
 
@@ -183,6 +184,7 @@ const CONFIDENCE_WEIGHTS: Record<SpendConfidence, number> = {
 // ── Public API ──
 
 export function calculateBudgetRecommendation(state: AppState, d: DerivedMetrics): BudgetRecommendation | null {
+  if (d.isWaitingForIncome) return null
   const pcts = getStrategyPcts(state.budget_strategy_settings)
   if (!pcts) return null
 

@@ -396,7 +396,9 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             : lifestyleForecast.risk === 'tight' ? 'Getting tight — watch spending'
             : lifestyleForecast.risk === 'risk' ? 'May run short — recovery expected'
             : 'Cash flow at risk — no recovery in sight'
-          const sourceDesc = ds.source === 'hybrid'
+          const sourceDesc = waitingForIncome && ds.source === 'historical'
+            ? `Based on recent spending (waiting for ${incLabel})`
+            : ds.source === 'hybrid'
             ? `${Math.round((ds.historyWeight ?? 0) * 100)}% Recent Spending · ${Math.round((1 - (ds.historyWeight ?? 0)) * 100)}% Budget Strategy`
             : ds.source === 'historical' ? `Based on your last ${ds.days ?? 30} days`
             : 'Based on budget strategy'
@@ -781,7 +783,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                   </div>
                   <span style={{ font: `700 14px ${F}`, color: c.warn }}>{fmt(forecastOutcome.lifestyleTotal)}</span>
                 </div>
-                <div style={{ font: `500 11px ${F}`, color: c.muted, marginTop: -2, marginBottom: 2 }}>~{fmt(forecastOutcome.lifestyleDaily)}/day x {forecastOutcome.lifestyleDays} days · {lifestyleForecast?.dailySpend.source === 'hybrid' ? 'hybrid forecast' : lifestyleForecast?.dailySpend.source === 'historical' ? `from last ${lifestyleForecast?.dailySpend.days ?? 30} days` : 'from budget strategy'}</div>
+                <div style={{ font: `500 11px ${F}`, color: c.muted, marginTop: -2, marginBottom: 2 }}>~{fmt(forecastOutcome.lifestyleDaily)}/day x {forecastOutcome.lifestyleDays} days · {waitingForIncome && lifestyleForecast?.dailySpend.source === 'historical' ? `recent spending (waiting for ${incLabel})` : lifestyleForecast?.dailySpend.source === 'hybrid' ? 'hybrid forecast' : lifestyleForecast?.dailySpend.source === 'historical' ? `from last ${lifestyleForecast?.dailySpend.days ?? 30} days` : 'from budget strategy'}</div>
                 {lifestyleExpanded && lifestyleDetail && lifestyleDetail.type === 'budget_strategy' && (
                   <div style={{ padding: '6px 0 4px' }}>
                     <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>
