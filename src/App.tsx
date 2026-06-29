@@ -683,7 +683,7 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {cashflowOpen && (
-            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} onSwipeProgress={setSwipePct} onAddPlannedExpense={addPlannedExpense} onUpdatePlannedExpense={updatePlannedExpense} onDeletePlannedExpense={deletePlannedExpense} onAddCategory={addCategory} onUpdateForecastSettings={updateForecastSettings} />
+            <CashFlowForecastPage state={state} d={d} onClose={() => setCashflowOpen(false)} onSetup={() => setCashflowSetupOpen(true)} onSwipeProgress={setSwipePct} onAddPlannedExpense={addPlannedExpense} onUpdatePlannedExpense={updatePlannedExpense} onDeletePlannedExpense={deletePlannedExpense} onAddCategory={addCategory} onUpdateForecastSettings={updateForecastSettings} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} />
           )}
 
           {cashflowSetupOpen && <CashFlowForecastSetup open onClose={() => setCashflowSetupOpen(false)} state={state} onUpdateSettings={updateSettings} onUpdateForecastSettings={updateForecastSettings} />}

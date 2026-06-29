@@ -23,10 +23,17 @@ interface Props {
   onDeletePlannedExpense: (id: string) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onUpdateForecastSettings: (patch: Partial<ForecastSettings>) => void
+  onRecordIncome?: () => void
 }
 
 const F = 'Plus Jakarta Sans'
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+
+function eventTitle(title: string, source: string, isWaiting: boolean): string {
+  if (!isWaiting) return title
+  if (source === 'salary') return `Expected ${title}`
+  return title
+}
 
 const EVENT_COLORS: Record<string, string> = {
   salary: '#22C55E',
@@ -65,7 +72,7 @@ function InfoTip({ id, text, openId, setOpenId, color }: { id: string; text: str
   )
 }
 
-export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgress, onAddPlannedExpense, onUpdatePlannedExpense, onDeletePlannedExpense, onAddCategory, onUpdateForecastSettings }: Props) {
+export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgress, onAddPlannedExpense, onUpdatePlannedExpense, onDeletePlannedExpense, onAddCategory, onUpdateForecastSettings, onRecordIncome }: Props) {
   const c = useTheme()
   const mode: ForecastMode = state.forecast_settings.forecast_mode ?? 'planned'
   const setMode = (m: ForecastMode) => onUpdateForecastSettings({ forecast_mode: m })
@@ -284,6 +291,8 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   }
 
   const pattern = getIncomePattern(state.settings)
+  const waitingForIncome = d.isWaitingForIncome ?? false
+  const incLabel = pattern === 'monthly' ? 'salary' : 'income'
   const health = forecastHealth(lowestBalance)
   const toneColor = health === 'critical' ? c.bad : health === 'warning' ? c.warn : c.good
   const toneSoft = health === 'critical' ? c.badSoft : health === 'warning' ? c.warnSoft : c.goodSoft
@@ -330,6 +339,28 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           <div style={{ font: `800 30px ${F}`, color: c.ink, letterSpacing: '-0.02em' }}>{fmt(currentBalance)}</div>
           <div style={{ font: `600 12px ${F}`, color: c.muted, marginTop: 2 }}>Available to spend right now</div>
         </div>
+
+        {/* Waiting for income banner */}
+        {waitingForIncome && (
+          <div style={{ background: `${c.warn}12`, border: `1.5px solid ${c.warn}30`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.warn} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span style={{ font: `700 13px ${F}`, color: c.warn }}>Waiting for your {incLabel}</span>
+            </div>
+            <div style={{ font: `500 12px ${F}`, color: c.muted, lineHeight: 1.5, marginBottom: 10 }}>
+              {d.expectedIncomeDate
+                ? <>Expected on <strong style={{ color: c.ink }}>{new Date(d.expectedIncomeDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</strong>. </>
+                : null
+              }
+              This forecast assumes your expected {incLabel} will arrive. Record your {incLabel} when received to begin the new financial cycle.
+            </div>
+            {onRecordIncome && (
+              <button onClick={onRecordIncome} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', font: `700 13px ${F}`, cursor: 'pointer' }}>
+                + Record {pattern === 'monthly' ? 'Salary' : 'Income'}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Mode Toggle */}
         <div style={{ marginBottom: 14 }}>
@@ -502,7 +533,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                   {recoveryDate ? (
                     <>
                       <div style={{ font: `800 18px ${F}`, color: c.good }}>{shortDate(recoveryDate)}</div>
-                      <div style={{ font: `500 10px ${F}`, color: c.muted, marginTop: 1 }}>After {pattern === 'monthly' ? 'salary' : 'income'}</div>
+                      <div style={{ font: `500 10px ${F}`, color: c.muted, marginTop: 1 }}>{waitingForIncome ? `Assuming expected ${incLabel}` : `After ${incLabel}`}</div>
                     </>
                   ) : (
                     <div style={{ font: `700 14px ${F}`, color: statusColor === c.good ? c.good : c.muted }}>{statusRisk === 'healthy' ? 'Not needed' : 'None in forecast'}</div>
@@ -573,7 +604,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             </div>
             {forecastOutcome.income > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                <span style={{ font: `600 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Income<InfoTip id="income" text="Expected income during the forecast period." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                <span style={{ font: `600 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>{waitingForIncome ? 'Expected Income' : 'Income'}<InfoTip id="income" text="Expected income during the forecast period." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `700 14px ${F}`, color: c.good }}>{fmt(forecastOutcome.income)}</span>
               </div>
             )}
@@ -816,7 +847,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             )}
             {forecastOutcome.income > 0 && (forecastOutcome.debt > 0 || forecastOutcome.commitmentTotal > 0 || forecastOutcome.savingsTotal > 0 || forecastOutcome.plannedTotal > 0 || forecastOutcome.lifestyleTotal > 0) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', marginTop: 4, borderTop: `1px dashed ${c.faint}` }}>
-                <span style={{ font: `700 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>Remaining Balance<InfoTip id="potavail" text="What remains after all expected income, bills, and spending. This is your projected surplus or shortfall." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
+                <span style={{ font: `700 13px ${F}`, color: c.ink, display: 'flex', alignItems: 'center' }}>{waitingForIncome ? 'Projected Ending Balance' : 'Remaining Balance'}<InfoTip id="potavail" text="What remains after all expected income, bills, and spending. This is your projected surplus or shortfall." openId={openInfoId} setOpenId={setOpenInfoId} color={c.muted} /></span>
                 <span style={{ font: `800 14px ${F}`, color: forecastOutcome.available >= 0 ? c.good : c.bad }}>{fmt(forecastOutcome.available)}</span>
               </div>
             )}
@@ -877,7 +908,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                     <div style={{ width: 6, height: 6, borderRadius: 999, background: b.color, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ font: `700 13px ${F}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.event.title}</span>
+                        <span style={{ font: `700 13px ${F}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(p.event.title, p.event.source, waitingForIncome)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
                         <span style={{ font: `600 9px ${F}`, color: b.color, background: `${b.color}15`, padding: '1px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{b.label}</span>
@@ -963,7 +994,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                            <span style={{ font: `600 13px ${F}`, color: c.muted }}>Daily Spending × {item.days}d</span>
+                            <span style={{ font: `600 13px ${F}`, color: c.muted }}>Estimated Spending · {item.days} day{item.days === 1 ? '' : 's'}</span>
                             <span style={{ font: `700 13px ${F}`, color: c.muted, whiteSpace: 'nowrap' }}>−{fmt(item.totalAmount)}</span>
                           </div>
                           <div style={{ font: `500 10px ${F}`, color: c.muted, marginTop: 1 }}>{item.dateRange} · projection</div>
@@ -994,7 +1025,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                          <span style={{ font: `700 14px ${F}`, color: c.ink }}>{p.event.title}</span>
+                          <span style={{ font: `700 14px ${F}`, color: c.ink }}>{eventTitle(p.event.title, p.event.source, waitingForIncome)}</span>
                           <span style={{ font: `800 15px ${F}`, color: income ? c.good : c.ink, whiteSpace: 'nowrap' }}>
                             {income ? '+' : '−'}{fmt(p.event.amount)}
                           </span>
@@ -1030,7 +1061,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                        <span style={{ font: `700 14px ${F}`, color: c.ink }}>{p.event.title}</span>
+                        <span style={{ font: `700 14px ${F}`, color: c.ink }}>{eventTitle(p.event.title, p.event.source, waitingForIncome)}</span>
                         <span style={{ font: `800 15px ${F}`, color: income ? c.good : c.ink, whiteSpace: 'nowrap' }}>
                           {income ? '+' : '−'}{fmt(p.event.amount)}
                         </span>
@@ -1116,6 +1147,13 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
           </summary>
           <div style={{ padding: '0 16px 16px' }}>
+            {waitingForIncome && (
+              <div style={{ background: `${c.warn}10`, border: `1px solid ${c.warn}20`, borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+                <div style={{ font: `600 12px ${F}`, color: c.warn, lineHeight: 1.5 }}>
+                  You are currently waiting for your expected {incLabel}. This forecast projects your future cash flow assuming your expected {incLabel} arrives. Your actual financial cycle will begin only after you record your {incLabel}.
+                </div>
+              </div>
+            )}
             <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 8 }}>Includes</div>
             {[
               pattern === 'monthly' ? 'Salary (when confidently known)' : pattern === 'weekly' ? 'Weekly income' : 'Projected income (when configured)',
