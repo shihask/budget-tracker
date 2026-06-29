@@ -13,9 +13,10 @@ interface HeaderProps {
   onCategories: () => void
   notificationCount?: number
   onNotifications?: () => void
+  onTour?: () => void
 }
 
-export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications }: HeaderProps) {
+export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications, onTour }: HeaderProps) {
   const c = useTheme()
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -174,6 +175,20 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
                 </svg>
                 Categories
               </button>
+
+              {/* Take a Tour */}
+              {onTour && (
+                <button
+                  onClick={() => { setMenuOpen(false); onTour() }}
+                  style={menuItemStyle}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+                  </svg>
+                  Take a Tour
+                </button>
+              )}
 
               <div style={{ height: 1, background: c.faint, margin: '4px 0' }} />
 

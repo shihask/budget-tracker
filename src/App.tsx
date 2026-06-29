@@ -57,6 +57,7 @@ import { CategoryBucketMapper } from '@/components/CategoryBucketMapper'
 import { BudgetStrategySheet } from '@/components/BudgetStrategySheet'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
+import { GuidedTour } from '@/components/GuidedTour'
 import { computeChallenge } from '@/lib/challenge'
 import { Analytics as VercelAnalytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
@@ -177,6 +178,7 @@ function AppContent({ session }: { session: Session }) {
   const [swipePct, setSwipePct] = useState(0)
   const [strategyMapperOpen, setStrategyMapperOpen] = useState(false)
   const [budgetStrategySheetOpen, setBudgetStrategySheetOpen] = useState(false)
+  const [tourOpen, setTourOpen] = useState(false)
 
   const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
@@ -318,7 +320,7 @@ function AppContent({ session }: { session: Session }) {
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
-            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} />
+            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} />
           </div>
 
           <div style={{
@@ -375,7 +377,7 @@ function AppContent({ session }: { session: Session }) {
                   let el: React.ReactNode = null
                   if (s.id.startsWith('custom__')) {
                     el = <CustomGroupSection section={s} state={state} />
-                    return el ? <React.Fragment key={s.id}>{el}</React.Fragment> : null
+                    return el ? <div key={s.id} data-tour={s.id}>{el}</div> : null
                   }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
@@ -438,7 +440,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />
                       break
                   }
-                  return el ? <React.Fragment key={s.id}>{el}</React.Fragment> : null
+                  return el ? <div key={s.id} data-tour={s.id}>{el}</div> : null
                 })
               }
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
@@ -451,7 +453,7 @@ function AppContent({ session }: { session: Session }) {
           {!chatOpen && (
             <div style={{ position: 'fixed', bottom: 0, width: '100%', maxWidth: W, pointerEvents: 'none', zIndex: 50 }}>
               <div style={{ position: 'relative', height: 'calc(100px + env(safe-area-inset-bottom, 0px))' }}>
-                <div style={{ pointerEvents: 'auto' }}>
+                <div style={{ pointerEvents: 'auto' }} data-tour="fab">
                   <FAB onClick={() => setSheetOpen(true)} />
                 </div>
               </div>
@@ -516,7 +518,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
-            {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} busy={aiProcessing} />}
+            {!sheetOpen && !chatOpen && <div data-tour="ai-fab"><AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} busy={aiProcessing} /></div>}
             <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
           </>)}
 
@@ -526,7 +528,12 @@ function AppContent({ session }: { session: Session }) {
               onUpdateSettings={updateSettings}
               onComplete={() => {
                 setShowOnboardingFlow(false)
-                setShowDashboardWelcome(true)
+                const tourDone = localStorage.getItem('mp_tour_completed_' + session.user.id)
+                if (!tourDone) {
+                  setTimeout(() => setTourOpen(true), 600)
+                } else {
+                  setShowDashboardWelcome(true)
+                }
               }}
               userId={session.user.id}
             />
@@ -566,6 +573,12 @@ function AppContent({ session }: { session: Session }) {
               </div>
             </div>
           )}
+
+          <GuidedTour
+            open={tourOpen}
+            onClose={() => setTourOpen(false)}
+            userId={session.user.id}
+          />
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
