@@ -378,7 +378,7 @@ function AppContent({ session }: { session: Session }) {
                   let el: React.ReactNode = null
                   if (s.id.startsWith('custom__')) {
                     el = <CustomGroupSection section={s} state={state} />
-                    return el ? <div key={s.id} data-tour={s.id}>{el}</div> : null
+                    return el ? <div key={s.id} data-tour={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 80 }}>{el}</div> : null
                   }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
@@ -441,7 +441,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} />
                       break
                   }
-                  return el ? <div key={s.id} data-tour={s.id}>{el}</div> : null
+                  return el ? <div key={s.id} data-tour={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 80 }}>{el}</div> : null
                 })
               }
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>

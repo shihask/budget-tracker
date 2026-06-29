@@ -20,7 +20,7 @@ const ALL_STEPS: TourStep[] = [
   { target: 'settings', title: 'Settings', description: 'Set your income pattern, salary date, toggle features like credit cards, savings, notifications and more.' },
 ]
 
-const OVERLAY_TARGETS = new Set(['settings'])
+const OVERLAY_TARGETS = new Set(['settings', 'fab', 'ai-fab'])
 
 interface GuidedTourProps {
   open: boolean
@@ -55,7 +55,7 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
   const currentStep = isFinish ? null : steps[step]
   const isOverlay = currentStep ? OVERLAY_TARGETS.has(currentStep.target) : false
 
-  const FIXED_TARGETS = new Set(['fab', 'ai-fab', 'settings'])
+  const FIXED_TARGETS = new Set<string>()
 
   const scrollAndMeasure = useCallback((target: string) => {
     const isFixed = FIXED_TARGETS.has(target)
@@ -73,7 +73,7 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
       const r = el.getBoundingClientRect()
       const clampedH = isFixed ? r.height : Math.min(r.height, MAX_HIGHLIGHT_H)
       setRect({ top: r.top, left: r.left, width: r.width, height: clampedH })
-    }, isFixed ? 50 : 450)
+    }, isFixed ? 50 : 500)
   }, [])
 
   // Mount/unmount
@@ -215,6 +215,7 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
             background: c.surface,
             borderRadius: 22,
             padding: '32px 24px 24px',
+            boxSizing: 'border-box',
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
             animation: 'tourFadeUp 0.3s cubic-bezier(0.32,0.72,0,1) both',
             textAlign: 'center',
