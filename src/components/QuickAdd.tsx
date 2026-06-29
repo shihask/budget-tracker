@@ -113,6 +113,7 @@ export function FAB({ onClick }: FABProps) {
     <button
       onClick={onClick}
       aria-label="Quick add"
+      data-tour="fab"
       style={{
         position: 'absolute', right: 18, bottom: 26, zIndex: 40,
         width: 60, height: 60, borderRadius: 999, border: 'none', cursor: 'pointer',
@@ -137,14 +138,12 @@ interface QuickAddSheetProps {
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   onBusyChange?: (busy: boolean) => void
   defaultTxType?: 'expense' | 'income' | 'transfer'
+  defaultCategoryId?: string | null
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
-  const prevOpenRef = useRef(open)
-  if (open && !prevOpenRef.current && defaultTxType) setTxType(defaultTxType)
-  prevOpenRef.current = open
   const [transferToAccountId, setTransferToAccountId] = useState('')
   const amountRef = useRef<HTMLInputElement | null>(null)
 
@@ -270,9 +269,12 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
     if (open) {
       const firstAccount = accs[0]?.id || ''
       const secondAccount = accs[1]?.id || ''
-      const firstCat = cats.find(c => c.group_name === 'Lifestyle')?.id || cats[0]?.id || ''
+      const initType = defaultTxType ?? 'expense'
+      const firstCat = initType === 'income'
+        ? (defaultCategoryId || cats.find(c => c.group_name === 'Income')?.id || cats[0]?.id || '')
+        : (cats.find(c => c.group_name === 'Lifestyle')?.id || cats[0]?.id || '')
       reset({ date: iso(TODAY), description: '', amount: 0, category_id: firstCat, from_account_id: firstAccount })
-      setTxType('expense')
+      setTxType(initType)
       setTransferToAccountId(secondAccount)
       setSmartInput('')
       setSmartParsed(null)

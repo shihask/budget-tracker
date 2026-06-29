@@ -133,6 +133,7 @@ export function AIAssistFAB({ onOpen, containerWidth, busy = false }: AIAssistFA
   return (
     <div
       ref={fabRef}
+      data-tour="ai-fab"
       style={{
         position: 'fixed',
         left: pos.x,
