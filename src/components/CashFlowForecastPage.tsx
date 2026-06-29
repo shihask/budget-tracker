@@ -950,6 +950,15 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
           </div>
         </div>
 
+        {/* Timeline context when waiting for income */}
+        {waitingForIncome && projections.length > 0 && (
+          <div style={{ margin: '10px 0 4px 46px', padding: '8px 12px', background: `${c.warn}08`, borderRadius: 10 }}>
+            <div style={{ font: `500 11px ${F}`, color: c.muted, lineHeight: 1.5 }}>
+              Your {incLabel} is overdue and has not been recorded. The timeline below shows your next scheduled {incLabel} based on your configured {incLabel} schedule.
+            </div>
+          </div>
+        )}
+
         {projections.length === 0 ? (
           <div style={{ margin: '20px 0 0 46px' }}>
             <div style={{ font: `700 13px ${F}`, color: c.ink, marginBottom: 4 }}>You're all caught up</div>
@@ -1150,7 +1159,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
             {waitingForIncome && (
               <div style={{ background: `${c.warn}10`, border: `1px solid ${c.warn}20`, borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
                 <div style={{ font: `600 12px ${F}`, color: c.warn, lineHeight: 1.5 }}>
-                  You are currently waiting for your expected {incLabel}. This forecast projects your future cash flow assuming your expected {incLabel} arrives. Your actual financial cycle will begin only after you record your {incLabel}.
+                  You are currently waiting for your expected {incLabel}. This forecast projects your future cash flow assuming your expected {incLabel} arrives. The timeline shows future scheduled {incLabel} events only — your current overdue {incLabel} is not shown there. Your actual financial cycle will begin only after you record your {incLabel}.
                 </div>
               </div>
             )}
