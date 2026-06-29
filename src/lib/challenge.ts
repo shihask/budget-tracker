@@ -2,6 +2,7 @@ import { TODAY, iso, addDays } from '@/lib/utils'
 import type { AppState } from '@/types'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
+import { getRemainingObligations } from '@/lib/obligations'
 
 export interface PlantGrowth {
   leaves: number
@@ -93,17 +94,9 @@ export function computeChallenge(
     .filter(a => a.is_active && a.type !== 'credit_card')
     .reduce((s, a) => s + a.current_balance, 0)
 
-  // Pending bills: uses financial cycle boundary (same as derive())
+  // Pending bills: uses centralized obligation engine (same as derive())
   const cycle = precomputedCycle ?? getCurrentFinancialCycle(state)
-  const pendingBills = commitments
-    .filter(c => c.is_active)
-    .reduce((s, c) => {
-      if (c.is_recurring && c.last_paid_date) {
-        const paid = new Date(c.last_paid_date)
-        if (paid >= cycle.cycleStart) return s
-      }
-      return s + (c.is_recurring ? c.amount : c.remaining)
-    }, 0)
+  const pendingBills = getRemainingObligations(state, cycle).total
 
   const emergencyFund = settings.emergency_fund ?? 0
   const availableSpendable = Math.max(0, spendableCash - pendingBills - emergencyFund)

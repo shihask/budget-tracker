@@ -6,6 +6,7 @@ import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, isPrimaryIncomeTransaction } from '@/lib/financial-cycle'
+import { getRemainingObligations } from '@/lib/obligations'
 import { estimateHistoricalDailyIncome, calculateAvgDailySpending, calculateSafeUntilDays, calculateTodaySummary, calculateWeekSummary } from '@/lib/variable-income'
 
 // System transactions (opening_balance, balance_adjustment) must never count as real income/expense.
@@ -56,17 +57,8 @@ export function derive(state: AppState): DerivedMetrics {
   const availableBalance = actualBalance - emergencyFund
   const now = new Date()
   const cycle = getCurrentFinancialCycle(state)
-const remainingCommitments = state.commitments
-  .filter(c => c.is_active)
-  .reduce((s, c) => {
-    if (c.is_recurring && c.last_paid_date) {
-      const paid = new Date(c.last_paid_date)
-      if (paid >= cycle.cycleStart) {
-        return s
-      }
-    }
-    return s + (c.is_recurring ? c.amount : c.remaining)
-  }, 0)
+  const obligations = getRemainingObligations(state, cycle)
+  const remainingCommitments = obligations.total
   const realFreeMoney = availableBalance - remainingCommitments
 
   const weeklyBudget = state.settings.weekly_budget
