@@ -1,4 +1,4 @@
-import type { AppState, DerivedMetrics, ForecastMode } from '@/types'
+import type { AppState, DerivedMetrics, ForecastMode, Transaction, Category, Group } from '@/types'
 import type { CashFlowEvent, CashFlowForecast, CashFlowProjection } from '@/lib/cashflow'
 import { buildCashFlowForecast, estimateForecastSalary } from '@/lib/cashflow'
 import { getStrategyPcts, getCategoryBucket } from '@/components/BudgetStrategyCard'
@@ -108,13 +108,21 @@ function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySp
   return { amount: total, source: 'budget_strategy', breakdown: { needs: needsDaily, wants: wantsDaily } }
 }
 
-const HIST_EXCLUDED_TYPES = new Set([
-  'opening_balance', 'balance_adjustment', 'credit_card_payment',
-  'cc_opening_balance', 'cc_balance_adjustment',
-  'savings_contribution', 'borrowing_given', 'borrowing_repayment',
-  'income', 'transfer',
-])
-const HIST_EXCLUDED_GROUPS = new Set(['Income', 'Transfer', 'Borrowings', 'Adjustments', 'Savings'])
+const BEHAVIORAL_GROUP_TYPES = new Set(['discretionary', 'essential'])
+
+export function isBehavioralSpending(
+  t: Transaction,
+  catMap: Record<string, Category>,
+  groupsByName: Record<string, Group>,
+): boolean {
+  if (t.transaction_type !== 'expense') return false
+  if (!(t.amount > 0)) return false
+  const cat = catMap[t.category_id ?? '']
+  if (!cat) return false
+  const group = groupsByName[cat.group_name]
+  if (!group?.type) return false
+  return BEHAVIORAL_GROUP_TYPES.has(group.type)
+}
 
 interface HistResult { amount: number; days: number; spendingDays: number; calendarDays: number }
 
@@ -125,15 +133,13 @@ function estimateFromHistory(state: AppState): HistResult | null {
   const thirtyDaysAgo = isoOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30))
 
   const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
+  const groupsByName = Object.fromEntries(state.groups.map(g => [g.name, g]))
 
   const dailyTotals60 = new Map<string, number>()
   const dailyTotals30 = new Map<string, number>()
   for (const t of state.transactions) {
     if (t.transaction_date > todayIso) continue
-    if (HIST_EXCLUDED_TYPES.has(t.transaction_type)) continue
-    const cat = catMap[t.category_id ?? '']
-    if (cat && HIST_EXCLUDED_GROUPS.has(cat.group_name)) continue
-    if (!(t.amount > 0)) continue
+    if (!isBehavioralSpending(t, catMap, groupsByName)) continue
     if (t.transaction_date >= sixtyDaysAgo) {
       dailyTotals60.set(t.transaction_date, (dailyTotals60.get(t.transaction_date) ?? 0) + t.amount)
     }

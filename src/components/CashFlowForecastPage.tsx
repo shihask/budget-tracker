@@ -8,7 +8,7 @@ import { getIncomePattern } from '@/lib/income-pattern'
 import { useStrategyData } from './BudgetStrategyCard'
 import { CategorySelect } from './CategorySelect'
 import { simulatePurchase } from '@/lib/cashflow'
-import { buildLifestyleForecast } from '@/features/forecast/lib/lifestyleForecast'
+import { buildLifestyleForecast, isBehavioralSpending } from '@/features/forecast/lib/lifestyleForecast'
 import { CashFlowGraph } from './CashFlowGraph'
 import type { AppState, DerivedMetrics, ForecastMode, ForecastSettings, PlannedExpense } from '@/types'
 
@@ -174,16 +174,12 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
     const histDays = lifestyleForecast.dailySpend.days ?? 30
     const cutoffIso = toIso(new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - histDays))
     const todayIso = toIso(today0)
-    const EXCLUDED_TYPES = new Set(['opening_balance', 'balance_adjustment', 'credit_card_payment', 'cc_opening_balance', 'cc_balance_adjustment', 'savings_contribution', 'borrowing_given', 'borrowing_repayment', 'income', 'transfer'])
-    const EXCLUDED_GROUPS = new Set(['Income', 'Transfer', 'Borrowings', 'Adjustments', 'Savings'])
     const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
+    const groupsByName = Object.fromEntries(state.groups.map(g => [g.name, g]))
     const txns = state.transactions
       .filter(t => {
         if (t.transaction_date < cutoffIso || t.transaction_date > todayIso) return false
-        if (EXCLUDED_TYPES.has(t.transaction_type)) return false
-        const cat = catMap[t.category_id ?? '']
-        if (cat && EXCLUDED_GROUPS.has(cat.group_name)) return false
-        return t.amount > 0
+        return isBehavioralSpending(t, catMap, groupsByName)
       })
       .sort((a, b) => a.transaction_date < b.transaction_date ? 1 : -1)
 
@@ -822,7 +818,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                 {lifestyleExpanded && lifestyleDetail && lifestyleDetail.type === 'historical' && (
                   <div style={{ padding: '6px 0 4px', maxHeight: 320, overflowY: 'auto' }}>
                     <div style={{ font: `700 10px ${F}`, color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6 }}>
-                      Transactions from last {lifestyleForecast?.dailySpend.days ?? 30} days ({lifestyleDetail.txns.length})
+                      Behavioural Spending · Last {lifestyleForecast?.dailySpend.days ?? 30} days ({lifestyleDetail.txns.length})
                     </div>
                     {lifestyleDetail.txns.length === 0 && (
                       <div style={{ font: `600 12px ${F}`, color: c.muted, fontStyle: 'italic', padding: '4px 0' }}>No matching transactions</div>
