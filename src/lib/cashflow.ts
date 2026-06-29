@@ -298,12 +298,18 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
   }
 
   // ── Pending borrowed money you still owe — assume repayment at next income event ──
+  // If income was just received (cycle active, early in cycle), schedule repayments
+  // within a few days rather than waiting for next month's salary.
   {
     const owed = state.borrowings.filter(b => b.direction === 'borrowed' && b.remaining_amount > 0)
     if (owed.length > 0) {
       const pattern = getIncomePattern(state.settings)
+      const cycle = derived.financialCycle
+      const cycleJustStarted = cycle && cycle.status === 'active' && cycle.currentDay <= 3
       let bDue: Date
-      if (pattern === 'monthly' && state.settings.salary_date != null) {
+      if (cycleJustStarted) {
+        bDue = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+      } else if (pattern === 'monthly' && state.settings.salary_date != null) {
         bDue = nextDueDate(state.settings.salary_date, today)
       } else if (pattern === 'weekly' && state.settings.income_day != null) {
         bDue = nextWeekday(state.settings.income_day, today)
