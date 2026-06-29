@@ -414,6 +414,36 @@ describe('getCurrentFinancialCycle', () => {
     })
   })
 
+  describe('salary recorded with other income in cluster window', () => {
+    it('clears waiting state even when older income clusters with salary', () => {
+      mockToday('2026-06-29')
+      const state = makeState({
+        transactions: [
+          makeTx({ transaction_date: '2026-05-28', category_id: SALARY_CAT_ID }),
+          makeTx({ transaction_date: '2026-06-20', category_id: FREELANCE_CAT_ID }),
+          makeTx({ transaction_date: '2026-06-29', category_id: SALARY_CAT_ID }),
+        ],
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.isWaitingForIncome).toBe(false)
+      expect(cycle.status).toBe('active')
+      expect(cycle.cycleStart.getDate()).toBe(20) // clustered to freelance
+    })
+
+    it('stays waiting when only older income exists (no salary after expected date)', () => {
+      mockToday('2026-06-29')
+      const state = makeState({
+        transactions: [
+          makeTx({ transaction_date: '2026-05-28', category_id: SALARY_CAT_ID }),
+          makeTx({ transaction_date: '2026-06-20', category_id: FREELANCE_CAT_ID }),
+        ],
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.isWaitingForIncome).toBe(true)
+      expect(cycle.status).toBe('waiting')
+    })
+  })
+
   describe('cycle metrics', () => {
     it('computes daysRemaining, totalDays, currentDay correctly', () => {
       mockToday('2026-07-05')

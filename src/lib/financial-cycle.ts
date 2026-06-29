@@ -212,12 +212,12 @@ export function getCurrentFinancialCycle(state: AppState): FinancialCycle {
 
   let latestIncome = qualifying[0]
   let cycleStart = parseTxDate(latestIncome.transaction_date)
+  const mostRecentIncomeDate = cycleStart.getTime()
 
   const clusterWindow = getClusterWindow(pattern)
-  const mostRecentDate = cycleStart.getTime()
   for (let i = 1; i < qualifying.length; i++) {
     const txnDate = parseTxDate(qualifying[i].transaction_date)
-    const daysDiff = (mostRecentDate - txnDate.getTime()) / MS_DAY
+    const daysDiff = (mostRecentIncomeDate - txnDate.getTime()) / MS_DAY
     if (daysDiff <= clusterWindow) {
       cycleStart = txnDate
       latestIncome = qualifying[i]
@@ -232,7 +232,7 @@ export function getCurrentFinancialCycle(state: AppState): FinancialCycle {
   let isWaitingForIncome = false
   if (expectedIncomeDate) {
     const expectedMid = midnight(expectedIncomeDate)
-    if (today.getTime() >= expectedMid.getTime() && cycleStart.getTime() < expectedMid.getTime()) {
+    if (today.getTime() >= expectedMid.getTime() && mostRecentIncomeDate < expectedMid.getTime()) {
       isWaitingForIncome = true
     }
   }
