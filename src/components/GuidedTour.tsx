@@ -258,18 +258,19 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
           style={{
             position: 'fixed',
             bottom: 0,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '100%',
-            maxWidth: 480,
+            left: 0,
+            right: 0,
             zIndex: 604,
             padding: '0 12px calc(12px + env(safe-area-inset-bottom, 0px))',
             animation: 'tourFadeUp 0.3s cubic-bezier(0.32,0.72,0,1) both',
+            boxSizing: 'border-box',
           }}
         >
           <div style={{
             background: c.surface,
             borderRadius: 20,
+            maxWidth: 456,
+            margin: '0 auto',
             padding: '18px 18px 16px',
             boxShadow: '0 -4px 40px rgba(0,0,0,0.2)',
             border: `1px solid ${c.faint}`,
