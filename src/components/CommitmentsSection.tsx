@@ -4,6 +4,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
 import type { AppState } from '@/types'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 
 interface Props {
   state: AppState
@@ -17,11 +18,11 @@ export function CommitmentsSection({ state, onSeeAll, onAdd }: Props) {
 
   const active = state.commitments.filter(cm => cm.is_active !== false)
 
-  const now = new Date()
+  const cycle = getCurrentFinancialCycle(state)
   const unpaidTotal = active.reduce((s, cm) => {
     if (cm.is_recurring && cm.last_paid_date) {
       const paid = new Date(cm.last_paid_date)
-      if (paid.getMonth() === now.getMonth() && paid.getFullYear() === now.getFullYear()) return s
+      if (paid >= cycle.cycleStart) return s
     }
     return s + (cm.is_recurring ? cm.amount : cm.remaining)
   }, 0)

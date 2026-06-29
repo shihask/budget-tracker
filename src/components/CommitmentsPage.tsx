@@ -6,6 +6,7 @@ import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { catById as buildCatById } from '@/lib/data'
 import { CategorySelect } from './CategorySelect'
+import { isRecurringCompleted, getRecurringPeriodLabel } from '@/lib/recurring'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, DerivedMetrics, Commitment } from '@/types'
 
@@ -320,13 +321,10 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                 const isPaying = paying === cm.id
                 const isDeleting = deleting === cm.id
 
-                const paidThisMonth = cm.is_recurring && cm.last_paid_date
-                  ? (() => {
-                      const paid = new Date(cm.last_paid_date)
-                      const now = new Date()
-                      return paid.getMonth() === now.getMonth() && paid.getFullYear() === now.getFullYear()
-                    })()
+                const paidThisPeriod = cm.is_recurring
+                  ? isRecurringCompleted(cm.last_paid_date, cm.frequency)
                   : false
+                const periodLabel = getRecurringPeriodLabel(cm.frequency)
 
                 return (
                   <div
@@ -381,7 +379,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
 
                       <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
                         {cm.is_recurring
-                          ? paidThisMonth
+                          ? paidThisPeriod
                             ? `Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
                             : (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
                           : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}${cm.due_date ? ` · Due ${new Date(cm.due_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}`
@@ -404,7 +402,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       )}
 
                       <div style={{ display: 'flex', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
-                        {!completed && !paidThisMonth && (
+                        {!completed && !paidThisPeriod && (
                           <button
                             onClick={e => { e.stopPropagation(); handleMarkPaid(cm) }}
                             disabled={isPaying}
@@ -413,9 +411,9 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                             {isPaying ? '...' : <><Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Mark Paid</>}
                           </button>
                         )}
-                        {paidThisMonth && (
+                        {paidThisPeriod && (
                           <span style={{ font: '600 11px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 8, padding: '5px 10px' }}>
-                            <Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Paid this month
+                            <Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Paid {periodLabel}
                           </span>
                         )}
                       </div>

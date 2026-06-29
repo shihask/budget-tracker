@@ -6,6 +6,7 @@ import { fmt } from '@/lib/utils'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { CategorySelect } from './CategorySelect'
 import { SAVINGS_GROUP } from '@/lib/constants'
+import { isRecurringCompleted, getRecurringPeriodLabel } from '@/lib/recurring'
 import type { AppState, Savings, SavingsType, SavingsFrequency } from '@/types'
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -467,12 +468,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           const isDel   = deleting === sv.id
           const isCont  = contributing === sv.id
 
-          const contributedThisMonth = sv.last_contribution_date
-            ? (() => {
-                const d = new Date(sv.last_contribution_date), n = new Date()
-                return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear()
-              })()
-            : false
+          const contributedThisPeriod = isRecurringCompleted(sv.last_contribution_date, sv.frequency)
+          const periodLabel = getRecurringPeriodLabel(sv.frequency)
 
           return (
             <div
@@ -502,7 +499,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   </div>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>
                     {sv.is_recurring && sv.due_day
-                      ? contributedThisMonth
+                      ? contributedThisPeriod
                         ? `Invested on ${new Date(sv.last_contribution_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
                         : `Contribute by ${ord(sv.due_day)} every month`
                       : sv.maturity_date
@@ -594,7 +591,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
-                {sv.is_recurring && !contributedThisMonth && (
+                {sv.is_recurring && !contributedThisPeriod && (
                   <button
                     onClick={e => { e.stopPropagation(); handleContribute(sv) }}
                     disabled={isCont}
@@ -603,9 +600,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                     {isCont ? '...' : '+ Record Contribution'}
                   </button>
                 )}
-                {sv.is_recurring && contributedThisMonth && (
+                {sv.is_recurring && contributedThisPeriod && (
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 10, padding: '7px 12px', flex: 1, textAlign: 'center' }}>
-                    Invested this month
+                    Invested {periodLabel}
                   </span>
                 )}
                 {tcfg.showCurrentValue && (

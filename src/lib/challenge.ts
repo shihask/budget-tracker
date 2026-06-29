@@ -93,13 +93,14 @@ export function computeChallenge(
     .filter(a => a.is_active && a.type !== 'credit_card')
     .reduce((s, a) => s + a.current_balance, 0)
 
-  // Pending bills: same logic as src/lib/data.ts
+  // Pending bills: uses financial cycle boundary (same as derive())
+  const cycle = precomputedCycle ?? getCurrentFinancialCycle(state)
   const pendingBills = commitments
     .filter(c => c.is_active)
     .reduce((s, c) => {
       if (c.is_recurring && c.last_paid_date) {
         const paid = new Date(c.last_paid_date)
-        if (paid.getMonth() === now.getMonth() && paid.getFullYear() === now.getFullYear()) return s
+        if (paid >= cycle.cycleStart) return s
       }
       return s + (c.is_recurring ? c.amount : c.remaining)
     }, 0)
