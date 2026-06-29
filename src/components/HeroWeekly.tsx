@@ -223,7 +223,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   // ── Auto mode card values ─────────────────────────────────────────────────────
   const cyclePct = d.realFreeMoney > 0 ? Math.min((d.cycleSpent / d.realFreeMoney) * 100, 999) : 0
   const autoStatus = d.isWaitingForIncome
-    ? { t: 'Waiting for income', col: c.warn }
+    ? { t: `Waiting for your ${pattern === 'monthly' ? 'salary' : 'income'}`, col: c.warn }
     : cyclePct > 100
     ? { t: 'Over budget', col: c.bad }
     : cyclePct >= 75
@@ -454,7 +454,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 <div style={{ marginTop: 12, background: 'rgba(255,200,50,0.18)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EAB308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)', lineHeight: 1.4, flex: 1 }}>
-                    {pattern === 'monthly' ? 'Salary' : 'Income'} expected — record to start new cycle
+                    {pattern === 'monthly' ? 'Salary' : 'Income'} expected — record your {pattern === 'monthly' ? 'salary' : 'income'} to start new cycle
                   </span>
                   {onRecordIncome && (
                     <button onClick={onRecordIncome} style={{ background: 'rgba(255,255,255,0.22)', border: 'none', borderRadius: 8, padding: '6px 12px', font: '700 11px Plus Jakarta Sans', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -468,7 +468,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 {d.isWaitingForIncome ? (
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.5)' }}>
-                    Waiting for income...
+                    Waiting for your {pattern === 'monthly' ? 'salary' : 'income'}...
                   </span>
                 ) : (
                   <>
@@ -636,7 +636,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 {isAutoMode && hasIncomeCycle && (
                   <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '10px 12px' }}>
                     {d.isWaitingForIncome
-                      ? <>Current cycle: <strong style={{ color: c.ink }}>{d.financialCycle?.startLabel}</strong> → <strong style={{ color: c.warn }}>Waiting for income</strong></>
+                      ? <>Current cycle: <strong style={{ color: c.ink }}>{d.financialCycle?.startLabel}</strong> → <strong style={{ color: c.warn }}>Waiting for your {pattern === 'monthly' ? 'salary' : 'income'}</strong></>
                       : <>Current cycle: <strong style={{ color: c.ink }}>{d.financialCycle?.startLabel} – {d.financialCycle?.endLabel}</strong> · {d.cycleDaysLeft}d left</>
                     }
                   </div>
@@ -699,7 +699,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '10px 12px', marginBottom: 4 }}>
                   {isAutoMode
                     ? d.isWaitingForIncome
-                      ? <>Current cycle: <strong style={{ color: c.ink }}>{d.financialCycle?.startLabel}</strong> → <strong style={{ color: c.warn }}>Waiting for income</strong>
+                      ? <>Current cycle: <strong style={{ color: c.ink }}>{d.financialCycle?.startLabel}</strong> → <strong style={{ color: c.warn }}>Waiting for your {pattern === 'monthly' ? 'salary' : 'income'}</strong>
                          <br /><span style={{ font: '500 11px Plus Jakarta Sans' }}>Tracking: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong></span></>
                       : <>Expenses since <strong style={{ color: c.ink }}>{d.financialCycle?.startLabel}</strong> from: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong></>
                     : <>Expenses {activePeriod === 'daily' ? 'today' : activePeriod === 'monthly' ? 'this month' : 'this week'} from: <strong style={{ color: c.ink }}>{scopeLabel(settings.weekly_budget_scope, categories)}</strong></>
@@ -826,7 +826,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>
                   {d.isWaitingForIncome
-                    ? <><span style={{ color: c.warn }}>Waiting for income</span> · cycle since {d.financialCycle?.startLabel}</>
+                    ? <><span style={{ color: c.warn }}>Waiting for your {pattern === 'monthly' ? 'salary' : 'income'}</span> · cycle since {d.financialCycle?.startLabel}</>
                     : <>Current cycle · {d.financialCycle?.startLabel} – {d.financialCycle?.endLabel}</>
                   }
                 </div>
@@ -1073,10 +1073,10 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               d.isWaitingForIncome ? (
               <div style={{ background: c.warnSoft, borderRadius: 14, padding: '14px 16px' }}>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.warn, marginBottom: 6 }}>
-                  Waiting for income
+                  Waiting for your {pattern === 'monthly' ? 'salary' : 'income'}
                 </div>
                 <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5, marginBottom: 8 }}>
-                  Record your income to start a new cycle. Safe daily and weekly spend will be recalculated automatically.
+                  Record your {pattern === 'monthly' ? 'salary' : 'income'} to start a new cycle. Safe daily and weekly spend will be recalculated automatically.
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Available now</span>

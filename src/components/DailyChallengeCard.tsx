@@ -307,7 +307,7 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
             <span style={{ font: '500 12px Plus Jakarta Sans', color: c.sub }}>
               {d.isWaitingForIncome
-                ? 'Income expected — waiting'
+                ? (getIncomePattern(settings) === 'monthly' ? 'Salary expected — waiting' : 'Income expected — waiting')
                 : calc.planningMode === 'salary_cycle'
                 ? (getIncomePattern(settings) === 'monthly' ? `${calc.daysRemaining} days until salary` : `${calc.daysRemaining} days until income`)
                 : `${calc.daysRemaining} days until month end`}
