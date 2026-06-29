@@ -205,7 +205,12 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}` +
     `\nAccounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}` +
     `\nSpend: this-month ₹${monthlySpend.toLocaleString()} | income ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transferNote}${savingsNote}` +
-    `\nTracking: ${trackingCount} transactions across ${trackingDays} days this month`
+    `\nTracking: ${trackingCount} transactions across ${trackingDays} days this month` +
+    (d.isWaitingForIncome
+      ? `\nFinancial-Cycle: WAITING for income (expected ${d.expectedIncomeDate ? new Date(d.expectedIncomeDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'unknown'}). Current cycle started ${d.financialCycle?.startLabel ?? 'unknown'}. Salary/income has NOT been received yet. Safe daily spend: ₹0 until income is recorded.`
+      : d.financialCycle
+      ? `\nFinancial-Cycle: active since ${d.financialCycle.startLabel}, ${d.cycleDaysLeft}d left, safe-daily:₹${Math.round(d.safeDailySpend).toLocaleString()} safe-weekly:₹${Math.round(d.safeWeeklySpend).toLocaleString()}`
+      : '')
   )
 
   // ── MODULE: Cash flow forecast (always sent — answers "enough before salary?" / affordability) ──

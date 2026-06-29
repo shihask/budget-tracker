@@ -825,22 +825,38 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             {d.cycleDaysLeft > 0 && (
               <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>
-                  Current cycle {d.isWaitingForIncome ? '(waiting for income)' : ''}
+                  {d.isWaitingForIncome
+                    ? <><span style={{ color: c.warn }}>Waiting for income</span> · cycle since {d.financialCycle?.startLabel}</>
+                    : <>Current cycle · {d.financialCycle?.startLabel} – {d.financialCycle?.endLabel}</>
+                  }
                 </div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <div>
-                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{d.cycleDaysLeft}</div>
-                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>days left</div>
+                {d.isWaitingForIncome ? (
+                  <div style={{ display: 'flex', gap: 16 }}>
+                    <div>
+                      <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{fmt(d.realFreeMoney)}</div>
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>available</div>
+                    </div>
+                    <div>
+                      <div style={{ font: '800 18px Plus Jakarta Sans', color: c.muted }}>{fmt(d.cycleSpent)}</div>
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>spent</div>
+                    </div>
                   </div>
-                  <div>
-                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{(d.cycleWeeksLeft).toFixed(1)}</div>
-                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>weeks left</div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 16 }}>
+                    <div>
+                      <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{d.cycleDaysLeft}</div>
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>days left</div>
+                    </div>
+                    <div>
+                      <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent }}>{(d.cycleWeeksLeft).toFixed(1)}</div>
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>weeks left</div>
+                    </div>
+                    <div>
+                      <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{fmt(d.realFreeMoney)}</div>
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>free money</div>
+                    </div>
                   </div>
-                  <div>
-                    <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink }}>{fmt(d.realFreeMoney)}</div>
-                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>free money</div>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -1054,6 +1070,20 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 </div>
               </div>
             ) : d.cycleDaysLeft > 0 ? (
+              d.isWaitingForIncome ? (
+              <div style={{ background: c.warnSoft, borderRadius: 14, padding: '14px 16px' }}>
+                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.warn, marginBottom: 6 }}>
+                  Waiting for income
+                </div>
+                <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5, marginBottom: 8 }}>
+                  Record your income to start a new cycle. Safe daily and weekly spend will be recalculated automatically.
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Available now</span>
+                  <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(d.realFreeMoney)}</span>
+                </div>
+              </div>
+              ) : (
               <div style={{ background: c.accentSoft, borderRadius: 14, padding: '14px 16px' }}>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.accent, marginBottom: 10 }}>
                   MoneyPlant calculates automatically
@@ -1078,6 +1108,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   </div>
                 </div>
               </div>
+              )
             ) : (
               <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
                 {pattern === 'monthly' ? 'Set your salary date above to see automatic safe spend calculations.' : 'Configure your income in Settings to see automatic safe spend calculations.'}
@@ -1136,7 +1167,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               )}
 
               {/* Suggested budget from cycle — not shown for variable/business */}
-              {d.cycleDaysLeft > 0 && suggested !== null && suggested > 0 && pattern !== 'variable' && pattern !== 'business' && (
+              {d.cycleDaysLeft > 0 && !d.isWaitingForIncome && suggested !== null && suggested > 0 && pattern !== 'variable' && pattern !== 'business' && (
                 <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 6 }}>
                     {fmt(d.realFreeMoney)} ÷ {budgetPeriod === 'daily' ? `${d.cycleDaysLeft} days` : budgetPeriod === 'monthly' ? '1 month' : `${(d.cycleWeeksLeft).toFixed(1)} weeks`}
