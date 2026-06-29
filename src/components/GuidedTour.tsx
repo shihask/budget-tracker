@@ -16,15 +16,15 @@ const ALL_STEPS: TourStep[] = [
   { target: 'commitments', title: 'Upcoming Commitments', description: 'Never miss an EMI, SIP, Gold Scheme or subscription. MoneyPlant reminds you before they\'re due.' },
   { target: 'accounts', title: 'Accounts', description: 'View all your bank accounts and cash balances in one place.' },
   { target: 'credit_cards', title: 'Credit Cards', description: 'Track your credit card balances, billing cycles and due dates. Pay bills directly from here.' },
-  { target: 'ai-fab', title: 'Mint AI', description: 'The dark floating button on your screen is Mint AI. Tap it to ask anything about your money — Can I afford a new phone? Why did I overspend?' },
-  { target: 'fab', title: 'Add Transaction', description: 'The green + button at the bottom right is your quick add. Tap it to record income or expenses in seconds.' },
+  { target: 'ai-fab', title: 'Mint AI', description: 'Tap the dark floating button to ask Mint anything about your money — Can I afford this? Why did I overspend?' },
+  { target: 'fab', title: 'Add Transaction', description: 'Tap the green + button to record income or expenses in seconds. The more you record, the smarter your forecasts become.' },
   { target: 'settings', title: 'Settings', description: 'Set your income pattern, salary date, toggle features like credit cards, savings, notifications and more.' },
 ]
 
-// Steps that open their own UI (always included, no DOM check needed)
 const PROGRAMMATIC_TARGETS = new Set(['settings'])
-// Steps that show no highlight cutout (dimmed backdrop + tooltip only)
-const NO_HIGHLIGHT_TARGETS = new Set(['settings', 'fab', 'ai-fab'])
+const NO_HIGHLIGHT_TARGETS = new Set(['settings'])
+const FIXED_TARGETS = new Set(['fab', 'ai-fab'])
+const TOOLTIP_TOP_TARGETS = new Set(['fab', 'ai-fab'])
 
 interface GuidedTourProps {
   open: boolean
@@ -32,6 +32,7 @@ interface GuidedTourProps {
   userId: string
   onOpenSettings?: () => void
   onCloseSettings?: () => void
+  onActiveTarget?: (target: string | null) => void
 }
 
 interface Rect { top: number; left: number; width: number; height: number }
@@ -39,7 +40,7 @@ interface Rect { top: number; left: number; width: number; height: number }
 const PAD = 8
 const MAX_HIGHLIGHT_H = 280
 
-export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSettings }: GuidedTourProps) {
+export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSettings, onActiveTarget }: GuidedTourProps) {
   const c = useTheme()
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -58,6 +59,7 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
   const isFinish = step >= totalSteps
   const currentStep = isFinish ? null : steps[step]
   const noHighlight = currentStep ? NO_HIGHLIGHT_TARGETS.has(currentStep.target) : false
+  const tooltipAtTop = currentStep ? TOOLTIP_TOP_TARGETS.has(currentStep.target) : false
 
   const scrollAndMeasure = useCallback((target: string) => {
     if (NO_HIGHLIGHT_TARGETS.has(target)) {
@@ -66,11 +68,14 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
     }
     const el = document.querySelector(`[data-tour="${target}"]`)
     if (!el) { setRect(null); return }
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const isFixed = FIXED_TARGETS.has(target)
+    if (!isFixed) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
     setTimeout(() => {
       const r = el.getBoundingClientRect()
-      setRect({ top: r.top, left: r.left, width: r.width, height: Math.min(r.height, MAX_HIGHLIGHT_H) })
-    }, 500)
+      setRect({ top: r.top, left: r.left, width: r.width, height: isFixed ? r.height : Math.min(r.height, MAX_HIGHLIGHT_H) })
+    }, isFixed ? 100 : 500)
   }, [])
 
   // Mount/unmount
@@ -86,6 +91,15 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
       return () => clearTimeout(t)
     }
   }, [open])
+
+  // Notify parent of active target for z-index bumping
+  useEffect(() => {
+    if (!open || !mounted) {
+      onActiveTarget?.(null)
+      return
+    }
+    onActiveTarget?.(currentStep?.target ?? null)
+  }, [open, mounted, currentStep, onActiveTarget])
 
   // Open/close settings panel for settings step
   useEffect(() => {
@@ -110,13 +124,12 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
 
   // Re-measure on resize
   useEffect(() => {
-    if (!open || isFinish || !currentStep) return
+    if (!open || isFinish || !currentStep || NO_HIGHLIGHT_TARGETS.has(currentStep.target)) return
     const handler = () => {
       const el = document.querySelector(`[data-tour="${currentStep.target}"]`)
       if (!el) return
       const r = el.getBoundingClientRect()
-      const clampedH = Math.min(r.height, MAX_HIGHLIGHT_H)
-      setRect({ top: r.top, left: r.left, width: r.width, height: clampedH })
+      setRect({ top: r.top, left: r.left, width: r.width, height: Math.min(r.height, MAX_HIGHLIGHT_H) })
     }
     window.addEventListener('resize', handler)
     return () => window.removeEventListener('resize', handler)
@@ -154,6 +167,70 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
 
   if (!mounted) return null
 
+  const tooltipContent = currentStep ? (
+    <div style={{
+      background: c.surface,
+      borderRadius: 20,
+      maxWidth: 456,
+      margin: '0 auto',
+      padding: '18px 18px 16px',
+      boxShadow: tooltipAtTop ? '0 4px 40px rgba(0,0,0,0.2)' : '0 -4px 40px rgba(0,0,0,0.2)',
+      border: `1px solid ${c.faint}`,
+    }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
+        {steps.map((_, i) => (
+          <div key={i} style={{
+            flex: 1, height: 3, borderRadius: 2,
+            background: i <= step ? c.accent : c.faint,
+            transition: 'background 0.25s ease',
+          }} />
+        ))}
+      </div>
+      <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em', marginBottom: 5 }}>
+        {currentStep.title}
+      </div>
+      <div style={{ font: '400 13px Plus Jakarta Sans', color: c.sub, lineHeight: 1.6, marginBottom: 16 }}>
+        {currentStep.description}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={handleSkip}
+          style={{
+            background: 'none', border: 'none',
+            font: '600 13px Plus Jakarta Sans', color: c.muted,
+            cursor: 'pointer', padding: '8px 4px', marginRight: 'auto',
+          }}
+        >
+          Skip
+        </button>
+        {step > 0 && (
+          <button
+            onClick={handleBack}
+            style={{
+              background: c.surface2, border: 'none',
+              borderRadius: 12, padding: '10px 16px',
+              font: '600 13px Plus Jakarta Sans', color: c.sub,
+              cursor: 'pointer',
+            }}
+          >
+            Back
+          </button>
+        )}
+        <button
+          onClick={handleNext}
+          style={{
+            background: c.accent, border: 'none',
+            borderRadius: 12, padding: '10px 20px',
+            font: '700 13px Plus Jakarta Sans', color: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          {step === totalSteps - 1 ? 'Finish' : 'Next'}
+        </button>
+      </div>
+    </div>
+  ) : null
+
   return createPortal(
     <>
       <style>{`
@@ -161,13 +238,13 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
           from { opacity: 0; transform: translateY(16px) }
           to   { opacity: 1; transform: translateY(0) }
         }
-        @keyframes tourFadeIn {
-          from { opacity: 0 }
-          to   { opacity: 1 }
+        @keyframes tourFadeDown {
+          from { opacity: 0; transform: translateY(-16px) }
+          to   { opacity: 1; transform: translateY(0) }
         }
       `}</style>
 
-      {/* Full-screen backdrop — always visible, catches clicks */}
+      {/* Full-screen backdrop */}
       <div
         onClick={handleSkip}
         style={{
@@ -178,7 +255,7 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
         }}
       />
 
-      {/* Highlight cutout — box-shadow trick, clamped height (hidden for no-highlight targets) */}
+      {/* Highlight cutout */}
       {rect && !isFinish && !noHighlight && (
         <div
           style={{
@@ -204,128 +281,79 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
           onClick={e => e.stopPropagation()}
           style={{
             position: 'fixed',
-            top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 'calc(100% - 48px)',
-            maxWidth: 340,
+            inset: 0,
             zIndex: 604,
-            background: c.surface,
-            borderRadius: 22,
-            padding: '32px 24px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
             boxSizing: 'border-box',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            animation: 'tourFadeUp 0.3s cubic-bezier(0.32,0.72,0,1) both',
-            textAlign: 'center',
+            pointerEvents: 'none',
           }}
         >
           <div style={{
-            width: 56, height: 56, borderRadius: 999,
-            background: `${c.accent}18`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
+            width: '100%',
+            maxWidth: 320,
+            background: c.surface,
+            borderRadius: 22,
+            padding: '32px 24px 24px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            animation: 'tourFadeUp 0.3s cubic-bezier(0.32,0.72,0,1) both',
+            textAlign: 'center',
+            pointerEvents: 'auto',
           }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
+            <div style={{
+              width: 56, height: 56, borderRadius: 999,
+              background: `${c.accent}18`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 6, letterSpacing: '-0.01em' }}>
+              You're all set!
+            </div>
+            <div style={{ font: '400 13.5px Plus Jakarta Sans', color: c.sub, lineHeight: 1.55, marginBottom: 24 }}>
+              Start tracking today and let MoneyPlant help you spend with confidence.
+            </div>
+            <button
+              onClick={handleNext}
+              style={{
+                width: '100%', padding: '13px 0',
+                background: c.accent, color: '#fff', border: 'none',
+                borderRadius: 14, font: '700 14px Plus Jakarta Sans',
+                cursor: 'pointer',
+              }}
+            >
+              Got it
+            </button>
           </div>
-          <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 6, letterSpacing: '-0.01em' }}>
-            You're all set!
-          </div>
-          <div style={{ font: '400 13.5px Plus Jakarta Sans', color: c.sub, lineHeight: 1.55, marginBottom: 24 }}>
-            Start tracking today and let MoneyPlant help you spend with confidence.
-          </div>
-          <button
-            onClick={handleNext}
-            style={{
-              width: '100%', padding: '13px 0',
-              background: c.accent, color: '#fff', border: 'none',
-              borderRadius: 14, font: '700 14px Plus Jakarta Sans',
-              cursor: 'pointer',
-            }}
-          >
-            Got it
-          </button>
         </div>
       )}
 
-      {/* Step tooltip — fixed at bottom, always visible */}
+      {/* Step tooltip — top or bottom depending on target */}
       {!isFinish && currentStep && (
         <div
           key={tooltipKey.current}
           onClick={e => e.stopPropagation()}
           style={{
             position: 'fixed',
-            bottom: 0,
+            ...(tooltipAtTop
+              ? { top: 0, padding: 'calc(12px + env(safe-area-inset-top, 0px)) 12px 0' }
+              : { bottom: 0, padding: '0 12px calc(12px + env(safe-area-inset-bottom, 0px))' }
+            ),
             left: 0,
             right: 0,
             zIndex: 604,
-            padding: '0 12px calc(12px + env(safe-area-inset-bottom, 0px))',
-            animation: 'tourFadeUp 0.3s cubic-bezier(0.32,0.72,0,1) both',
+            animation: tooltipAtTop
+              ? 'tourFadeDown 0.3s cubic-bezier(0.32,0.72,0,1) both'
+              : 'tourFadeUp 0.3s cubic-bezier(0.32,0.72,0,1) both',
             boxSizing: 'border-box',
           }}
         >
-          <div style={{
-            background: c.surface,
-            borderRadius: 20,
-            maxWidth: 456,
-            margin: '0 auto',
-            padding: '18px 18px 16px',
-            boxShadow: '0 -4px 40px rgba(0,0,0,0.2)',
-            border: `1px solid ${c.faint}`,
-          }}>
-            {/* Progress bar */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
-              {steps.map((_, i) => (
-                <div key={i} style={{
-                  flex: 1, height: 3, borderRadius: 2,
-                  background: i <= step ? c.accent : c.faint,
-                  transition: 'background 0.25s ease',
-                }} />
-              ))}
-            </div>
-            <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em', marginBottom: 5 }}>
-              {currentStep.title}
-            </div>
-            <div style={{ font: '400 13px Plus Jakarta Sans', color: c.sub, lineHeight: 1.6, marginBottom: 16 }}>
-              {currentStep.description}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                onClick={handleSkip}
-                style={{
-                  background: 'none', border: 'none',
-                  font: '600 13px Plus Jakarta Sans', color: c.muted,
-                  cursor: 'pointer', padding: '8px 4px', marginRight: 'auto',
-                }}
-              >
-                Skip
-              </button>
-              {step > 0 && (
-                <button
-                  onClick={handleBack}
-                  style={{
-                    background: c.surface2, border: 'none',
-                    borderRadius: 12, padding: '10px 16px',
-                    font: '600 13px Plus Jakarta Sans', color: c.sub,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Back
-                </button>
-              )}
-              <button
-                onClick={handleNext}
-                style={{
-                  background: c.accent, border: 'none',
-                  borderRadius: 12, padding: '10px 20px',
-                  font: '700 13px Plus Jakarta Sans', color: '#fff',
-                  cursor: 'pointer',
-                }}
-              >
-                {step === totalSteps - 1 ? 'Finish' : 'Next'}
-              </button>
-            </div>
-          </div>
+          {tooltipContent}
         </div>
       )}
     </>,

@@ -9,9 +9,10 @@ interface AIAssistFABProps {
   onOpen: () => void
   containerWidth: number
   busy?: boolean
+  tourHighlight?: boolean
 }
 
-export function AIAssistFAB({ onOpen, containerWidth, busy = false }: AIAssistFABProps) {
+export function AIAssistFAB({ onOpen, containerWidth, busy = false, tourHighlight }: AIAssistFABProps) {
   const c = useTheme()
 
   const getBounds = () => {
@@ -140,7 +141,7 @@ export function AIAssistFAB({ onOpen, containerWidth, busy = false }: AIAssistFA
         top: pos.y,
         width: SIZE,
         height: SIZE,
-        zIndex: 90,
+        zIndex: tourHighlight ? 602 : 90,
         userSelect: 'none',
         WebkitUserSelect: 'none',
         touchAction: 'none',

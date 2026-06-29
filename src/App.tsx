@@ -180,6 +180,7 @@ function AppContent({ session }: { session: Session }) {
   const [strategyMapperOpen, setStrategyMapperOpen] = useState(false)
   const [budgetStrategySheetOpen, setBudgetStrategySheetOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
+  const [tourTarget, setTourTarget] = useState<string | null>(null)
 
   const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
@@ -452,7 +453,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* FAB */}
           {!chatOpen && (
-            <div style={{ position: 'fixed', bottom: 0, width: '100%', maxWidth: W, pointerEvents: 'none', zIndex: 50 }}>
+            <div style={{ position: 'fixed', bottom: 0, width: '100%', maxWidth: W, pointerEvents: 'none', zIndex: tourTarget === 'fab' ? 602 : 50 }}>
               <div style={{ position: 'relative', height: 'calc(100px + env(safe-area-inset-bottom, 0px))' }}>
                 <div style={{ pointerEvents: 'auto' }}>
                   <FAB onClick={() => setSheetOpen(true)} />
@@ -519,7 +520,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
-            {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} busy={aiProcessing} />}
+            {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} busy={aiProcessing} tourHighlight={tourTarget === 'ai-fab'} />}
             <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
           </>)}
 
@@ -577,10 +578,11 @@ function AppContent({ session }: { session: Session }) {
 
           <GuidedTour
             open={tourOpen}
-            onClose={() => { setTourOpen(false); setSettingsOpen(false) }}
+            onClose={() => { setTourOpen(false); setSettingsOpen(false); setTourTarget(null) }}
             userId={session.user.id}
             onOpenSettings={() => setSettingsOpen(true)}
             onCloseSettings={() => setSettingsOpen(false)}
+            onActiveTarget={setTourTarget}
           />
 
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
