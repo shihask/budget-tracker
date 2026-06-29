@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import type { AppState, DerivedMetrics } from '@/types'
 
-type Insight = { text: string; type: 'warning' | 'positive' | 'info' | 'celebrate' }
+export type Insight = { id: string; text: string; type: 'warning' | 'positive' | 'info' | 'celebrate' }
 
-function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
+export function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
+  const monthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`
 
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -41,6 +42,7 @@ function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
     const overshoot = projected - budget
     if (overshoot > 0) {
       return {
+        id: `insight-pace-${weekStartStr}`,
         text: `At this pace, you'll exceed your budget by ₹${overshoot.toLocaleString('en-IN')} this week.`,
         type: 'warning',
       }
@@ -65,6 +67,7 @@ function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
     }
     if (topSpike) {
       return {
+        id: `insight-spike-${topSpike.cat}-${monthKey}`,
         text: `${topSpike.cat} is up ${Math.round(topSpike.pct)}% vs last month — ₹${Math.round(topSpike.amount).toLocaleString('en-IN')} so far.`,
         type: 'warning',
       }
@@ -75,6 +78,7 @@ function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
   if (lastMonthSpend > 500 && thisMonthSpend < lastMonthSpend * 0.8) {
     const saved = Math.round(lastMonthSpend - thisMonthSpend)
     return {
+      id: `insight-good-${monthKey}`,
       text: `You're spending ₹${saved.toLocaleString('en-IN')} less than this time last month. Nice work!`,
       type: 'positive',
     }
@@ -89,11 +93,13 @@ function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
     const isEndOfMonth = dayOfMonth >= 25
     if (isEndOfMonth) {
       return {
+        id: `insight-celebrate-${monthKey}`,
         text: `Strong month! You logged ${txCount} transactions across ${daysTracked} days. That kind of consistency is how you stay in control.`,
         type: 'celebrate',
       }
     }
     return {
+      id: `insight-discipline-${monthKey}`,
       text: `${txCount} transactions logged across ${daysTracked} days this month — great tracking discipline.`,
       type: 'celebrate',
     }
@@ -109,6 +115,7 @@ function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
   const topCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0]
   if (topCat && topCat[1] > 200) {
     return {
+      id: `insight-top-${monthKey}`,
       text: `${topCat[0]} is your biggest spend this month — ₹${Math.round(topCat[1]).toLocaleString('en-IN')}.`,
       type: 'info',
     }
@@ -120,20 +127,20 @@ function computeInsight(state: AppState, d: DerivedMetrics): Insight | null {
 interface InsightCardProps {
   state: AppState
   d: DerivedMetrics
+  dismissedAlerts?: Set<string>
+  onDismiss?: (id: string) => void
 }
 
-export function InsightCard({ state, d }: InsightCardProps) {
+export function InsightCard({ state, d, dismissedAlerts, onDismiss }: InsightCardProps) {
   const c = useTheme()
-  const [dismissed, setDismissed] = useState(false)
 
   const insight = useMemo(
     () => computeInsight(state, d),
-    // recompute when transactions change or week spend changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.transactions.length, state.transactions[0]?.id, d.weeklySpent],
   )
 
-  if (!insight || dismissed) return null
+  if (!insight || dismissedAlerts?.has(insight.id)) return null
 
   const { border, bg, icon } = {
     warning: {
@@ -190,7 +197,7 @@ export function InsightCard({ state, d }: InsightCardProps) {
         {insight.text}
       </span>
       <button
-        onClick={() => setDismissed(true)}
+        onClick={() => onDismiss?.(insight.id)}
         aria-label="Dismiss"
         style={{
           flexShrink: 0, background: 'none', border: 'none',

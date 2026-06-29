@@ -8,6 +8,8 @@ import type { AppState, Commitment } from '@/types'
 interface Props {
   state: AppState
   onMarkPaid?: (cm: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
+  dismissedAlerts?: Set<string>
+  onDismiss?: (id: string) => void
 }
 
 export interface Reminder {
@@ -31,6 +33,8 @@ function getDaysUntil(day: number): number {
 export function buildReminders(state: AppState): Reminder[] {
   const reminders: Reminder[] = []
   const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const monthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`
 
   // Credit card due dates
   for (const card of (state.credit_cards || [])) {
@@ -42,7 +46,7 @@ export function buildReminders(state: AppState): Reminder[] {
 
     if (daysUntilDue <= 7) {
       reminders.push({
-        id: `cc-due-${card.id}`,
+        id: `cc-due-${card.id}-${monthKey}`,
         type: 'credit_card_due',
         title: `${card.name} payment due`,
         subtitle: `Billed: ${fmt(billing.billedAmount)}`,
@@ -52,7 +56,7 @@ export function buildReminders(state: AppState): Reminder[] {
       })
     } else if (daysUntilBill <= 3) {
       reminders.push({
-        id: `cc-bill-${card.id}`,
+        id: `cc-bill-${card.id}-${monthKey}`,
         type: 'credit_card_bill',
         title: `${card.name} bill generates soon`,
         subtitle: `Unbilled spend: ${fmt(billing.unbilledAmount)}`,
@@ -76,7 +80,7 @@ export function buildReminders(state: AppState): Reminder[] {
     const daysUntilDue = getDaysUntil(cm.due_day)
     if (daysUntilDue <= 5) {
       reminders.push({
-        id: `cm-${cm.id}`,
+        id: `cm-${cm.id}-${monthKey}`,
         type: 'commitment_due',
         title: `${cm.name} due soon`,
         subtitle: `₹${cm.amount.toLocaleString('en-IN')} · ${cm.due_day}th every month`,
@@ -92,14 +96,13 @@ export function buildReminders(state: AppState): Reminder[] {
   return reminders.sort((a, b) => a.daysLeft - b.daysLeft)
 }
 
-export function RemindersBar({ state, onMarkPaid }: Props) {
+export function RemindersBar({ state, onMarkPaid, dismissedAlerts, onDismiss }: Props) {
   const c = useTheme()
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [payTarget, setPayTarget] = useState<Commitment | null>(null)
   const [payAccountId, setPayAccountId] = useState<string>('')
   const [paying, setPaying] = useState(false)
 
-  const reminders = buildReminders(state).filter(r => !dismissed.has(r.id))
+  const reminders = buildReminders(state).filter(r => !dismissedAlerts?.has(r.id))
 
   const payIsCC = payTarget ? (state.credit_cards || []).some(cc => cc.id === payTarget.from_account_id) : false
   const payCardName = payTarget && payIsCC
@@ -174,7 +177,7 @@ export function RemindersBar({ state, onMarkPaid }: Props) {
                     <div style={{ font: '800 14px Plus Jakarta Sans', color: '#fff', lineHeight: 1 }}>{r.daysLeft}</div>
                     <div style={{ font: '600 9px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', lineHeight: 1, marginTop: 1 }}>days</div>
                   </div>
-                  <button onClick={() => setDismissed(s => new Set([...s, r.id]))}
+                  <button onClick={() => onDismiss?.(r.id)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: textColor + '80' }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

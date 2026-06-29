@@ -48,7 +48,7 @@ import { CashFlowForecastPage } from '@/components/CashFlowForecastPage'
 import { CashFlowForecastSetup } from '@/components/CashFlowForecastSetup'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
 import { UpdateToast } from '@/components/UpdateToast'
-import { InsightCard } from '@/components/InsightCard'
+import { InsightCard, computeInsight } from '@/components/InsightCard'
 import { WealthSummaryCard } from '@/components/WealthSummaryCard'
 import { DailyChallengeCard } from '@/components/DailyChallengeCard'
 import { PlantPage } from '@/components/PlantPage'
@@ -168,6 +168,16 @@ function AppContent({ session }: { session: Session }) {
   const [seenSharedIds, setSeenSharedIds] = useState<Set<string>>(() => {
     try { const ids = JSON.parse(localStorage.getItem('mp_seen_shared_' + session.user.id) || '[]'); return new Set(ids) } catch { return new Set() }
   })
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('mp_dismissed_alerts_' + session.user.id) || '[]')) } catch { return new Set() }
+  })
+  const dismissAlert = (id: string) => {
+    setDismissedAlerts(prev => {
+      const next = new Set([...prev, id])
+      try { localStorage.setItem('mp_dismissed_alerts_' + session.user.id, JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
   const [savingEmergency, setSavingEmergency] = useState(false)
@@ -241,10 +251,32 @@ function AppContent({ session }: { session: Session }) {
     state.transactions.some(t => t.transaction_date === yesterdayStr && t.transaction_type === 'expense')
 
   const alertReminders = buildReminders(state)
+  const currentInsight = useMemo(() => computeInsight(state, d), [state.transactions.length, state.transactions[0]?.id, d.weeklySpent]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const monthKey = `${TODAY.getFullYear()}-${pad2(TODAY.getMonth() + 1)}`
+  const weekDay0 = TODAY.getDay() || 7
+  const weekStart0 = new Date(TODAY); weekStart0.setDate(TODAY.getDate() - weekDay0 + 1)
+  const budgetAlertId = `budget-alert-${monthKey}-w${pad2(weekStart0.getDate())}`
+  const reflectionAlertId = `reflection-${todayStr}`
+
   const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount
-    + alertReminders.length
-    + (d.weeklyPct >= 90 ? 1 : 0)
-    + (showReflectionBanner ? 1 : 0)
+    + alertReminders.filter(r => !dismissedAlerts.has(r.id)).length
+    + (d.weeklyPct >= 90 && !dismissedAlerts.has(budgetAlertId) ? 1 : 0)
+    + (showReflectionBanner && !dismissedAlerts.has(reflectionAlertId) ? 1 : 0)
+    + (currentInsight && !dismissedAlerts.has(currentInsight.id) ? 1 : 0)
+
+  const clearAllAlerts = () => {
+    const ids: string[] = []
+    alertReminders.forEach(r => ids.push(r.id))
+    if (currentInsight) ids.push(currentInsight.id)
+    if (d.weeklyPct >= 90) ids.push(budgetAlertId)
+    if (showReflectionBanner) ids.push(reflectionAlertId)
+    setDismissedAlerts(prev => {
+      const next = new Set([...prev, ...ids])
+      try { localStorage.setItem('mp_dismissed_alerts_' + session.user.id, JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
 
   const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
     const prevPct = d.weeklyPct
@@ -372,7 +404,7 @@ function AppContent({ session }: { session: Session }) {
                   </button>
                 </div>
               )}
-              <InsightCard state={state} d={d} />
+              <InsightCard state={state} d={d} dismissedAlerts={dismissedAlerts} onDismiss={dismissAlert} />
               {dashboardSections
                 .filter(s => s.visible)
                 .map(s => {
@@ -383,7 +415,7 @@ function AppContent({ session }: { session: Session }) {
                   }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
-                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{state.budget_strategy_settings.budget_strategy !== 'none' && <BudgetStrategyCard state={state} d={d} onOpenSettings={() => setBudgetStrategySheetOpen(true)} />}</>
+                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} dismissedAlerts={dismissedAlerts} onDismiss={dismissAlert} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{state.budget_strategy_settings.budget_strategy !== 'none' && <BudgetStrategyCard state={state} d={d} onOpenSettings={() => setBudgetStrategySheetOpen(true)} />}</>
                       break
                     case 'affordability':
                       el = <><AffordabilityChecker state={state} d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} onAddPlannedExpense={addPlannedExpense} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
@@ -691,6 +723,12 @@ function AppContent({ session }: { session: Session }) {
           showReflection={showReflectionBanner}
           onReflection={() => { setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
           onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)}
+          insight={currentInsight}
+          dismissedAlerts={dismissedAlerts}
+          onDismiss={dismissAlert}
+          onClearAll={clearAllAlerts}
+          budgetAlertId={budgetAlertId}
+          reflectionAlertId={reflectionAlertId}
         />
 
         {settingsOpen && (

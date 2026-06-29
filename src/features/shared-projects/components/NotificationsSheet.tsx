@@ -3,6 +3,7 @@ import { useTheme } from '@/lib/theme-context'
 import { BottomSheet } from '@/components/BottomSheet'
 import { fmt } from '@/lib/utils'
 import { buildReminders, type Reminder } from '@/components/RemindersBar'
+import type { Insight } from '@/components/InsightCard'
 import type { Project } from '../types'
 import type { PendingInvite } from '../hooks/useProjectsSummary'
 import type { AppState, Commitment } from '@/types'
@@ -24,6 +25,13 @@ interface Props {
   showReflection?: boolean
   onReflection?: () => void
   onMarkPaid?: (cm: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
+  // Shared dismissal
+  insight?: Insight | null
+  dismissedAlerts?: Set<string>
+  onDismiss?: (id: string) => void
+  onClearAll?: () => void
+  budgetAlertId?: string
+  reflectionAlertId?: string
 }
 
 export function NotificationsSheet({
@@ -31,24 +39,27 @@ export function NotificationsSheet({
   onAccept, onDecline, onViewProject,
   state, budgetPct = 0, budgetSpent = 0, budgetTotal = 0,
   budgetPeriod = 'weekly', showReflection, onReflection, onMarkPaid,
+  insight, dismissedAlerts, onDismiss, onClearAll, budgetAlertId, reflectionAlertId,
 }: Props) {
   const c = useTheme()
   const [processing, setProcessing] = useState<string | null>(null)
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
-  const [dismissedReminders, setDismissedReminders] = useState<Set<string>>(new Set())
-  const [dismissedBudget, setDismissedBudget] = useState(false)
-  const [dismissedReflection, setDismissedReflection] = useState(false)
 
-  const reminders: Reminder[] = state ? buildReminders(state).filter(r => !dismissedReminders.has(r.id)) : []
-  const showBudgetAlert = budgetPct >= 90 && !dismissedBudget
-  const showReflectionAlert = !!showReflection && !dismissedReflection
+  const reminders: Reminder[] = state ? buildReminders(state).filter(r => !dismissedAlerts?.has(r.id)) : []
+  const showBudgetAlert = budgetPct >= 90 && !(budgetAlertId && dismissedAlerts?.has(budgetAlertId))
+  const showReflectionAlert = !!showReflection && !(reflectionAlertId && dismissedAlerts?.has(reflectionAlertId))
+  const showInsight = insight && !dismissedAlerts?.has(insight.id)
 
   const hasContent =
     pendingInvites.length > 0 ||
     sharedProjects.length > 0 ||
     showBudgetAlert ||
     reminders.length > 0 ||
-    showReflectionAlert
+    showReflectionAlert ||
+    showInsight
+
+  const hasDismissableContent =
+    showBudgetAlert || reminders.length > 0 || showReflectionAlert || showInsight
 
   const handleAccept = async (id: string) => {
     setProcessing(id)
@@ -70,8 +81,22 @@ export function NotificationsSheet({
   return (
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
       <div style={{ padding: '0 4px 16px' }}>
-        <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 16 }}>
-          Notifications
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink }}>
+            Notifications
+          </div>
+          {hasDismissableContent && onClearAll && (
+            <button
+              onClick={onClearAll}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                font: '700 12px Plus Jakarta Sans', color: c.accent,
+                padding: '4px 8px', borderRadius: 8,
+              }}
+            >
+              Clear All
+            </button>
+          )}
         </div>
 
         {!hasContent ? (
@@ -84,6 +109,35 @@ export function NotificationsSheet({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+            {/* Insight alert (spending spike, budget pace, etc.) */}
+            {showInsight && insight && (
+              <NotifCard
+                c={c}
+                bg={insight.type === 'warning' ? '#FFFBEB' : insight.type === 'positive' || insight.type === 'celebrate' ? '#F0FDF4' : '#EFF6FF'}
+                border={insight.type === 'warning' ? '#FDE68A' : insight.type === 'positive' || insight.type === 'celebrate' ? '#BBF7D0' : '#BFDBFE'}
+                iconColor={insight.type === 'warning' ? '#F59E0B' : insight.type === 'positive' || insight.type === 'celebrate' ? '#22C55E' : c.accent}
+                textColor={insight.type === 'warning' ? '#92400E' : insight.type === 'positive' || insight.type === 'celebrate' ? '#166534' : '#1E40AF'}
+                icon={insight.type === 'warning' ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                ) : insight.type === 'positive' || insight.type === 'celebrate' ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                )}
+                title={insight.type === 'warning' ? 'Spending Alert' : insight.type === 'positive' ? 'Good Progress' : insight.type === 'celebrate' ? 'Great Work!' : 'Insight'}
+                subtitle={insight.text}
+                onDismiss={() => onDismiss?.(insight.id)}
+              />
+            )}
 
             {/* Budget alert */}
             {showBudgetAlert && (
@@ -112,7 +166,7 @@ export function NotificationsSheet({
                       {fmt(budgetSpent)} of {fmt(budgetTotal)} {periodLabel} budget ({Math.round(budgetPct)}%)
                     </div>
                   </div>
-                  <button onClick={() => setDismissedBudget(true)}
+                  <button onClick={() => budgetAlertId && onDismiss?.(budgetAlertId)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: budgetPct >= 100 ? '#991B1B80' : '#92400E80', flexShrink: 0 }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -159,7 +213,7 @@ export function NotificationsSheet({
                         <div style={{ font: '800 13px Plus Jakarta Sans', color: '#fff', lineHeight: 1 }}>{r.daysLeft}</div>
                         <div style={{ font: '600 8px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', lineHeight: 1, marginTop: 1 }}>days</div>
                       </div>
-                      <button onClick={() => setDismissedReminders(s => new Set([...s, r.id]))}
+                      <button onClick={() => onDismiss?.(r.id)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: textColor + '80' }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -199,7 +253,7 @@ export function NotificationsSheet({
                       <polyline points="9 18 15 12 9 6"/>
                     </svg>
                     <button
-                      onClick={e => { e.stopPropagation(); setDismissedReflection(true) }}
+                      onClick={e => { e.stopPropagation(); reflectionAlertId && onDismiss?.(reflectionAlertId) }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: c.muted + '80' }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -322,5 +376,37 @@ export function NotificationsSheet({
         )}
       </div>
     </BottomSheet>
+  )
+}
+
+function NotifCard({ c, bg, border, iconColor, textColor, icon, title, subtitle, onDismiss }: {
+  c: any; bg: string; border: string; iconColor: string; textColor: string
+  icon: React.ReactNode; title: string; subtitle: string; onDismiss: () => void
+}) {
+  return (
+    <div style={{
+      background: bg, borderRadius: 16, padding: '14px 16px',
+      border: `1.5px solid ${border}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: iconColor + '20', color: iconColor,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          {icon}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ font: '700 13px Plus Jakarta Sans', color: textColor }}>{title}</div>
+          <div style={{ font: '500 11px Plus Jakarta Sans', color: textColor + 'AA', marginTop: 2 }}>{subtitle}</div>
+        </div>
+        <button onClick={onDismiss}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: textColor + '80', flexShrink: 0 }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
   )
 }
