@@ -95,10 +95,21 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
             <span style={{ font: `700 12px ${F}`, color: lifestyleData.risk === 'risk' || lifestyleData.risk === 'critical' ? c.bad : lifestyleData.risk === 'tight' ? c.warn : c.good }}>{lifestyleData.safeUntilLabel}</span>
           </div>
         )}
-        {salaryDays != null && (pattern === 'monthly' || pattern === 'weekly') && (
-          <div style={{ marginTop: 10, font: `600 12px ${F}`, color: c.muted }}>
-            {pattern === 'monthly' ? 'Salary' : 'Income'} in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
-          </div>
+        {(pattern === 'monthly' || pattern === 'weekly') && (
+          d.isWaitingForIncome ? (
+            <div style={{ marginTop: 10, font: `600 12px ${F}`, color: c.warn }}>
+              {pattern === 'monthly' ? 'Salary' : 'Income'} expected{d.expectedIncomeDate ? (() => {
+                const today = new Date(); today.setHours(0,0,0,0)
+                const expected = new Date(d.expectedIncomeDate!); expected.setHours(0,0,0,0)
+                const overdueDays = Math.round((today.getTime() - expected.getTime()) / 86400000)
+                return overdueDays === 0 ? ' today' : overdueDays === 1 ? ' yesterday' : ` ${overdueDays} days ago`
+              })() : ''} — waiting
+            </div>
+          ) : salaryDays != null ? (
+            <div style={{ marginTop: 10, font: `600 12px ${F}`, color: c.muted }}>
+              {pattern === 'monthly' ? 'Salary' : 'Income'} in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
+            </div>
+          ) : null
         )}
       </div>
     </Card>
