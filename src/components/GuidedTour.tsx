@@ -14,13 +14,17 @@ const ALL_STEPS: TourStep[] = [
   { target: 'cashflow', title: 'Cash Flow Forecast', description: "See how much money you'll have before your next salary. MoneyPlant predicts your future balance using salary, bills, savings, credit cards and planned expenses." },
   { target: 'daily_challenge', title: 'Daily Challenge', description: 'Stay within your daily spending limit and build healthy financial habits.' },
   { target: 'commitments', title: 'Upcoming Commitments', description: 'Never miss an EMI, SIP, Gold Scheme or subscription. MoneyPlant reminds you before they\'re due.' },
-  { target: 'accounts', title: 'Accounts & Credit Cards', description: 'Track all your bank accounts, cash and credit cards in one place.' },
-  { target: 'ai-fab', title: 'Mint AI', description: 'Ask Mint anything about your money — Can I afford a new phone? Why did I overspend? How can I save more?' },
-  { target: 'fab', title: 'Add Transaction', description: 'Record income or expenses in seconds. The more you record, the smarter your forecasts become.' },
+  { target: 'accounts', title: 'Accounts', description: 'View all your bank accounts and cash balances in one place.' },
+  { target: 'credit_cards', title: 'Credit Cards', description: 'Track your credit card balances, billing cycles and due dates. Pay bills directly from here.' },
+  { target: 'ai-fab', title: 'Mint AI', description: 'The dark floating button on your screen is Mint AI. Tap it to ask anything about your money — Can I afford a new phone? Why did I overspend?' },
+  { target: 'fab', title: 'Add Transaction', description: 'The green + button at the bottom right is your quick add. Tap it to record income or expenses in seconds.' },
   { target: 'settings', title: 'Settings', description: 'Set your income pattern, salary date, toggle features like credit cards, savings, notifications and more.' },
 ]
 
-const OVERLAY_TARGETS = new Set(['settings', 'fab', 'ai-fab'])
+// Steps that open their own UI (always included, no DOM check needed)
+const PROGRAMMATIC_TARGETS = new Set(['settings'])
+// Steps that show no highlight cutout (dimmed backdrop + tooltip only)
+const NO_HIGHLIGHT_TARGETS = new Set(['settings', 'fab', 'ai-fab'])
 
 interface GuidedTourProps {
   open: boolean
@@ -46,34 +50,27 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
   const steps = useMemo(() => {
     if (!open) return ALL_STEPS
     return ALL_STEPS.filter(s =>
-      OVERLAY_TARGETS.has(s.target) || document.querySelector(`[data-tour="${s.target}"]`) !== null
+      PROGRAMMATIC_TARGETS.has(s.target) || document.querySelector(`[data-tour="${s.target}"]`) !== null
     )
   }, [open])
 
   const totalSteps = steps.length
   const isFinish = step >= totalSteps
   const currentStep = isFinish ? null : steps[step]
-  const isOverlay = currentStep ? OVERLAY_TARGETS.has(currentStep.target) : false
-
-  const FIXED_TARGETS = new Set<string>()
+  const noHighlight = currentStep ? NO_HIGHLIGHT_TARGETS.has(currentStep.target) : false
 
   const scrollAndMeasure = useCallback((target: string) => {
-    const isFixed = FIXED_TARGETS.has(target)
-    const isOvl = OVERLAY_TARGETS.has(target)
-    if (isOvl) {
+    if (NO_HIGHLIGHT_TARGETS.has(target)) {
       setRect(null)
       return
     }
     const el = document.querySelector(`[data-tour="${target}"]`)
     if (!el) { setRect(null); return }
-    if (!isFixed) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     setTimeout(() => {
       const r = el.getBoundingClientRect()
-      const clampedH = isFixed ? r.height : Math.min(r.height, MAX_HIGHLIGHT_H)
-      setRect({ top: r.top, left: r.left, width: r.width, height: clampedH })
-    }, isFixed ? 50 : 500)
+      setRect({ top: r.top, left: r.left, width: r.width, height: Math.min(r.height, MAX_HIGHLIGHT_H) })
+    }, 500)
   }, [])
 
   // Mount/unmount
@@ -181,8 +178,8 @@ export function GuidedTour({ open, onClose, userId, onOpenSettings, onCloseSetti
         }}
       />
 
-      {/* Highlight cutout — box-shadow trick, clamped height (hidden for overlay targets like settings) */}
-      {rect && !isFinish && !isOverlay && (
+      {/* Highlight cutout — box-shadow trick, clamped height (hidden for no-highlight targets) */}
+      {rect && !isFinish && !noHighlight && (
         <div
           style={{
             position: 'fixed',
