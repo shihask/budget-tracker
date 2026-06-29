@@ -17,6 +17,7 @@ interface HeroWeeklyProps {
   editOpen: boolean
   onEditClose: () => void
   onEditOpen: () => void
+  onRecordIncome?: () => void
 }
 
 function Row({ label, value, muted, accent, bad, bold }: { label: string; value: string; muted?: boolean; accent?: boolean; bad?: boolean; bold?: boolean }) {
@@ -44,7 +45,7 @@ function scopeLabel(scope: WeeklyBudgetScope | null | undefined, categories: App
   return `${parts.slice(0, 2).join(', ')} +${parts.length - 2}`
 }
 
-export function HeroWeekly({ d, settings, categories, groups, transactions, onUpdateSettings, editOpen, onEditClose, onEditOpen }: HeroWeeklyProps) {
+export function HeroWeekly({ d, settings, categories, groups, transactions, onUpdateSettings, editOpen, onEditClose, onEditOpen, onRecordIncome }: HeroWeeklyProps) {
   const c = useTheme()
   const pattern = getIncomePattern(settings)
   const isAutoMode = (settings.budget_mode ?? 'manual') === 'auto'
@@ -451,10 +452,15 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               {/* Waiting for income banner */}
               {d.isWaitingForIncome && (
                 <div style={{ marginTop: 12, background: 'rgba(255,200,50,0.18)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EAB308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)', lineHeight: 1.4 }}>
-                    Income expected — record your income to start the new cycle
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EAB308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)', lineHeight: 1.4, flex: 1 }}>
+                    {pattern === 'monthly' ? 'Salary' : 'Income'} expected — record to start new cycle
                   </span>
+                  {onRecordIncome && (
+                    <button onClick={onRecordIncome} style={{ background: 'rgba(255,255,255,0.22)', border: 'none', borderRadius: 8, padding: '6px 12px', font: '700 11px Plus Jakarta Sans', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      + Record
+                    </button>
+                  )}
                 </div>
               )}
 

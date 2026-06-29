@@ -136,11 +136,15 @@ interface QuickAddSheetProps {
   trackBorrowings?: boolean
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   onBusyChange?: (busy: boolean) => void
+  defaultTxType?: 'expense' | 'income' | 'transfer'
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType }: QuickAddSheetProps) {
   const c = useTheme()
-  const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>('expense')
+  const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
+  const prevOpenRef = useRef(open)
+  if (open && !prevOpenRef.current && defaultTxType) setTxType(defaultTxType)
+  prevOpenRef.current = open
   const [transferToAccountId, setTransferToAccountId] = useState('')
   const amountRef = useRef<HTMLInputElement | null>(null)
 

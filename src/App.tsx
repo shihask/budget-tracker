@@ -138,6 +138,7 @@ function AppContent({ session }: { session: Session }) {
   const [layout, setLayout] = useState<Layout>('grid')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [sheetDefaultType, setSheetDefaultType] = useState<'expense' | 'income' | 'transfer' | undefined>()
   const [postIncomeAmount, setPostIncomeAmount] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
@@ -378,7 +379,7 @@ function AppContent({ session }: { session: Session }) {
                   }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
-                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{state.budget_strategy_settings.budget_strategy !== 'none' && <BudgetStrategyCard state={state} d={d} onOpenSettings={() => setBudgetStrategySheetOpen(true)} />}</>
+                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetOpen(true) }} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{state.budget_strategy_settings.budget_strategy !== 'none' && <BudgetStrategyCard state={state} d={d} onOpenSettings={() => setBudgetStrategySheetOpen(true)} />}</>
                       break
                     case 'affordability':
                       el = <><AffordabilityChecker state={state} d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} onAddPlannedExpense={addPlannedExpense} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
@@ -396,7 +397,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <Analytics state={state} onSeeAll={() => setAnalyticsOpen(true)} />
                       break
                     case 'cashflow':
-                      el = <CashFlowForecastCard state={state} d={d} onOpen={() => setCashflowOpen(true)} onSetup={() => setCashflowSetupOpen(true)} />
+                      el = <CashFlowForecastCard state={state} d={d} onOpen={() => setCashflowOpen(true)} onSetup={() => setCashflowSetupOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetOpen(true) }} />
                       break
                     case 'accounts':
                       el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAdjustBalance={adjustBalance} onAddTransaction={() => setSheetOpen(true)} />
@@ -510,7 +511,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} />
+            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined) }} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} />
           </div>
 
           {/* AI Assist FAB + Chat */}

@@ -12,6 +12,7 @@ interface Props {
   d: DerivedMetrics
   onOpen: () => void
   onSetup: () => void
+  onRecordIncome?: () => void
 }
 
 export const LOW_CUSHION = 5000 // below this (but >= 0) the forecast is "getting tight"
@@ -34,7 +35,7 @@ export function getHealthMessage(health: Health, pattern: IncomePattern): string
   return messages[health]
 }
 
-export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
+export function CashFlowForecastCard({ state, d, onOpen, onSetup, onRecordIncome }: Props) {
   const c = useTheme()
   const F = 'Plus Jakarta Sans'
   const enabled = state.forecast_settings.enabled ?? true
@@ -96,16 +97,32 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup }: Props) {
           </div>
         )}
         {(pattern === 'monthly' || pattern === 'weekly') && (
-          d.isWaitingForIncome ? (
-            <div style={{ marginTop: 10, font: `600 12px ${F}`, color: c.warn }}>
-              {pattern === 'monthly' ? 'Salary' : 'Income'} expected{d.expectedIncomeDate ? (() => {
-                const today = new Date(); today.setHours(0,0,0,0)
-                const expected = new Date(d.expectedIncomeDate!); expected.setHours(0,0,0,0)
-                const overdueDays = Math.round((today.getTime() - expected.getTime()) / 86400000)
-                return overdueDays === 0 ? ' today' : overdueDays === 1 ? ' yesterday' : ` ${overdueDays} days ago`
-              })() : ''} — waiting
-            </div>
-          ) : salaryDays != null ? (
+          d.isWaitingForIncome ? (() => {
+            const incLabel = pattern === 'monthly' ? 'Salary' : 'Income'
+            let overdueText = ''
+            if (d.expectedIncomeDate) {
+              const today = new Date(); today.setHours(0,0,0,0)
+              const expected = new Date(d.expectedIncomeDate); expected.setHours(0,0,0,0)
+              const overdueDays = Math.round((today.getTime() - expected.getTime()) / 86400000)
+              if (overdueDays === 0) overdueText = `${incLabel} expected today. Record it when received.`
+              else if (overdueDays === 1) overdueText = `${incLabel} expected yesterday. Record it when received.`
+              else if (overdueDays <= 7) overdueText = `${incLabel} was expected ${overdueDays} days ago. Record it if you've already been paid.`
+              else overdueText = `${incLabel} not yet recorded. Record your latest income to start the new cycle.`
+            }
+            return (
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ font: `600 12px ${F}`, color: c.warn, flex: 1, lineHeight: 1.4 }}>{overdueText}</div>
+                {onRecordIncome && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onRecordIncome() }}
+                    style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '7px 14px', font: `700 12px ${F}`, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    + Record
+                  </button>
+                )}
+              </div>
+            )
+          })() : salaryDays != null ? (
             <div style={{ marginTop: 10, font: `600 12px ${F}`, color: c.muted }}>
               {pattern === 'monthly' ? 'Salary' : 'Income'} in {salaryDays === 0 ? 'today' : `${salaryDays} day${salaryDays === 1 ? '' : 's'}`}
             </div>
