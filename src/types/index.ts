@@ -196,7 +196,7 @@ export interface Savings {
   amount: number                      // contribution per period (or FD principal)
   is_recurring: boolean
   frequency: SavingsFrequency | null
-  due_day: number | null              // day of month for recurring contribution
+  due_day: number | null              // day of month the scheme expects payment (deadline)
   total_installments: number | null   // total months / tenure (= member count for chits)
   current_installment: number         // contributions made so far
   total_target: number | null         // target corpus amount
@@ -206,6 +206,7 @@ export interface Savings {
   from_account_id: string | null
   category_id: string | null
   last_contribution_date: string | null
+  paid_date: string | null              // actual date payment was made (set by recordContribution)
   notes: string | null
   is_active: boolean
   is_prized: boolean                  // chit: have you received the prize pot yet?
@@ -274,6 +275,7 @@ export interface DerivedMetrics {
   availableBalance: number
   remainingCommitments: number
   realFreeMoney: number
+  obligationBreakdown?: import('@/lib/obligations').RemainingObligations
   // Period-based (manual mode + analytics)
   weeklyBudget: number
   weeklySpent: number

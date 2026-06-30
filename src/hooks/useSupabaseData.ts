@@ -1105,6 +1105,7 @@ export function useSupabaseData(userId: string) {
     const patch: Partial<Savings> = {
       current_installment: newInstallment,
       last_contribution_date: today,
+      paid_date: today,
       ...(accountId && accountId !== sv.from_account_id ? { from_account_id: accountId } : {}),
     }
 
@@ -1129,6 +1130,8 @@ export function useSupabaseData(userId: string) {
         p_mark_complete:          !!patch.is_active === false,
       })
       if (error) throw error
+      // RPC doesn't handle paid_date — update it separately
+      await supabase.from('savings').update({ paid_date: today }).eq('id', sv.id)
 
       const newTx: Transaction = {
         ...(data as Transaction),

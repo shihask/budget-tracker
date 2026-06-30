@@ -503,13 +503,13 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>
                     {sv.is_recurring && sv.due_day
                       ? contributedThisPeriod
-                        ? `Invested on ${new Date(sv.last_contribution_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
-                        : `Contribute by ${ord(sv.due_day)} every month`
+                        ? `Paid on ${new Date((sv.paid_date ?? sv.last_contribution_date)!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · Due ${ord(sv.due_day)}`
+                        : `Due by ${ord(sv.due_day)} every month`
                       : sv.maturity_date
                         ? `Matures ${new Date(sv.maturity_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
                         : sv.is_recurring ? `Recurring · ${sv.frequency}` : 'One-time'
                     }
-                    {nextDue && (
+                    {nextDue && !contributedThisPeriod && (
                       <span style={{ marginLeft: 6, color: c.accent, fontWeight: 700 }}>
                         · Next {nextDue.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                       </span>
@@ -825,10 +825,10 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               </div>
               {form.frequency === 'monthly' && (
                 <div style={{ flex: 1 }}>
-                  <label style={lbl}>Contribution day</label>
-                  <HelpText>Day of the month the amount is auto-debited from your account.</HelpText>
+                  <label style={lbl}>Due day</label>
+                  <HelpText>Day of month by which the scheme expects payment (e.g. 28 if due by 28th).</HelpText>
                   <input type="text" value={form.due_day} onChange={e => set('due_day', e.target.value)}
-                    placeholder="e.g. 5" min="1" max="31" style={inp} />
+                    placeholder="e.g. 28" min="1" max="31" style={inp} />
                 </div>
               )}
             </div>
