@@ -161,7 +161,7 @@ export function weeklyBars(state: AppState): BarPoint[] {
     const total = state.transactions
       .filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= ws && new Date(t.transaction_date) < we)
       .reduce((s, t) => s + t.amount, 0)
-    return { label: wOff === 0 ? 'This wk' : wOff + 'w ago', value: total }
+    return { label: wOff === 0 ? 'This wk' : wOff + 'w ago', value: Math.round(total * 100) / 100 }
   })
 }
 

@@ -472,13 +472,14 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   </span>
                 ) : (
                   <>
-                    <span style={{ font: '700 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)' }}>
-                      Safe Daily {fmt(d.safeDailySpend)}
-                    </span>
-                    <span style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.4)' }}>·</span>
-                    <span style={{ font: '700 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)' }}>
-                      Safe Weekly {fmt(d.safeWeeklySpend)}
-                    </span>
+                    <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)' }}>Daily</span>
+                      <span style={{ font: '800 13px Plus Jakarta Sans', color: '#fff' }}>{fmt(d.safeDailySpend)}</span>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 20, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)' }}>Weekly</span>
+                      <span style={{ font: '800 13px Plus Jakarta Sans', color: '#fff' }}>{fmt(d.safeWeeklySpend)}</span>
+                    </div>
                   </>
                 )}
                 {hasIncomeCycle && !d.isWaitingForIncome && (

@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
+import type { ColorTokens } from '@/lib/tokens'
 import { parseExpenseWithAI } from '@/lib/gemini'
 import { buildCashFlowForecast } from '@/lib/cashflow'
 import { MintAnimation } from './MintAnimation'
@@ -31,7 +33,8 @@ type ChartData =
   | { type: 'categories'; items: ChartItem[]; total: number }
   | { type: 'budget'; spent: number; budget: number }
   | { type: 'monthly'; thisMonth: number; lastMonth: number; income: number }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData }
+type SummaryCard = { icon: string; label: string; value: string; sub?: string; tone?: 'good' | 'warn' | 'bad' | 'neutral' }
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: string[] }
 
 function shouldShowChart(question: string): 'categories' | 'budget' | 'monthly' | null {
   const q = question.toLowerCase()
@@ -83,6 +86,82 @@ function buildMonthlyChart(state: AppState): ChartData {
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income')
     .reduce((s, t) => s + t.amount, 0)
   return { type: 'monthly', thisMonth, lastMonth, income }
+}
+
+function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string): SummaryCard[] | null {
+  const q = question.toLowerCase()
+
+  if (/survive|afford|enough|make it|tight|last until/i.test(q)) {
+    const daysLeft = d.cycleDaysLeft ?? 0
+    const dailySafe = Math.round(d.safeDailySpend ?? 0)
+    const freeMoney = d.realFreeMoney ?? 0
+    return [
+      {
+        icon: '💰', label: 'Free Money',
+        value: `₹${freeMoney.toLocaleString()}`,
+        tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good',
+      },
+      {
+        icon: '📅', label: 'Days Left',
+        value: `${daysLeft}`,
+        sub: 'until salary',
+        tone: daysLeft <= 3 ? 'warn' : 'neutral',
+      },
+      {
+        icon: '📊', label: 'Daily Safe Spend',
+        value: `₹${dailySafe.toLocaleString()}/day`,
+        tone: dailySafe < 500 ? 'warn' : 'good',
+      },
+    ]
+  }
+
+  if (/budget|overspend|weekly spend/i.test(q)) {
+    const pct = d.weeklyBudget > 0 ? Math.round((d.weeklySpent / d.weeklyBudget) * 100) : 0
+    const remaining = d.weeklyBudget - d.weeklySpent
+    return [
+      {
+        icon: '🎯', label: 'Weekly Budget',
+        value: `₹${d.weeklyBudget.toLocaleString()}`,
+        tone: 'neutral',
+      },
+      {
+        icon: '💸', label: 'Spent',
+        value: `₹${d.weeklySpent.toLocaleString()}`,
+        sub: `${pct}% used`,
+        tone: pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'good',
+      },
+      {
+        icon: '✅', label: 'Remaining',
+        value: `₹${Math.max(0, remaining).toLocaleString()}`,
+        tone: remaining < 0 ? 'bad' : 'good',
+      },
+    ]
+  }
+
+  if (/financial health|how am i doing|overall/i.test(q)) {
+    const activeAccs = state.accounts.filter(a => a.is_active)
+    const totalBalance = activeAccs.reduce((s, a) => s + a.current_balance, 0)
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthlySpend = state.transactions
+      .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense')
+      .reduce((s, t) => s + t.amount, 0)
+    const freeMoney = d.realFreeMoney ?? 0
+    return [
+      { icon: '🏦', label: 'Balance', value: `₹${totalBalance.toLocaleString()}`, tone: 'neutral' },
+      { icon: '📉', label: 'Month Spend', value: `₹${monthlySpend.toLocaleString()}`, tone: 'neutral' },
+      { icon: '💰', label: 'Free Money', value: `₹${freeMoney.toLocaleString()}`, tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good' },
+    ]
+  }
+
+  return null
+}
+
+function buildActionChips(question: string): string[] {
+  const q = question.toLowerCase()
+  if (/survive|afford|enough|make it/i.test(q)) return ['View Spending', 'Recovery Plan', 'Show Forecast']
+  if (/budget|overspend/i.test(q)) return ['View Budget', 'Show Spending', 'Show Chart']
+  return []
 }
 
 function guessTransactionType(text: string): 'income' | 'expense' {
@@ -533,6 +612,277 @@ function findMatchingTransaction(transactions: Transaction[], description: strin
   return scored[0]?.t ?? null
 }
 
+// ── Rich text renderer ──────────────────────────────────────────────────────
+
+type Block =
+  | { type: 'quick'; text: string }
+  | { type: 'section'; kind: 'why' | 'recommend' | 'warn' | 'goodnews' }
+  | { type: 'para'; text: string }
+  | { type: 'bullets'; items: string[] }
+
+function parseBlocks(text: string): Block[] {
+  const blocks: Block[] = []
+  const lines = text.split('\n')
+  let firstContentDone = false
+  let bulletAcc: string[] = []
+  let paraAcc: string | null = null
+
+  const flush = () => {
+    if (bulletAcc.length) { blocks.push({ type: 'bullets', items: [...bulletAcc] }); bulletAcc = [] }
+    if (paraAcc !== null) { blocks.push({ type: 'para', text: paraAcc }); paraAcc = null }
+  }
+
+  for (const line of lines) {
+    const t = line.trim()
+    if (!t) { flush(); continue }
+
+    if (/^\*\*Why:\*\*/.test(t)) { flush(); blocks.push({ type: 'section', kind: 'why' }); continue }
+    if (/^\*\*Recommendations?:\*\*/.test(t)) { flush(); blocks.push({ type: 'section', kind: 'recommend' }); continue }
+    if (/^\*\*Watch Out:\*\*/.test(t)) { flush(); blocks.push({ type: 'section', kind: 'warn' }); continue }
+    if (/^\*\*Good News:\*\*/.test(t)) { flush(); blocks.push({ type: 'section', kind: 'goodnews' }); continue }
+
+    if (t.startsWith('- ')) {
+      if (paraAcc !== null) flush()
+      bulletAcc.push(t.slice(2))
+      continue
+    }
+
+    if (!firstContentDone) {
+      flush()
+      blocks.push({ type: 'quick', text: t })
+      firstContentDone = true
+      continue
+    }
+
+    if (bulletAcc.length) flush()
+    paraAcc = paraAcc !== null ? paraAcc + ' ' + t : t
+  }
+  flush()
+  return blocks
+}
+
+function renderInline(text: string, c: ColorTokens): ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      const inner = part.slice(2, -2)
+      return (
+        <strong key={i} style={{ fontWeight: 700, color: /[₹%]/.test(inner) ? c.accent : c.ink }}>
+          {inner}
+        </strong>
+      )
+    }
+    return <span key={i}>{part}</span>
+  })
+}
+
+// Bullet renderer: detects "Category: **₹amount**" → two-column spending row
+function renderBullet(item: string, c: ColorTokens, bulletColor: string, isLast: boolean): ReactNode {
+  const spendMatch = item.match(/^(.+?):\s*\*\*₹([\d,]+(?:\.\d+)?)\*\*(.*)$/)
+  if (spendMatch) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isLast ? 0 : 7 }}>
+        <span style={{ font: '500 13px Plus Jakarta Sans', color: c.sub, flex: 1 }}>{renderInline(spendMatch[1].trim(), c)}</span>
+        <strong style={{ font: '700 14px Plus Jakarta Sans', color: c.accent, marginLeft: 8, flexShrink: 0 }}>₹{spendMatch[2]}</strong>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', gap: 7, alignItems: 'flex-start', marginBottom: isLast ? 0 : 5 }}>
+      <span style={{ color: bulletColor, fontSize: 17, lineHeight: '21px', flexShrink: 0 }}>•</span>
+      <span style={{ font: '500 14px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6 }}>{renderInline(item, c)}</span>
+    </div>
+  )
+}
+
+type SectionedGroup =
+  | { type: 'quick'; text: string }
+  | { type: 'why'; paras: string[]; bullets: string[] }
+  | { type: 'recommend'; bullets: string[] }
+  | { type: 'warn'; paras: string[]; bullets: string[] }
+  | { type: 'goodnews'; paras: string[]; bullets: string[] }
+  | { type: 'loose'; paras: string[]; bullets: string[] }
+
+function groupBlocks(blocks: Block[]): SectionedGroup[] {
+  const groups: SectionedGroup[] = []
+  let cur: SectionedGroup | null = null
+
+  const flush = () => { if (cur) { groups.push(cur); cur = null } }
+
+  for (const block of blocks) {
+    if (block.type === 'quick') {
+      flush(); groups.push({ type: 'quick', text: block.text }); continue
+    }
+    if (block.type === 'section') {
+      flush()
+      if (block.kind === 'why') cur = { type: 'why', paras: [], bullets: [] }
+      else if (block.kind === 'recommend') cur = { type: 'recommend', bullets: [] }
+      else if (block.kind === 'warn') cur = { type: 'warn', paras: [], bullets: [] }
+      else cur = { type: 'goodnews', paras: [], bullets: [] }
+      continue
+    }
+    if (!cur) cur = { type: 'loose', paras: [], bullets: [] }
+    if (block.type === 'para' && 'paras' in cur) (cur as { paras: string[] }).paras.push(block.text)
+    if (block.type === 'bullets' && 'bullets' in cur) (cur as { bullets: string[] }).bullets.push(...block.items)
+  }
+  flush()
+  return groups
+}
+
+const Divider = ({ c }: { c: ColorTokens }) => (
+  <div style={{ height: 1, background: c.faint, margin: '12px 0' }} />
+)
+
+function renderRichText(
+  text: string,
+  c: ColorTokens,
+  expanded: boolean,
+  onToggle: () => void,
+  summaryCards?: SummaryCard[],
+): ReactNode {
+  if (!text) return null
+  const groups = groupBlocks(parseBlocks(text))
+
+  const detailLen = groups.reduce((s, g) => {
+    if (g.type === 'quick') return s
+    const paras = 'paras' in g ? (g as { paras: string[] }).paras.join(' ') : ''
+    const buls = 'bullets' in g ? (g as { bullets: string[] }).bullets.join(' ') : ''
+    return s + paras.length + buls.length
+  }, 0)
+  const canCollapse = detailLen > 400
+
+  return (
+    <>
+      {groups.map((group, gi) => {
+        if (group.type === 'quick') {
+          // Emoji-based color: 🟢 good, 🟠 warn, 🔴 bad
+          const color = group.text.startsWith('🟢') ? c.good
+            : group.text.startsWith('🟠') ? '#F59713'
+            : group.text.startsWith('🔴') ? '#EF4444'
+            : c.ink
+          return (
+            <div key={gi}>
+              <p style={{ font: '600 17px Plus Jakarta Sans', color, lineHeight: 1.5, margin: 0 }}>
+                {renderInline(group.text, c)}
+              </p>
+              {/* Summary cards injected after quick answer, inside the bubble */}
+              {summaryCards && summaryCards.length > 0 && (
+                <>
+                  <Divider c={c} />
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${summaryCards.length}, 1fr)`, gap: 6 }}>
+                    {summaryCards.map((card, ci) => (
+                      <div key={ci}>
+                        <div style={{ font: '400 10px Plus Jakarta Sans', color: c.muted, marginBottom: 3 }}>{card.icon} {card.label}</div>
+                        <div style={{
+                          font: `700 ${card.value.length > 9 ? '14' : '16'}px Plus Jakarta Sans`,
+                          color: card.tone === 'bad' ? '#EF4444' : card.tone === 'warn' ? '#F59713' : card.tone === 'good' ? c.good : c.ink,
+                        }}>{card.value}</div>
+                        {card.sub && <div style={{ font: '400 10px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{card.sub}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  <Divider c={c} />
+                </>
+              )}
+            </div>
+          )
+        }
+
+        if (group.type === 'why') {
+          const isCollapsed = canCollapse && !expanded
+          return (
+            <div key={gi} style={{ marginTop: summaryCards ? 0 : 10 }}>
+              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>Why?</div>
+              {!isCollapsed && (
+                <>
+                  {group.paras.map((para, pi) => (
+                    <p key={pi} style={{ font: '500 14px Plus Jakarta Sans', color: c.sub, lineHeight: 1.6, margin: '0 0 7px 0' }}>
+                      {renderInline(para, c)}
+                    </p>
+                  ))}
+                  {group.bullets.map((item, bi) => (
+                    <div key={bi}>{renderBullet(item, c, c.accent, bi === group.bullets.length - 1)}</div>
+                  ))}
+                </>
+              )}
+              {canCollapse && (
+                <button onClick={onToggle} style={{
+                  background: 'none', border: 'none', padding: '4px 0 2px', cursor: 'pointer',
+                  font: '500 12px Plus Jakarta Sans', color: c.accent, display: 'block',
+                }}>
+                  {isCollapsed ? '▼ Show details' : '▲ Hide details'}
+                </button>
+              )}
+            </div>
+          )
+        }
+
+        if (group.type === 'recommend') {
+          if (!group.bullets.length) return null
+          return (
+            <div key={gi} style={{ background: c.goodSoft, border: `1px solid ${c.good}33`, borderRadius: 12, padding: '11px 14px', marginTop: 10 }}>
+              <div style={{ font: '700 13px Plus Jakarta Sans', color: c.good, marginBottom: 8 }}>💡 Recommendations</div>
+              {group.bullets.map((item, bi) => (
+                <div key={bi}>{renderBullet(item, c, c.good, bi === group.bullets.length - 1)}</div>
+              ))}
+            </div>
+          )
+        }
+
+        if (group.type === 'warn') {
+          if (!group.paras.length && !group.bullets.length) return null
+          return (
+            <div key={gi} style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 12, padding: '11px 14px', marginTop: 10 }}>
+              <div style={{ font: '700 13px Plus Jakarta Sans', color: '#D97706', marginBottom: 6 }}>⚠ Watch Out</div>
+              {group.paras.map((para, pi) => (
+                <p key={pi} style={{ font: '500 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.6, margin: pi < group.paras.length - 1 ? '0 0 5px 0' : 0 }}>
+                  {renderInline(para, c)}
+                </p>
+              ))}
+              {group.bullets.map((item, bi) => (
+                <div key={bi}>{renderBullet(item, c, '#D97706', bi === group.bullets.length - 1)}</div>
+              ))}
+            </div>
+          )
+        }
+
+        if (group.type === 'goodnews') {
+          if (!group.paras.length && !group.bullets.length) return null
+          return (
+            <div key={gi} style={{ background: c.goodSoft, border: `1px solid ${c.good}33`, borderRadius: 12, padding: '11px 14px', marginTop: 10 }}>
+              <div style={{ font: '700 13px Plus Jakarta Sans', color: c.good, marginBottom: 6 }}>🎉 Good News</div>
+              {group.paras.map((para, pi) => (
+                <p key={pi} style={{ font: '500 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6, margin: pi < group.paras.length - 1 ? '0 0 5px 0' : 0 }}>
+                  {renderInline(para, c)}
+                </p>
+              ))}
+              {group.bullets.map((item, bi) => (
+                <div key={bi}>{renderBullet(item, c, c.good, bi === group.bullets.length - 1)}</div>
+              ))}
+            </div>
+          )
+        }
+
+        // loose — body content before any named section
+        return (
+          <div key={gi} style={{ marginTop: gi > 0 ? 6 : 0 }}>
+            {group.paras.map((para, pi) => (
+              <p key={pi} style={{ font: '500 14px Plus Jakarta Sans', color: c.sub, lineHeight: 1.6, margin: '0 0 7px 0' }}>
+                {renderInline(para, c)}
+              </p>
+            ))}
+            {group.bullets.map((item, bi) => (
+              <div key={bi}>{renderBullet(item, c, c.accent, bi === group.bullets.length - 1)}</div>
+            ))}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
 async function streamChat(
   message: string,
   history: Message[],
@@ -611,6 +961,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
   const chatRecognitionRef = useRef<any>(null)
   const [dragY, setDragY] = useState(0)
   const [keyboardH, setKeyboardH] = useState(0)
+  const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set())
   const SpeechRec = typeof window !== 'undefined'
     ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
     : null
@@ -860,8 +1211,14 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
     const context = buildContext(state, d, contextIntent)
     abortRef.current = new AbortController()
 
-    // Insert empty placeholder that tokens will fill in
-    setMessages(m => [...m, { role: 'ai', text: '' }])
+    // Insert empty placeholder that tokens will fill in (cards/chips generated immediately from local data)
+    const summaryCards = buildSummaryCards(state, d, text) ?? undefined
+    const actionChipsArr = buildActionChips(text)
+    setMessages(m => [...m, {
+      role: 'ai', text: '',
+      summaryCards,
+      actionChips: actionChipsArr.length ? actionChipsArr : undefined,
+    }])
 
     try {
       const { used } = await streamChat(
@@ -1033,26 +1390,47 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                 <div style={{
                   maxWidth: '82%', display: 'flex', alignItems: 'flex-start', gap: 10,
                   background: '#FEF3C7', border: '1px solid #FCD34D',
-                  borderRadius: '18px 18px 18px 4px', padding: '10px 14px',
+                  borderRadius: '18px 18px 18px 4px', padding: '12px 16px',
                 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
                     <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                     <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                   </svg>
-                  <span style={{ font: '500 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.5 }}>{m.text}</span>
+                  <span style={{ font: '500 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.6 }}>{m.text}</span>
                 </div>
               ) : (
               <div style={{
-                maxWidth: '82%',
+                maxWidth: m.role === 'user' ? '82%' : 'min(90%, 640px)',
                 background: m.role === 'user' ? c.accent : c.surface2,
                 color: m.role === 'user' ? '#fff' : c.ink,
                 borderRadius: m.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                padding: '10px 14px',
-                font: '500 14px Plus Jakarta Sans',
-                lineHeight: 1.5,
+                padding: m.role === 'user' ? '10px 14px' : '14px 16px',
+                border: m.role === 'ai' ? `1px solid ${c.faint}` : 'none',
               }}>
-                {m.text}
+                {m.role === 'user' ? (
+                  <span style={{ font: '500 14px Plus Jakarta Sans', lineHeight: 1.5 }}>{m.text}</span>
+                ) : (
+                  renderRichText(
+                    m.text, c,
+                    expandedMessages.has(i),
+                    () => setExpandedMessages(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n }),
+                    m.summaryCards,
+                  )
+                )}
               </div>
+              )}
+              {/* Action chips — shown below the AI bubble */}
+              {m.role === 'ai' && !m.warning && m.actionChips && m.actionChips.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: 'min(92%, 640px)' }}>
+                  {m.actionChips.map((chip, ci) => (
+                    <div key={ci} style={{
+                      height: 30, padding: '0 12px', borderRadius: 999,
+                      background: c.surface2, border: `1px solid ${c.faint}`,
+                      font: '500 12px Plus Jakarta Sans', color: c.sub,
+                      display: 'flex', alignItems: 'center',
+                    }}>{chip}</div>
+                  ))}
+                </div>
               )}
               {m.savedExpense && (
                 <div style={{

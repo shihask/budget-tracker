@@ -1,6 +1,6 @@
 ﻿import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Sprout, Leaf, Flame, TreeDeciduous, Flower2, Coins, TrendingUp, Target, ShoppingCart, UtensilsCrossed, Lightbulb, Fuel, ShoppingBag, Hospital, CircleDot } from 'lucide-react'
+import { Sprout, Leaf, Flame, TreeDeciduous, Flower2, Coins, TrendingUp, Target, ShoppingCart, UtensilsCrossed, Lightbulb, Fuel, ShoppingBag, Hospital, CircleDot, ChevronDown } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
@@ -86,6 +86,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const [timelineView, setTimelineView] = useState<'day' | 'category' | 'group'>('day')
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
   const [replayExpanded, setReplayExpanded] = useState(false)
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const [journeyView, setJourneyView] = useState<'flow' | 'timeline' | 'plant'>(() => {
     try { return (localStorage.getItem('mp-journey-view') as 'flow' | 'timeline' | 'plant') || 'flow' } catch { return 'flow' }
   })
@@ -815,7 +816,13 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                             const shownExpenses = expenses.slice(0, 2)
                             const hiddenExpenses = expenses.slice(2)
                             const hiddenTotal = hiddenExpenses.reduce((s, e) => s + (e.amount ?? 0), 0)
-                            const allShown = [...nonExpenses, ...shownExpenses]
+                            const isDayExpanded = expandedDays.has(date)
+                            const allShown = [...nonExpenses, ...shownExpenses, ...(isDayExpanded ? hiddenExpenses : [])]
+                            const toggleDay = () => setExpandedDays(prev => {
+                              const next = new Set(prev)
+                              isDayExpanded ? next.delete(date) : next.add(date)
+                              return next
+                            })
                             return (
                               <div key={date} style={{ display: 'flex', gap: 12 }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 40, flexShrink: 0 }}>
@@ -838,11 +845,14 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                                     </div>
                                   ))}
                                   {hiddenExpenses.length > 0 && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                      <span style={{ lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}><ShoppingCart size={17} /></span>
-                                      <div style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.muted }}>{hiddenExpenses.length} more expense{hiddenExpenses.length > 1 ? 's' : ''}</div>
-                                      <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>{fmt(hiddenTotal)}</div>
-                                    </div>
+                                    <button onClick={toggleDay} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                                      <span style={{ lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}><ShoppingCart size={17} color={c.muted} /></span>
+                                      <div style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                                        {isDayExpanded ? 'Show less' : `${hiddenExpenses.length} more expense${hiddenExpenses.length > 1 ? 's' : ''}`}
+                                      </div>
+                                      {!isDayExpanded && <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>{fmt(hiddenTotal)}</div>}
+                                      <ChevronDown size={14} color={c.muted} style={{ flexShrink: 0, transition: 'transform 0.2s', transform: isDayExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                    </button>
                                   )}
                                 </div>
                               </div>
