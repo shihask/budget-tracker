@@ -5,6 +5,61 @@ import { getWeekStart } from '@/lib/utils'
 
 export type CycleSource = 'transaction' | 'calendar_fallback' | 'estimated'
 
+// Single source of truth for "when is the next primary income expected?"
+// Used by: Financial Planning (obligation reservation), Cashflow Forecast, Hero, AI.
+// Never duplicate this prediction logic elsewhere.
+export interface ExpectedNextIncome {
+  expectedDate: Date | null
+  confidence: 'high' | 'medium' | 'low'
+  source: 'configured' | 'estimated' | 'unknown'
+}
+
+export function getExpectedNextPrimaryIncome(
+  state: AppState,
+  referenceDate?: Date,
+): ExpectedNextIncome {
+  const pattern = getIncomePattern(state.settings)
+  const ref = midnight(referenceDate ?? new Date())
+
+  switch (pattern) {
+    case 'monthly': {
+      const sd = state.settings.salary_date
+      if (sd == null || sd < 1 || sd > 31) {
+        return { expectedDate: null, confidence: 'low', source: 'unknown' }
+      }
+      // nextDueDayAfter(sd, ref): if today IS salary day, returns next month's salary.
+      // If today < salary day, returns this month's salary. Always "after today."
+      return { expectedDate: nextDueDayAfter(sd, ref), confidence: 'high', source: 'configured' }
+    }
+    case 'weekly': {
+      const incDay = state.settings.income_day ?? 5
+      const dow = ref.getDay()
+      const diff = (incDay - dow + 7) % 7
+      // diff === 0 means today IS income day → skip to next week
+      const daysToAdd = diff === 0 ? 7 : diff
+      const next = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + daysToAdd)
+      return { expectedDate: next, confidence: 'high', source: 'configured' }
+    }
+    case 'variable': {
+      // Same weekly cadence as generateIncomeEvents in cashflow.ts: weekly_start_day
+      const startDay = state.settings.weekly_start_day ?? 1
+      const dow = ref.getDay()
+      const diff = (startDay - dow + 7) % 7
+      const daysToAdd = diff === 0 ? 7 : diff
+      const next = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + daysToAdd)
+      const hasHistory = state.transactions.some(t => isPrimaryIncomeTransaction(t, state))
+      return { expectedDate: next, confidence: hasHistory ? 'medium' : 'low', source: 'estimated' }
+    }
+    case 'business': {
+      // Same monthly cadence as generateIncomeEvents in cashflow.ts: day 1 of month
+      // nextDueDayAfter(1, ref): if today IS the 1st, returns next month's 1st.
+      return { expectedDate: nextDueDayAfter(1, ref), confidence: 'medium', source: 'estimated' }
+    }
+    default:
+      return { expectedDate: null, confidence: 'low', source: 'unknown' }
+  }
+}
+
 export interface FinancialCycle {
   cycleStart: Date
   cycleEnd: Date

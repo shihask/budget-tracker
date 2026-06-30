@@ -109,6 +109,73 @@ export function isRecurringCompleted(
   return completed >= period.periodStart && completed <= period.periodEnd
 }
 
+// Returns the configured due date within a given period start.
+// For monthly: dueDay = day of month (1–31). For weekly: dueDay = weekday (0=Sun, 6=Sat).
+function dueDateInPeriod(
+  freq: RecurringFrequency,
+  dueDay: number,
+  periodStart: Date,
+): Date {
+  const y = periodStart.getFullYear()
+  const m = periodStart.getMonth()
+  switch (freq) {
+    case 'weekly':
+    case 'fortnightly': {
+      const diff = (dueDay - periodStart.getDay() + 7) % 7
+      return new Date(y, m, periodStart.getDate() + diff)
+    }
+    case 'monthly':
+    case 'quarterly':
+    case 'half_yearly':
+    default: {
+      const lastDay = new Date(y, m + 1, 0).getDate()
+      return new Date(y, m, Math.min(dueDay, lastDay))
+    }
+  }
+}
+
+// Returns the next scheduled due date for a recurring item using only the configured
+// schedule (due_day + frequency). Never derives dates from lastPayment + frequency
+// to prevent schedule drift from early or late payments.
+//
+// Supported: monthly, weekly. Yearly returns null (due_month field deferred to future PR).
+// Missing due_day returns null — caller skips reservation.
+export function getNextRecurringDueDate(
+  item: {
+    frequency: RecurringFrequency | null
+    due_day?: number | null
+    last_contribution_date?: string | null
+  },
+  referenceDate?: Date,
+): Date | null {
+  const freq = item.frequency ?? 'monthly'
+  const ref = midnight(referenceDate ?? new Date())
+  const dueDay = item.due_day ?? null
+
+  if (freq === 'yearly' || freq === 'custom') return null
+  if (dueDay == null) return null
+
+  const completed = isRecurringCompleted(item.last_contribution_date ?? null, freq, ref)
+  const currentPeriod = getCurrentRecurringPeriod(freq, ref)
+
+  if (completed) {
+    const nextPeriodStart = new Date(currentPeriod.periodEnd.getTime() + 86400000)
+    const nextPeriod = getCurrentRecurringPeriod(freq, nextPeriodStart)
+    return dueDateInPeriod(freq, dueDay, nextPeriod.periodStart)
+  }
+
+  // Check if this period's due date has already passed today (e.g. item never paid,
+  // due_day=10, today=Jun 30 → returns Jun 10 which is past → advance to Jul 10)
+  const thisPeriodDue = dueDateInPeriod(freq, dueDay, currentPeriod.periodStart)
+  if (thisPeriodDue < ref) {
+    const nextPeriodStart = new Date(currentPeriod.periodEnd.getTime() + 86400000)
+    const nextPeriod = getCurrentRecurringPeriod(freq, nextPeriodStart)
+    return dueDateInPeriod(freq, dueDay, nextPeriod.periodStart)
+  }
+
+  return thisPeriodDue
+}
+
 export function getRecurringPeriodLabel(frequency: RecurringFrequency | null): string {
   switch (frequency ?? 'monthly') {
     case 'daily': return 'today'

@@ -6,7 +6,7 @@ import { fmt } from '@/lib/utils'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { CategorySelect } from './CategorySelect'
 import { SAVINGS_GROUP } from '@/lib/constants'
-import { isRecurringCompleted, getRecurringPeriodLabel } from '@/lib/recurring'
+import { isRecurringCompleted, getRecurringPeriodLabel, getNextRecurringDueDate } from '@/lib/recurring'
 import type { AppState, Savings, SavingsType, SavingsFrequency } from '@/types'
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -169,6 +169,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   const [archiving, setArchiving] = useState<string | null>(null)
 
   const active = state.savings.filter(s => s.is_active)
+  const completed = state.savings.filter(s => !s.is_active)
+  const [showCompleted, setShowCompleted] = useState(false)
   const accounts = state.accounts.filter(a => a.is_active)
 
   useEffect(() => {
@@ -470,6 +472,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
           const contributedThisPeriod = isRecurringCompleted(sv.last_contribution_date, sv.frequency)
           const periodLabel = getRecurringPeriodLabel(sv.frequency)
+          const nextDue = sv.is_recurring ? getNextRecurringDueDate(sv) : null
 
           return (
             <div
@@ -506,6 +509,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                         ? `Matures ${new Date(sv.maturity_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
                         : sv.is_recurring ? `Recurring · ${sv.frequency}` : 'One-time'
                     }
+                    {nextDue && (
+                      <span style={{ marginLeft: 6, color: c.accent, fontWeight: 700 }}>
+                        · Next {nextDue.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -645,6 +653,52 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             </div>
           )
         })}
+
+        {/* Completed / Archived section */}
+        {completed.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <button
+              onClick={() => setShowCompleted(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0', width: '100%' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: showCompleted ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                Completed / Archived ({completed.length})
+              </span>
+            </button>
+            {showCompleted && completed.map(sv => {
+              const tcfg = TYPE_CONFIG[sv.type]
+              const col = tcfg.color
+              const contrib = sv.is_recurring ? sv.current_installment * sv.amount : sv.amount
+              return (
+                <div key={sv.id} style={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 14, padding: '12px 14px', marginBottom: 8, opacity: 0.7 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: col + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{sv.name}</div>
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                        {tcfg.label} · {sv.current_installment} installments · {fmt(contrib)} total
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onUpdate(sv.id, { is_active: true })}
+                      style={{ background: c.accentSoft, color: c.accent, border: 'none', borderRadius: 8, padding: '5px 10px', font: '600 11px Plus Jakarta Sans', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      Reactivate
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Add / Edit Sheet ──────────────────────────────────────────────────── */}

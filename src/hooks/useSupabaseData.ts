@@ -1030,6 +1030,14 @@ export function useSupabaseData(userId: string) {
   // ── Savings CRUD ─────────────────────────────────────────────────────────────
 
   const addSavings = useCallback(async (form: Omit<Savings, 'id' | 'created_at'>, debitAccountId?: string) => {
+    if (form.is_recurring) {
+      if (form.frequency === 'monthly' && (form.due_day == null || form.due_day < 1 || form.due_day > 31)) {
+        throw new Error('Monthly recurring savings require a contribution day (1–31). Please set the Contribution day field.')
+      }
+      if (form.frequency === 'weekly' && (form.due_day == null || form.due_day < 0 || form.due_day > 6)) {
+        throw new Error('Weekly recurring savings require a contribution weekday (0=Sun, 6=Sat). Please set the Contribution day field.')
+      }
+    }
     if (debitAccountId) {
       // Create savings + debit account + create transaction atomically.
       // Replaces the faulty application-level rollback that existed here before.
@@ -1069,6 +1077,14 @@ export function useSupabaseData(userId: string) {
   }, [userId])
 
   const updateSavings = useCallback(async (id: string, patch: Partial<Omit<Savings, 'id' | 'user_id' | 'created_at'>>) => {
+    if (patch.is_recurring) {
+      if (patch.frequency === 'monthly' && (patch.due_day == null || patch.due_day < 1 || patch.due_day > 31)) {
+        throw new Error('Monthly recurring savings require a contribution day (1–31). Please set the Contribution day field.')
+      }
+      if (patch.frequency === 'weekly' && (patch.due_day == null || patch.due_day < 0 || patch.due_day > 6)) {
+        throw new Error('Weekly recurring savings require a contribution weekday (0=Sun, 6=Sat). Please set the Contribution day field.')
+      }
+    }
     const { data, error } = await supabase.from('savings').update(patch).eq('id', id).select('*').single()
     if (error) throw error
     setState(s => ({ ...s, savings: s.savings.map(sv => sv.id === id ? data as Savings : sv) }))

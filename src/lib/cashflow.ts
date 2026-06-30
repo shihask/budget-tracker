@@ -2,6 +2,7 @@ import type { AppState, DerivedMetrics } from '@/types'
 import { getCreditCardBilling } from '@/lib/credit-card'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
+import { getExpectedNextPrimaryIncome } from '@/lib/financial-cycle'
 
 /* ============================================================================
    Cash Flow Forecast — projects future balance using KNOWN future events only.
@@ -157,48 +158,49 @@ function generateIncomeEvents(state: AppState, today: Date, horizon: Date): Cash
   const pattern = getIncomePattern(state.settings)
   const events: CashFlowEvent[] = []
 
+  // Determine income amount for this pattern
+  let incomeTitle: string
+  let incomeAmount: number | null
   switch (pattern) {
     case 'monthly': {
-      const salaryDay = state.settings.salary_date
-      const estSalary = estimateForecastSalary(state).amount
-      if (salaryDay != null && estSalary != null) {
-        for (const due of allDueDates(salaryDay, today, horizon)) {
-          events.push({ date: isoOf(due), title: 'Salary', amount: estSalary, type: 'income', source: 'salary' })
-        }
-      }
+      incomeTitle = 'Salary'
+      incomeAmount = state.settings.salary_date != null ? (estimateForecastSalary(state).amount ?? null) : null
       break
     }
     case 'weekly': {
-      const incDay = state.settings.income_day
+      incomeTitle = 'Weekly Income'
       const wi = state.settings.weekly_income
-      if (incDay != null && wi != null && wi > 0) {
-        for (const due of allWeekdays(incDay, today, horizon)) {
-          events.push({ date: isoOf(due), title: 'Weekly Income', amount: Math.round(wi), type: 'income', source: 'salary' })
-        }
-      }
+      incomeAmount = wi != null && wi > 0 ? Math.round(wi) : null
       break
     }
     case 'variable': {
+      incomeTitle = 'Projected Income'
       const adi = state.settings.average_daily_income ?? estimateHistoricalDailyIncome(state)?.avgDailyIncome ?? 0
       const wpw = state.settings.working_days_per_week ?? 6
-      const weeklyLump = Math.round(adi * wpw)
-      if (weeklyLump > 0) {
-        const startDay = state.settings.weekly_start_day ?? 1
-        for (const due of allWeekdays(startDay, today, horizon)) {
-          events.push({ date: isoOf(due), title: 'Projected Income', amount: weeklyLump, type: 'income', source: 'salary' })
-        }
-      }
+      const lump = Math.round(adi * wpw)
+      incomeAmount = lump > 0 ? lump : null
       break
     }
     case 'business': {
-      const drawings = state.settings.business_monthly_drawings
-      if (drawings != null && drawings > 0) {
-        for (const due of allDueDates(1, today, horizon)) {
-          events.push({ date: isoOf(due), title: 'Business Drawings', amount: Math.round(drawings), type: 'income', source: 'salary' })
-        }
-      }
+      incomeTitle = 'Business Drawings'
+      const d = state.settings.business_monthly_drawings
+      incomeAmount = d != null && d > 0 ? Math.round(d) : null
       break
     }
+    default:
+      return events
+  }
+
+  if (incomeAmount == null) return events
+
+  // Use getExpectedNextPrimaryIncome (shared with Financial Planning) for the first date,
+  // then iterate forward so Forecast and Financial Planning always agree on income timing.
+  let refDate = today
+  while (true) {
+    const next = getExpectedNextPrimaryIncome(state, refDate)
+    if (next.expectedDate == null || next.expectedDate > horizon) break
+    events.push({ date: isoOf(next.expectedDate), title: incomeTitle, amount: incomeAmount, type: 'income', source: 'salary' })
+    refDate = new Date(next.expectedDate.getFullYear(), next.expectedDate.getMonth(), next.expectedDate.getDate())
   }
 
   return events
