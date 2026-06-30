@@ -5,6 +5,7 @@ import { fmt } from '@/lib/utils'
 import { Glyph, type GlyphName } from './Glyph'
 import type { DerivedMetrics, IncomePattern, Layout } from '@/types'
 import type { ToneKey } from '@/lib/tokens'
+import type { RemainingObligations } from '@/lib/obligations'
 
 interface Metric {
   key: string
@@ -123,14 +124,24 @@ interface MetricCardsProps {
   onEditEmergencyFund?: () => void
   commitmentItems?: CommitmentItem[]
   accountItems?: AccountItem[]
+  obligationBreakdown?: RemainingObligations
   infoOpen?: boolean
   onInfoClose?: () => void
 }
 
-export function MetricCards({ d, layout, incomePattern, onEditBudget, onEditEmergencyFund, commitmentItems, accountItems, infoOpen = false, onInfoClose }: MetricCardsProps) {
+export function MetricCards({ d, layout, incomePattern, onEditBudget, onEditEmergencyFund, commitmentItems, accountItems, obligationBreakdown, infoOpen = false, onInfoClose }: MetricCardsProps) {
   const c = useTheme()
   const metrics = buildMetrics(d, incomePattern)
   const [activePopup, setActivePopup] = useState<string | null>(null)
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+
+  function toggleSection(key: string) {
+    setExpandedSections(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) { next.delete(key) } else { next.add(key) }
+      return next
+    })
+  }
 
   const activeMetric = activePopup ? metrics.find(m => m.key === activePopup) : null
   const formula = activePopup ? buildFormula(activePopup, d, commitmentItems, accountItems) : []
@@ -287,7 +298,7 @@ export function MetricCards({ d, layout, incomePattern, onEditBudget, onEditEmer
 
       {activeMetric && (
         <div
-          onClick={() => setActivePopup(null)}
+          onClick={() => { setActivePopup(null); setExpandedSections(new Set()) }}
           style={{
             position: 'fixed', inset: 0, zIndex: 400,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -298,8 +309,9 @@ export function MetricCards({ d, layout, incomePattern, onEditBudget, onEditEmer
             onClick={e => e.stopPropagation()}
             style={{
               background: c.bg, borderRadius: 22, padding: 20,
-              width: 'calc(100vw - 48px)', maxWidth: 320,
+              width: 'calc(100vw - 48px)', maxWidth: 340,
               boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
+              maxHeight: 'calc(100vh - 80px)', overflowY: 'auto',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
@@ -309,34 +321,155 @@ export function MetricCards({ d, layout, incomePattern, onEditBudget, onEditEmer
               <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink }}>{activeMetric.label}</div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {formula.map((row, i) => {
-                if ('separator' in row) {
-                  return <div key={i} style={{ height: 1, background: c.faint }} />
-                }
-                const isResult = hasBreakdown && i === formula.length - 1
-                return (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{
-                      font: `${isResult ? '700' : '600'} 13px Plus Jakarta Sans`,
-                      color: row.muted ? c.muted : c.ink,
-                    }}>
-                      {row.label}
-                    </span>
-                    <span style={{
-                      font: `800 ${isResult ? '18px' : '13px'} Plus Jakarta Sans`,
-                      color: row.muted ? c.muted : c.ink,
-                      letterSpacing: isResult ? '-0.01em' : undefined,
-                    }}>
-                      {fmt(row.value)}
-                    </span>
+            {activeMetric.key === 'avail' && accountItems && accountItems.filter(a => a.balance !== 0).length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {/* Expandable actual balance row */}
+                {(() => {
+                  const accs = accountItems.filter(a => a.balance !== 0)
+                  const isOpen = expandedSections.has('accounts')
+                  return (
+                    <div style={{ marginBottom: 4 }}>
+                      <div
+                        onClick={() => toggleSection('accounts')}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '8px 10px', borderRadius: 10,
+                          background: isOpen ? c.surface2 : 'transparent',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, font: '600 13px Plus Jakarta Sans', color: c.ink }}>
+                          <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+                            <path d="M3 2l4 3-4 3" fill="none" stroke={c.ink} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Actual balance
+                        </span>
+                        <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(d.actualBalance)}</span>
+                      </div>
+                      {isOpen && (
+                        <div style={{ paddingLeft: 16, paddingBottom: 4 }}>
+                          {accs.map((acc, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 10px' }}>
+                              <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, flex: 1, minWidth: 0, marginRight: 8 }}>{acc.name}</span>
+                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, flexShrink: 0 }}>{fmt(acc.balance)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {d.emergencyFund > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px' }}>
+                    <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Emergency fund</span>
+                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>{fmt(-d.emergencyFund)}</span>
                   </div>
-                )
-              })}
-            </div>
+                )}
+
+                <div style={{ height: 1, background: c.faint, margin: '8px 0' }} />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Spendable balance</span>
+                  <span style={{ font: '800 18px Plus Jakarta Sans', color: toneColor(c, 'accent'), letterSpacing: '-0.01em' }}>{fmt(d.availableBalance)}</span>
+                </div>
+              </div>
+            ) : (activeMetric.key === 'free' || activeMetric.key === 'commit') && obligationBreakdown ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {activeMetric.key === 'free' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span style={{ font: '600 13px Plus Jakarta Sans', color: c.ink }}>Spendable balance</span>
+                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(d.availableBalance)}</span>
+                  </div>
+                )}
+
+                {([
+                  { key: 'commitments', label: 'Bills & obligations', total: obligationBreakdown.commitments, items: obligationBreakdown.commitmentItems },
+                  { key: 'creditCards', label: 'Credit cards', total: obligationBreakdown.creditCardBills, items: obligationBreakdown.creditCardItems },
+                  { key: 'savings', label: 'Savings & investments', total: obligationBreakdown.savings, items: obligationBreakdown.savingsItems },
+                  { key: 'borrowings', label: 'Borrowings to repay', total: obligationBreakdown.borrowRepayments, items: obligationBreakdown.borrowingItems },
+                  { key: 'planned', label: 'Planned expenses', total: obligationBreakdown.plannedExpenses, items: obligationBreakdown.plannedExpenseItems },
+                ] as const).filter(s => s.total > 0).map(section => {
+                  const isOpen = expandedSections.has(section.key)
+                  return (
+                    <div key={section.key} style={{ marginBottom: 4 }}>
+                      <div
+                        onClick={() => section.items.length > 0 && toggleSection(section.key)}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '8px 10px', borderRadius: 10,
+                          background: isOpen ? c.surface2 : 'transparent',
+                          cursor: section.items.length > 0 ? 'pointer' : 'default',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, font: '600 13px Plus Jakarta Sans', color: c.muted }}>
+                          {section.items.length > 0 && (
+                            <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+                              <path d="M3 2l4 3-4 3" fill="none" stroke={c.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                          {section.label}
+                        </span>
+                        <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>{fmt(-section.total)}</span>
+                      </div>
+                      {isOpen && (
+                        <div style={{ paddingLeft: 16, paddingBottom: 4 }}>
+                          {section.items.map((item, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 10px' }}>
+                              <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, flex: 1, minWidth: 0, marginRight: 8 }}>{item.name}</span>
+                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, flexShrink: 0 }}>{fmt(-item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                <div style={{ height: 1, background: c.faint, margin: '8px 0' }} />
+
+                {activeMetric.key === 'free' ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Real free money</span>
+                    <span style={{ font: '800 18px Plus Jakarta Sans', color: toneColor(c, 'good'), letterSpacing: '-0.01em' }}>{fmt(d.realFreeMoney)}</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Total</span>
+                    <span style={{ font: '800 18px Plus Jakarta Sans', color: toneColor(c, 'bad'), letterSpacing: '-0.01em' }}>{fmt(d.remainingCommitments)}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {formula.map((row, i) => {
+                  if ('separator' in row) {
+                    return <div key={i} style={{ height: 1, background: c.faint }} />
+                  }
+                  const isResult = hasBreakdown && i === formula.length - 1
+                  return (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{
+                        font: `${isResult ? '700' : '600'} 13px Plus Jakarta Sans`,
+                        color: row.muted ? c.muted : c.ink,
+                      }}>
+                        {row.label}
+                      </span>
+                      <span style={{
+                        font: `800 ${isResult ? '18px' : '13px'} Plus Jakarta Sans`,
+                        color: row.muted ? c.muted : c.ink,
+                        letterSpacing: isResult ? '-0.01em' : undefined,
+                      }}>
+                        {fmt(row.value)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
             <button
-              onClick={() => setActivePopup(null)}
+              onClick={() => { setActivePopup(null); setExpandedSections(new Set()) }}
               style={{
                 marginTop: 18, width: '100%',
                 background: c.surface2, border: 'none', borderRadius: 12,

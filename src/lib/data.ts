@@ -134,6 +134,7 @@ export function derive(state: AppState): DerivedMetrics {
     safeUntilDays, avgDailyIncome, avgDailySpending: avgDailySpendingVal, incomeConfidence,
     todayIncome, todaySpending, todaySaving,
     weekEarned, weekSpent: weekSpentVar, weekSaved,
+    obligationBreakdown: obligations,
   }
 }
 

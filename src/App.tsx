@@ -426,7 +426,7 @@ function AppContent({ session }: { session: Session }) {
                     case 'metrics':
                       el = <div>
                         <SectionTitle action="Customize" onAction={() => setLayoutOpen(true)} onInfo={() => setMetricsInfoOpen(true)}>Your money</SectionTitle>
-                        <MetricCards d={d} layout={layout} incomePattern={getIncomePattern(state.settings)} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} infoOpen={metricsInfoOpen} onInfoClose={() => setMetricsInfoOpen(false)} />
+                        <MetricCards d={d} layout={layout} incomePattern={getIncomePattern(state.settings)} onEditBudget={() => setBudgetEditOpen(true)} onEditEmergencyFund={() => { setEmergencyInput(String(state.settings.emergency_fund)); setEmergencyEditOpen(true) }} commitmentItems={state.commitments.filter(c => c.is_active !== false && c.remaining > 0).map(c => ({ name: c.name, remaining: c.remaining }))} accountItems={state.accounts.filter(a => a.is_active).map(a => ({ name: a.name, balance: a.current_balance }))} obligationBreakdown={d.obligationBreakdown} infoOpen={metricsInfoOpen} onInfoClose={() => setMetricsInfoOpen(false)} />
                       </div>
                       break
                     case 'analytics':

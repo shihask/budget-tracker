@@ -66,6 +66,11 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   const accounts = state.accounts.filter(a => a.is_active)
   const cards = state.credit_cards || []
 
+  const totalBilled = cards.reduce((s, cd) => {
+    const b = getCreditCardBilling(cd, state.transactions)
+    return s + Math.max(0, b.billedAmount)
+  }, 0)
+
   const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: c.surface2,
     border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px',
@@ -183,7 +188,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                 </button>
               </div>
               <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-                {cards.length} card{cards.length !== 1 ? 's' : ''} · Total outstanding {fmt(cards.reduce((s, cd) => s + cd.current_balance, 0))}
+                {cards.length} card{cards.length !== 1 ? 's' : ''} · Billed {fmt(totalBilled)}
               </div>
             </div>
           </div>
@@ -227,7 +232,11 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                       </div>
                       <div>
                         <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{card.name}</div>
-                        {card.last_four && <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>•••• {card.last_four}</div>}
+                        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>
+                          {billing.billedAmount > 0
+                            ? <span style={{ color: c.bad }}>{fmt(billing.billedAmount)} billed</span>
+                            : card.last_four ? <>•••• {card.last_four}</> : 'No bill due'}
+                        </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
