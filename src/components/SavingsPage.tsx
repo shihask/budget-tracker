@@ -111,6 +111,7 @@ function payloadFromForm(form: SForm): Omit<Savings, 'id' | 'created_at'> {
     is_prized: isChit ? form.is_prized : false,
     prize_month: (isChit && form.is_prized && form.prize_month) ? parseInt(form.prize_month) : null,
     last_contribution_date: null,
+    paid_date: null,
     investment_source: form.investment_source,
   }
 }
