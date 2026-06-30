@@ -18,7 +18,7 @@ export function CommitmentsSection({ state, onSeeAll, onAdd }: Props) {
 
   const active = state.commitments.filter(cm => cm.is_active !== false)
 
-  const unpaidTotal = getRemainingObligations(state).total
+  const unpaidTotal = getRemainingObligations(state).commitments
 
   const monthlyTotal = active
     .filter(cm => cm.is_recurring && cm.frequency === 'monthly')
