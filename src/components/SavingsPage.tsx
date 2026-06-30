@@ -835,6 +835,16 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             </div>
           )}
 
+          {/* Last paid date — read-only, shown when editing an existing item */}
+          {editingId && editingSv?.paid_date && (
+            <div>
+              <label style={lbl}>Last paid</label>
+              <div style={{ ...inp, color: c.muted, background: c.faint, display: 'flex', alignItems: 'center' }}>
+                {new Date(editingSv.paid_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </div>
+            </div>
+          )}
+
           {/* Tenure / target */}
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
