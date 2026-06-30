@@ -118,6 +118,7 @@ export interface Settings {
   notify_budget_alert?: boolean
   notify_commitments?: boolean
   notify_weekly_summary?: boolean
+  notify_evening_recap?: boolean
   track_savings?: boolean
   track_projects?: boolean
   budget_mode?: 'auto' | 'manual'

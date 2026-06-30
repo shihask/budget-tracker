@@ -32,6 +32,7 @@ interface SettingsPanelProps {
   notifyBudgetAlert: boolean
   notifyCommitments: boolean
   notifyWeeklySummary: boolean
+  notifyEveningRecap: boolean
   onAccent: (v: string) => void
   onDark: (v: boolean) => void
   onLayout: (v: Layout) => void
@@ -51,11 +52,12 @@ interface SettingsPanelProps {
   onNotifyBudgetAlert: (v: boolean) => Promise<void>
   onNotifyCommitments: (v: boolean) => Promise<void>
   onNotifyWeeklySummary: (v: boolean) => Promise<void>
+  onNotifyEveningRecap: (v: boolean) => Promise<void>
   onDashboardLayout: () => void
   tourHighlight?: boolean
 }
 
-export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onDashboardLayout, tourHighlight }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, tourHighlight }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
@@ -673,6 +675,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
 
           <div style={{ paddingLeft: 12, borderLeft: `2px solid ${c.faint}` }}>
             {[
+              { label: 'Evening recap', sub: 'Daily spending summary at 9 PM', val: notifyEveningRecap, fn: onNotifyEveningRecap },
               { label: 'Daily reminder', sub: 'If no expense recorded by 8 PM', val: notifyDailyReminder, fn: onNotifyDailyReminder },
               { label: 'Budget alerts', sub: 'When weekly spend exceeds 90%', val: notifyBudgetAlert, fn: onNotifyBudgetAlert },
               { label: 'Commitment dues', sub: 'Reminders for upcoming payments', val: notifyCommitments, fn: onNotifyCommitments },

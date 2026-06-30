@@ -759,6 +759,7 @@ function AppContent({ session }: { session: Session }) {
               notifyBudgetAlert={state.settings.notify_budget_alert ?? true}
               notifyCommitments={state.settings.notify_commitments ?? true}
               notifyWeeklySummary={state.settings.notify_weekly_summary ?? true}
+              notifyEveningRecap={state.settings.notify_evening_recap ?? true}
               onAccent={setAccent} onDark={setDark} onLayout={setLayout}
               onIncomePattern={v => updateSettings({ income_pattern: v })}
               onSalaryDate={v => updateSettings({ salary_date: v })}
@@ -776,6 +777,7 @@ function AppContent({ session }: { session: Session }) {
               onNotifyBudgetAlert={v => updateSettings({ notify_budget_alert: v })}
               onNotifyCommitments={v => updateSettings({ notify_commitments: v })}
               onNotifyWeeklySummary={v => updateSettings({ notify_weekly_summary: v })}
+              onNotifyEveningRecap={v => updateSettings({ notify_evening_recap: v })}
               onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }}
               tourHighlight={tourOpen}
             />

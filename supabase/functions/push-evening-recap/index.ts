@@ -1,4 +1,4 @@
-// Triggered by pg_cron at 8:30 PM daily.
+// Triggered by pg_cron at 9 PM IST (15:30 UTC) daily.
 // Sends a personalised daily spending recap to each subscribed user.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -35,13 +35,13 @@ Deno.serve(async (req) => {
     // Check notification preferences
     const { data: allSettings } = await supabase
       .from('settings')
-      .select('user_id, notifications_enabled, notify_daily_reminder, weekly_budget, budget_period')
+      .select('user_id, notifications_enabled, notify_evening_recap, weekly_budget, budget_period')
       .in('user_id', userIds)
 
     const settingsMap = new Map((allSettings ?? []).map((s: any) => [s.user_id, s]))
     const enabledUserIds = userIds.filter(uid => {
       const s = settingsMap.get(uid)
-      return s?.notifications_enabled && s?.notify_daily_reminder !== false
+      return s?.notifications_enabled && s?.notify_evening_recap !== false
     })
 
     if (enabledUserIds.length === 0) {
