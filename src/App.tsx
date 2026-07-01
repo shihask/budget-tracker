@@ -434,7 +434,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <><AffordabilityChecker state={state} d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} onAddPlannedExpense={addPlannedExpense} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
                       break
                     case 'daily_challenge':
-                      el = <DailyChallengeCard state={state} d={d} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onSuccessDay={(amount) => { setChallengeWin({ amount }); setChallengeWinInput(String(Math.round(amount))) }} />
+                      el = <DailyChallengeCard state={state} d={d} userId={session.user.id} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onSuccessDay={(amount) => { setChallengeWin({ amount }); setChallengeWinInput(String(Math.round(amount))) }} />
                       break
                     case 'metrics':
                       el = <div>

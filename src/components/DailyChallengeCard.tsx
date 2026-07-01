@@ -2,8 +2,10 @@ import { useMemo, useEffect, useRef, useState } from 'react'
 import { Star } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, iso, addDays, TODAY } from '@/lib/utils'
-import { computeChallenge } from '@/lib/challenge'
+import { computeChallenge, type ChallengeCalc } from '@/lib/challenge'
 import { getIncomePattern } from '@/lib/income-pattern'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
+import { loadFrozenSnapshot, saveFrozenSnapshot, freezeFromCalc } from '@/lib/challenge-snapshot'
 import { STAGE_THRESHOLDS } from './PlantSVG'
 import { MoneyPlantWatermark } from './MoneyPlantWatermark'
 import type { AppState, DerivedMetrics } from '@/types'
@@ -13,6 +15,7 @@ const STAGE_LABELS = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing'
 interface Props {
   state: AppState
   d: DerivedMetrics
+  userId: string
   onUpdateSettings: (patch: Partial<AppState['settings']>) => Promise<void>
   updateChallengeResult: (result: 'success' | 'miss', savedAmount: number, target: number, date: string) => Promise<void>
   onOpenSalaryDateEdit: () => void
@@ -82,7 +85,7 @@ function ChevronDownIcon({ color, flipped }: { color: string; flipped?: boolean 
   )
 }
 
-export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallengeResult, onOpenSalaryDateEdit, onOpenPlant, onSuccessDay }: Props) {
+export function DailyChallengeCard({ state, d, userId, onUpdateSettings, updateChallengeResult, onOpenSalaryDateEdit, onOpenPlant, onSuccessDay }: Props) {
   const c = useTheme()
   const settings = state.settings
   const enabled = settings.challenge_enabled ?? false
@@ -91,11 +94,39 @@ export function DailyChallengeCard({ state, d, onUpdateSettings, updateChallenge
   const evaluatingRef = useRef(false)
   const [expanded, setExpanded] = useState(false)
 
-  const calc = useMemo(
+  const liveCalc = useMemo(
     () => computeChallenge(state, difficulty, d.financialCycle),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.transactions, state.accounts, state.commitments, settings]
   )
+
+  // Freeze "Safe Today" + Easy/Medium/Hard targets for the day so they don't shrink as you spend.
+  // Everything else (Available, spentToday, progress, streak, etc.) stays fully live from liveCalc.
+  const cycle = d.financialCycle ?? getCurrentFinancialCycle(state)
+  const cycleKey = `${iso(cycle.cycleStart)}:${cycle.status}`
+  const settingsFingerprint = [
+    settings.emergency_fund ?? 0,
+    settings.income_pattern ?? 'monthly',
+    settings.salary_date ?? '',
+    settings.income_day ?? '',
+    settings.primary_income_category_id ?? '',
+  ].join(':')
+
+  const frozen = useMemo(() => {
+    const existing = loadFrozenSnapshot(userId, liveCalc.todayStr, cycleKey, settingsFingerprint)
+    if (existing) return existing
+    const snap = freezeFromCalc(liveCalc, cycleKey, settingsFingerprint)
+    saveFrozenSnapshot(userId, snap)
+    return snap
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, liveCalc.todayStr, cycleKey, settingsFingerprint])
+
+  const calc: ChallengeCalc = {
+    ...liveCalc,
+    safeDailyLimit: frozen.safeDailyLimit,
+    targets: frozen.targets,
+    target: frozen.targets[difficulty],
+  }
 
   // Day-change detection: evaluate past days lazily on mount
   useEffect(() => {
