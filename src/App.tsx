@@ -326,9 +326,22 @@ function AppContent({ session }: { session: Session }) {
   const panelW = typeof window !== 'undefined' ? Math.min(280, window.innerWidth) : 280
   const [windowW, setWindowW] = useState(typeof window !== 'undefined' ? window.innerWidth : 402)
   useEffect(() => {
-    const handler = () => setWindowW(window.innerWidth)
+    const measure = () => setWindowW(window.innerWidth)
+    // iOS (esp. installed/standalone PWA) can report stale window.innerWidth
+    // right after an orientation change — re-measure a few times as it settles.
+    const handler = () => {
+      measure()
+      requestAnimationFrame(measure)
+      setTimeout(measure, 100)
+      setTimeout(measure, 300)
+      setTimeout(measure, 600)
+    }
     window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
+    window.addEventListener('orientationchange', handler)
+    return () => {
+      window.removeEventListener('resize', handler)
+      window.removeEventListener('orientationchange', handler)
+    }
   }, [])
   const W = windowW >= 768 ? Math.min(windowW * 0.6, 720) : 402
 
@@ -351,7 +364,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || catsOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} />

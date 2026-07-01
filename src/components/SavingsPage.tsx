@@ -1019,10 +1019,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
       </BottomSheet>
 
       {/* ── Record contribution confirmation ──────────────────────────────────── */}
-      {confirmContrib && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setConfirmContrib(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+      <BottomSheet open={!!confirmContrib} onClose={() => setConfirmContrib(null)} showHelpButton={false} zIndex={300} maxHeight="85svh">
+        {confirmContrib && (
+          <>
             <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Record contribution?</div>
             <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 16 }}>
               Record <strong style={{ color: c.ink }}>{confirmContrib.name}</strong> ({fmt(confirmContrib.amount)}) contribution. Deduct from your account?
@@ -1058,12 +1057,12 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 No, just mark as contributed
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </BottomSheet>
 
-      {/* ── Record payout / redemption ──────────────────────────────────────── */}
-      {confirmPayout && (
+      {/* ── Record payout / redemption (portal — escapes the transformed page container) ── */}
+      {confirmPayout && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={() => setConfirmPayout(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
@@ -1133,11 +1132,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
 
-      {/* ── Revert payout confirm ───────────────────────────────────────────── */}
-      {revertConfirm && (
+      {/* ── Revert payout confirm (portal — escapes the transformed page container) ── */}
+      {revertConfirm && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={() => setRevertConfirm(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
@@ -1166,11 +1165,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
 
-      {/* ── Update current value ─────────────────────────────────────────────── */}
-      {updateValueId && (
+      {/* ── Update current value (portal — escapes the transformed page container) ── */}
+      {updateValueId && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={() => setUpdateValueId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 360, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
@@ -1196,8 +1195,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
       {/* ── Save confirmation (portal — must sit above BottomSheet portal) ────── */}
       {saveConfirmPending && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -1250,8 +1249,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
         </div>,
       document.body)}
 
-      {/* ── Delete protection ─────────────────────────────────────────────────── */}
-      {deleteProtect && (
+      {/* ── Delete protection (portal — escapes the transformed page container) ── */}
+      {deleteProtect && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={() => setDeleteProtect(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
@@ -1279,8 +1278,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
 
       {dialogNode}
     </div>
