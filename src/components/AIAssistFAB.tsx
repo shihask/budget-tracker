@@ -8,19 +8,23 @@ const EDGE_PAD = 14
 interface AIAssistFABProps {
   onOpen: () => void
   containerWidth: number
+  windowWidth: number
   busy?: boolean
   tourHighlight?: boolean
 }
 
-export function AIAssistFAB({ onOpen, containerWidth, busy = false, tourHighlight }: AIAssistFABProps) {
+export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false, tourHighlight }: AIAssistFABProps) {
   const c = useTheme()
 
+  // Uses the same windowWidth the parent derived containerWidth from, rather than
+  // reading window.innerWidth independently — the two can otherwise briefly disagree
+  // during an orientation change and snap the button into the gutter beside the app.
   const getBounds = () => {
-    const margin = (window.innerWidth - containerWidth) / 2
+    const margin = (windowWidth - containerWidth) / 2
     return {
       left: margin + EDGE_PAD,
       right: margin + containerWidth - SIZE - EDGE_PAD,
-      mid: window.innerWidth / 2,
+      mid: windowWidth / 2,
     }
   }
 
@@ -95,7 +99,7 @@ export function AIAssistFAB({ onOpen, containerWidth, busy = false, tourHighligh
     const snapped = snapToEdge(posRef.current.x, posRef.current.y)
     posRef.current = snapped
     setPos(snapped)
-  }, [containerWidth])
+  }, [containerWidth, windowWidth])
 
   useEffect(() => {
     const move = (e: MouseEvent) => onMove(e.clientX, e.clientY)
