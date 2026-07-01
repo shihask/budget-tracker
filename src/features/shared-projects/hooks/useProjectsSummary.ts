@@ -19,7 +19,25 @@ export function useProjectsSummary(userId: string) {
   useEffect(() => {
     mountedRef.current = true
     fetchActive()
-    return () => { mountedRef.current = false }
+
+    const channel = supabase
+      .channel(`project-invites-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'project_collaborators',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => { if (mountedRef.current) fetchActive() }
+      )
+      .subscribe()
+
+    return () => {
+      mountedRef.current = false
+      supabase.removeChannel(channel)
+    }
   }, [userId])
 
   async function fetchActive() {

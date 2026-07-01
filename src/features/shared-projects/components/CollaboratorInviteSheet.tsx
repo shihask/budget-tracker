@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { BottomSheet } from '@/components/BottomSheet'
@@ -9,11 +9,16 @@ interface Props {
   onClose: () => void
   onInvite: (email: string, role: CollaboratorRole) => Promise<unknown>
   projectName?: string
+  initialEmail?: string
 }
 
-export function CollaboratorInviteSheet({ open, onClose, onInvite, projectName }: Props) {
+export function CollaboratorInviteSheet({ open, onClose, onInvite, projectName, initialEmail }: Props) {
   const c = useTheme()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(initialEmail ?? '')
+
+  useEffect(() => {
+    if (open) setEmail(initialEmail ?? '')
+  }, [open, initialEmail])
   const [role, setRole] = useState<'editor' | 'viewer'>('viewer')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)

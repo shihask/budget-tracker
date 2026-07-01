@@ -35,6 +35,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
   const [editMember, setEditMember] = useState<ProjectMember | null>(null)
   const [budgetManageOpen, setBudgetManageOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
 
   const canEdit = role === 'owner' || role === 'editor'
   const isOwner = role === 'owner'
@@ -43,6 +44,10 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
   const transactions = data.detail?.transactions ?? []
   const attachments = data.detail?.attachments ?? []
   const collaborators = data.detail?.collaborators ?? []
+
+  const collaboratorEmails = new Set(
+    collaborators.map(c => c.invited_email).filter(Boolean) as string[]
+  )
   const budgets = data.detail?.budgets ?? []
 
   const summary = useMemo(() => calcProjectSummary(project, members, transactions), [project, members, transactions])
@@ -291,9 +296,11 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
             memberSummaries={memberSummaries}
             transactions={transactions}
             canEdit={canEdit}
+            collaboratorEmails={collaboratorEmails}
             onAdd={() => { setEditMember(null); setMemberName(''); setMemberEmail(''); setAddMemberOpen(true) }}
             onEdit={m => { setEditMember(m); setMemberName(m.name); setMemberEmail(m.email || ''); setAddMemberOpen(true) }}
             onRemove={id => data.removeMember(id)}
+            onInvite={isOwner ? (email) => { setInviteEmail(email); setInviteOpen(true) } : undefined}
           />
           {/* Collaborators section */}
           <div style={{ marginTop: 20 }}>
@@ -411,6 +418,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
         onClose={() => setInviteOpen(false)}
         onInvite={(email, role) => data.addCollaborator(project.id, email, role)}
         projectName={project.name}
+        initialEmail={inviteEmail}
       />
 
       {/* Add member dialog */}
@@ -857,14 +865,16 @@ function TransactionsTab({ transactions, attachments, canEdit, onAdd, onEdit, on
   )
 }
 
-function MembersTab({ members, memberSummaries, transactions, canEdit, onAdd, onEdit, onRemove }: {
+function MembersTab({ members, memberSummaries, transactions, canEdit, collaboratorEmails, onAdd, onEdit, onRemove, onInvite }: {
   members: ProjectMember[]
   memberSummaries: ReturnType<typeof calcMemberSummaries>
   transactions: ProjectTransaction[]
   canEdit: boolean
+  collaboratorEmails?: Set<string>
   onAdd: () => void
   onEdit: (m: ProjectMember) => void
   onRemove: (id: string) => void
+  onInvite?: (email: string) => void
 }) {
   const c = useTheme()
   const summaryMap = new Map(memberSummaries.map(ms => [ms.memberId, ms]))
@@ -908,7 +918,19 @@ function MembersTab({ members, memberSummaries, transactions, canEdit, onAdd, on
                     <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{m.name}</div>
                     {m.email && <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{m.email}</div>}
                   </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {onInvite && m.email && !collaboratorEmails?.has(m.email) && (
+                      <button
+                        onClick={() => onInvite(m.email!)}
+                        title="Invite to collaborate"
+                        style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: c.accent }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                          <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                      </button>
+                    )}
                     <button onClick={() => onEdit(m)} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: c.muted }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
