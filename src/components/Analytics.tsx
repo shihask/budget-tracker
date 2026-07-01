@@ -21,7 +21,7 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
   const [infoOpen, setInfoOpen] = useState(false)
 
   const trend = weeklyTrend(state, trendRange)
-  const bars  = weeklyBars(state)
+  const bars  = weeklyBars(state, 5)
   const cats  = categorySplit(state)
   const trendTotal = trend.reduce((s, x) => s + x.value, 0)
 

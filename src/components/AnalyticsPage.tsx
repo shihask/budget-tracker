@@ -4,7 +4,7 @@ import { Sprout, Leaf, Flame, TreeDeciduous, Flower2, Coins, TrendingUp, Target,
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
-import { weeklyTrend, weeklyBars, categorySplit, monthTimeline, journeyData } from '@/lib/data'
+import { weeklyTrend, weeklyBars, categorySplit, monthTimeline, journeyData, monthLabelForOffset } from '@/lib/data'
 import { AreaTrend } from './Charts'
 import { analyticsInsightWithAI } from '@/lib/gemini'
 import type { AppState, DerivedMetrics, JourneyMilestone } from '@/types'
@@ -31,7 +31,43 @@ const TREND_RANGES: [TrendRange, string][] = [[7, '7D'], [15, '15D'], [30, '30D'
 const GROUP_PALETTE = ['#F59E0B', '#10B981', '#7C3AED', '#0EA5E9', '#EF4444', '#F97316', '#EC4899', '#6366F1']
 const BAR_MAX_H = 72
 const DAY_W = 32
+const WEEK_BAR_W = 46
+const WEEKS_HISTORY = 20
+const MAX_MONTHS_BACK = 36
+const MAX_CYCLES_BACK = 24
 const J = { seed: '#D97706', roots: '#059669', stem: '#16A34A', branch: '#0D9488', flower: '#D946EF' }
+
+function NavChevron({ dir, disabled, onClick }: { dir: 'left' | 'right'; disabled?: boolean; onClick: () => void }) {
+  const c = useTheme()
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={dir === 'left' ? 'Previous' : 'Next'}
+      style={{
+        width: 30, height: 30, borderRadius: 9, border: 'none', flexShrink: 0,
+        background: c.surface2, color: disabled ? c.faint : c.ink,
+        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        {dir === 'left' ? <polyline points="15 18 9 12 15 6" /> : <polyline points="9 18 15 12 9 6" />}
+      </svg>
+    </button>
+  )
+}
+
+function PeriodNav({ label, onPrev, onNext, prevDisabled, nextDisabled }: { label: string; onPrev: () => void; onNext: () => void; prevDisabled?: boolean; nextDisabled?: boolean }) {
+  const c = useTheme()
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
+      <NavChevron dir="left" onClick={onPrev} disabled={prevDisabled} />
+      <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, textAlign: 'center', flex: 1 }}>{label}</div>
+      <NavChevron dir="right" onClick={onNext} disabled={nextDisabled} />
+    </div>
+  )
+}
 
 interface Props {
   state: AppState
@@ -94,6 +130,16 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
     setJourneyView(v); try { localStorage.setItem('mp-journey-view', v) } catch {}
   }
   const scrollRef = useRef<HTMLDivElement>(null)
+  const barsScrollRef = useRef<HTMLDivElement>(null)
+
+  // Past-period navigation — Category/Timeline share a calendar-month offset, Journey has its own cycle offset
+  const [monthOffset, setMonthOffset] = useState(0)
+  const [cycleOffset, setCycleOffset] = useState(0)
+  useEffect(() => { setSelectedDay(null) }, [monthOffset])
+  const goPrevMonth = () => setMonthOffset(o => Math.min(MAX_MONTHS_BACK, o + 1))
+  const goNextMonth = () => setMonthOffset(o => Math.max(0, o - 1))
+  const goPrevCycle = () => setCycleOffset(o => Math.min(MAX_CYCLES_BACK, o + 1))
+  const goNextCycle = () => setCycleOffset(o => Math.max(0, o - 1))
 
   // Swipe-back gesture
   const [dragX, setDragX] = useState(0)
@@ -154,18 +200,28 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   }
 
   const trend    = useMemo(() => weeklyTrend(state, trendRange), [state, trendRange])
-  const bars     = useMemo(() => weeklyBars(state), [state])
-  const cats     = useMemo(() => categorySplit(state), [state])
-  const timeline = useMemo(() => monthTimeline(state), [state])
+  const bars     = useMemo(() => weeklyBars(state, WEEKS_HISTORY), [state])
+  const cats     = useMemo(() => categorySplit(state, monthOffset), [state, monthOffset])
+  const timeline = useMemo(() => monthTimeline(state, monthOffset), [state, monthOffset])
+  const catsMonthLabel = monthOffset === 0 ? 'This month' : monthLabelForOffset(monthOffset)
   const maxDayTotal = useMemo(() => Math.max(...timeline.byDay.map(d => d.total), 1), [timeline])
-  const journey  = useMemo(() => journeyData(state), [state])
+  const journey  = useMemo(() => journeyData(state, cycleOffset), [state, cycleOffset])
+
+  useEffect(() => {
+    if (tab === 'weeks' && barsScrollRef.current) {
+      const el = barsScrollRef.current
+      requestAnimationFrame(() => { el.scrollLeft = el.scrollWidth })
+    }
+  }, [tab])
 
   useEffect(() => {
     if (tab === 'timeline' && timelineView === 'day' && scrollRef.current) {
       const containerW = scrollRef.current.clientWidth
-      scrollRef.current.scrollLeft = (timeline.todayDay - 1) * DAY_W - containerW / 2 + DAY_W / 2
+      scrollRef.current.scrollLeft = timeline.isCurrentMonth
+        ? (timeline.todayDay - 1) * DAY_W - containerW / 2 + DAY_W / 2
+        : 0
     }
-  }, [tab, timelineView, timeline.todayDay])
+  }, [tab, timelineView, timeline.todayDay, timeline.isCurrentMonth])
 
   const trendTotal = trend.reduce((s, x) => s + x.value, 0)
   const catTotal   = cats.reduce((s, x) => s + x.value, 0)
@@ -303,22 +359,29 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         {/* ── Weekly ────────────────────────────────────────── */}
         {tab === 'weeks' && (
           <div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 12 }}>Lifestyle spend per week</div>
-            <ResponsiveContainer width="100%" height={190}>
-              <BarChart data={bars} margin={{ top: 22, right: 4, left: 4, bottom: 0 }} barSize={38}>
-                <XAxis dataKey="label" tick={{ fontSize: 10, fontFamily: 'ui-monospace, monospace', fill: c.muted }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip
-                  contentStyle={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 10, fontFamily: 'Plus Jakarta Sans', fontSize: 12, color: c.ink }}
-                  formatter={(v) => [fmt(Number(v)), 'Spent']}
-                  cursor={{ fill: c.faint }}
-                />
-                <Bar dataKey="value" radius={[8, 8, 8, 8]}
-                  label={{ position: 'top', fontSize: 10, fontFamily: 'ui-monospace, monospace', fontWeight: 700, fill: c.muted }}>
-                  {bars.map((_, i) => <Cell key={i} fill={barColors[i]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Lifestyle spend per week</div>
+              <div style={{ font: '500 10.5px Plus Jakarta Sans', color: c.muted }}>← scroll for older weeks</div>
+            </div>
+            <div ref={barsScrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
+              <div style={{ width: Math.max(bars.length * WEEK_BAR_W, 300) }}>
+                <ResponsiveContainer width="100%" height={190}>
+                  <BarChart data={bars} margin={{ top: 22, right: 4, left: 4, bottom: 0 }} barSize={24}>
+                    <XAxis dataKey="label" tick={{ fontSize: 9.5, fontFamily: 'ui-monospace, monospace', fill: c.muted }} axisLine={false} tickLine={false} interval={0} />
+                    <YAxis hide />
+                    <Tooltip
+                      contentStyle={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 10, fontFamily: 'Plus Jakarta Sans', fontSize: 12, color: c.ink }}
+                      formatter={(v) => [fmt(Number(v)), 'Spent']}
+                      cursor={{ fill: c.faint }}
+                    />
+                    <Bar dataKey="value" radius={[8, 8, 8, 8]}
+                      label={{ position: 'top', fontSize: 9.5, fontFamily: 'ui-monospace, monospace', fontWeight: 700, fill: c.muted }}>
+                      {bars.map((_, i) => <Cell key={i} fill={barColors[i]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
 
             {/* Legend */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
@@ -345,56 +408,73 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
 
         {/* ── Category ──────────────────────────────────────── */}
         {tab === 'category' && (
-          cats.length === 0 ? (
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>
-              No lifestyle spend this month yet.
-            </div>
-          ) : (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-                <div style={{ position: 'relative' }}>
-                  <PieChart width={160} height={160}>
-                    <Pie data={cats} cx={80} cy={80} innerRadius={54} outerRadius={72}
-                      dataKey="value" startAngle={90} endAngle={-270} paddingAngle={2} strokeWidth={0}>
-                      {cats.map((_, i) => <PieCell key={i} fill={colorOf(cats[i].name)} />)}
-                    </Pie>
-                  </PieChart>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                    <div style={{ font: '500 10px ui-monospace, monospace', color: c.muted }}>THIS MONTH</div>
-                    <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{fmt(catTotal)}</div>
+          <div>
+            <PeriodNav
+              label={catsMonthLabel}
+              onPrev={goPrevMonth}
+              onNext={goNextMonth}
+              prevDisabled={monthOffset >= MAX_MONTHS_BACK}
+              nextDisabled={monthOffset === 0}
+            />
+            {cats.length === 0 ? (
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>
+                No lifestyle spend in {monthOffset === 0 ? 'this month' : catsMonthLabel} yet.
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+                  <div style={{ position: 'relative' }}>
+                    <PieChart width={160} height={160}>
+                      <Pie data={cats} cx={80} cy={80} innerRadius={54} outerRadius={72}
+                        dataKey="value" startAngle={90} endAngle={-270} paddingAngle={2} strokeWidth={0}>
+                        {cats.map((_, i) => <PieCell key={i} fill={colorOf(cats[i].name)} />)}
+                      </Pie>
+                    </PieChart>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                      <div style={{ font: '500 10px ui-monospace, monospace', color: c.muted }}>{catsMonthLabel.toUpperCase()}</div>
+                      <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>{fmt(catTotal)}</div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {cats.map(x => {
-                  const pct = catTotal > 0 ? Math.round((x.value / catTotal) * 100) : 0
-                  return (
-                    <div key={x.name}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
-                        <span style={{ width: 10, height: 10, borderRadius: 3, background: colorOf(x.name), flexShrink: 0 }} />
-                        <span style={{ flex: 1, font: '600 13px Plus Jakarta Sans', color: c.ink }}>{x.name}</span>
-                        <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(x.value)}</span>
-                        <span style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, minWidth: 34, textAlign: 'right' }}>{pct}%</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {cats.map(x => {
+                    const pct = catTotal > 0 ? Math.round((x.value / catTotal) * 100) : 0
+                    return (
+                      <div key={x.name}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: 3, background: colorOf(x.name), flexShrink: 0 }} />
+                          <span style={{ flex: 1, font: '600 13px Plus Jakarta Sans', color: c.ink }}>{x.name}</span>
+                          <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(x.value)}</span>
+                          <span style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, minWidth: 34, textAlign: 'right' }}>{pct}%</span>
+                        </div>
+                        <div style={{ height: 5, background: c.faint, borderRadius: 999, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: colorOf(x.name), borderRadius: 999, transition: 'width 0.6s ease' }} />
+                        </div>
                       </div>
-                      <div style={{ height: 5, background: c.faint, borderRadius: 999, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: colorOf(x.name), borderRadius: 999, transition: 'width 0.6s ease' }} />
-                      </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          )
+            )}
+          </div>
         )}
 
         {/* ── Timeline ──────────────────────────────────────── */}
         {tab === 'timeline' && (
           <div>
+            <PeriodNav
+              label={timeline.monthLabel}
+              onPrev={goPrevMonth}
+              onNext={goNextMonth}
+              prevDisabled={monthOffset >= MAX_MONTHS_BACK}
+              nextDisabled={monthOffset === 0}
+            />
+
             {/* Month total */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 14 }}>
               <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink }}>{fmt(timeline.totalSpent)}</div>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>{timeline.monthLabel}</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>total spent</div>
             </div>
 
             {/* Sub-toggle */}
@@ -418,7 +498,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 <div ref={scrollRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
                   <div style={{ display: 'flex', alignItems: 'flex-end', minWidth: timeline.daysInMonth * DAY_W }}>
                     {timeline.byDay.map(d => {
-                      const isToday = d.day === timeline.todayDay
+                      const isToday = timeline.isCurrentMonth && d.day === timeline.todayDay
                       const isSel   = selectedDay === d.day
                       const barH    = d.total > 0 ? Math.max(4, Math.round((d.total / maxDayTotal) * BAR_MAX_H)) : 0
                       return (
@@ -483,7 +563,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
             {/* ── By Category ── */}
             {timelineView === 'category' && (
               timeline.byCategory.length === 0
-                ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No expenses this month yet.</div>
+                ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No expenses in {timeline.monthLabel} yet.</div>
                 : <div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       {timeline.byCategory.map(lane => {
@@ -498,7 +578,9 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                             </div>
                             <div style={{ position: 'relative', height: 18, background: c.faint, borderRadius: 999 }}>
                               {/* today line */}
-                              <div style={{ position: 'absolute', left: `${(timeline.todayDay / timeline.daysInMonth) * 100}%`, top: -3, bottom: -3, width: 1.5, background: c.accent, borderRadius: 1, opacity: 0.5 }} />
+                              {timeline.isCurrentMonth && (
+                                <div style={{ position: 'absolute', left: `${(timeline.todayDay / timeline.daysInMonth) * 100}%`, top: -3, bottom: -3, width: 1.5, background: c.accent, borderRadius: 1, opacity: 0.5 }} />
+                              )}
                               {lane.days.map(d => {
                                 const left = ((d.day - 0.5) / timeline.daysInMonth) * 100
                                 const size = Math.max(7, Math.min(15, Math.round((d.amount / maxAmt) * 10) + 6))
@@ -511,14 +593,14 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                         )
                       })}
                     </div>
-                    <TimelineDayRuler daysInMonth={timeline.daysInMonth} todayDay={timeline.todayDay} mutedColor={c.muted} accentColor={c.accent} />
+                    <TimelineDayRuler daysInMonth={timeline.daysInMonth} todayDay={timeline.isCurrentMonth ? timeline.todayDay : -1} mutedColor={c.muted} accentColor={c.accent} />
                   </div>
             )}
 
             {/* ── By Group ── */}
             {timelineView === 'group' && (
               timeline.byGroup.length === 0
-                ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No expenses this month yet.</div>
+                ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No expenses in {timeline.monthLabel} yet.</div>
                 : <div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       {timeline.byGroup.map((lane, gi) => {
@@ -532,7 +614,9 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                               <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(lane.total)}</span>
                             </div>
                             <div style={{ position: 'relative', height: 18, background: c.faint, borderRadius: 999 }}>
-                              <div style={{ position: 'absolute', left: `${(timeline.todayDay / timeline.daysInMonth) * 100}%`, top: -3, bottom: -3, width: 1.5, background: c.accent, borderRadius: 1, opacity: 0.5 }} />
+                              {timeline.isCurrentMonth && (
+                                <div style={{ position: 'absolute', left: `${(timeline.todayDay / timeline.daysInMonth) * 100}%`, top: -3, bottom: -3, width: 1.5, background: c.accent, borderRadius: 1, opacity: 0.5 }} />
+                              )}
                               {lane.days.map(d => {
                                 const left = ((d.day - 0.5) / timeline.daysInMonth) * 100
                                 const size = Math.max(7, Math.min(15, Math.round((d.amount / maxAmt) * 10) + 6))
@@ -545,7 +629,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                         )
                       })}
                     </div>
-                    <TimelineDayRuler daysInMonth={timeline.daysInMonth} todayDay={timeline.todayDay} mutedColor={c.muted} accentColor={c.accent} />
+                    <TimelineDayRuler daysInMonth={timeline.daysInMonth} todayDay={timeline.isCurrentMonth ? timeline.todayDay : -1} mutedColor={c.muted} accentColor={c.accent} />
                   </div>
             )}
           </div>
@@ -571,8 +655,12 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
 
             {/* Header + view switcher */}
             <div style={{ marginBottom: 18 }}>
-              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', marginBottom: 14 }}>
-                {journey.cycleLabel} Journey
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <NavChevron dir="left" onClick={goPrevCycle} disabled={cycleOffset >= MAX_CYCLES_BACK} />
+                <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', flex: 1, textAlign: 'center' }}>
+                  {journey.cycleLabel} Journey
+                </div>
+                <NavChevron dir="right" onClick={goNextCycle} disabled={cycleOffset === 0} />
               </div>
               <div style={{ display: 'flex', gap: 3, background: c.surface2, borderRadius: 12, padding: 3 }}>
                 {(['flow', 'timeline', 'plant'] as const).map(v => (

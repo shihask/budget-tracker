@@ -333,6 +333,7 @@ export interface MonthTimelineData {
   daysInMonth: number
   todayDay: number
   monthLabel: string
+  isCurrentMonth: boolean
   totalSpent: number
 }
 
@@ -398,6 +399,7 @@ export interface JourneyData {
   hasPrevData: boolean
   // Meta
   cycleLabel: string
+  isCurrentCycle: boolean
 }
 
 export type Layout = 'grid' | 'carousel' | 'list'

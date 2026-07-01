@@ -5,7 +5,7 @@ import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, Timeline
 import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
-import { getCurrentFinancialCycle, isPrimaryIncomeTransaction } from '@/lib/financial-cycle'
+import { getCurrentFinancialCycle, getFinancialCycleAtOffset, getPreviousFinancialCycle } from '@/lib/financial-cycle'
 import { getRemainingObligations } from '@/lib/obligations'
 import { estimateHistoricalDailyIncome, calculateAvgDailySpending, calculateSafeUntilDays, calculateTodaySummary, calculateWeekSummary } from '@/lib/variable-income'
 
@@ -152,10 +152,10 @@ export function weeklyTrend(state: AppState, days: number = 7): TrendPoint[] {
   })
 }
 
-export function weeklyBars(state: AppState): BarPoint[] {
+export function weeklyBars(state: AppState, weeks: number = 12): BarPoint[] {
   const catMap = catById(state.categories)
-  return Array.from({ length: 5 }, (_, w) => {
-    const wOff = 4 - w
+  return Array.from({ length: weeks }, (_, w) => {
+    const wOff = weeks - 1 - w
     const ws = addDays(WEEK_START, -7 * wOff)
     const we = addDays(ws, 7)
     const total = state.transactions
@@ -165,11 +165,19 @@ export function weeklyBars(state: AppState): BarPoint[] {
   })
 }
 
-export function categorySplit(state: AppState): CatPoint[] {
+/** Calendar month label for a given offset from the current month (0 = this month, 1 = last month, ...). */
+export function monthLabelForOffset(monthOffset: number = 0): string {
+  const target = new Date(TODAY.getFullYear(), TODAY.getMonth() - monthOffset, 1)
+  return target.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+}
+
+export function categorySplit(state: AppState, monthOffset: number = 0): CatPoint[] {
   const catMap = catById(state.categories)
+  const start = new Date(TODAY.getFullYear(), TODAY.getMonth() - monthOffset, 1)
+  const end = new Date(TODAY.getFullYear(), TODAY.getMonth() - monthOffset + 1, 1)
   const map: Record<string, number> = {}
   state.transactions
-    .filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= MONTH_START)
+    .filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= start && new Date(t.transaction_date) < end)
     .forEach(t => {
       const name = catMap[t.category_id!]?.name
       if (name) map[name] = (map[name] || 0) + t.amount
@@ -177,13 +185,14 @@ export function categorySplit(state: AppState): CatPoint[] {
   return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
 }
 
-export function monthTimeline(state: AppState): MonthTimelineData {
-  const now = TODAY
-  const y = now.getFullYear()
-  const m = now.getMonth()
+export function monthTimeline(state: AppState, monthOffset: number = 0): MonthTimelineData {
+  const target = new Date(TODAY.getFullYear(), TODAY.getMonth() - monthOffset, 1)
+  const y = target.getFullYear()
+  const m = target.getMonth()
   const daysInMonth = new Date(y, m + 1, 0).getDate()
-  const todayDay = now.getDate()
-  const monthLabel = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  const isCurrentMonth = monthOffset === 0
+  const todayDay = isCurrentMonth ? TODAY.getDate() : daysInMonth
+  const monthLabel = target.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   const pad = (n: number) => String(n).padStart(2, '0')
   const prefix = `${y}-${pad(m + 1)}`
 
@@ -200,7 +209,7 @@ export function monthTimeline(state: AppState): MonthTimelineData {
       day,
       isoDate,
       total: dayTxns.reduce((s, t) => s + t.amount, 0),
-      isFuture: day > todayDay,
+      isFuture: isCurrentMonth && day > todayDay,
       transactions: dayTxns,
     }
   })
@@ -241,7 +250,7 @@ export function monthTimeline(state: AppState): MonthTimelineData {
 
   return {
     byDay, byCategory, byGroup,
-    daysInMonth, todayDay, monthLabel,
+    daysInMonth, todayDay, monthLabel, isCurrentMonth,
     totalSpent: monthTxns.reduce((s, t) => s + t.amount, 0),
   }
 }
@@ -251,17 +260,23 @@ const SAVINGS_TYPE_LABEL: Record<string, string> = {
   fd: 'Fixed Deposit', ppf_nps: 'PPF / NPS', chit: 'Chit Fund', custom: 'Investment',
 }
 
-export function journeyData(state: AppState): JourneyData {
-  const now = TODAY
+export function journeyData(state: AppState, cycleOffset: number = 0): JourneyData {
   const pattern = getIncomePattern(state.settings)
-  const cycle = getCurrentFinancialCycle(state)
+  const cycle = cycleOffset === 0 ? getCurrentFinancialCycle(state) : getFinancialCycleAtOffset(state, cycleOffset)
   const cycleStart = cycle.cycleStart
+  const cycleEnd = cycle.cycleEnd
+  const cycleStartIso = iso(cycleStart)
+  const cycleEndIso = iso(cycleEnd)
+  const cycleEndExclusive = new Date(cycleEnd.getTime() + 86400000)
+  const inCycle = (dateStr: string) => dateStr >= cycleStartIso && dateStr <= cycleEndIso
+  const inCycleTs = (d: Date) => d >= cycleStart && d < cycleEndExclusive
   const cycleLabel = cycleStart.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  const isCurrentCycle = cycleOffset === 0
   const catMap = catById(state.categories)
 
   // Seed — income in this cycle
   const incomeTxns = state.transactions.filter(
-    t => t.transaction_type === 'income' && new Date(t.transaction_date) >= cycleStart
+    t => t.transaction_type === 'income' && inCycle(t.transaction_date)
   )
   const incomeByCat: Record<string, number> = {}
   incomeTxns.forEach(t => {
@@ -275,13 +290,13 @@ export function journeyData(state: AppState): JourneyData {
 
   // Roots — commitments paid + savings contributed + goal contributions
   const commitmentsPaid = state.transactions
-    .filter(t => t.transaction_type === 'commitment' && new Date(t.transaction_date) >= cycleStart)
+    .filter(t => t.transaction_type === 'commitment' && inCycle(t.transaction_date))
     .reduce((s, t) => s + t.amount, 0)
   const savingsContributed = state.transactions
-    .filter(t => t.transaction_type === 'savings_contribution' && new Date(t.transaction_date) >= cycleStart)
+    .filter(t => t.transaction_type === 'savings_contribution' && inCycle(t.transaction_date))
     .reduce((s, t) => s + t.amount, 0)
   const goalsContributed = state.goal_contributions
-    .filter(gc => new Date(gc.created_at) >= cycleStart)
+    .filter(gc => inCycleTs(new Date(gc.created_at)))
     .reduce((s, gc) => s + gc.amount, 0)
   const rootsTotal = commitmentsPaid + savingsContributed + goalsContributed
   const rootsPct = totalIncome > 0 ? Math.round((rootsTotal / totalIncome) * 100) : 0
@@ -377,7 +392,7 @@ export function journeyData(state: AppState): JourneyData {
 
   // Lifestyle spending — regular expenses in the cycle
   const lifestyleTxns = state.transactions.filter(
-    t => t.transaction_type === 'expense' && new Date(t.transaction_date) >= cycleStart
+    t => t.transaction_type === 'expense' && inCycle(t.transaction_date)
   )
   const lifestyleSpending = lifestyleTxns.reduce((s, t) => s + t.amount, 0)
   const lifeCatAcc: Record<string, number> = {}
@@ -394,13 +409,13 @@ export function journeyData(state: AppState): JourneyData {
   // Saved breakdown — individual contributions this cycle grouped by name
   const savedAcc: Record<string, number> = {}
   state.transactions
-    .filter(t => t.transaction_type === 'savings_contribution' && new Date(t.transaction_date) >= cycleStart)
+    .filter(t => t.transaction_type === 'savings_contribution' && inCycle(t.transaction_date))
     .forEach(t => { const n = t.description || 'Savings'; savedAcc[n] = (savedAcc[n] || 0) + t.amount })
   state.transactions
-    .filter(t => t.transaction_type === 'commitment' && new Date(t.transaction_date) >= cycleStart)
+    .filter(t => t.transaction_type === 'commitment' && inCycle(t.transaction_date))
     .forEach(t => { const n = t.description || 'Commitment'; savedAcc[n] = (savedAcc[n] || 0) + t.amount })
   state.goal_contributions
-    .filter(gc => new Date(gc.created_at) >= cycleStart)
+    .filter(gc => inCycleTs(new Date(gc.created_at)))
     .forEach(gc => { const n = state.goals.find(g => g.id === gc.goal_id)?.name || 'Goal'; savedAcc[n] = (savedAcc[n] || 0) + gc.amount })
   const savedBreakdown: JourneyFlowItem[] = Object.entries(savedAcc)
     .map(([name, amount]) => ({ name, amount }))
@@ -419,16 +434,16 @@ export function journeyData(state: AppState): JourneyData {
   }
   const replayEvents: JourneyReplayEvent[] = []
   state.transactions
-    .filter(t => t.transaction_type === 'income' && new Date(t.transaction_date) >= cycleStart)
+    .filter(t => t.transaction_type === 'income' && inCycle(t.transaction_date))
     .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'coins', title: t.description, subtitle: catMap[t.category_id ?? '']?.name, amount: t.amount, eventType: 'income' }))
   state.transactions
-    .filter(t => t.transaction_type === 'savings_contribution' && new Date(t.transaction_date) >= cycleStart)
+    .filter(t => t.transaction_type === 'savings_contribution' && inCycle(t.transaction_date))
     .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'trending-up', title: t.description, amount: t.amount, eventType: 'savings' }))
   state.transactions
-    .filter(t => t.transaction_type === 'commitment' && new Date(t.transaction_date) >= cycleStart)
+    .filter(t => t.transaction_type === 'commitment' && inCycle(t.transaction_date))
     .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'sprout', title: t.description, amount: t.amount, eventType: 'commitment' }))
   state.goal_contributions
-    .filter(gc => new Date(gc.created_at) >= cycleStart)
+    .filter(gc => inCycleTs(new Date(gc.created_at)))
     .forEach(gc => replayEvents.push({ date: gc.created_at.slice(0, 10), emoji: 'target', title: state.goals.find(g => g.id === gc.goal_id)?.name ?? 'Goal funded', amount: gc.amount, eventType: 'goal' }))
   lifestyleTxns.forEach(t => {
     const catName = catMap[t.category_id ?? '']?.name
@@ -439,31 +454,20 @@ export function journeyData(state: AppState): JourneyData {
   // Growth efficiency = rootsTotal as % of totalIncome
   const efficiencyPct = totalIncome > 0 ? Math.round((rootsTotal / totalIncome) * 100) : 0
 
-  // Previous cycle — find the qualifying income before the current cycle's start
-  const prevCycleEnd = new Date(cycleStart.getTime() - 86400000)
-  let prevCycleStart: Date
-  const prevIncomeTxns = state.transactions
-    .filter(t => isPrimaryIncomeTransaction(t, state) && new Date(t.transaction_date) < cycleStart)
-    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
-  if (prevIncomeTxns.length > 0) {
-    prevCycleStart = new Date(prevIncomeTxns[0].transaction_date)
-  } else if (pattern === 'weekly') {
-    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth(), cycleStart.getDate() - 7)
-  } else {
-    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, cycleStart.getDate())
-  }
+  // Previous cycle — one step further back than whichever cycle is being viewed
+  const prevCycle = getPreviousFinancialCycle(state, cycle, pattern)
+  const prevCycleStartIso = iso(prevCycle.cycleStart)
+  const prevCycleEndIso = iso(prevCycle.cycleEnd)
+  const prevCycleEndExclusive = new Date(prevCycle.cycleEnd.getTime() + 86400000)
+  const inPrevCycle = (dateStr: string) => dateStr >= prevCycleStartIso && dateStr <= prevCycleEndIso
   const prevRootsTotal = state.transactions
-    .filter(t => ['commitment', 'savings_contribution'].includes(t.transaction_type) &&
-      new Date(t.transaction_date) >= prevCycleStart &&
-      new Date(t.transaction_date) <= prevCycleEnd)
+    .filter(t => ['commitment', 'savings_contribution'].includes(t.transaction_type) && inPrevCycle(t.transaction_date))
     .reduce((s, t) => s + t.amount, 0)
     + state.goal_contributions
-      .filter(gc => { const d = new Date(gc.created_at); return d >= prevCycleStart && d <= prevCycleEnd })
+      .filter(gc => { const d = new Date(gc.created_at); return d >= prevCycle.cycleStart && d < prevCycleEndExclusive })
       .reduce((s, gc) => s + gc.amount, 0)
   const prevSavingsContributed = state.transactions
-    .filter(t => t.transaction_type === 'savings_contribution' &&
-      new Date(t.transaction_date) >= prevCycleStart &&
-      new Date(t.transaction_date) <= prevCycleEnd)
+    .filter(t => t.transaction_type === 'savings_contribution' && inPrevCycle(t.transaction_date))
     .reduce((s, t) => s + t.amount, 0)
   const hasPrevData = prevRootsTotal > 0 || prevSavingsContributed > 0
 
@@ -481,6 +485,6 @@ export function journeyData(state: AppState): JourneyData {
     lifestyleSpending, lifestyleCategories, savedBreakdown, spendingPct,
     efficiencyPct,
     prevRootsTotal, prevSavingsContributed, hasPrevData,
-    cycleLabel,
+    cycleLabel, isCurrentCycle,
   }
 }

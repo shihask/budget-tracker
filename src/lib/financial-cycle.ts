@@ -80,7 +80,7 @@ const MS_DAY = 86400000
 const fmtDate = (d: Date) => d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 
-function parseTxDate(dateStr: string): Date {
+export function parseTxDate(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d)
 }
@@ -251,6 +251,65 @@ function buildCalendarFallback(
     startLabel: fmtDate(cycleStart),
     endLabel: fmtDate(cycleEnd),
   }
+}
+
+// Walks one cycle further into the past, given a cycle already computed (current or previous).
+// Prefers the qualifying income transaction right before `cycle.cycleStart`; falls back to a
+// fixed calendar shift (7 days for weekly, 1 month otherwise) when no such transaction exists.
+export function getPreviousFinancialCycle(
+  state: AppState,
+  cycle: FinancialCycle,
+  pattern: IncomePattern,
+): FinancialCycle {
+  const cycleStart = cycle.cycleStart
+  const prevCycleEnd = new Date(cycleStart.getTime() - MS_DAY)
+
+  const prevIncomeTxns = state.transactions
+    .filter(t => isPrimaryIncomeTransaction(t, state) && parseTxDate(t.transaction_date) < cycleStart)
+    .sort((a, b) => (a.transaction_date < b.transaction_date ? 1 : -1))
+
+  let prevCycleStart: Date
+  let latestIncomeTransaction: Transaction | null = null
+  let source: CycleSource
+  if (prevIncomeTxns.length > 0) {
+    latestIncomeTransaction = prevIncomeTxns[0]
+    prevCycleStart = parseTxDate(latestIncomeTransaction.transaction_date)
+    source = 'transaction'
+  } else if (pattern === 'weekly') {
+    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth(), cycleStart.getDate() - 7)
+    source = 'calendar_fallback'
+  } else {
+    prevCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth() - 1, cycleStart.getDate())
+    source = 'calendar_fallback'
+  }
+
+  const totalDays = Math.max(1, Math.round((prevCycleEnd.getTime() - prevCycleStart.getTime()) / MS_DAY) + 1)
+
+  return {
+    cycleStart: prevCycleStart,
+    cycleEnd: prevCycleEnd,
+    currentDay: totalDays,
+    totalDays,
+    daysRemaining: 0,
+    weeksRemaining: 0,
+    latestIncomeTransaction,
+    isWaitingForIncome: false,
+    expectedIncomeDate: null,
+    status: 'active',
+    source,
+    startLabel: fmtDate(prevCycleStart),
+    endLabel: fmtDate(prevCycleEnd),
+  }
+}
+
+// offset 0 = current cycle, 1 = the cycle before that, etc.
+export function getFinancialCycleAtOffset(state: AppState, offset: number): FinancialCycle {
+  const pattern = getIncomePattern(state.settings)
+  let cycle = getCurrentFinancialCycle(state)
+  for (let i = 0; i < offset; i++) {
+    cycle = getPreviousFinancialCycle(state, cycle, pattern)
+  }
+  return cycle
 }
 
 export function getCurrentFinancialCycle(state: AppState): FinancialCycle {
