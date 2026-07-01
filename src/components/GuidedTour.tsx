@@ -16,6 +16,7 @@ const ALL_STEPS: TourStep[] = [
   { target: 'commitments', title: 'Upcoming Commitments', description: 'Never miss an EMI, SIP, Gold Scheme or subscription. MoneyPlant reminds you before they\'re due.' },
   { target: 'accounts', title: 'Accounts', description: 'View all your bank accounts and cash balances in one place.' },
   { target: 'credit_cards', title: 'Credit Cards', description: 'Track your credit card balances, billing cycles and due dates. Pay bills directly from here.' },
+  { target: 'projects', title: 'Projects', description: 'Organize and split shared expenses across trips, events, and group activities. Invite others, log shared costs, and see who owes what.' },
   { target: 'ai-fab', title: 'Mint AI', description: 'Tap the dark floating button to ask Mint anything about your money — Can I afford this? Why did I overspend?' },
   { target: 'fab', title: 'Add Transaction', description: 'Tap the green + button to record income or expenses in seconds. The more you record, the smarter your forecasts become.' },
   { target: 'settings', title: 'Settings', description: 'Set your income pattern, salary date, toggle features like credit cards, savings, notifications and more.' },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Sparkles } from 'lucide-react'
 
-type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'autopilot_enabled' | 'notifications_enabled'
+type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
 
 interface FeaturePage {
   key: FeatureKey
@@ -50,6 +50,16 @@ function TrendingUpIcon({ size }: { size: number }) {
   )
 }
 
+function SuitcaseIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2"/>
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+      <path d="M2 13h20"/>
+    </svg>
+  )
+}
+
 function BellIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -92,6 +102,14 @@ const PAGES: FeaturePage[] = [
     description: 'Track your SIPs, gold schemes, recurring deposits and fixed deposits — all in one dedicated section.\n\nRecord each contribution, see your total corpus, and keep savings completely separate from daily expenses.',
     defaultOn: false,
     Icon: TrendingUpIcon,
+  },
+  {
+    key: 'track_projects',
+    label: 'Projects',
+    subtitle: 'Split costs, stay in sync',
+    description: 'Organize and split shared expenses across trips, events, and group activities.\n\nCreate a project for a trip, event or shared goal — invite friends or family, log costs as they happen, and see who owes what, all in one place.',
+    defaultOn: false,
+    Icon: SuitcaseIcon,
   },
   {
     key: 'notifications_enabled',

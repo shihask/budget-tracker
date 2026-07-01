@@ -5,7 +5,7 @@ import type { IncomePattern, Settings } from '@/types'
 import { INCOME_PATTERN_OPTIONS, suggestBudgetByIncomePattern } from '@/lib/income-pattern'
 
 type AccountType = 'bank' | 'cash' | 'wallet'
-type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'autopilot_enabled' | 'notifications_enabled'
+type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
 
 interface AccountDraft {
   name: string
