@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
@@ -170,9 +170,38 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   const [archiving, setArchiving] = useState<string | null>(null)
 
   const active = state.savings.filter(s => s.is_active)
-  const completed = state.savings.filter(s => !s.is_active)
-  const [showCompleted, setShowCompleted] = useState(false)
   const accounts = state.accounts.filter(a => a.is_active)
+
+  // ── Filters ───────────────────────────────────────────────────────────────
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [fQuery, setFQuery] = useState('')
+  const [fTypes, setFTypes] = useState<Set<SavingsType>>(new Set())
+  const [fStatus, setFStatus] = useState<'active' | 'inactive' | 'all'>('active')
+  const [fDateFrom, setFDateFrom] = useState('')
+  const [fDateTo, setFDateTo] = useState('')
+  const activeFilterCount =
+    (fQuery.trim() ? 1 : 0) + fTypes.size + (fStatus !== 'active' ? 1 : 0) + (fDateFrom ? 1 : 0) + (fDateTo ? 1 : 0)
+  const clearFilters = () => { setFQuery(''); setFTypes(new Set()); setFStatus('active'); setFDateFrom(''); setFDateTo('') }
+  const toggleFType = (t: SavingsType) =>
+    setFTypes(prev => {
+      const next = new Set(prev)
+      if (next.has(t)) next.delete(t); else next.add(t)
+      return next
+    })
+
+  const filteredSavings = useMemo(() => {
+    const q = fQuery.trim().toLowerCase()
+    return state.savings
+      .filter(s => fStatus === 'all' ? true : fStatus === 'active' ? s.is_active : !s.is_active)
+      .filter(s => fTypes.size === 0 || fTypes.has(s.type))
+      .filter(s => !q || s.name.toLowerCase().includes(q) || (s.notes ?? '').toLowerCase().includes(q))
+      .filter(s => !fDateFrom || (s.created_at ?? '') >= fDateFrom)
+      .filter(s => !fDateTo || (s.created_at ?? '') <= fDateTo + 'T23:59:59')
+      .sort((a, b) => {
+        if (a.is_active !== b.is_active) return a.is_active ? -1 : 1
+        return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+      })
+  }, [state.savings, fQuery, fTypes, fStatus, fDateFrom, fDateTo])
 
   useEffect(() => {
     if (startAdd) { setEditingId(null); setForm(EMPTY_FORM); setSheetOpen(true) }
@@ -240,6 +269,12 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
     setArchiving(sv.id)
     setDeleteProtect(null)
     try { await onUpdate(sv.id, { is_active: false }) } catch (_) {}
+    setArchiving(null)
+  }
+
+  const handleReactivate = async (sv: Savings) => {
+    setArchiving(sv.id)
+    try { await onUpdate(sv.id, { is_active: true }) } catch (_) {}
     setArchiving(null)
   }
 
@@ -401,20 +436,112 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `calc(16px + env(safe-area-inset-top,0px)) 16px 14px`, borderBottom: `1px solid ${c.faint}`, background: c.bg, position: 'sticky', top: 0, zIndex: 10 }}>
-        <button onClick={triggerClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.muted, padding: '4px 8px 4px 0', display: 'flex', alignItems: 'center', gap: 5, font: '600 14px Plus Jakarta Sans' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          Back
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-            </svg>
+      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: c.bg, borderBottom: `1px solid ${c.faint}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `calc(16px + env(safe-area-inset-top,0px)) 16px 14px` }}>
+          <button onClick={triggerClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.muted, padding: '4px 8px 4px 0', display: 'flex', alignItems: 'center', gap: 5, font: '600 14px Plus Jakarta Sans' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            Back
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+              </svg>
+            </div>
+            <span style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Savings & Investments</span>
           </div>
-          <span style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Savings & Investments</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {activeFilterCount > 0 && (
+              <button onClick={clearFilters} style={{ background: c.badSoft, color: c.bad, border: 'none', borderRadius: 999, padding: '6px 12px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
+                Clear
+              </button>
+            )}
+            <button
+              onClick={() => setFilterOpen(v => !v)}
+              aria-label="Filter"
+              style={{ position: 'relative', width: 32, height: 32, borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: filterOpen ? c.accent : (activeFilterCount > 0 ? c.accentSoft : c.surface2), color: filterOpen ? '#fff' : (activeFilterCount > 0 ? c.accent : c.muted), transition: 'background 0.2s ease' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+              </svg>
+              {activeFilterCount > 0 && (
+                <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 15, height: 15, borderRadius: 999, background: c.accent, color: '#fff', font: '800 9px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', border: `2px solid ${c.bg}` }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            <button onClick={openAdd} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+          </div>
         </div>
-        <button onClick={openAdd} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+
+        {/* Collapsible filters */}
+        <div style={{ overflow: 'hidden', maxHeight: filterOpen ? '480px' : '0px', opacity: filterOpen ? 1 : 0, transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease', willChange: 'max-height, opacity' }}>
+          <div style={{ padding: '4px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input
+              value={fQuery} onChange={e => setFQuery(e.target.value)}
+              placeholder="Search by name or notes" style={inp}
+            />
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { val: 'active' as const, label: 'Active' },
+                { val: 'inactive' as const, label: 'Inactive' },
+                { val: 'all' as const, label: 'All' },
+              ]).map(opt => {
+                const isSel = fStatus === opt.val
+                return (
+                  <button
+                    key={opt.val}
+                    onClick={() => setFStatus(opt.val)}
+                    style={{
+                      flex: 1, border: `1.5px solid ${isSel ? c.accent : c.faint}`,
+                      background: isSel ? c.accentSoft : c.surface2,
+                      color: isSel ? c.accent : c.muted,
+                      borderRadius: 10, padding: '9px 12px',
+                      font: `${isSel ? '700' : '600'} 12px Plus Jakarta Sans`, cursor: 'pointer',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {TYPE_ORDER.map(t => {
+                const tcfg = TYPE_CONFIG[t]
+                const isSel = fTypes.has(t)
+                return (
+                  <button
+                    key={t}
+                    onClick={() => toggleFType(t)}
+                    style={{
+                      border: `1.5px solid ${isSel ? tcfg.color : c.faint}`,
+                      background: isSel ? tcfg.color + '18' : c.surface2,
+                      color: isSel ? tcfg.color : c.muted,
+                      borderRadius: 999, padding: '6px 11px',
+                      font: `${isSel ? '700' : '600'} 11px Plus Jakarta Sans`, cursor: 'pointer',
+                    }}
+                  >
+                    {tcfg.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} style={{ ...inp, flex: 1 }} />
+              <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
+            </div>
+
+            <button
+              onClick={() => setFilterOpen(false)}
+              style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '12px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', marginTop: 4 }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
       </div>
 
       <div style={{ padding: '16px 16px calc(32px + env(safe-area-inset-bottom,0px))', maxWidth: 540, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
@@ -442,8 +569,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           </div>
         )}
 
-        {/* Empty state */}
-        {active.length === 0 && (
+        {/* Empty state — no data at all */}
+        {state.savings.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 24px' }}>
             <div style={{ width: 60, height: 60, borderRadius: 18, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -460,8 +587,21 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           </div>
         )}
 
+        {/* Empty state — filters exclude everything */}
+        {state.savings.length > 0 && filteredSavings.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div style={{ font: '700 15px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>No investments match your filters</div>
+            <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              Try widening your search, type or date range.
+            </div>
+            <button onClick={clearFilters} style={{ background: c.surface2, color: c.ink, border: `1.5px solid ${c.faint}`, borderRadius: 14, padding: '11px 24px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
+              Clear filters
+            </button>
+          </div>
+        )}
+
         {/* Cards */}
-        {active.map(sv => {
+        {filteredSavings.map(sv => {
           const tcfg   = TYPE_CONFIG[sv.type]
           const col    = tcfg.color
           const contrib = sv.is_recurring ? sv.current_installment * sv.amount : sv.amount
@@ -479,7 +619,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div
               key={sv.id}
               onClick={() => !isCont && !isDel && openEdit(sv)}
-              style={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 18, padding: '14px 14px 12px', marginBottom: 12, opacity: isDel ? 0.4 : 1, cursor: 'pointer' }}
+              style={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 18, padding: '14px 14px 12px', marginBottom: 12, opacity: isDel ? 0.4 : sv.is_active ? 1 : 0.72, cursor: 'pointer' }}
             >
               {/* Row 1: icon + name + type badge + amount */}
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -492,6 +632,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <span style={{ font: '700 15px Plus Jakarta Sans', color: c.ink }}>{sv.name}</span>
                     <span style={{ font: '600 10px Plus Jakarta Sans', color: col, background: col + '18', borderRadius: 999, padding: '2px 7px' }}>{tcfg.label}</span>
+                    {!sv.is_active && (
+                      <span style={{ font: '700 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px' }}>Inactive</span>
+                    )}
                     {sv.type === 'chit' && (
                       <span style={{ font: '700 10px Plus Jakarta Sans', color: sv.is_prized ? '#10B981' : '#F97316', background: sv.is_prized ? 'rgba(16,185,129,0.12)' : 'rgba(249,115,22,0.12)', borderRadius: 999, padding: '2px 7px' }}>
                         {sv.is_prized ? 'Prized' : 'Unprized'}
@@ -600,7 +743,16 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
-                {sv.is_recurring && !contributedThisPeriod && (
+                {!sv.is_active && (
+                  <button
+                    onClick={e => { e.stopPropagation(); handleReactivate(sv) }}
+                    disabled={archiving === sv.id}
+                    style={{ background: c.accentSoft, color: c.accent, border: 'none', borderRadius: 10, padding: '7px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer', flex: 1, opacity: archiving === sv.id ? 0.6 : 1 }}
+                  >
+                    {archiving === sv.id ? '...' : 'Reactivate'}
+                  </button>
+                )}
+                {sv.is_active && sv.is_recurring && !contributedThisPeriod && (
                   <button
                     onClick={e => { e.stopPropagation(); handleContribute(sv) }}
                     disabled={isCont}
@@ -609,12 +761,12 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                     {isCont ? '...' : '+ Record Contribution'}
                   </button>
                 )}
-                {sv.is_recurring && contributedThisPeriod && (
+                {sv.is_active && sv.is_recurring && contributedThisPeriod && (
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 10, padding: '7px 12px', flex: 1, textAlign: 'center' }}>
                     Invested {periodLabel}
                   </span>
                 )}
-                {tcfg.showCurrentValue && (
+                {sv.is_active && tcfg.showCurrentValue && (
                   <button
                     onClick={e => { e.stopPropagation(); setUpdateValueId(sv.id); setNewValueInput(sv.current_value > 0 ? String(sv.current_value) : '') }}
                     style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '7px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
@@ -622,7 +774,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                     Update value
                   </button>
                 )}
-                {(sv.type === 'chit' ? sv.is_prized && sv.current_value > 0 : sv.current_value > 0) && accounts.length > 0 && (
+                {sv.is_active && (sv.type === 'chit' ? sv.is_prized && sv.current_value > 0 : sv.current_value > 0) && accounts.length > 0 && (
                   <button
                     onClick={e => { e.stopPropagation(); handlePayout(sv) }}
                     disabled={recordingPayout === sv.id}
@@ -631,7 +783,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                     {recordingPayout === sv.id ? '...' : sv.type === 'chit' ? 'Record Payout' : 'Redeem'}
                   </button>
                 )}
-                {sv.type === 'chit' && sv.is_prized && sv.current_value === 0 && (
+                {sv.is_active && sv.type === 'chit' && sv.is_prized && sv.current_value === 0 && (
                   <button
                     onClick={e => { e.stopPropagation(); setRevertConfirm(sv) }}
                     disabled={reverting === sv.id}
@@ -655,51 +807,6 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           )
         })}
 
-        {/* Completed / Archived section */}
-        {completed.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            <button
-              onClick={() => setShowCompleted(v => !v)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0', width: '100%' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                style={{ transform: showCompleted ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
-                Completed / Archived ({completed.length})
-              </span>
-            </button>
-            {showCompleted && completed.map(sv => {
-              const tcfg = TYPE_CONFIG[sv.type]
-              const col = tcfg.color
-              const contrib = sv.is_recurring ? sv.current_installment * sv.amount : sv.amount
-              return (
-                <div key={sv.id} style={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 14, padding: '12px 14px', marginBottom: 8, opacity: 0.7 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: col + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                      </svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{sv.name}</div>
-                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-                        {tcfg.label} · {sv.current_installment} installments · {fmt(contrib)} total
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => onUpdate(sv.id, { is_active: true })}
-                      style={{ background: c.accentSoft, color: c.accent, border: 'none', borderRadius: 8, padding: '5px 10px', font: '600 11px Plus Jakarta Sans', cursor: 'pointer', flexShrink: 0 }}
-                    >
-                      Reactivate
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       {/* ── Add / Edit Sheet ──────────────────────────────────────────────────── */}

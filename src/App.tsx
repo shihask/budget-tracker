@@ -647,7 +647,7 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {borrowingOpen && (
-            <BorrowingPage state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} onClose={() => setBorrowingOpen(false)} initialAddOpen={borrowingAddOnOpen} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />
+            <BorrowingPage state={state} onAdd={addBorrowing} onUpdate={updateBorrowing} onDelete={deleteBorrowing} onPayment={recordBorrowingPayment} onAddCategory={addCategory} onClose={() => setBorrowingOpen(false)} initialAddOpen={borrowingAddOnOpen} onSwipeProgress={setSwipePct} />
           )}
 
           {projectsOpen && (

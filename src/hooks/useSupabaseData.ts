@@ -170,7 +170,7 @@ export function useSupabaseData(userId: string) {
             .limit(TXN_PAGE_SIZE),
           supabase.from('goals').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
           supabase.from('goal_contributions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(200),
-          supabase.from('savings').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
+          supabase.from('savings').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
           supabase.from('forecast_settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('budget_strategy_settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('planned_expenses').select('*').eq('user_id', userId).order('planned_date'),
@@ -1127,7 +1127,7 @@ export function useSupabaseData(userId: string) {
         p_notes:                  savingsContribNote(sv.type),
         p_new_installment:        newInstallment,
         p_last_contribution_date: today,
-        p_mark_complete:          !!patch.is_active === false,
+        p_mark_complete:          patch.is_active === false,
       })
       if (error) throw error
       // RPC doesn't handle paid_date — update it separately
