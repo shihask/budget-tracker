@@ -1,6 +1,6 @@
 ﻿import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Sprout, Leaf, Flame, TreeDeciduous, Flower2, Coins, TrendingUp, Target, ShoppingCart, UtensilsCrossed, Lightbulb, Fuel, ShoppingBag, Hospital, CircleDot, ChevronDown } from 'lucide-react'
+import { Sprout, Leaf, Flame, TreeDeciduous, Flower2, Coins, TrendingUp, Target, ShoppingCart, UtensilsCrossed, Lightbulb, Fuel, ShoppingBag, Hospital, CircleDot, ChevronDown, Coffee, Landmark, Package, Wrench, Zap, Users, ChefHat, Home } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
@@ -24,11 +24,34 @@ function IconByName({ name, size = 16, style }: { name: string; size?: number; s
   return Icon ? <Icon size={size} style={style} /> : null
 }
 
+// Icons for Timeline's By Category / By Group lanes — falls back to a group-type icon, then a generic dot.
+const TIMELINE_CAT_ICON: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
+  'Food': UtensilsCrossed, 'Tea & Snacks': Coffee, 'Groceries': ShoppingCart, 'Fuel': Fuel,
+  'Shopping': ShoppingBag, 'Medical': Hospital, 'Utilities': Lightbulb, 'Kitchen': ChefHat,
+  'Granite': Package, 'Electrical': Zap, 'Plumbing': Wrench, 'Family': Users,
+  'Other': Package, 'Borrow Repayment': Landmark, 'Borrowing': Landmark,
+}
+const GROUP_TYPE_ICON: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
+  essential: Home, commitment: Landmark, discretionary: ShoppingBag, savings: Coins,
+}
+function iconForLane(name: string, groupType?: string) {
+  return TIMELINE_CAT_ICON[name] || (groupType && GROUP_TYPE_ICON[groupType]) || CircleDot
+}
+// Consistent taxonomy so By Category and By Group agree on color: essentials green, lifestyle/discretionary orange, commitments blue, everything else gray.
+function groupTypeColor(groupType: string | undefined, c: { good: string; warn: string; muted: string }): string {
+  switch (groupType) {
+    case 'essential': return c.good
+    case 'discretionary': return c.warn
+    case 'commitment': return '#3B82F6'
+    case 'savings': return '#14B8A6'
+    default: return c.muted
+  }
+}
+
 type Tab = 'trend' | 'weeks' | 'category' | 'timeline' | 'journey'
 type TrendRange = 7 | 15 | 30
 const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline'], ['journey', 'Journey']]
 const TREND_RANGES: [TrendRange, string][] = [[7, '7D'], [15, '15D'], [30, '30D']]
-const GROUP_PALETTE = ['#F59E0B', '#10B981', '#7C3AED', '#0EA5E9', '#EF4444', '#F97316', '#EC4899', '#6366F1']
 const BAR_MAX_H = 72
 const DAY_W = 32
 const WEEK_BAR_W = 46
@@ -63,7 +86,7 @@ function PeriodNav({ label, onPrev, onNext, prevDisabled, nextDisabled }: { labe
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
       <NavChevron dir="left" onClick={onPrev} disabled={prevDisabled} />
-      <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, textAlign: 'center', flex: 1 }}>{label}</div>
+      <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink, textAlign: 'center', flex: 1, letterSpacing: '-0.01em' }}>{label}</div>
       <NavChevron dir="right" onClick={onNext} disabled={nextDisabled} />
     </div>
   )
@@ -472,9 +495,22 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
             />
 
             {/* Month total */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 14 }}>
-              <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink }}>{fmt(timeline.totalSpent)}</div>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>total spent</div>
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink }}>{fmt(timeline.totalSpent)}</div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>total spent</div>
+              </div>
+              {timeline.txnCount > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, font: '600 11px Plus Jakarta Sans', color: c.muted }}>
+                  <span>{timeline.txnCount} transaction{timeline.txnCount !== 1 ? 's' : ''}</span>
+                  {timeline.byCategory[0] && (
+                    <>
+                      <span style={{ opacity: 0.5 }}>•</span>
+                      <span>Top: <span style={{ color: c.ink, fontWeight: 700 }}>{timeline.byCategory[0].name}</span> ({Math.round((timeline.byCategory[0].total / timeline.totalSpent) * 100)}%)</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Sub-toggle */}
@@ -565,16 +601,23 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
               timeline.byCategory.length === 0
                 ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No expenses in {timeline.monthLabel} yet.</div>
                 : <div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                       {timeline.byCategory.map(lane => {
-                        const maxAmt   = Math.max(...lane.days.map(d => d.amount), 1)
-                        const laneColor = colorOf(lane.name)
+                        const maxAmt    = Math.max(...lane.days.map(d => d.amount), 1)
+                        const groupType = state.groups.find(g => g.name === lane.group)?.type
+                        const laneColor = groupTypeColor(groupType, c)
+                        const LaneIcon  = iconForLane(lane.name, groupType)
                         return (
                           <div key={lane.name}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: 2, background: laneColor, flexShrink: 0 }} />
-                              <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{lane.name}</span>
-                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(lane.total)}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                              <span style={{ width: 26, height: 26, borderRadius: 8, background: laneColor + '1F', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <LaneIcon size={13} style={{ color: laneColor }} />
+                              </span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lane.name}</div>
+                                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>{lane.count} txn{lane.count !== 1 ? 's' : ''}</div>
+                              </div>
+                              <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(lane.total)}</span>
                             </div>
                             <div style={{ position: 'relative', height: 18, background: c.faint, borderRadius: 999 }}>
                               {/* today line */}
@@ -602,16 +645,23 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
               timeline.byGroup.length === 0
                 ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No expenses in {timeline.monthLabel} yet.</div>
                 : <div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      {timeline.byGroup.map((lane, gi) => {
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {timeline.byGroup.map(lane => {
                         const maxAmt    = Math.max(...lane.days.map(d => d.amount), 1)
-                        const laneColor = GROUP_PALETTE[gi % GROUP_PALETTE.length]
+                        const groupType = state.groups.find(g => g.name === lane.name)?.type
+                        const laneColor = groupTypeColor(groupType, c)
+                        const LaneIcon  = iconForLane(lane.name, groupType)
                         return (
                           <div key={lane.name}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: 2, background: laneColor, flexShrink: 0 }} />
-                              <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{lane.name}</span>
-                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(lane.total)}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                              <span style={{ width: 26, height: 26, borderRadius: 8, background: laneColor + '1F', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <LaneIcon size={13} style={{ color: laneColor }} />
+                              </span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lane.name}</div>
+                                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>{lane.count} txn{lane.count !== 1 ? 's' : ''}</div>
+                              </div>
+                              <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(lane.total)}</span>
                             </div>
                             <div style={{ position: 'relative', height: 18, background: c.faint, borderRadius: 999 }}>
                               {timeline.isCurrentMonth && (
@@ -905,7 +955,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                             const hiddenExpenses = expenses.slice(2)
                             const hiddenTotal = hiddenExpenses.reduce((s, e) => s + (e.amount ?? 0), 0)
                             const isDayExpanded = expandedDays.has(date)
-                            const allShown = [...nonExpenses, ...shownExpenses, ...(isDayExpanded ? hiddenExpenses : [])]
+                            const alwaysShown = [...nonExpenses, ...shownExpenses]
                             const toggleDay = () => setExpandedDays(prev => {
                               const next = new Set(prev)
                               isDayExpanded ? next.delete(date) : next.add(date)
@@ -918,7 +968,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                                   {!isLast && <div style={{ width: 1.5, flex: 1, marginTop: 5, background: c.faint, borderRadius: 1 }} />}
                                 </div>
                                 <div style={{ flex: 1, paddingBottom: isLast ? 0 : 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                  {allShown.map((ev, ei) => (
+                                  {alwaysShown.map((ev, ei) => (
                                     <div key={ei} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                       <span style={{ lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}><IconByName name={ev.emoji} size={17} /></span>
                                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -933,14 +983,34 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                                     </div>
                                   ))}
                                   {hiddenExpenses.length > 0 && (
-                                    <button onClick={toggleDay} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-                                      <span style={{ lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}><ShoppingCart size={17} color={c.muted} /></span>
-                                      <div style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.muted }}>
-                                        {isDayExpanded ? 'Show less' : `${hiddenExpenses.length} more expense${hiddenExpenses.length > 1 ? 's' : ''}`}
+                                    <>
+                                      <div style={{ display: 'grid', gridTemplateRows: isDayExpanded ? '1fr' : '0fr', transition: 'grid-template-rows 280ms ease' }}>
+                                        <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 8, opacity: isDayExpanded ? 1 : 0, transition: `opacity ${isDayExpanded ? '220ms ease 60ms' : '120ms ease'}` }}>
+                                          {hiddenExpenses.map((ev, ei) => (
+                                            <div key={ei} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                              <span style={{ lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}><IconByName name={ev.emoji} size={17} /></span>
+                                              <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
+                                                {ev.subtitle && <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{ev.subtitle}</div>}
+                                              </div>
+                                              {ev.amount != null && (
+                                                <div style={{ font: '700 12px Plus Jakarta Sans', color: ev.eventType === 'income' ? '#10B981' : c.ink, flexShrink: 0 }}>
+                                                  {ev.eventType === 'income' ? '+' : ''}{fmt(ev.amount)}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
-                                      {!isDayExpanded && <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>{fmt(hiddenTotal)}</div>}
-                                      <ChevronDown size={14} color={c.muted} style={{ flexShrink: 0, transition: 'transform 0.2s', transform: isDayExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-                                    </button>
+                                      <button onClick={toggleDay} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                                        <span style={{ lineHeight: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}><ShoppingCart size={17} color={c.muted} /></span>
+                                        <div style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                                          {isDayExpanded ? 'Show less' : `${hiddenExpenses.length} more expense${hiddenExpenses.length > 1 ? 's' : ''}`}
+                                        </div>
+                                        {!isDayExpanded && <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>{fmt(hiddenTotal)}</div>}
+                                        <ChevronDown size={14} color={c.muted} style={{ flexShrink: 0, transition: 'transform 0.2s', transform: isDayExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               </div>

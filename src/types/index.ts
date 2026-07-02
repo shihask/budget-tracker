@@ -323,6 +323,7 @@ export interface TimelineLane {
   name: string
   group?: string
   total: number
+  count: number
   days: Array<{ day: number; isoDate: string; amount: number }>
 }
 
@@ -335,6 +336,7 @@ export interface MonthTimelineData {
   monthLabel: string
   isCurrentMonth: boolean
   totalSpent: number
+  txnCount: number
 }
 
 export interface JourneyIncomeItem  { name: string; amount: number }

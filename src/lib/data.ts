@@ -214,35 +214,37 @@ export function monthTimeline(state: AppState, monthOffset: number = 0): MonthTi
     }
   })
 
-  const catAcc: Record<string, { name: string; group: string; total: number; days: Record<string, number> }> = {}
+  const catAcc: Record<string, { name: string; group: string; total: number; count: number; days: Record<string, number> }> = {}
   monthTxns.forEach(t => {
     const cat = catMap[t.category_id ?? '']
     if (!cat) return
-    if (!catAcc[cat.name]) catAcc[cat.name] = { name: cat.name, group: cat.group_name, total: 0, days: {} }
+    if (!catAcc[cat.name]) catAcc[cat.name] = { name: cat.name, group: cat.group_name, total: 0, count: 0, days: {} }
     catAcc[cat.name].total += t.amount
+    catAcc[cat.name].count += 1
     catAcc[cat.name].days[t.transaction_date] = (catAcc[cat.name].days[t.transaction_date] || 0) + t.amount
   })
   const byCategory: TimelineLane[] = Object.values(catAcc)
     .sort((a, b) => b.total - a.total)
     .map(c => ({
-      name: c.name, group: c.group, total: c.total,
+      name: c.name, group: c.group, total: c.total, count: c.count,
       days: Object.entries(c.days).map(([isoDate, amount]) => ({
         day: parseInt(isoDate.split('-')[2]), isoDate, amount,
       })).sort((a, b) => a.day - b.day),
     }))
 
-  const grpAcc: Record<string, { name: string; total: number; days: Record<string, number> }> = {}
+  const grpAcc: Record<string, { name: string; total: number; count: number; days: Record<string, number> }> = {}
   monthTxns.forEach(t => {
     const cat = catMap[t.category_id ?? '']
     const group = cat?.group_name || 'Uncategorized'
-    if (!grpAcc[group]) grpAcc[group] = { name: group, total: 0, days: {} }
+    if (!grpAcc[group]) grpAcc[group] = { name: group, total: 0, count: 0, days: {} }
     grpAcc[group].total += t.amount
+    grpAcc[group].count += 1
     grpAcc[group].days[t.transaction_date] = (grpAcc[group].days[t.transaction_date] || 0) + t.amount
   })
   const byGroup: TimelineLane[] = Object.values(grpAcc)
     .sort((a, b) => b.total - a.total)
     .map(g => ({
-      name: g.name, total: g.total,
+      name: g.name, total: g.total, count: g.count,
       days: Object.entries(g.days).map(([isoDate, amount]) => ({
         day: parseInt(isoDate.split('-')[2]), isoDate, amount,
       })).sort((a, b) => a.day - b.day),
@@ -252,6 +254,7 @@ export function monthTimeline(state: AppState, monthOffset: number = 0): MonthTi
     byDay, byCategory, byGroup,
     daysInMonth, todayDay, monthLabel, isCurrentMonth,
     totalSpent: monthTxns.reduce((s, t) => s + t.amount, 0),
+    txnCount: monthTxns.length,
   }
 }
 
