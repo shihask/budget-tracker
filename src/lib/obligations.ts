@@ -60,6 +60,7 @@ export function getRemainingObligations(
 
   const borrowingItems: ObligationItem[] = state.borrowings
     .filter(b => b.direction === 'borrowed' && b.remaining_amount > 0)
+    .filter(b => b.repayment_date == null || b.repayment_date <= cycleEndIso)
     .map(b => ({ name: b.person_name, amount: b.remaining_amount }))
   const borrowRepayments = borrowingItems.reduce((s, i) => s + i.amount, 0)
 

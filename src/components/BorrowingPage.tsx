@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, fmtDate } from '@/lib/utils'
 import { CategorySelect } from './CategorySelect'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, Borrowing } from '@/types'
@@ -15,6 +15,7 @@ type BForm = {
   direction: 'lent' | 'borrowed'
   account_id: string
   transaction_date: string
+  repayment_date: string
 }
 
 type PayForm = {
@@ -26,13 +27,13 @@ type PayForm = {
 
 type SortKey = 'remaining_desc' | 'remaining_asc' | 'amount_desc' | 'amount_asc' | 'name_asc' | 'name_desc'
 
-const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent', account_id: '', transaction_date: new Date().toISOString().slice(0, 10) }
+const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent', account_id: '', transaction_date: new Date().toISOString().slice(0, 10), repayment_date: '' }
 const EMPTY_PAY: PayForm = { amount: '', account_id: '', category_id: '', incoming: true }
 
 interface BorrowingPageProps {
   state: AppState
-  onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; transaction_date?: string }, addTransaction: boolean, accountId: string | null) => Promise<void>
-  onUpdate: (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => Promise<void>
+  onAdd: (form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; transaction_date?: string; repayment_date: string | null }, addTransaction: boolean, accountId: string | null) => Promise<void>
+  onUpdate: (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; repayment_date: string | null }) => Promise<void>
   onDelete: (id: string, deleteTransactions: boolean) => Promise<void>
   onPayment: (b: Borrowing, amount: number, accountId: string | null, incoming: boolean, categoryId: string | null, addTransaction: boolean) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
@@ -72,7 +73,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   const [addConfirm, setAddConfirm] = useState(false)
   const [payConfirm, setPayConfirm] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [pendingAddForm, setPendingAddForm] = useState<{ person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' } | null>(null)
+  const [pendingAddForm, setPendingAddForm] = useState<{ person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; repayment_date: string | null } | null>(null)
 
   // ── Swipe-back gesture ────────────────────────────────────────────────────────
   const [dragX, setDragX] = useState(0)
@@ -185,7 +186,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   const openAdd = () => { setEditingId(null); setForm({ ...EMPTY_BFORM, account_id: accounts[0]?.id || '', transaction_date: new Date().toISOString().slice(0, 10) }); setSheetOpen(true) }
   const openEdit = (b: Borrowing) => {
     setEditingId(b.id)
-    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent', account_id: accounts[0]?.id || '', transaction_date: new Date().toISOString().slice(0, 10) })
+    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent', account_id: accounts[0]?.id || '', transaction_date: new Date().toISOString().slice(0, 10), repayment_date: b.repayment_date || '' })
     setSheetOpen(true)
   }
   const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_BFORM); setAddInfoOpen(false) }
@@ -200,7 +201,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
     const total = parseFloat(form.total_amount)
     const paid = parseFloat(form.paid_amount) || 0
     if (!form.person_name.trim() || isNaN(total) || total <= 0) return
-    const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction, transaction_date: form.transaction_date || new Date().toISOString().slice(0, 10) }
+    const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction, transaction_date: form.transaction_date || new Date().toISOString().slice(0, 10), repayment_date: form.direction === 'borrowed' ? (form.repayment_date || null) : null }
     if (!editingId) {
       setPendingAddForm(payload)
       setAddConfirm(true)
@@ -420,6 +421,9 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
                           {direction === 'lent' ? 'Lent' : 'Borrowed'}
                         </span>
                         {done && <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 999, padding: '2px 7px' }}>Cleared</span>}
+                        {!done && direction === 'borrowed' && b.repayment_date && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px' }}>Due {fmtDate(b.repayment_date)}</span>
+                        )}
                       </div>
                       {b.notes && <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.notes}</div>}
                     </div>
@@ -487,6 +491,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
                 ['Person name', 'Who you lent money to, or borrowed it from.'],
                 ['Total amount', 'The full amount of the loan.'],
                 ['Repaid by them / Repaid by you', 'How much has already been paid back so far. Leave it 0 for a brand-new entry.'],
+                ['Repayment date', 'Only for money you owe. Until this date, the amount won’t be reserved in the current financial cycle’s Real Free Money — but it will still show up in the Cash Flow Forecast if it falls within the selected forecast period.'],
                 ['Account', 'If you choose to record a transaction, the money is deducted from this account (when you lent) or added to it (when you received).'],
                 ['Notes', 'Optional reminder for yourself \u2014 e.g. "repaying monthly" or what it was for.'],
               ].map(([label, desc]) => (
@@ -542,6 +547,13 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <input type="number" inputMode="decimal" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
             </div>
           </div>
+          {form.direction === 'borrowed' && (
+            <div>
+              <Label>Repayment date (optional)</Label>
+              <HelpText>When do you plan to repay this? It won't be reserved in the current financial cycle until this date, but it will still appear in the Cash Flow Forecast if it falls within the selected forecast period.</HelpText>
+              <input type="date" value={form.repayment_date} onChange={e => setForm(f => ({ ...f, repayment_date: e.target.value }))} style={inp} />
+            </div>
+          )}
           {!editingId && (
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ flex: 1 }}>

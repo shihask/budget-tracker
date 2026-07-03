@@ -717,7 +717,7 @@ export function useSupabaseData(userId: string) {
   }, [])
 
   const addBorrowing = useCallback(async (
-    form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; transaction_date?: string },
+    form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; transaction_date?: string; repayment_date?: string | null },
     addTransaction: boolean,
     accountId: string | null,
   ) => {
@@ -743,6 +743,7 @@ export function useSupabaseData(userId: string) {
         p_account_delta:    accountDelta,
         p_is_credit:        isBorrowed,
         p_description:      description,
+        p_repayment_date:   form.repayment_date ?? null,
       })
       if (error) throw error
 
@@ -764,14 +765,14 @@ export function useSupabaseData(userId: string) {
       // No transaction — just insert the borrowing record
       const { data: bData, error: bErr } = await supabase
         .from('borrowings')
-        .insert({ person_name: form.person_name, total_amount: form.total_amount, paid_amount: form.paid_amount, notes: form.notes, direction: form.direction, user_id: userId })
+        .insert({ person_name: form.person_name, total_amount: form.total_amount, paid_amount: form.paid_amount, notes: form.notes, direction: form.direction, user_id: userId, repayment_date: form.repayment_date ?? null })
         .select('*').single()
       if (bErr) throw bErr
       setState(s => ({ ...s, borrowings: [...s.borrowings, bData as AppState['borrowings'][0]] }))
     }
   }, [userId])
 
-  const updateBorrowing = useCallback(async (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed' }) => {
+  const updateBorrowing = useCallback(async (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; repayment_date: string | null }) => {
     const current      = stateRef.current
     const oldBorrowing = current.borrowings.find(b => b.id === id)
     const nameChanged   = oldBorrowing?.person_name !== form.person_name
@@ -802,6 +803,7 @@ export function useSupabaseData(userId: string) {
       p_direction:       form.direction,
       p_account_delta:   accountDelta,
       p_new_description: newDescription,
+      p_repayment_date:  form.repayment_date,
     })
     if (error) throw error
 

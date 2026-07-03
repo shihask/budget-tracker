@@ -308,18 +308,26 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
       const pattern = getIncomePattern(state.settings)
       const cycle = derived.financialCycle
       const cycleJustStarted = cycle && cycle.status === 'active' && cycle.currentDay <= 3
-      let bDue: Date
+      let heuristicDue: Date
       if (cycleJustStarted) {
-        bDue = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+        heuristicDue = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
       } else if (pattern === 'monthly' && state.settings.salary_date != null) {
-        bDue = nextDueDate(state.settings.salary_date, today)
+        heuristicDue = nextDueDate(state.settings.salary_date, today)
       } else if (pattern === 'weekly' && state.settings.income_day != null) {
-        bDue = nextWeekday(state.settings.income_day, today)
+        heuristicDue = nextWeekday(state.settings.income_day, today)
       } else {
-        bDue = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14)
+        heuristicDue = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14)
       }
-      if (bDue >= today && bDue <= horizon) {
-        for (const b of owed) {
+      for (const b of owed) {
+        // horizon (today + forecast_settings.days) gates this — NOT the financial
+        // cycle. A repayment belonging to a future cycle still shows here as long
+        // as it's inside the selected 30/60/90-day window.
+        let bDue = heuristicDue
+        if (b.repayment_date) {
+          const [y, m, dd] = b.repayment_date.split('-').map(Number)
+          bDue = new Date(y, m - 1, dd)
+        }
+        if (bDue >= today && bDue <= horizon) {
           events.push({ date: isoOf(bDue), title: `Repay ${b.person_name}`, amount: Math.round(b.remaining_amount), type: 'expense', source: 'borrowing' })
         }
       }

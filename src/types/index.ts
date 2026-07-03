@@ -90,6 +90,7 @@ export interface Borrowing {
   remaining_amount: number
   notes: string | null
   direction: 'lent' | 'borrowed'
+  repayment_date: string | null
 }
 
 export interface WeeklyBudgetScope {
