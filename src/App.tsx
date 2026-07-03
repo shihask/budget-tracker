@@ -249,7 +249,7 @@ function AppContent({ session }: { session: Session }) {
   const yesterdayStr = iso(new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - 1))
   const hourNow = TODAY.getHours()
   const isMorning = hourNow < 12
-  const isEveningOrNight = hourNow >= 17
+  const isEveningOrNight = hourNow >= 20
   // Evening/night: reflect on today, once today has some spend to look back on.
   const showReflectionBanner = !loading && isEveningOrNight &&
     state.settings.last_reflection_date !== todayStr &&
