@@ -11,23 +11,27 @@ interface Props {
   onClose: () => void
   state: AppState
   d: DerivedMetrics
+  mode?: 'today' | 'yesterday'
   onGoalContribution: (goalId: string, amount: number) => Promise<void>
 }
 
-function localToday(): string {
+function localDateStr(offsetDays: number): string {
   const n = new Date()
+  n.setDate(n.getDate() + offsetDays)
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
 }
 
-export function DailyReflectionSheet({ open, onClose, state, d, onGoalContribution }: Props) {
+export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', onGoalContribution }: Props) {
   const c = useTheme()
-  const todayStr = localToday()
+  const isYesterday = mode === 'yesterday'
+  const dayLabel = isYesterday ? 'yesterday' : 'today'
+  const targetStr = localDateStr(isYesterday ? -1 : 0)
 
   const todaySpend = useMemo(() => {
     return state.transactions
-      .filter(t => t.transaction_date === todayStr && t.transaction_type === 'expense')
+      .filter(t => t.transaction_date === targetStr && t.transaction_type === 'expense')
       .reduce((s, t) => s + t.amount, 0)
-  }, [state.transactions, todayStr])
+  }, [state.transactions, targetStr])
 
   const challengeOn = state.settings.challenge_enabled ?? false
   const safeLimit = useMemo(() => {
@@ -69,23 +73,25 @@ export function DailyReflectionSheet({ open, onClose, state, d, onGoalContributi
     <BottomSheet open={open} onClose={onClose} zIndex={400} showHelpButton={false}>
       <div style={{ padding: '4px 20px 24px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
         <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
-          Today's reflection
+          {isYesterday ? "Yesterday's reflection" : "Today's reflection"}
         </div>
         <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>
-          A quick look at your day — no judgment, just the picture.
+          {isYesterday
+            ? 'A quick look at yesterday — no judgment, just the picture.'
+            : 'A quick look at your day — no judgment, just the picture.'}
         </div>
 
-        {/* Today summary */}
+        {/* Day summary */}
         <div style={{ background: c.surface2, borderRadius: 14, padding: 16, marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>Spent today</span>
+            <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>Spent {dayLabel}</span>
             <span style={{ font: '800 20px Plus Jakarta Sans', color: c.ink }}>{fmt(Math.round(todaySpend))}</span>
           </div>
           {challengeOn && (
             <div style={{ marginTop: 10, font: '600 13px Plus Jakarta Sans', color: underLimit ? c.good : c.muted, lineHeight: 1.5 }}>
               {underLimit
                 ? `Nicely under your ₹${Math.round(safeLimit)} limit — ${fmt(surplus)} to spare. That's a win.`
-                : `A bit over your ₹${Math.round(safeLimit)} limit today. No drama — fresh start tomorrow.`}
+                : `A bit over your ₹${Math.round(safeLimit)} limit ${dayLabel}. No drama — fresh start tomorrow.`}
             </div>
           )}
         </div>
@@ -94,7 +100,7 @@ export function DailyReflectionSheet({ open, onClose, state, d, onGoalContributi
         {goals.length > 0 && !done && (
           <div style={{ background: c.goodSoft, borderRadius: 14, padding: 16 }}>
             <div style={{ font: '800 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
-              {surplus > 0 ? 'Turn today’s surplus into progress' : 'Add to a goal'}
+              {surplus > 0 ? `Turn ${dayLabel}’s surplus into progress` : 'Add to a goal'}
             </div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>
               {surplus > 0

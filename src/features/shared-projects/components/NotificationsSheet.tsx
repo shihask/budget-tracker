@@ -24,6 +24,8 @@ interface Props {
   budgetPeriod?: string
   showReflection?: boolean
   onReflection?: () => void
+  showYesterdayRecap?: boolean
+  onYesterdayRecap?: () => void
   onMarkPaid?: (cm: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
   // Shared dismissal
   insight?: Insight | null
@@ -32,14 +34,15 @@ interface Props {
   onClearAll?: () => void
   budgetAlertId?: string
   reflectionAlertId?: string
+  yesterdayRecapAlertId?: string
 }
 
 export function NotificationsSheet({
   open, onClose, pendingInvites, sharedProjects,
   onAccept, onDecline, onViewProject,
   state, budgetPct = 0, budgetSpent = 0, budgetTotal = 0,
-  budgetPeriod = 'weekly', showReflection, onReflection, onMarkPaid,
-  insight, dismissedAlerts, onDismiss, onClearAll, budgetAlertId, reflectionAlertId,
+  budgetPeriod = 'weekly', showReflection, onReflection, showYesterdayRecap, onYesterdayRecap, onMarkPaid,
+  insight, dismissedAlerts, onDismiss, onClearAll, budgetAlertId, reflectionAlertId, yesterdayRecapAlertId,
 }: Props) {
   const c = useTheme()
   const [processing, setProcessing] = useState<string | null>(null)
@@ -48,6 +51,7 @@ export function NotificationsSheet({
   const reminders: Reminder[] = state ? buildReminders(state).filter(r => !dismissedAlerts?.has(r.id)) : []
   const showBudgetAlert = budgetPct >= 90 && !(budgetAlertId && dismissedAlerts?.has(budgetAlertId))
   const showReflectionAlert = !!showReflection && !(reflectionAlertId && dismissedAlerts?.has(reflectionAlertId))
+  const showYesterdayRecapAlert = !!showYesterdayRecap && !(yesterdayRecapAlertId && dismissedAlerts?.has(yesterdayRecapAlertId))
   const showInsight = insight && !dismissedAlerts?.has(insight.id)
 
   const hasContent =
@@ -56,10 +60,11 @@ export function NotificationsSheet({
     showBudgetAlert ||
     reminders.length > 0 ||
     showReflectionAlert ||
+    showYesterdayRecapAlert ||
     showInsight
 
   const hasDismissableContent =
-    showBudgetAlert || reminders.length > 0 || showReflectionAlert || showInsight
+    showBudgetAlert || reminders.length > 0 || showReflectionAlert || showYesterdayRecapAlert || showInsight
 
   const handleAccept = async (id: string) => {
     setProcessing(id)
@@ -225,7 +230,46 @@ export function NotificationsSheet({
               )
             })}
 
-            {/* Reflection reminder */}
+            {/* Yesterday recap — morning */}
+            {showYesterdayRecapAlert && (
+              <div
+                onClick={() => { onYesterdayRecap?.(); onClose() }}
+                style={{
+                  background: '#16C98A08', borderRadius: 16, padding: '14px 16px',
+                  border: `1.5px solid #16C98A30`, cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: '#16C98A18', color: '#16C98A',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Yesterday's Reflection</div>
+                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>See how yesterday went and grow today</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                    <button
+                      onClick={e => { e.stopPropagation(); if (yesterdayRecapAlertId) onDismiss?.(yesterdayRecapAlertId) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: c.muted + '80' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Today's reflection — evening/night */}
             {showReflectionAlert && (
               <div
                 onClick={() => { onReflection?.(); onClose() }}
@@ -245,8 +289,8 @@ export function NotificationsSheet({
                     </svg>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Yesterday's Reflection</div>
-                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>See how yesterday went and grow today</div>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Today's Reflection</div>
+                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>See how today went and grow tomorrow</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

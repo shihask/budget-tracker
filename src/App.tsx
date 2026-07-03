@@ -185,6 +185,7 @@ function AppContent({ session }: { session: Session }) {
   const [excludePromptTxnId, setExcludePromptTxnId] = useState<string | null>(null)
   const [plantSheetOpen, setPlantSheetOpen] = useState(false)
   const [reflectionOpen, setReflectionOpen] = useState(false)
+  const [reflectionMode, setReflectionMode] = useState<'today' | 'yesterday'>('today')
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
   const [swipePct, setSwipePct] = useState(0)
   const [strategyMapperOpen, setStrategyMapperOpen] = useState(false)
@@ -246,8 +247,17 @@ function AppContent({ session }: { session: Session }) {
 
   const todayStr = iso(TODAY)
   const yesterdayStr = iso(new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - 1))
-  const showReflectionBanner = !loading &&
+  const hourNow = TODAY.getHours()
+  const isMorning = hourNow < 12
+  const isEveningOrNight = hourNow >= 17
+  // Evening/night: reflect on today, once today has some spend to look back on.
+  const showReflectionBanner = !loading && isEveningOrNight &&
     state.settings.last_reflection_date !== todayStr &&
+    state.transactions.some(t => t.transaction_date === todayStr && t.transaction_type === 'expense')
+  // Morning: a lighter, notification-only recap of yesterday.
+  const yesterdayRecapAlertId = `reflection-yesterday-${todayStr}`
+  const showYesterdayRecap = !loading && isMorning &&
+    !dismissedAlerts.has(yesterdayRecapAlertId) &&
     state.transactions.some(t => t.transaction_date === yesterdayStr && t.transaction_type === 'expense')
 
   const alertReminders = buildReminders(state)
@@ -263,6 +273,7 @@ function AppContent({ session }: { session: Session }) {
     + alertReminders.filter(r => !dismissedAlerts.has(r.id)).length
     + (d.weeklyPct >= 90 && !dismissedAlerts.has(budgetAlertId) ? 1 : 0)
     + (showReflectionBanner && !dismissedAlerts.has(reflectionAlertId) ? 1 : 0)
+    + (showYesterdayRecap ? 1 : 0)
     + (currentInsight && !dismissedAlerts.has(currentInsight.id) ? 1 : 0)
 
   const clearAllAlerts = () => {
@@ -271,6 +282,7 @@ function AppContent({ session }: { session: Session }) {
     if (currentInsight) ids.push(currentInsight.id)
     if (d.weeklyPct >= 90) ids.push(budgetAlertId)
     if (showReflectionBanner) ids.push(reflectionAlertId)
+    if (showYesterdayRecap) ids.push(yesterdayRecapAlertId)
     setDismissedAlerts(prev => {
       const next = new Set([...prev, ...ids])
       try { localStorage.setItem('mp_dismissed_alerts_' + session.user.id, JSON.stringify([...next])) } catch {}
@@ -392,7 +404,7 @@ function AppContent({ session }: { session: Session }) {
                   borderRadius: 14, padding: '11px 14px',
                   cursor: 'pointer',
                 }}
-                  onClick={() => { setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
+                  onClick={() => { setReflectionMode('today'); setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
                 >
                   <div style={{ width: 32, height: 32, borderRadius: 9, background: '#16C98A18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16C98A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -400,8 +412,8 @@ function AppContent({ session }: { session: Session }) {
                     </svg>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Yesterday's Reflection</div>
-                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>See how yesterday went and grow today</div>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Today's Reflection</div>
+                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>See how today went and grow tomorrow</div>
                   </div>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="9 18 15 12 9 6"/>
@@ -706,6 +718,7 @@ function AppContent({ session }: { session: Session }) {
             onClose={() => setReflectionOpen(false)}
             state={state}
             d={d}
+            mode={reflectionMode}
             onGoalContribution={async (goalId, amount) => { await addGoalSavings(goalId, amount, 'daily_challenge') }}
           />
 
@@ -734,7 +747,9 @@ function AppContent({ session }: { session: Session }) {
           budgetTotal={d.weeklyBudget}
           budgetPeriod={state.settings.budget_period ?? 'weekly'}
           showReflection={showReflectionBanner}
-          onReflection={() => { setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
+          onReflection={() => { setReflectionMode('today'); setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
+          showYesterdayRecap={showYesterdayRecap}
+          onYesterdayRecap={() => { setReflectionMode('yesterday'); setReflectionOpen(true); dismissAlert(yesterdayRecapAlertId) }}
           onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)}
           insight={currentInsight}
           dismissedAlerts={dismissedAlerts}
@@ -742,6 +757,7 @@ function AppContent({ session }: { session: Session }) {
           onClearAll={clearAllAlerts}
           budgetAlertId={budgetAlertId}
           reflectionAlertId={reflectionAlertId}
+          yesterdayRecapAlertId={yesterdayRecapAlertId}
         />
 
         {settingsOpen && (
