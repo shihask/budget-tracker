@@ -31,20 +31,24 @@ export function getCreditCardBilling(
   const lastBill = getLastBillDate(card.bill_day, today)
   const lastBillStr = lastBill.toISOString().slice(0, 10)
 
-  // Reconstruct balance at last bill date by reversing all post-bill activity
+  // Reconstruct the statement amount at the last bill date by reversing all post-bill activity,
+  // while tracking payments made since — they settle that statement (fully or partially).
   let balanceAtBill = card.current_balance
+  let paidSinceBill = 0
   for (const t of transactions) {
     if (t.credit_card_id !== card.id || t.transaction_date <= lastBillStr) continue
     if (CC_SPEND_TYPES.has(t.transaction_type)) {
       balanceAtBill -= t.amount
     } else if (t.transaction_type === 'credit_card_payment') {
       balanceAtBill += t.amount
+      paidSinceBill += t.amount
     } else if (t.transaction_type === 'cc_balance_adjustment') {
       balanceAtBill += t.is_credit ? -t.amount : t.amount
     }
   }
 
-  const billedAmount = Math.max(0, balanceAtBill)
+  const statementAmount = Math.max(0, balanceAtBill)
+  const billedAmount = Math.max(0, statementAmount - paidSinceBill)
   const unbilledAmount = Math.max(0, card.current_balance - billedAmount)
 
   return {

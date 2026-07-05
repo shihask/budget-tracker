@@ -45,7 +45,7 @@ export function buildReminders(state: AppState): Reminder[] {
     const daysUntilBill = getDaysUntil(card.bill_day)
     const billing = getCreditCardBilling(card, state.transactions)
 
-    if (daysUntilDue <= 7) {
+    if (daysUntilDue <= 7 && billing.billedAmount > 0) {
       reminders.push({
         id: `cc-due-${card.id}-${monthKey}`,
         type: 'credit_card_due',
