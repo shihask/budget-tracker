@@ -221,7 +221,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     : { t: 'On track', col: c.good }
 
   // ── Auto mode card values ─────────────────────────────────────────────────────
-  const cyclePct = d.realFreeMoney > 0 ? Math.min((d.cycleSpent / d.realFreeMoney) * 100, 999) : 0
+  const cyclePct = d.cycleStartFreeMoney > 0 ? Math.min((d.cycleSpent / d.cycleStartFreeMoney) * 100, 999) : 0
   const autoStatus = d.isWaitingForIncome
     ? { t: `Waiting for your ${pattern === 'monthly' ? 'salary' : 'income'}`, col: c.warn }
     : cyclePct > 100
@@ -400,7 +400,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ font: '600 13px Plus Jakarta Sans', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.02em' }}>Budget Remaining</div>
+                    <div style={{ font: '600 13px Plus Jakarta Sans', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.02em' }}>Cycle Budget Remaining</div>
                     <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.65)' }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                     </button>
@@ -408,22 +408,32 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
                     </button>
                   </div>
-                  <div style={{ font: '800 40px Plus Jakarta Sans', color: d.cycleRemaining < 0 ? 'rgba(255,150,150,1)' : '#fff', letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 6 }}>
-                    {d.cycleRemaining < 0 ? '-' : ''}{fmt(Math.abs(d.cycleRemaining))}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
-                      <span style={{ width: 7, height: 7, borderRadius: 999, background: '#fff' }} />
-                      <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{autoStatus.t}</span>
+                  {d.cycleTrackingReady ? (
+                    <div style={{ font: '800 40px Plus Jakarta Sans', color: d.cycleRemaining < 0 ? 'rgba(255,150,150,1)' : '#fff', letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 6 }}>
+                      {d.cycleRemaining < 0 ? '-' : ''}{fmt(Math.abs(d.cycleRemaining))}
                     </div>
+                  ) : (
+                    <div style={{ font: '700 15px Plus Jakarta Sans', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5, marginTop: 10, maxWidth: 230 }}>
+                      Setting up cycle tracking — starts fresh with your next {pattern === 'monthly' ? 'salary' : 'income'}.
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                    {d.cycleTrackingReady && (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
+                        <span style={{ width: 7, height: 7, borderRadius: 999, background: '#fff' }} />
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{autoStatus.t}</span>
+                      </div>
+                    )}
                     <StreakChip />
                   </div>
                 </div>
 
-                <ProgressRing pct={cyclePct} color="#fff" track="rgba(255,255,255,0.28)" size={104} stroke={10}>
-                  <div style={{ font: '800 22px Plus Jakarta Sans', color: '#fff', lineHeight: 1 }}>{Math.round(Math.min(cyclePct, 999))}%</div>
-                  <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>used</div>
-                </ProgressRing>
+                {d.cycleTrackingReady && (
+                  <ProgressRing pct={cyclePct} color="#fff" track="rgba(255,255,255,0.28)" size={104} stroke={10}>
+                    <div style={{ font: '800 22px Plus Jakarta Sans', color: '#fff', lineHeight: 1 }}>{Math.round(Math.min(cyclePct, 999))}%</div>
+                    <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>used</div>
+                  </ProgressRing>
+                )}
               </div>
 
               {/* Tiles */}
@@ -568,9 +578,10 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {(isAutoMode ? [
-                { title: 'Budget Remaining', desc: `Your current free money — what's left to spend for the rest of this ${pattern === 'weekly' ? 'week' : 'income cycle'} after emergency fund and obligations.` },
-                { title: 'Safe Daily Spend', desc: 'Budget remaining ÷ days left in the cycle. Recalculates every day automatically.' },
-                { title: 'Safe Weekly Spend', desc: 'Budget remaining ÷ weeks left in the cycle. Useful for planning the week ahead.' },
+                { title: 'Cycle Budget Remaining', desc: `The free money you had at the start of this ${pattern === 'weekly' ? 'week' : 'income cycle'} (after emergency fund and obligations), minus what you've spent since. This stays fixed for the whole ${pattern === 'weekly' ? 'week' : 'cycle'}, so it won't jump around as your live balance changes.` },
+                { title: 'Free Money', desc: `Your real-time spendable balance right now — current balance minus emergency fund and remaining obligations. Updates immediately, independent of your cycle's fixed budget.` },
+                { title: 'Safe Daily Spend', desc: 'Your current free money ÷ days left in the cycle. Uses your live balance, so it reflects things like a commitment being paid off mid-cycle.' },
+                { title: 'Safe Weekly Spend', desc: 'Your current free money ÷ weeks left in the cycle. Useful for planning the week ahead.' },
               ] : [
                 { title: `${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} spending limit`, desc: activePeriod === 'daily' ? 'Your budget for today. Resets at midnight.' : activePeriod === 'monthly' ? 'Your spending budget for the current month.' : `Your free money is divided by the ${pattern === 'weekly' ? 'days' : 'weeks'} left in your income cycle to give a per-${activePeriod === 'weekly' ? 'week' : 'period'} allowance.` },
                 { title: `This ${activePeriod === 'daily' ? 'day' : activePeriod === 'monthly' ? 'month' : 'week'}'s spend`, desc: `${activePeriod === 'daily' ? 'Expenses today' : activePeriod === 'monthly' ? 'Expenses this month' : 'Expenses from Monday to Sunday'} under: ${scopeLabel(settings.weekly_budget_scope, categories)}. Configure in budget settings.` },
@@ -662,10 +673,17 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                           <span style={{ font: '800 13px Plus Jakarta Sans', color: c.ink }}>{fmt(d.realFreeMoney)}</span>
                         </div>
                       </div>
+                    ) : !d.cycleTrackingReady ? (
+                      <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '10px 12px', lineHeight: 1.6 }}>
+                        Cycle budget tracking hasn't started yet on this account — it begins automatically with your next {pattern === 'monthly' ? 'salary' : 'income'}. "Free money" above is always live and accurate in the meantime.
+                      </div>
                     ) : (
                       <>
+                        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '8px 10px' }}>
+                          "Free money" above is live, right now. Your budget for this cycle was locked in at <strong style={{ color: c.ink }}>{fmt(d.cycleStartFreeMoney)}</strong> when the cycle started, and stays fixed until your next {pattern === 'monthly' ? 'salary' : 'income'}.
+                        </div>
                         <div style={{ height: 1, background: c.faint }} />
-                        <Row label="Cycle budget" value={fmt(d.realFreeMoney + d.cycleSpent)} muted />
+                        <Row label="Cycle budget (frozen at cycle start)" value={fmt(d.cycleStartFreeMoney)} muted />
                         <Row label="Cycle spent" value={`− ${fmt(d.cycleSpent)}`} muted />
                         <div style={{ height: 1, background: c.faint }} />
                         <Row label="Budget remaining" value={fmt(d.cycleRemaining)} accent={d.cycleRemaining >= 0} bad={d.cycleRemaining < 0} bold />
@@ -726,7 +744,18 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                       </div>
                     ) : (
                       <>
-                        <Row label="Budget remaining" value={fmt(d.cycleRemaining)} accent={d.cycleRemaining >= 0} bad={d.cycleRemaining < 0} bold />
+                        {d.cycleTrackingReady ? (
+                          <>
+                            <Row label="Budget remaining" value={fmt(d.cycleRemaining)} accent={d.cycleRemaining >= 0} bad={d.cycleRemaining < 0} bold />
+                            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '8px 10px' }}>
+                              Budget remaining is fixed for this cycle. Safe daily/weekly spend below use your live free money instead, so they reflect anything that's changed since (like a bill getting paid).
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '8px 10px', lineHeight: 1.6 }}>
+                            Cycle budget tracking hasn't started yet on this account — it begins automatically with your next {pattern === 'monthly' ? 'salary' : 'income'}.
+                          </div>
+                        )}
                         <Row label="Safe daily spend" value={fmt(d.safeDailySpend)} muted />
                         <Row label="Safe weekly spend" value={fmt(d.safeWeeklySpend)} muted />
                       </>

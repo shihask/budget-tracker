@@ -26,6 +26,14 @@ export function iso(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
+// Local-calendar-date ISO string (YYYY-MM-DD) — unlike iso(), which uses
+// toISOString() and can shift by a day near midnight depending on timezone.
+// Use this when comparing against calendar dates built from local
+// `new Date(y, m, d)` values (e.g. financial cycle boundaries).
+export function localIso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function addDays(d: Date, n: number): Date {
   const x = new Date(d)
   x.setDate(x.getDate() + n)

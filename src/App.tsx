@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 
 import { version as APP_VERSION } from '../package.json'
 import type { Session } from '@supabase/supabase-js'
@@ -7,7 +7,7 @@ import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import { fmt, iso, TODAY } from '@/lib/utils'
+import { fmt, iso, TODAY, localIso } from '@/lib/utils'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getIncomePattern } from '@/lib/income-pattern'
 import type { Layout, DashboardSectionId } from '@/types'
@@ -216,6 +216,39 @@ function AppContent({ session }: { session: Session }) {
   }, [loading, state.accounts.length])
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
+
+  // Auto Budget: freeze/refresh the "Cycle Start Free Money" snapshot whenever a
+  // new financial cycle begins, so the hero card's % used stays stable within a
+  // cycle (see src/lib/data.ts `derive()` for the read side of this contract).
+  const snapshotInFlight = useRef(false)
+  useEffect(() => {
+    if (loading) return
+    if ((state.settings.budget_mode ?? 'manual') !== 'auto') return
+    const pattern = getIncomePattern(state.settings)
+    if (pattern !== 'monthly' && pattern !== 'weekly') return
+    if (!d.financialCycle || snapshotInFlight.current) return
+
+    const currentCycleKey = localIso(d.financialCycle.cycleStart)
+    if (state.settings.cycle_snapshot_key === currentCycleKey) return
+
+    // The very first time this account ever sees this feature, the current cycle
+    // may already be partway spent (no historical data to reconstruct an accurate
+    // opening balance from). Rather than freeze a misleading envelope from
+    // mid-cycle live data, just mark the cycle as "seen" and leave the value
+    // unset — derive() surfaces this as cycleTrackingReady=false so the hero
+    // card shows an "initializing" state instead of a ring. The NEXT genuine
+    // cycle rollover (a real income transaction) captures a real snapshot, same
+    // as normal, since cycleSpent will genuinely be ~0 at that point.
+    const isVeryFirstEver = state.settings.cycle_snapshot_key == null
+    snapshotInFlight.current = true
+    updateSettings(
+      isVeryFirstEver
+        ? { cycle_snapshot_key: currentCycleKey }
+        : { cycle_start_free_money: d.cycleStartFreeMoney, cycle_snapshot_key: currentCycleKey }
+    ).catch(err => console.error('Failed to persist cycle snapshot:', err))
+      .finally(() => { snapshotInFlight.current = false })
+  }, [loading, state, d, updateSettings])
+
   const historicalIncome = useMemo(() => estimateHistoricalDailyIncome(state)?.avgDailyIncome ?? null, [state])
 
   // Merge saved sections with defaults so newly added sections always appear

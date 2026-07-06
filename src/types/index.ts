@@ -143,6 +143,12 @@ export interface Settings {
   working_days_per_week?:       number | null
   business_monthly_drawings?:   number | null
   primary_income_category_id?:  string | null
+  // Auto-mode "envelope" snapshot — frozen once per income cycle so the Auto
+  // Budget ring/remaining figures don't recompute against a shrinking live
+  // denominator. See src/lib/data.ts `derive()` and the snapshot-detect effect
+  // in src/App.tsx.
+  cycle_start_free_money?:      number | null
+  cycle_snapshot_key?:          string | null
 }
 
 export type ForecastMode = 'planned' | 'lifestyle'
@@ -284,8 +290,10 @@ export interface DerivedMetrics {
   weeklyRemaining: number
   weeklyPct: number
   // Financial-cycle-based (auto mode — income-driven)
+  cycleStartFreeMoney: number   // frozen "envelope" for this cycle — stable all cycle long
+  cycleTrackingReady: boolean   // false until a real snapshot exists for the current cycle
   cycleSpent: number
-  cycleRemaining: number
+  cycleRemaining: number        // cycleStartFreeMoney - cycleSpent (stable, can go negative)
   safeDailySpend: number
   safeWeeklySpend: number
   cycleDaysLeft: number

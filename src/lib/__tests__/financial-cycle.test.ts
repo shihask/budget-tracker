@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { getCurrentFinancialCycle, isPrimaryIncomeTransaction } from '../financial-cycle'
+import { getCurrentFinancialCycle, getPreviousFinancialCycle, isPrimaryIncomeTransaction } from '../financial-cycle'
 import type { AppState, Transaction, Category, Group } from '@/types'
 
 const SALARY_CAT_ID = 'cat-salary'
@@ -441,6 +441,79 @@ describe('getCurrentFinancialCycle', () => {
       const cycle = getCurrentFinancialCycle(state)
       expect(cycle.isWaitingForIncome).toBe(true)
       expect(cycle.status).toBe('waiting')
+      // Seed resolves to the real salary, not the stray freelance transaction.
+      expect(cycle.latestIncomeTransaction?.transaction_date).toBe('2026-05-28')
+    })
+  })
+
+  describe('supplementary income vs. scheduled payday', () => {
+    it('does not let a far-from-schedule supplementary transaction restart the cycle (the reported bug)', () => {
+      mockToday('2026-07-25')
+      const state = makeState({
+        transactions: [
+          makeTx({ transaction_date: '2026-06-28', category_id: SALARY_CAT_ID }),
+          makeTx({ transaction_date: '2026-07-20', category_id: FREELANCE_CAT_ID }),
+        ],
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.cycleStart.getDate()).toBe(28)
+      expect(cycle.cycleStart.getMonth()).toBe(5) // June, NOT July 20
+      expect(cycle.status).toBe('active')
+      expect(cycle.source).toBe('transaction')
+    })
+
+    it('still allows a supplementary payment close to schedule to seed the cycle when no salary txn exists nearby', () => {
+      mockToday('2026-07-05')
+      const state = makeState({
+        transactions: [
+          makeTx({ transaction_date: '2026-06-30', category_id: FREELANCE_CAT_ID }), // 2 days after Jun28 payday
+        ],
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.cycleStart.getDate()).toBe(30)
+      expect(cycle.cycleStart.getMonth()).toBe(5)
+    })
+
+    it('does not apply the schedule guard for primary_income_category_id-configured users', () => {
+      mockToday('2026-06-20')
+      const state = makeState({
+        settings: { ...makeState().settings, primary_income_category_id: SALARY_CAT_ID },
+        transactions: [makeTx({ transaction_date: '2026-06-10', category_id: SALARY_CAT_ID })], // far from salary_date=28
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.cycleStart.getDate()).toBe(10) // unconditional, no schedule check
+    })
+
+    it('falls back to old broad behavior when no salary_date is configured (monthly)', () => {
+      mockToday('2026-07-25')
+      const state = makeState({
+        settings: { ...makeState().settings, salary_date: null },
+        transactions: [
+          makeTx({ transaction_date: '2026-06-28', category_id: SALARY_CAT_ID }),
+          makeTx({ transaction_date: '2026-07-20', category_id: FREELANCE_CAT_ID }),
+        ],
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.cycleStart.getDate()).toBe(20) // old broad behavior preserved — nothing to compare against
+      expect(cycle.cycleStart.getMonth()).toBe(6) // July
+    })
+  })
+
+  describe('getPreviousFinancialCycle', () => {
+    it('does not let a far-from-schedule supplementary transaction become the previous cycle start', () => {
+      mockToday('2026-10-05')
+      const state = makeState({
+        transactions: [
+          makeTx({ transaction_date: '2026-07-28', category_id: SALARY_CAT_ID }),
+          makeTx({ transaction_date: '2026-08-17', category_id: FREELANCE_CAT_ID }), // 20 days after Jul28, 11 before Aug28
+          makeTx({ transaction_date: '2026-09-28', category_id: SALARY_CAT_ID }),
+        ],
+      })
+      const current = getCurrentFinancialCycle(state)
+      expect(current.cycleStart.getDate()).toBe(28) // Sep28
+      const prev = getPreviousFinancialCycle(state, current, 'monthly')
+      expect(prev.cycleStart.getDate()).toBe(28)
+      expect(prev.cycleStart.getMonth()).toBe(6) // July, NOT Aug17
     })
   })
 

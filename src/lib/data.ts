@@ -2,7 +2,7 @@
 // This file only contains pure calculation functions (no data).
 
 import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, TimelineDayPoint, TimelineLane, MonthTimelineData, JourneyData, JourneyMilestone, JourneyReplayEvent, JourneyHealthItem, JourneyFlowItem } from '@/types'
-import { TODAY, iso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
+import { TODAY, iso, localIso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, getFinancialCycleAtOffset, getPreviousFinancialCycle } from '@/lib/financial-cycle'
@@ -77,7 +77,8 @@ export function derive(state: AppState): DerivedMetrics {
 
   // Financial Cycle — income-driven (auto budget mode)
   const pattern = getIncomePattern(state.settings)
-  let cycleSpent = 0, cycleRemaining = realFreeMoney
+  let cycleSpent = 0, cycleRemaining = realFreeMoney, cycleStartFreeMoney = realFreeMoney
+  let cycleTrackingReady = false
   let safeDailySpend = 0, safeWeeklySpend = 0
   let cycleDaysLeft = 0, cycleWeeksLeft = 0
 
@@ -88,7 +89,24 @@ export function derive(state: AppState): DerivedMetrics {
     cycleSpent = state.transactions
       .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= cycle.cycleStart)
       .reduce((s, tx) => s + tx.amount, 0)
-    cycleRemaining = realFreeMoney
+
+    // Freeze the opening "envelope" once per cycle so % used / remaining don't
+    // move every time realFreeMoney shrinks from the same spending they measure.
+    // If settings already hold a snapshot for THIS cycle, use it — frozen for
+    // the rest of the cycle. Otherwise (new cycle just detected, or no snapshot
+    // exists yet — e.g. an existing user mid-cycle when this feature shipped —
+    // cycleTrackingReady stays false and the UI shows an "initializing" state
+    // instead of a misleading ring, until App.tsx captures a real snapshot at
+    // the next genuine cycle rollover).
+    const currentCycleKey = localIso(cycle.cycleStart)
+    cycleTrackingReady =
+      state.settings.cycle_snapshot_key === currentCycleKey &&
+      state.settings.cycle_start_free_money != null
+    cycleStartFreeMoney = cycleTrackingReady
+      ? state.settings.cycle_start_free_money!
+      : realFreeMoney
+
+    cycleRemaining = cycleStartFreeMoney - cycleSpent
 
     if (cycle.status === 'waiting') {
       safeDailySpend = 0
@@ -126,7 +144,7 @@ export function derive(state: AppState): DerivedMetrics {
   return {
     actualBalance, emergencyFund, availableBalance, remainingCommitments,
     realFreeMoney, weeklyBudget, weeklySpent, weeklyRemaining, weeklyPct,
-    cycleSpent, cycleRemaining, safeDailySpend, safeWeeklySpend, cycleDaysLeft, cycleWeeksLeft,
+    cycleStartFreeMoney, cycleTrackingReady, cycleSpent, cycleRemaining, safeDailySpend, safeWeeklySpend, cycleDaysLeft, cycleWeeksLeft,
     financialCycle: cycle,
     isWaitingForIncome: cycle.isWaitingForIncome,
     expectedIncomeDate: cycle.expectedIncomeDate,

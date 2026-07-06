@@ -185,6 +185,57 @@ function computeExpectedIncomeDate(
   }
 }
 
+function hasValidSalaryDate(sd: number | null | undefined): sd is number {
+  return sd != null && sd >= 1 && sd <= 31
+}
+
+// Only monthly/weekly, only when primary_income_category_id is NOT set (that path is
+// already a strict, deliberate filter and stays untouched), and only when there's an
+// actual schedule to compare against.
+function isScheduleGuardActive(pattern: IncomePattern, settings: AppState['settings']): boolean {
+  if (settings.primary_income_category_id) return false
+  if (pattern === 'monthly') return hasValidSalaryDate(settings.salary_date)
+  if (pattern === 'weekly') return true // income_day always has a default
+  return false // variable / business: fully untouched
+}
+
+function getEarlyPaydayTolerance(pattern: IncomePattern): number {
+  // Never exceed the late/cluster window — keeps the two thresholds from drifting
+  // apart if getClusterWindow() is ever retuned.
+  return Math.min(getClusterWindow(pattern), 5)
+}
+
+function nextWeeklyPaydayAfter(incDay: number, after: Date): Date {
+  const dow = after.getDay()
+  const diff = (incDay - dow + 7) % 7
+  const daysToAdd = diff === 0 ? 7 : diff
+  return new Date(after.getFullYear(), after.getMonth(), after.getDate() + daysToAdd)
+}
+
+// Can this transaction legitimately anchor/extend a financial cycle? True if it's on
+// schedule (near a real payday, either slightly late — arrears tolerance — or slightly
+// early). False for supplementary income (bonus, freelance, gifts, etc.) landing far
+// from any scheduled payday, which should never restart the cycle by itself.
+function isEligibleCycleAnchor(txnDate: Date, pattern: IncomePattern, settings: AppState['settings']): boolean {
+  const clusterWindow = getClusterWindow(pattern)
+  const earlyTolerance = getEarlyPaydayTolerance(pattern)
+  if (pattern === 'monthly') {
+    const sd = settings.salary_date as number
+    const prevPayday = computeExpectedIncomeDate('monthly', settings, txnDate)!
+    if ((txnDate.getTime() - prevPayday.getTime()) / MS_DAY <= clusterWindow) return true
+    const nextPayday = nextDueDayAfter(sd, txnDate)
+    return (nextPayday.getTime() - txnDate.getTime()) / MS_DAY <= earlyTolerance
+  }
+  if (pattern === 'weekly') {
+    const incDay = settings.income_day ?? 5
+    const prevPayday = computeExpectedIncomeDate('weekly', settings, txnDate)!
+    if ((txnDate.getTime() - prevPayday.getTime()) / MS_DAY <= clusterWindow) return true
+    const nextPayday = nextWeeklyPaydayAfter(incDay, txnDate)
+    return (nextPayday.getTime() - txnDate.getTime()) / MS_DAY <= earlyTolerance
+  }
+  return true // unreachable given isScheduleGuardActive gating
+}
+
 function buildCalendarFallback(
   pattern: IncomePattern,
   settings: AppState['settings'],
@@ -268,11 +319,16 @@ export function getPreviousFinancialCycle(
     .filter(t => isPrimaryIncomeTransaction(t, state) && parseTxDate(t.transaction_date) < cycleStart)
     .sort((a, b) => (a.transaction_date < b.transaction_date ? 1 : -1))
 
+  const guardActive = isScheduleGuardActive(pattern, state.settings)
+  const seedIdx = guardActive
+    ? prevIncomeTxns.findIndex(t => isEligibleCycleAnchor(parseTxDate(t.transaction_date), pattern, state.settings))
+    : (prevIncomeTxns.length > 0 ? 0 : -1)
+
   let prevCycleStart: Date
   let latestIncomeTransaction: Transaction | null = null
   let source: CycleSource
-  if (prevIncomeTxns.length > 0) {
-    latestIncomeTransaction = prevIncomeTxns[0]
+  if (seedIdx !== -1) {
+    latestIncomeTransaction = prevIncomeTxns[seedIdx]
     prevCycleStart = parseTxDate(latestIncomeTransaction.transaction_date)
     source = 'transaction'
   } else if (pattern === 'weekly') {
@@ -324,12 +380,21 @@ export function getCurrentFinancialCycle(state: AppState): FinancialCycle {
     return buildCalendarFallback(pattern, state.settings, today)
   }
 
-  let latestIncome = qualifying[0]
+  const guardActive = isScheduleGuardActive(pattern, state.settings)
+  let seedIdx = 0
+  if (guardActive) {
+    seedIdx = qualifying.findIndex(t => isEligibleCycleAnchor(parseTxDate(t.transaction_date), pattern, state.settings))
+    if (seedIdx === -1) {
+      return buildCalendarFallback(pattern, state.settings, today)
+    }
+  }
+
+  let latestIncome = qualifying[seedIdx]
   let cycleStart = parseTxDate(latestIncome.transaction_date)
   const mostRecentIncomeDate = cycleStart.getTime()
 
   const clusterWindow = getClusterWindow(pattern)
-  for (let i = 1; i < qualifying.length; i++) {
+  for (let i = seedIdx + 1; i < qualifying.length; i++) {
     const txnDate = parseTxDate(qualifying[i].transaction_date)
     const daysDiff = (mostRecentIncomeDate - txnDate.getTime()) / MS_DAY
     if (daysDiff <= clusterWindow) {
