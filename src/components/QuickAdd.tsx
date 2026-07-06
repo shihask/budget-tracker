@@ -769,6 +769,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
               <div>
                 <label style={labelStyle}>Description</label>
                 <input {...register('description')} placeholder={isExpense ? 'e.g. Evening Tea' : 'e.g. Salary'}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() } }}
                   style={{ ...inputStyle, borderColor: errors.description ? c.bad : c.faint }} />
               </div>
             )}
