@@ -11,6 +11,10 @@ export interface CreditCardBilling {
   nextBillDate: string
 }
 
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100
+}
+
 function getLastBillDate(billDay: number, today: Date): Date {
   const d = new Date(today.getFullYear(), today.getMonth(), billDay)
   if (d > today) d.setMonth(d.getMonth() - 1)
@@ -47,9 +51,9 @@ export function getCreditCardBilling(
     }
   }
 
-  const statementAmount = Math.max(0, balanceAtBill)
-  const billedAmount = Math.max(0, statementAmount - paidSinceBill)
-  const unbilledAmount = Math.max(0, card.current_balance - billedAmount)
+  const statementAmount = Math.max(0, round2(balanceAtBill))
+  const billedAmount = Math.max(0, round2(statementAmount - paidSinceBill))
+  const unbilledAmount = Math.max(0, round2(card.current_balance - billedAmount))
 
   return {
     totalOutstanding: card.current_balance,
