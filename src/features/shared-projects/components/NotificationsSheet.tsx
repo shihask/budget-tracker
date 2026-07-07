@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { toneColor, toneSoft, type ToneKey } from '@/lib/tokens'
 import { BottomSheet } from '@/components/BottomSheet'
-import { fmt } from '@/lib/utils'
-import { buildReminders, type Reminder } from '@/components/RemindersBar'
-import type { Insight } from '@/components/InsightCard'
 import type { Project } from '../types'
 import type { PendingInvite } from '../hooks/useProjectsSummary'
-import type { AppState, Commitment } from '@/types'
+import type { AppNotification, NotificationPriority, NotificationTone, NotificationTarget } from '@/types'
+import type { SnoozeDuration } from '@/lib/notification-engine'
 
 interface Props {
   open: boolean
@@ -16,55 +15,54 @@ interface Props {
   onAccept: (collaboratorId: string) => Promise<void>
   onDecline: (collaboratorId: string) => Promise<void>
   onViewProject: () => void
-  // Extra alert data
-  state?: AppState
-  budgetPct?: number
-  budgetSpent?: number
-  budgetTotal?: number
-  budgetPeriod?: string
   showReflection?: boolean
   onReflection?: () => void
   showYesterdayRecap?: boolean
   onYesterdayRecap?: () => void
-  onMarkPaid?: (cm: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
-  // Shared dismissal
-  insight?: Insight | null
-  dismissedAlerts?: Set<string>
-  onDismiss?: (id: string) => void
-  onClearAll?: () => void
-  budgetAlertId?: string
-  reflectionAlertId?: string
+  onDismissBanner?: (id: string) => void
   yesterdayRecapAlertId?: string
+  reflectionAlertId?: string
+  // Financial notifications — single source of truth, already generated/sorted/
+  // snooze-filtered/limited by getAppNotifications() in App.tsx.
+  notifications: AppNotification[]
+  onSnoozeNotification: (id: string, duration: SnoozeDuration) => void
+  onNavigate?: (target: NotificationTarget) => void
+  onClearAll?: () => void
 }
+
+const TONE_KEY: Record<NotificationTone, ToneKey> = {
+  critical: 'bad', warning: 'warn', info: 'accent', positive: 'good',
+}
+
+const TIERS: { priority: NotificationPriority; icon: string; label: string }[] = [
+  { priority: 'critical', icon: '🔴', label: 'Critical' },
+  { priority: 'high', icon: '🟠', label: 'High' },
+  { priority: 'medium', icon: '🟡', label: 'Medium' },
+  { priority: 'info', icon: '🔵', label: 'Info' },
+  { priority: 'positive', icon: '🟢', label: 'Positive' },
+]
 
 export function NotificationsSheet({
   open, onClose, pendingInvites, sharedProjects,
   onAccept, onDecline, onViewProject,
-  state, budgetPct = 0, budgetSpent = 0, budgetTotal = 0,
-  budgetPeriod = 'weekly', showReflection, onReflection, showYesterdayRecap, onYesterdayRecap, onMarkPaid,
-  insight, dismissedAlerts, onDismiss, onClearAll, budgetAlertId, reflectionAlertId, yesterdayRecapAlertId,
+  showReflection, onReflection, showYesterdayRecap, onYesterdayRecap, onDismissBanner,
+  yesterdayRecapAlertId, reflectionAlertId,
+  notifications, onSnoozeNotification, onNavigate, onClearAll,
 }: Props) {
   const c = useTheme()
   const [processing, setProcessing] = useState<string | null>(null)
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
-
-  const reminders: Reminder[] = state ? buildReminders(state).filter(r => !dismissedAlerts?.has(r.id)) : []
-  const showBudgetAlert = budgetPct >= 90 && !(budgetAlertId && dismissedAlerts?.has(budgetAlertId))
-  const showReflectionAlert = !!showReflection && !(reflectionAlertId && dismissedAlerts?.has(reflectionAlertId))
-  const showYesterdayRecapAlert = !!showYesterdayRecap && !(yesterdayRecapAlertId && dismissedAlerts?.has(yesterdayRecapAlertId))
-  const showInsight = insight && !dismissedAlerts?.has(insight.id)
+  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set())
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
 
   const hasContent =
     pendingInvites.length > 0 ||
     sharedProjects.length > 0 ||
-    showBudgetAlert ||
-    reminders.length > 0 ||
-    showReflectionAlert ||
-    showYesterdayRecapAlert ||
-    showInsight
+    notifications.length > 0 ||
+    !!showReflection ||
+    !!showYesterdayRecap
 
-  const hasDismissableContent =
-    showBudgetAlert || reminders.length > 0 || showReflectionAlert || showYesterdayRecapAlert || showInsight
+  const hasDismissableContent = notifications.some(n => n.dismissible) || !!showReflection || !!showYesterdayRecap
 
   const handleAccept = async (id: string) => {
     setProcessing(id)
@@ -81,7 +79,13 @@ export function NotificationsSheet({
     setProcessing(null)
   }
 
-  const periodLabel = budgetPeriod === 'daily' ? 'daily' : budgetPeriod === 'monthly' ? 'monthly' : 'weekly'
+  const toggleDomain = (key: string) => {
+    setExpandedDomains(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
 
   return (
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
@@ -113,125 +117,80 @@ export function NotificationsSheet({
             <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted }}>No notifications</div>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-            {/* Insight alert (spending spike, budget pace, etc.) */}
-            {showInsight && insight && (
-              <NotifCard
-                c={c}
-                bg={insight.type === 'warning' ? '#FFFBEB' : insight.type === 'positive' || insight.type === 'celebrate' ? '#F0FDF4' : '#EFF6FF'}
-                border={insight.type === 'warning' ? '#FDE68A' : insight.type === 'positive' || insight.type === 'celebrate' ? '#BBF7D0' : '#BFDBFE'}
-                iconColor={insight.type === 'warning' ? '#F59E0B' : insight.type === 'positive' || insight.type === 'celebrate' ? '#22C55E' : c.accent}
-                textColor={insight.type === 'warning' ? '#92400E' : insight.type === 'positive' || insight.type === 'celebrate' ? '#166534' : '#1E40AF'}
-                icon={insight.type === 'warning' ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                ) : insight.type === 'positive' || insight.type === 'celebrate' ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                )}
-                title={insight.type === 'warning' ? 'Spending Alert' : insight.type === 'positive' ? 'Good Progress' : insight.type === 'celebrate' ? 'Great Work!' : 'Insight'}
-                subtitle={insight.text}
-                onDismiss={() => onDismiss?.(insight.id)}
-              />
-            )}
+            {/* Financial notifications, grouped by priority tier then by domain */}
+            {TIERS.map(tier => {
+              const tierItems = notifications.filter(n => n.priority === tier.priority)
+              if (tierItems.length === 0) return null
 
-            {/* Budget alert */}
-            {showBudgetAlert && (
-              <div style={{
-                background: budgetPct >= 100 ? '#FEF2F2' : '#FFFBEB',
-                borderRadius: 16, padding: '14px 16px',
-                border: `1.5px solid ${budgetPct >= 100 ? '#FECACA' : '#FDE68A'}`,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: budgetPct >= 100 ? '#EF444420' : '#F59E0B20',
-                    color: budgetPct >= 100 ? '#EF4444' : '#F59E0B',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                    </svg>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ font: '700 14px Plus Jakarta Sans', color: budgetPct >= 100 ? '#991B1B' : '#92400E' }}>
-                      {budgetPct >= 100 ? 'Budget exceeded!' : 'Budget almost spent'}
-                    </div>
-                    <div style={{ font: '500 12px Plus Jakarta Sans', color: budgetPct >= 100 ? '#991B1BAA' : '#92400EAA', marginTop: 2 }}>
-                      {fmt(budgetSpent)} of {fmt(budgetTotal)} {periodLabel} budget ({Math.round(budgetPct)}%)
-                    </div>
-                  </div>
-                  <button onClick={() => budgetAlertId && onDismiss?.(budgetAlertId)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: budgetPct >= 100 ? '#991B1B80' : '#92400E80', flexShrink: 0 }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Commitment & credit card reminders */}
-            {reminders.map(r => {
-              const bgColor = r.urgent ? '#FEF2F2' : '#FFFBEB'
-              const borderColor = r.urgent ? '#FECACA' : '#FDE68A'
-              const iconColor = r.urgent ? '#EF4444' : '#F59E0B'
-              const textColor = r.urgent ? '#991B1B' : '#92400E'
+              const byDomain = new Map<string, AppNotification[]>()
+              for (const n of tierItems) {
+                const arr = byDomain.get(n.domain) ?? []
+                arr.push(n)
+                byDomain.set(n.domain, arr)
+              }
 
               return (
-                <div key={r.id} style={{
-                  background: bgColor, borderRadius: 16, padding: '14px 16px',
-                  border: `1.5px solid ${borderColor}`,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10,
-                      background: iconColor + '20', color: iconColor,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      {r.type === 'credit_card_due' || r.type === 'credit_card_bill' ? (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                          <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
-                        </svg>
-                      ) : (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                        </svg>
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ font: '700 13px Plus Jakarta Sans', color: textColor }}>{r.title}</div>
-                      <div style={{ font: '500 11px Plus Jakarta Sans', color: textColor + 'AA', marginTop: 2 }}>{r.subtitle}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <div style={{ background: iconColor, borderRadius: 8, padding: '4px 8px', textAlign: 'center' }}>
-                        <div style={{ font: '800 13px Plus Jakarta Sans', color: '#fff', lineHeight: 1 }}>{r.daysLeft}</div>
-                        <div style={{ font: '600 8px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', lineHeight: 1, marginTop: 1 }}>days</div>
-                      </div>
-                      <button onClick={() => onDismiss?.(r.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: textColor + '80' }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                      </button>
-                    </div>
+                <div key={tier.priority} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {tier.icon} {tier.label}
                   </div>
+                  {[...byDomain.entries()].map(([domain, items]) => {
+                    if (items.length === 1) {
+                      return (
+                        <NotifCard
+                          key={items[0].id}
+                          n={items[0]}
+                          c={c}
+                          menuOpen={menuOpenId === items[0].id}
+                          onToggleMenu={() => setMenuOpenId(prev => prev === items[0].id ? null : items[0].id)}
+                          onSnooze={d => { onSnoozeNotification(items[0].id, d); setMenuOpenId(null) }}
+                          onNavigate={onNavigate}
+                        />
+                      )
+                    }
+                    const groupKey = `${tier.priority}-${domain}`
+                    const expanded = expandedDomains.has(groupKey)
+                    const border = toneColor(c, TONE_KEY[items[0].tone])
+                    const bg = toneSoft(c, TONE_KEY[items[0].tone])
+                    return (
+                      <div key={groupKey} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div
+                          onClick={() => toggleDomain(groupKey)}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            background: bg, border: `1.5px solid ${border}44`, borderRadius: 14,
+                            padding: '12px 14px', cursor: 'pointer',
+                          }}
+                        >
+                          <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, textTransform: 'capitalize' }}>
+                            {domain.replace('_', ' ')} ({items.length})
+                          </span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
+                            <polyline points="9 18 15 12 9 6"/>
+                          </svg>
+                        </div>
+                        {expanded && items.map(n => (
+                          <NotifCard
+                            key={n.id}
+                            n={n}
+                            c={c}
+                            menuOpen={menuOpenId === n.id}
+                            onToggleMenu={() => setMenuOpenId(prev => prev === n.id ? null : n.id)}
+                            onSnooze={d => { onSnoozeNotification(n.id, d); setMenuOpenId(null) }}
+                            onNavigate={onNavigate}
+                          />
+                        ))}
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}
 
             {/* Yesterday recap — morning */}
-            {showYesterdayRecapAlert && (
+            {showYesterdayRecap && (
               <div
                 onClick={() => { onYesterdayRecap?.(); onClose() }}
                 style={{
@@ -258,7 +217,7 @@ export function NotificationsSheet({
                       <polyline points="9 18 15 12 9 6"/>
                     </svg>
                     <button
-                      onClick={e => { e.stopPropagation(); if (yesterdayRecapAlertId) onDismiss?.(yesterdayRecapAlertId) }}
+                      onClick={e => { e.stopPropagation(); if (yesterdayRecapAlertId) onDismissBanner?.(yesterdayRecapAlertId) }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: c.muted + '80' }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -270,7 +229,7 @@ export function NotificationsSheet({
             )}
 
             {/* Today's reflection — evening/night */}
-            {showReflectionAlert && (
+            {showReflection && (
               <div
                 onClick={() => { onReflection?.(); onClose() }}
                 style={{
@@ -297,7 +256,7 @@ export function NotificationsSheet({
                       <polyline points="9 18 15 12 9 6"/>
                     </svg>
                     <button
-                      onClick={e => { e.stopPropagation(); reflectionAlertId && onDismiss?.(reflectionAlertId) }}
+                      onClick={e => { e.stopPropagation(); reflectionAlertId && onDismissBanner?.(reflectionAlertId) }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: c.muted + '80' }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -423,33 +382,112 @@ export function NotificationsSheet({
   )
 }
 
-function NotifCard({ c, bg, border, iconColor, textColor, icon, title, subtitle, onDismiss }: {
-  c: any; bg: string; border: string; iconColor: string; textColor: string
-  icon: React.ReactNode; title: string; subtitle: string; onDismiss: () => void
+function NotifCard({ n, c, menuOpen, onToggleMenu, onSnooze, onNavigate }: {
+  n: AppNotification
+  c: any
+  menuOpen: boolean
+  onToggleMenu: () => void
+  onSnooze: (d: SnoozeDuration) => void
+  onNavigate?: (target: NotificationTarget) => void
 }) {
+  const border = toneColor(c, TONE_KEY[n.tone])
+  const bg = toneSoft(c, TONE_KEY[n.tone])
+
   return (
-    <div style={{
-      background: bg, borderRadius: 16, padding: '14px 16px',
-      border: `1.5px solid ${border}`,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div style={{ position: 'relative', background: bg, borderRadius: 16, padding: '14px 16px', border: `1.5px solid ${border}44` }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{
           width: 36, height: 36, borderRadius: 10,
-          background: iconColor + '20', color: iconColor,
+          background: border + '20', color: border,
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
-          {icon}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            {n.tone === 'positive' ? <polyline points="20 6 9 17 4 12"/> : n.tone === 'info' ? (
+              <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>
+            ) : (
+              <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>
+            )}
+          </svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ font: '700 13px Plus Jakarta Sans', color: textColor }}>{title}</div>
-          <div style={{ font: '500 11px Plus Jakarta Sans', color: textColor + 'AA', marginTop: 2 }}>{subtitle}</div>
+          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{n.title}</div>
+          <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2, lineHeight: 1.45 }}>{n.message}</div>
+
+          {n.progress && n.progress.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+              {n.progress.map(p => (
+                <div key={p.label}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 3 }}>
+                    <span>{p.label}</span><span>{p.pct}%</span>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 999, background: c.faint, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 999, background: border, width: `${Math.min(100, p.pct)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {n.reasons && n.reasons.length > 0 && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ font: '700 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Main contributors</div>
+              {n.reasons.map(r => (
+                <div key={r.label} style={{ font: '600 11px Plus Jakarta Sans', color: c.ink }}>
+                  • {r.label} +₹{r.amount.toLocaleString('en-IN')}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {n.recommendation && (
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: border, marginTop: 8, lineHeight: 1.4 }}>
+              {n.recommendation}
+            </div>
+          )}
+
+          {n.actions && n.actions.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              {n.actions.map(a => (
+                <button
+                  key={a.label}
+                  onClick={() => onNavigate?.(a.target)}
+                  style={{ padding: '6px 12px', borderRadius: 9, border: `1px solid ${border}55`, background: 'none', color: border, font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <button onClick={onDismiss}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: textColor + '80', flexShrink: 0 }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+
+        {n.dismissible && (
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button onClick={onToggleMenu}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: c.muted }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+            {menuOpen && (
+              <div style={{
+                position: 'absolute', right: 0, top: 24, zIndex: 10,
+                background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 12,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', minWidth: 150, overflow: 'hidden',
+              }}>
+                {[
+                  { d: 'permanent' as SnoozeDuration, label: 'Dismiss' },
+                  { d: 'tomorrow' as SnoozeDuration, label: 'Remind Tomorrow' },
+                  { d: 'next_week' as SnoozeDuration, label: 'Hide Until Next Week' },
+                ].map(opt => (
+                  <button key={opt.d} onClick={() => onSnooze(opt.d)}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', font: '600 12px Plus Jakarta Sans', color: c.ink }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

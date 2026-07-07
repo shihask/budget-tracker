@@ -79,7 +79,7 @@ export function derive(state: AppState): DerivedMetrics {
   const pattern = getIncomePattern(state.settings)
   let cycleSpent = 0, cycleRemaining = realFreeMoney, cycleStartFreeMoney = realFreeMoney
   let cycleTrackingReady = false
-  let cashHealth: 'healthy' | 'shortfall' | undefined
+  let cashHealth: import('@/types').CashHealthStatus | undefined
   let safeDailySpend = 0, safeWeeklySpend = 0
   let cycleDaysLeft = 0, cycleWeeksLeft = 0
 
@@ -91,7 +91,11 @@ export function derive(state: AppState): DerivedMetrics {
     // can safely spend right now, based purely on live realFreeMoney. A user can be
     // on-track with their cycle budget but still have a cash shortfall if
     // commitments (savings, repayments) currently exceed their spendable balance.
-    cashHealth = realFreeMoney > 0 ? 'healthy' : 'shortfall'
+    // Single source of truth for cash-health copy/tone — consumed by HeroWeekly's
+    // banner and by generateCashHealthNotifications(), so both stay in sync.
+    cashHealth = realFreeMoney > 0
+      ? { status: 'healthy', tone: 'positive', message: 'Cash Available', description: 'You have spendable Free Money available for this cycle.' }
+      : { status: 'shortfall', tone: 'critical', message: 'Cash Shortfall', description: 'You currently have no spendable Free Money. Delay non-essential purchases until your next income or reduce commitments.' }
 
     cycleSpent = state.transactions
       .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= cycle.cycleStart)

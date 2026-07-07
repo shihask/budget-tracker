@@ -48,7 +48,9 @@ import { CashFlowForecastPage } from '@/components/CashFlowForecastPage'
 import { CashFlowForecastSetup } from '@/components/CashFlowForecastSetup'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
 import { UpdateToast } from '@/components/UpdateToast'
-import { InsightCard, computeInsight } from '@/components/InsightCard'
+import { InsightCard } from '@/components/InsightCard'
+import { getAppNotifications, getSnoozeMap, snoozeNotification, isSnoozed, type SnoozeDuration } from '@/lib/notification-engine'
+import type { NotificationTarget } from '@/types'
 import { WealthSummaryCard } from '@/components/WealthSummaryCard'
 import { DailyChallengeCard } from '@/components/DailyChallengeCard'
 import { PlantPage } from '@/components/PlantPage'
@@ -168,15 +170,9 @@ function AppContent({ session }: { session: Session }) {
   const [seenSharedIds, setSeenSharedIds] = useState<Set<string>>(() => {
     try { const ids = JSON.parse(localStorage.getItem('mp_seen_shared_' + session.user.id) || '[]'); return new Set(ids) } catch { return new Set() }
   })
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('mp_dismissed_alerts_' + session.user.id) || '[]')) } catch { return new Set() }
-  })
-  const dismissAlert = (id: string) => {
-    setDismissedAlerts(prev => {
-      const next = new Set([...prev, id])
-      try { localStorage.setItem('mp_dismissed_alerts_' + session.user.id, JSON.stringify([...next])) } catch {}
-      return next
-    })
+  const [snoozeMap, setSnoozeMap] = useState<Record<string, number>>(() => getSnoozeMap(session.user.id))
+  const snoozeNotif = (id: string, duration: SnoozeDuration) => {
+    setSnoozeMap(snoozeNotification(session.user.id, id, duration))
   }
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
@@ -290,37 +286,41 @@ function AppContent({ session }: { session: Session }) {
   // Morning: a lighter, notification-only recap of yesterday.
   const yesterdayRecapAlertId = `reflection-yesterday-${todayStr}`
   const showYesterdayRecap = !loading && isMorning &&
-    !dismissedAlerts.has(yesterdayRecapAlertId) &&
+    !isSnoozed(yesterdayRecapAlertId, snoozeMap) &&
     state.transactions.some(t => t.transaction_date === yesterdayStr && t.transaction_type === 'expense')
-
-  const alertReminders = buildReminders(state)
-  const currentInsight = useMemo(() => computeInsight(state, d), [state.transactions.length, state.transactions[0]?.id, d.weeklySpent]) // eslint-disable-line react-hooks/exhaustive-deps
-  const pad2 = (n: number) => String(n).padStart(2, '0')
-  const monthKey = `${TODAY.getFullYear()}-${pad2(TODAY.getMonth() + 1)}`
-  const weekDay0 = TODAY.getDay() || 7
-  const weekStart0 = new Date(TODAY); weekStart0.setDate(TODAY.getDate() - weekDay0 + 1)
-  const budgetAlertId = `budget-alert-${monthKey}-w${pad2(weekStart0.getDate())}`
   const reflectionAlertId = `reflection-${todayStr}`
 
+  const alertReminders = buildReminders(state)
+  const notifications = useMemo(
+    () => getAppNotifications(state, d, alertReminders, snoozeMap),
+    [state, d, alertReminders, snoozeMap],
+  )
+
   const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount
-    + alertReminders.filter(r => !dismissedAlerts.has(r.id)).length
-    + (d.weeklyPct >= 90 && !dismissedAlerts.has(budgetAlertId) ? 1 : 0)
-    + (showReflectionBanner && !dismissedAlerts.has(reflectionAlertId) ? 1 : 0)
+    + notifications.filter(n => n.priority !== 'positive').length
+    + (showReflectionBanner && !isSnoozed(reflectionAlertId, snoozeMap) ? 1 : 0)
     + (showYesterdayRecap ? 1 : 0)
-    + (currentInsight && !dismissedAlerts.has(currentInsight.id) ? 1 : 0)
 
   const clearAllAlerts = () => {
-    const ids: string[] = []
-    alertReminders.forEach(r => ids.push(r.id))
-    if (currentInsight) ids.push(currentInsight.id)
-    if (d.weeklyPct >= 90) ids.push(budgetAlertId)
-    if (showReflectionBanner) ids.push(reflectionAlertId)
-    if (showYesterdayRecap) ids.push(yesterdayRecapAlertId)
-    setDismissedAlerts(prev => {
-      const next = new Set([...prev, ...ids])
-      try { localStorage.setItem('mp_dismissed_alerts_' + session.user.id, JSON.stringify([...next])) } catch {}
-      return next
-    })
+    for (const n of notifications) {
+      if (n.dismissible) snoozeNotification(session.user.id, n.id, 'permanent')
+    }
+    if (showReflectionBanner) snoozeNotification(session.user.id, reflectionAlertId, 'permanent')
+    if (showYesterdayRecap) snoozeNotification(session.user.id, yesterdayRecapAlertId, 'permanent')
+    setSnoozeMap(getSnoozeMap(session.user.id))
+  }
+
+  const onNavigateNotification = (target: NotificationTarget) => {
+    setNotificationsOpen(false)
+    switch (target.screen) {
+      case 'bills': setCommitmentsOpen(true); break
+      case 'savings': setSavingsOpen(true); break
+      case 'forecast': setCashflowOpen(true); break
+      case 'budget': setBudgetEditOpen(true); break
+      case 'spending': setTxnsOpen(true); break
+      // 'goal' / 'challenge' live inline on the dashboard — just close the sheet
+      // so the user can scroll to them; no dedicated page exists for either.
+    }
   }
 
   const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
@@ -462,7 +462,7 @@ function AppContent({ session }: { session: Session }) {
                   </button>
                 </div>
               )}
-              <InsightCard state={state} d={d} dismissedAlerts={dismissedAlerts} onDismiss={dismissAlert} />
+              <InsightCard notification={notifications[0] ?? null} onDismiss={id => snoozeNotif(id, 'permanent')} />
               {dashboardSections
                 .filter(s => s.visible)
                 .map(s => {
@@ -473,7 +473,7 @@ function AppContent({ session }: { session: Session }) {
                   }
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
-                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} /><RemindersBar state={state} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} dismissedAlerts={dismissedAlerts} onDismiss={dismissAlert} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{state.budget_strategy_settings.budget_strategy !== 'none' && <BudgetStrategyCard state={state} d={d} onOpenSettings={() => setBudgetStrategySheetOpen(true)} />}</>
+                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} /><RemindersBar state={state} reminders={alertReminders} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} isSnoozed={id => isSnoozed(id, snoozeMap)} onDismiss={id => snoozeNotif(id, 'permanent')} /><WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />{state.budget_strategy_settings.budget_strategy !== 'none' && <BudgetStrategyCard state={state} d={d} onOpenSettings={() => setBudgetStrategySheetOpen(true)} />}</>
                       break
                     case 'affordability':
                       el = <><AffordabilityChecker state={state} d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} onAddPlannedExpense={addPlannedExpense} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
@@ -774,23 +774,17 @@ function AppContent({ session }: { session: Session }) {
           onAccept={projectsSummary.acceptInvite}
           onDecline={projectsSummary.declineInvite}
           onViewProject={() => { setNotificationsOpen(false); setProjectsOpen(true) }}
-          state={state}
-          budgetPct={d.weeklyPct}
-          budgetSpent={d.weeklySpent}
-          budgetTotal={d.weeklyBudget}
-          budgetPeriod={state.settings.budget_period ?? 'weekly'}
           showReflection={showReflectionBanner}
           onReflection={() => { setReflectionMode('today'); setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
           showYesterdayRecap={showYesterdayRecap}
-          onYesterdayRecap={() => { setReflectionMode('yesterday'); setReflectionOpen(true); dismissAlert(yesterdayRecapAlertId) }}
-          onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)}
-          insight={currentInsight}
-          dismissedAlerts={dismissedAlerts}
-          onDismiss={dismissAlert}
-          onClearAll={clearAllAlerts}
-          budgetAlertId={budgetAlertId}
+          onYesterdayRecap={() => { setReflectionMode('yesterday'); setReflectionOpen(true); snoozeNotif(yesterdayRecapAlertId, 'permanent') }}
+          onDismissBanner={id => snoozeNotif(id, 'permanent')}
           reflectionAlertId={reflectionAlertId}
           yesterdayRecapAlertId={yesterdayRecapAlertId}
+          notifications={notifications}
+          onSnoozeNotification={snoozeNotif}
+          onNavigate={onNavigateNotification}
+          onClearAll={clearAllAlerts}
         />
 
         {settingsOpen && (

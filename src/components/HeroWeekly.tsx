@@ -229,9 +229,6 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     : cyclePct >= 75
     ? { t: 'Budget Warning', col: c.warn }
     : { t: 'Budget On Track', col: c.good }
-  const cashHealthStatus = d.cashHealth === 'shortfall'
-    ? { t: 'Cash Shortfall', dot: '#f87171' }
-    : { t: 'Cash Available', dot: '#4ade80' }
   const hasSalaryDate = hasIncomeCycle
 
   // ── Shared chip row ───────────────────────────────────────────────────────────
@@ -400,14 +397,14 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
           ) : (
             <>
               {/* Cash Shortfall — urgent, temporarily promoted above the budget summary */}
-              {d.cashHealth === 'shortfall' && (
+              {d.cashHealth?.status === 'shortfall' && (
                 <div style={{ marginBottom: 14, background: 'rgba(255,90,90,0.18)', border: '1px solid rgba(255,120,120,0.35)', borderRadius: 16, padding: '14px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    <span style={{ font: '800 14px Plus Jakarta Sans', color: '#fff' }}>Cash Shortfall</span>
+                    <span style={{ font: '800 14px Plus Jakarta Sans', color: '#fff' }}>{d.cashHealth.message}</span>
                   </div>
                   <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.85)', marginTop: 6, lineHeight: 1.5 }}>
-                    You currently have no spendable Free Money. Delay non-essential purchases until your next income or reduce commitments.
+                    {d.cashHealth.description}
                   </div>
                   <div style={{ marginTop: 12 }}>
                     <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)' }}>Free Money</div>
@@ -437,17 +434,17 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                       Setting up cycle tracking — starts fresh with your next {pattern === 'monthly' ? 'salary' : 'income'}.
                     </div>
                   )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap', opacity: d.cashHealth === 'shortfall' ? 0.6 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap', opacity: d.cashHealth?.status === 'shortfall' ? 0.6 : 1 }}>
                     {d.cycleTrackingReady && (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
                         <span style={{ width: 7, height: 7, borderRadius: 999, background: '#fff' }} />
                         <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{autoStatus.t}</span>
                       </div>
                     )}
-                    {d.cashHealth === 'healthy' && (
+                    {d.cashHealth?.status === 'healthy' && (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
-                        <span style={{ width: 7, height: 7, borderRadius: 999, background: cashHealthStatus.dot }} />
-                        <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{cashHealthStatus.t}</span>
+                        <span style={{ width: 7, height: 7, borderRadius: 999, background: d.cashHealth.tone === 'critical' ? c.bad : c.good }} />
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{d.cashHealth.message}</span>
                       </div>
                     )}
                     <StreakChip />
@@ -466,7 +463,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               <div style={{ display: 'flex', gap: 10, marginTop: 16, position: 'relative' }}>
                 <div onClick={() => setPopup('budget')} style={{ flex: 1, background: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 12px', cursor: 'pointer' }}>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)' }}>Free Money ⓘ</div>
-                  <div style={{ font: '800 16px Plus Jakarta Sans', color: d.cashHealth === 'shortfall' ? 'rgba(255,150,150,1)' : '#fff', marginTop: 2 }}>{fmt(d.realFreeMoney)}</div>
+                  <div style={{ font: '800 16px Plus Jakarta Sans', color: d.cashHealth?.status === 'shortfall' ? 'rgba(255,150,150,1)' : '#fff', marginTop: 2 }}>{fmt(d.realFreeMoney)}</div>
                   {hasIncomeCycle && (
                     <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
                       {d.isWaitingForIncome

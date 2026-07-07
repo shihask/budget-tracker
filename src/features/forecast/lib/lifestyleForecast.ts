@@ -1,7 +1,7 @@
 import type { AppState, DerivedMetrics, ForecastMode, Transaction, Category, Group } from '@/types'
 import type { CashFlowEvent, CashFlowForecast, CashFlowProjection } from '@/lib/cashflow'
 import { buildCashFlowForecast, estimateForecastSalary } from '@/lib/cashflow'
-import { getStrategyPcts, getCategoryBucket } from '@/components/BudgetStrategyCard'
+import { getStrategyPcts, getCategoryBucket } from '@/lib/budget-strategy'
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
 

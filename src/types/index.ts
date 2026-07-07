@@ -277,6 +277,55 @@ export interface AppState {
   planned_expenses: PlannedExpense[]
 }
 
+export type NotificationPriority = 'critical' | 'high' | 'medium' | 'info' | 'positive'
+export type NotificationDomain = 'budget' | 'cash_health' | 'bills' | 'income' | 'goals' | 'savings' | 'challenge'
+export type NotificationTone = 'critical' | 'warning' | 'info' | 'positive'   // semantic, not a color
+
+// Structured navigation payload — the app has no URL router (App.tsx uses state-driven
+// panel toggles), so this is "which screen to open, with which params," not a route string.
+export interface NotificationTarget {
+  screen: 'spending' | 'budget' | 'forecast' | 'bills' | 'goal' | 'savings' | 'challenge'
+  params?: Record<string, string>
+}
+
+export interface NotificationAction {
+  label: string
+  target: NotificationTarget
+}
+
+// Notifications are derived state, not persisted application data — every one is
+// recomputed from the current AppState/DerivedMetrics each call. See src/lib/notification-engine.ts.
+export interface AppNotification {
+  id: string
+  domain: NotificationDomain
+  priority: NotificationPriority
+  tone: NotificationTone
+  title: string
+  message: string
+  recommendation?: string
+  reasons?: { label: string; amount: number }[]
+  projectedAmount?: number
+  remainingBudget?: number
+  safeDailySpend?: number
+  confidence?: EstimateConfidence
+  progress?: { label: string; pct: number }[]
+  actions?: NotificationAction[]
+  createdAt: string
+  dismissible: boolean
+  meta?: {
+    entityId?: string
+    entityType?: 'goal' | 'bill' | 'savings' | 'account' | 'commitment' | 'credit_card'
+    cycleKey?: string
+  }
+}
+
+export interface CashHealthStatus {
+  status: 'healthy' | 'shortfall'
+  tone: 'positive' | 'critical'
+  message: string
+  description: string
+}
+
 export interface DerivedMetrics {
   actualBalance: number
   emergencyFund: number
@@ -292,7 +341,7 @@ export interface DerivedMetrics {
   // Financial-cycle-based (auto mode — income-driven)
   cycleStartFreeMoney: number   // frozen "envelope" for this cycle — stable all cycle long
   cycleTrackingReady: boolean   // false until a real snapshot exists for the current cycle
-  cashHealth?: 'healthy' | 'shortfall'   // live realFreeMoney check, independent of Budget Progress
+  cashHealth?: CashHealthStatus   // live realFreeMoney check, independent of Budget Progress
   cycleSpent: number
   cycleRemaining: number        // cycleStartFreeMoney - cycleSpent (stable, can go negative)
   safeDailySpend: number

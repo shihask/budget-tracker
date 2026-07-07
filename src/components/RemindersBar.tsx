@@ -8,8 +8,9 @@ import { isRecurringCompleted } from '@/lib/recurring'
 
 interface Props {
   state: AppState
+  reminders: Reminder[]
   onMarkPaid?: (cm: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
-  dismissedAlerts?: Set<string>
+  isSnoozed?: (id: string) => boolean
   onDismiss?: (id: string) => void
 }
 
@@ -93,13 +94,13 @@ export function buildReminders(state: AppState): Reminder[] {
   return reminders.sort((a, b) => a.daysLeft - b.daysLeft)
 }
 
-export function RemindersBar({ state, onMarkPaid, dismissedAlerts, onDismiss }: Props) {
+export function RemindersBar({ state, reminders: allReminders, onMarkPaid, isSnoozed, onDismiss }: Props) {
   const c = useTheme()
   const [payTarget, setPayTarget] = useState<Commitment | null>(null)
   const [payAccountId, setPayAccountId] = useState<string>('')
   const [paying, setPaying] = useState(false)
 
-  const reminders = buildReminders(state).filter(r => !dismissedAlerts?.has(r.id))
+  const reminders = allReminders.filter(r => !isSnoozed?.(r.id))
 
   const payIsCC = payTarget ? (state.credit_cards || []).some(cc => cc.id === payTarget.from_account_id) : false
   const payCardName = payTarget && payIsCC
