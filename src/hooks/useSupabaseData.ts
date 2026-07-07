@@ -63,6 +63,7 @@ const DEFAULT_CATEGORIES: { name: string; group_name: string; is_system?: boolea
   { name: 'Mobile Recharge',      group_name: 'Utilities' },
   { name: 'Cooking Gas',          group_name: 'Utilities' },
   { name: 'Subscription',         group_name: 'Utilities' },
+  { name: 'Household Supplies',   group_name: 'Utilities' },
   // Transport
   { name: 'Fuel',                 group_name: 'Transport' },
   { name: 'Bus',                  group_name: 'Transport' },
