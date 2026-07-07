@@ -79,12 +79,19 @@ export function derive(state: AppState): DerivedMetrics {
   const pattern = getIncomePattern(state.settings)
   let cycleSpent = 0, cycleRemaining = realFreeMoney, cycleStartFreeMoney = realFreeMoney
   let cycleTrackingReady = false
+  let cashHealth: 'healthy' | 'shortfall' | undefined
   let safeDailySpend = 0, safeWeeklySpend = 0
   let cycleDaysLeft = 0, cycleWeeksLeft = 0
 
   if (pattern === 'monthly' || pattern === 'weekly') {
     cycleDaysLeft = cycle.daysRemaining
     cycleWeeksLeft = cycle.weeksRemaining
+
+    // Independent of Budget Progress (the frozen cycle % below): whether the user
+    // can safely spend right now, based purely on live realFreeMoney. A user can be
+    // on-track with their cycle budget but still have a cash shortfall if
+    // commitments (savings, repayments) currently exceed their spendable balance.
+    cashHealth = realFreeMoney > 0 ? 'healthy' : 'shortfall'
 
     cycleSpent = state.transactions
       .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= cycle.cycleStart)
@@ -144,7 +151,7 @@ export function derive(state: AppState): DerivedMetrics {
   return {
     actualBalance, emergencyFund, availableBalance, remainingCommitments,
     realFreeMoney, weeklyBudget, weeklySpent, weeklyRemaining, weeklyPct,
-    cycleStartFreeMoney, cycleTrackingReady, cycleSpent, cycleRemaining, safeDailySpend, safeWeeklySpend, cycleDaysLeft, cycleWeeksLeft,
+    cycleStartFreeMoney, cycleTrackingReady, cashHealth, cycleSpent, cycleRemaining, safeDailySpend, safeWeeklySpend, cycleDaysLeft, cycleWeeksLeft,
     financialCycle: cycle,
     isWaitingForIncome: cycle.isWaitingForIncome,
     expectedIncomeDate: cycle.expectedIncomeDate,

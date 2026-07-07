@@ -292,6 +292,7 @@ export interface DerivedMetrics {
   // Financial-cycle-based (auto mode — income-driven)
   cycleStartFreeMoney: number   // frozen "envelope" for this cycle — stable all cycle long
   cycleTrackingReady: boolean   // false until a real snapshot exists for the current cycle
+  cashHealth?: 'healthy' | 'shortfall'   // live realFreeMoney check, independent of Budget Progress
   cycleSpent: number
   cycleRemaining: number        // cycleStartFreeMoney - cycleSpent (stable, can go negative)
   safeDailySpend: number

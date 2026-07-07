@@ -225,10 +225,13 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   const autoStatus = d.isWaitingForIncome
     ? { t: `Waiting for your ${pattern === 'monthly' ? 'salary' : 'income'}`, col: c.warn }
     : cyclePct > 100
-    ? { t: 'Over budget', col: c.bad }
+    ? { t: 'Over Budget', col: c.bad }
     : cyclePct >= 75
-    ? { t: 'Watch spending', col: c.warn }
-    : { t: 'On track', col: c.good }
+    ? { t: 'Budget Warning', col: c.warn }
+    : { t: 'Budget On Track', col: c.good }
+  const cashHealthStatus = d.cashHealth === 'shortfall'
+    ? { t: 'Cash Shortfall', dot: '#f87171' }
+    : { t: 'Cash Available', dot: '#4ade80' }
   const hasSalaryDate = hasIncomeCycle
 
   // ── Shared chip row ───────────────────────────────────────────────────────────
@@ -396,6 +399,23 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             </>
           ) : (
             <>
+              {/* Cash Shortfall — urgent, temporarily promoted above the budget summary */}
+              {d.cashHealth === 'shortfall' && (
+                <div style={{ marginBottom: 14, background: 'rgba(255,90,90,0.18)', border: '1px solid rgba(255,120,120,0.35)', borderRadius: 16, padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span style={{ font: '800 14px Plus Jakarta Sans', color: '#fff' }}>Cash Shortfall</span>
+                  </div>
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.85)', marginTop: 6, lineHeight: 1.5 }}>
+                    You currently have no spendable Free Money. Delay non-essential purchases until your next income or reduce commitments.
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)' }}>Free Money</div>
+                    <div style={{ font: '800 32px Plus Jakarta Sans', color: 'rgba(255,150,150,1)', letterSpacing: '-0.02em', marginTop: 2 }}>{fmt(d.realFreeMoney)}</div>
+                  </div>
+                </div>
+              )}
+
               {/* Header row */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
                 <div style={{ flex: 1 }}>
@@ -417,11 +437,17 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                       Setting up cycle tracking — starts fresh with your next {pattern === 'monthly' ? 'salary' : 'income'}.
                     </div>
                   )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap', opacity: d.cashHealth === 'shortfall' ? 0.6 : 1 }}>
                     {d.cycleTrackingReady && (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
                         <span style={{ width: 7, height: 7, borderRadius: 999, background: '#fff' }} />
                         <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{autoStatus.t}</span>
+                      </div>
+                    )}
+                    {d.cashHealth === 'healthy' && (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', borderRadius: 999, padding: '5px 11px' }}>
+                        <span style={{ width: 7, height: 7, borderRadius: 999, background: cashHealthStatus.dot }} />
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: '#fff' }}>{cashHealthStatus.t}</span>
                       </div>
                     )}
                     <StreakChip />
@@ -440,7 +466,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               <div style={{ display: 'flex', gap: 10, marginTop: 16, position: 'relative' }}>
                 <div onClick={() => setPopup('budget')} style={{ flex: 1, background: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 12px', cursor: 'pointer' }}>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)' }}>Free Money ⓘ</div>
-                  <div style={{ font: '800 16px Plus Jakarta Sans', color: '#fff', marginTop: 2 }}>{fmt(d.realFreeMoney)}</div>
+                  <div style={{ font: '800 16px Plus Jakarta Sans', color: d.cashHealth === 'shortfall' ? 'rgba(255,150,150,1)' : '#fff', marginTop: 2 }}>{fmt(d.realFreeMoney)}</div>
                   {hasIncomeCycle && (
                     <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
                       {d.isWaitingForIncome
@@ -579,6 +605,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {(isAutoMode ? [
                 { title: 'Cycle Budget Remaining', desc: `The free money you had at the start of this ${pattern === 'weekly' ? 'week' : 'income cycle'} (after emergency fund and obligations), minus what you've spent since. This stays fixed for the whole ${pattern === 'weekly' ? 'week' : 'cycle'}, so it won't jump around as your live balance changes.` },
+                { title: 'Budget Progress', desc: 'Measures how much of your original cycle budget you\'ve used.' },
+                { title: 'Cash Health', desc: 'Measures whether you currently have spendable money available after balances, commitments, savings, and repayments. Independent of Budget Progress — you can be on track with your cycle budget but still have a cash shortfall.' },
                 { title: 'Free Money', desc: `Your real-time spendable balance right now — current balance minus emergency fund and remaining obligations. Updates immediately, independent of your cycle's fixed budget.` },
                 { title: 'Safe Daily Spend', desc: 'Your current free money ÷ days left in the cycle. Uses your live balance, so it reflects things like a commitment being paid off mid-cycle.' },
                 { title: 'Safe Weekly Spend', desc: 'Your current free money ÷ weeks left in the cycle. Useful for planning the week ahead.' },
