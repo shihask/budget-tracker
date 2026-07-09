@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { round2 } from '@/lib/utils'
 import type {
   Project, ProjectMember, ProjectTransaction, ProjectAttachment,
   ProjectCollaborator, ProjectBudget, ProjectActivityLog, CollaboratorRole
@@ -103,7 +104,7 @@ export function useProjectsData(userId: string) {
         name: form.name,
         description: form.description || null,
         notes: form.notes || null,
-        target_amount: form.target_amount,
+        target_amount: round2(form.target_amount),
         currency: form.currency || 'INR',
       })
       .select()
@@ -119,6 +120,7 @@ export function useProjectsData(userId: string) {
     id: string,
     patch: Partial<Pick<Project, 'name' | 'description' | 'notes' | 'target_amount' | 'status' | 'currency'>>
   ) => {
+    if (patch.target_amount !== undefined) patch = { ...patch, target_amount: round2(patch.target_amount) }
     const { error } = await supabase
       .from('projects')
       .update({ ...patch, updated_at: new Date().toISOString() })
@@ -266,13 +268,14 @@ export function useProjectsData(userId: string) {
     notes?: string
     transaction_date: string
   }): Promise<ProjectTransaction> => {
+    const amount = round2(form.amount)
     const { data, error } = await supabase
       .from('project_transactions')
       .insert({
         project_id: form.project_id,
         member_id: form.member_id,
         transaction_type: form.transaction_type,
-        amount: form.amount,
+        amount,
         description: form.description || null,
         category: form.category || null,
         notes: form.notes || null,
@@ -293,9 +296,9 @@ export function useProjectsData(userId: string) {
       transactions: [txn, ...prev.transactions],
     } : prev)
     const label = form.transaction_type === 'contribution'
-      ? `Added contribution of ₹${form.amount.toLocaleString()}`
-      : `Added expense of ₹${form.amount.toLocaleString()}${form.category ? ` (${form.category})` : ''}`
-    logActivity(form.project_id, 'transaction_added', label, { transaction_id: data.id, type: form.transaction_type, amount: form.amount })
+      ? `Added contribution of ₹${amount.toLocaleString()}`
+      : `Added expense of ₹${amount.toLocaleString()}${form.category ? ` (${form.category})` : ''}`
+    logActivity(form.project_id, 'transaction_added', label, { transaction_id: data.id, type: form.transaction_type, amount })
     return txn
   }, [detail, logActivity])
 
@@ -305,6 +308,7 @@ export function useProjectsData(userId: string) {
       'member_id' | 'amount' | 'description' | 'category' | 'notes' | 'transaction_date'
     >>
   ) => {
+    if (patch.amount !== undefined) patch = { ...patch, amount: round2(patch.amount) }
     const { error } = await supabase
       .from('project_transactions')
       .update(patch)
@@ -422,7 +426,7 @@ export function useProjectsData(userId: string) {
       .insert({
         project_id: projectId,
         category: form.category,
-        budget_amount: form.budget_amount,
+        budget_amount: round2(form.budget_amount),
         display_order: maxOrder + 1,
       })
       .select()
@@ -436,6 +440,7 @@ export function useProjectsData(userId: string) {
     id: string,
     patch: Partial<Pick<ProjectBudget, 'category' | 'budget_amount' | 'display_order'>>
   ) => {
+    if (patch.budget_amount !== undefined) patch = { ...patch, budget_amount: round2(patch.budget_amount) }
     const { error } = await supabase
       .from('project_budgets')
       .update(patch)

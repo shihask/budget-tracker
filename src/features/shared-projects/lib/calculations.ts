@@ -1,3 +1,4 @@
+import { round2 } from '@/lib/utils'
 import type {
   Project, ProjectMember, ProjectTransaction, ProjectBudget,
   ProjectSummary, MemberSummary, SettlementResult, BudgetSummary
@@ -10,8 +11,8 @@ export function calcProjectSummary(
 ): ProjectSummary {
   const contributions = transactions.filter(t => t.transaction_type === 'contribution')
   const expenses = transactions.filter(t => t.transaction_type === 'expense')
-  const totalContributions = contributions.reduce((s, t) => s + t.amount, 0)
-  const totalExpenses = expenses.reduce((s, t) => s + t.amount, 0)
+  const totalContributions = round2(contributions.reduce((s, t) => s + t.amount, 0))
+  const totalExpenses = round2(expenses.reduce((s, t) => s + t.amount, 0))
   const target = project.target_amount || 0
 
   return {
@@ -19,7 +20,7 @@ export function calcProjectSummary(
     totalExpenses,
     fundingProgress: target > 0 ? Math.min((totalContributions / target) * 100, 100) : 0,
     spendingProgress: target > 0 ? Math.min((totalExpenses / target) * 100, 100) : 0,
-    remainingBudget: totalContributions - totalExpenses,
+    remainingBudget: round2(totalContributions - totalExpenses),
     memberCount: members.filter(m => m.is_active).length,
     expenseCount: expenses.length,
     contributionCount: contributions.length,
@@ -41,16 +42,16 @@ export function calcMemberSummaries(
     const expenses = transactions
       .filter(t => t.member_id === member.id && t.transaction_type === 'expense')
 
-    const actualContribution = contributions.reduce((s, t) => s + t.amount, 0)
-    const totalExpensesPaid = expenses.reduce((s, t) => s + t.amount, 0)
-    const expectedContribution = totalRatio > 0 ? (member.share_ratio / totalRatio) * target : 0
+    const actualContribution = round2(contributions.reduce((s, t) => s + t.amount, 0))
+    const totalExpensesPaid = round2(expenses.reduce((s, t) => s + t.amount, 0))
+    const expectedContribution = round2(totalRatio > 0 ? (member.share_ratio / totalRatio) * target : 0)
 
     return {
       memberId: member.id,
       memberName: member.name,
       expectedContribution,
       actualContribution,
-      remainingContribution: Math.max(0, expectedContribution - actualContribution),
+      remainingContribution: round2(Math.max(0, expectedContribution - actualContribution)),
       totalExpensesPaid,
     }
   })
@@ -85,7 +86,7 @@ export function calcSettlement(
     return {
       memberId: member.id,
       memberName: member.name,
-      net: Math.round((totalInput - fairShare) * 100) / 100,
+      net: round2(totalInput - fairShare),
     }
   })
 
@@ -128,7 +129,7 @@ function settleDebts(
         fromMemberName: debtors[di].memberName,
         toMemberId: creditors[ci].memberId,
         toMemberName: creditors[ci].memberName,
-        amount: Math.round(amount * 100) / 100,
+        amount: round2(amount),
       })
     }
     creditors[ci].netCredit -= amount
@@ -150,29 +151,29 @@ export function calcBudgetSummary(
   const breakdowns = budgets
     .sort((a, b) => a.display_order - b.display_order)
     .map(b => {
-      const spent = expenses
+      const spent = round2(expenses
         .filter(t => (t.category || '').toLowerCase() === b.category.toLowerCase())
-        .reduce((s, t) => s + t.amount, 0)
+        .reduce((s, t) => s + t.amount, 0))
       return {
         budgetId: b.id,
         category: b.category,
         budgetAmount: b.budget_amount,
         spent,
-        remaining: b.budget_amount - spent,
+        remaining: round2(b.budget_amount - spent),
         pct: b.budget_amount > 0 ? Math.min(100, (spent / b.budget_amount) * 100) : 0,
       }
     })
 
-  const totalAllocated = budgets.reduce((s, b) => s + b.budget_amount, 0)
+  const totalAllocated = round2(budgets.reduce((s, b) => s + b.budget_amount, 0))
   const budgetCategories = new Set(budgets.map(b => b.category.toLowerCase()))
-  const uncategorizedSpend = expenses
+  const uncategorizedSpend = round2(expenses
     .filter(t => !budgetCategories.has((t.category || '').toLowerCase()))
-    .reduce((s, t) => s + t.amount, 0)
+    .reduce((s, t) => s + t.amount, 0))
 
   return {
     totalAllocated,
-    totalSpentInBudget: breakdowns.reduce((s, b) => s + b.spent, 0),
-    unallocatedAmount: (project.target_amount || 0) - totalAllocated,
+    totalSpentInBudget: round2(breakdowns.reduce((s, b) => s + b.spent, 0)),
+    unallocatedAmount: round2((project.target_amount || 0) - totalAllocated),
     breakdowns,
     uncategorizedSpend,
   }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt } from '@/lib/utils'
+import { fmt, round2 } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { catById as buildCatById } from '@/lib/data'
 import { CategorySelect } from './CategorySelect'
@@ -141,7 +141,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const openAdd = () => { setEditingId(null); setForm(EMPTY_FORM); setSheetOpen(true) }
   const openEdit = (cm: Commitment) => {
     setEditingId(cm.id)
-    const paidAmt = !cm.is_recurring ? String(Math.max(0, cm.amount - cm.remaining)) : '0'
+    const paidAmt = !cm.is_recurring ? String(round2(Math.max(0, cm.amount - cm.remaining))) : '0'
     setForm({
       name: cm.name,
       amount: String(cm.amount),

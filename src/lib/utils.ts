@@ -20,6 +20,12 @@ export function fmt(n: number, opts: { decimals?: number; sign?: boolean } = {})
   return pre + '₹' + s
 }
 
+// Snap a float to the nearest cent — guards against binary floating-point
+// drift (e.g. 0.1 + 0.2) surfacing as raw digits in stored/displayed amounts.
+export function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100
+}
+
 export const TODAY = new Date()
 
 export function iso(d: Date): string {
