@@ -42,10 +42,10 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase
       .from('settings')
-      .select('user_id, notify_weekly_summary, weekly_budget')
+      .select('user_id, notifications_enabled, notify_weekly_summary, weekly_budget')
       .in('user_id', userIds)
 
-    const enabledUsers = (settings ?? []).filter((s: any) => s.notify_weekly_summary !== false)
+    const enabledUsers = (settings ?? []).filter((s: any) => s.notifications_enabled && s.notify_weekly_summary !== false)
     if (enabledUsers.length === 0) {
       return new Response(JSON.stringify({ sent: 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }

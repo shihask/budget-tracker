@@ -29,14 +29,14 @@ Deno.serve(async (req) => {
 
     const allUserIds = subs.map((s: any) => s.user_id)
 
-    // Filter: only users with notify_daily_reminder not disabled
+    // Filter: only users with notifications enabled and notify_daily_reminder not disabled
     const { data: settings } = await supabase
       .from('settings')
-      .select('user_id, notify_daily_reminder')
+      .select('user_id, notifications_enabled, notify_daily_reminder')
       .in('user_id', allUserIds)
 
     const enabledUserIds = (settings ?? [])
-      .filter((s: any) => s.notify_daily_reminder !== false)
+      .filter((s: any) => s.notifications_enabled && s.notify_daily_reminder !== false)
       .map((s: any) => s.user_id)
 
     if (enabledUserIds.length === 0) {
