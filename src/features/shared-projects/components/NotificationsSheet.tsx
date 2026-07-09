@@ -4,7 +4,7 @@ import { toneColor, toneSoft, type ToneKey } from '@/lib/tokens'
 import { BottomSheet } from '@/components/BottomSheet'
 import type { Project } from '../types'
 import type { PendingInvite } from '../hooks/useProjectsSummary'
-import type { AppNotification, NotificationPriority, NotificationTone, NotificationTarget } from '@/types'
+import type { AppNotification, NotificationTone, NotificationTarget } from '@/types'
 import type { SnoozeDuration } from '@/lib/notification-engine'
 
 interface Props {
@@ -34,13 +34,24 @@ const TONE_KEY: Record<NotificationTone, ToneKey> = {
   critical: 'bad', warning: 'warn', info: 'accent', positive: 'good',
 }
 
-const TIERS: { priority: NotificationPriority; icon: string; label: string }[] = [
-  { priority: 'critical', icon: '🔴', label: 'Critical' },
-  { priority: 'high', icon: '🟠', label: 'High' },
-  { priority: 'medium', icon: '🟡', label: 'Medium' },
-  { priority: 'info', icon: '🔵', label: 'Info' },
-  { priority: 'positive', icon: '🟢', label: 'Positive' },
-]
+// Notifications arrive already sorted by priority (most important first). Group
+// same-domain items together (wherever they fall in that order) so e.g. two Bills
+// notifications collapse into one expandable card, without breaking the overall
+// priority ordering — a group's position is wherever its first (highest-priority) member was.
+function groupByDomain(notifications: AppNotification[]): AppNotification[][] {
+  const groups: AppNotification[][] = []
+  const indexByDomain = new Map<string, number>()
+  for (const n of notifications) {
+    const idx = indexByDomain.get(n.domain)
+    if (idx != null) {
+      groups[idx].push(n)
+    } else {
+      indexByDomain.set(n.domain, groups.length)
+      groups.push([n])
+    }
+  }
+  return groups
+}
 
 export function NotificationsSheet({
   open, onClose, pendingInvites, sharedProjects,
@@ -119,72 +130,57 @@ export function NotificationsSheet({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-            {/* Financial notifications, grouped by priority tier then by domain */}
-            {TIERS.map(tier => {
-              const tierItems = notifications.filter(n => n.priority === tier.priority)
-              if (tierItems.length === 0) return null
-
-              const byDomain = new Map<string, AppNotification[]>()
-              for (const n of tierItems) {
-                const arr = byDomain.get(n.domain) ?? []
-                arr.push(n)
-                byDomain.set(n.domain, arr)
+            {/* Financial notifications — flat, already sorted by priority (most
+                important first). No tier labels/dots: the card order alone
+                communicates priority. Adjacent same-domain items collapse into
+                one expandable group regardless of their individual tier. */}
+            {groupByDomain(notifications).map(group => {
+              if (group.length === 1) {
+                const n = group[0]
+                return (
+                  <NotifCard
+                    key={n.id}
+                    n={n}
+                    c={c}
+                    menuOpen={menuOpenId === n.id}
+                    onToggleMenu={() => setMenuOpenId(prev => prev === n.id ? null : n.id)}
+                    onSnooze={d => { onSnoozeNotification(n.id, d); setMenuOpenId(null) }}
+                    onNavigate={onNavigate}
+                  />
+                )
               }
-
+              const groupKey = group[0].domain
+              const expanded = expandedDomains.has(groupKey)
+              const border = toneColor(c, TONE_KEY[group[0].tone])
+              const bg = toneSoft(c, TONE_KEY[group[0].tone])
               return (
-                <div key={tier.priority} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {tier.icon} {tier.label}
+                <div key={groupKey} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div
+                    onClick={() => toggleDomain(groupKey)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      background: bg, border: `1.5px solid ${border}44`, borderRadius: 14,
+                      padding: '12px 14px', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, textTransform: 'capitalize' }}>
+                      {group[0].domain.replace('_', ' ')} ({group.length})
+                    </span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
                   </div>
-                  {[...byDomain.entries()].map(([domain, items]) => {
-                    if (items.length === 1) {
-                      return (
-                        <NotifCard
-                          key={items[0].id}
-                          n={items[0]}
-                          c={c}
-                          menuOpen={menuOpenId === items[0].id}
-                          onToggleMenu={() => setMenuOpenId(prev => prev === items[0].id ? null : items[0].id)}
-                          onSnooze={d => { onSnoozeNotification(items[0].id, d); setMenuOpenId(null) }}
-                          onNavigate={onNavigate}
-                        />
-                      )
-                    }
-                    const groupKey = `${tier.priority}-${domain}`
-                    const expanded = expandedDomains.has(groupKey)
-                    const border = toneColor(c, TONE_KEY[items[0].tone])
-                    const bg = toneSoft(c, TONE_KEY[items[0].tone])
-                    return (
-                      <div key={groupKey} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div
-                          onClick={() => toggleDomain(groupKey)}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            background: bg, border: `1.5px solid ${border}44`, borderRadius: 14,
-                            padding: '12px 14px', cursor: 'pointer',
-                          }}
-                        >
-                          <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, textTransform: 'capitalize' }}>
-                            {domain.replace('_', ' ')} ({items.length})
-                          </span>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
-                            <polyline points="9 18 15 12 9 6"/>
-                          </svg>
-                        </div>
-                        {expanded && items.map(n => (
-                          <NotifCard
-                            key={n.id}
-                            n={n}
-                            c={c}
-                            menuOpen={menuOpenId === n.id}
-                            onToggleMenu={() => setMenuOpenId(prev => prev === n.id ? null : n.id)}
-                            onSnooze={d => { onSnoozeNotification(n.id, d); setMenuOpenId(null) }}
-                            onNavigate={onNavigate}
-                          />
-                        ))}
-                      </div>
-                    )
-                  })}
+                  {expanded && group.map(n => (
+                    <NotifCard
+                      key={n.id}
+                      n={n}
+                      c={c}
+                      menuOpen={menuOpenId === n.id}
+                      onToggleMenu={() => setMenuOpenId(prev => prev === n.id ? null : n.id)}
+                      onSnooze={d => { onSnoozeNotification(n.id, d); setMenuOpenId(null) }}
+                      onNavigate={onNavigate}
+                    />
+                  ))}
                 </div>
               )
             })}
