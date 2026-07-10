@@ -10,7 +10,7 @@ const corsHeaders = {
 }
 
 webpush.setVapidDetails(
-  'mailto:mshihask007@gmail.com',
+  'mailto:hello@moneyplant.online',
   Deno.env.get('VAPID_PUBLIC_KEY')!,
   Deno.env.get('VAPID_PRIVATE_KEY')!,
 )

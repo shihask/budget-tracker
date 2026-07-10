@@ -44,7 +44,7 @@ const backBtn: React.CSSProperties = {
 }
 
 const EFFECTIVE_DATE = 'June 26, 2025'
-const CONTACT_EMAIL = 'budgettrackee@gmail.com'
+const CONTACT_EMAIL = 'hello@moneyplant.online'
 
 export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
   return (
