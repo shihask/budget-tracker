@@ -34,6 +34,9 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `autopilot_enabled` | boolean | false | AI categorization, opt-in |
 | `dashboard_sections` | json\|null | null | Section order/visibility |
 | `track_savings` | boolean | false | Savings & Investments tracker, opt-in |
+| `affordability_snapshot_date` | string\|null | null | Internal — written by `AffordabilityChecker`, not user-facing, no SettingsPanel UI |
+| `affordability_snapshot_daily_lifestyle` | number\|null | null | Internal — see above |
+| `affordability_snapshot_bills_total` | number\|null | null | Internal — see above |
 
 ## Budget Strategy system
 Two independent budgeting systems coexist:
@@ -77,6 +80,20 @@ ALTER TABLE budget_strategy_settings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users manage own budget strategy" ON budget_strategy_settings FOR ALL USING (auth.uid() = user_id);
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS budget_bucket text DEFAULT NULL;
 ```
+
+## Affordability Checker / Cash Flow Forecast — shared engine
+`AffordabilityChecker.tsx`'s "Safe Purchase Amount" is driven by the same forecast engine as the Cash Flow Forecast feature — it does **not** maintain its own reservation math.
+
+| File | Purpose |
+|------|---------|
+| `src/lib/cashflow.ts` | `buildCashFlowForecast` — day-by-day balance simulation from known events only (commitments, savings, credit card bills, borrowings, planned expenses, pattern-aware income). `simulatePurchase` clones-and-reruns for a hypothetical purchase. |
+| `src/features/forecast/lib/lifestyleForecast.ts` | `buildLifestyleForecast` — wraps the above and adds `calculateDailySpendEstimate`: a confidence-weighted blend of trimmed-mean historical spend + Budget-Strategy-derived daily allowance, injected as synthetic per-day events (`event.source === 'lifestyle'`). `simulateLifestylePurchase` is the purchase-simulation sibling. |
+
+`calculateDailySpendEstimate(state, d, opts?)` — `opts.manualDailyAmount` (Affordability Checker passes `settings.weekly_budget / 7` when `budget_mode === 'manual'`) makes Manual mode fully authoritative, skipping the blend entirely. In Auto mode with zero signal (no history, no Budget Strategy), it falls back to the same manual/onboarding figure rather than reserving nothing.
+
+When filtering `forecast.projections` for itemized UI (timeline lists, driver summaries), always exclude `event.source === 'lifestyle'` — those are synthetic per-day entries, not real named bills, and there's one for every day in the forecast horizon.
+
+`d.weeklyBudget` / `d.safeWeeklySpend` (Dashboard's `HeroWeekly.tsx` pacing card) are a **separate, deliberately independent** concept — "spend at this rate and hit zero by payday" — not reused here; using it for purchase-safety reservation is circular (see git history on the Affordability fix for why).
 
 ## Auto-categorize in QuickAdd (three-tier)
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  

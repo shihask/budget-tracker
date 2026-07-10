@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
 import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
-import { simulatePurchase, forecastReady, getForecastDrivers, estimateForecastSalary, daysUntil as forecastDaysUntil } from '@/lib/cashflow'
+import { forecastReady, getForecastDrivers, estimateForecastSalary, daysUntil as forecastDaysUntil } from '@/lib/cashflow'
+import { buildLifestyleForecast, simulateLifestylePurchase, type DailySpendEstimate } from '@/features/forecast/lib/lifestyleForecast'
 import { LOW_CUSHION } from './CashFlowForecastCard'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
@@ -23,7 +24,7 @@ interface Props {
   d: DerivedMetrics
   settings: Settings
   transactions: Transaction[]
-  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
+  onUpdateSettings?: (patch: Partial<Settings>) => void
   onSaveGoal?: (data: SaveGoalData) => void
   onAddPlannedExpense?: (form: Omit<PlannedExpense, 'id' | 'created_at'>) => Promise<void>
 }
@@ -100,15 +101,100 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   }, [transactions])
 
   const freeMoney = d.realFreeMoney
-  const weeklyBudget = d.weeklyBudget
   const pattern = getIncomePattern(settings)
   const cycle = useMemo(() => d.financialCycle ?? getCurrentFinancialCycle(state), [d.financialCycle, state])
-  const weeksRemaining = (pattern === 'variable' || pattern === 'business')
-    ? 0
-    : Math.ceil(cycle.daysRemaining / 7)
-  const reservedBudget = weeksRemaining * weeklyBudget
-  const safePurchasingPower = freeMoney - reservedBudget
-  const hasWeeklyContext = weeksRemaining > 0 && weeklyBudget > 0
+  const canForecast = forecastReady(state)
+
+  // Manual mode: the user's stated budget is authoritative, not a floor —
+  // skip the historical/strategy blend entirely. Auto mode uses the blend,
+  // falling back to this same figure only when there's no signal at all.
+  const dailySpendOpts = useMemo(() => (
+    settings.budget_mode === 'manual' && settings.weekly_budget > 0
+      ? { manualDailyAmount: Math.round(settings.weekly_budget / 7) }
+      : undefined
+  ), [settings.budget_mode, settings.weekly_budget])
+
+  // Baseline lifestyle-aware forecast (known bills + estimated ongoing spending,
+  // no purchase applied yet) — its lowest projected balance IS the largest
+  // one-off amount removable today without a projected shortfall, since the
+  // day-by-day walk is linear in the starting balance.
+  const baseline = useMemo(() => (
+    canForecast ? buildLifestyleForecast(state, d, dailySpendOpts) : null
+  ), [canForecast, state, d, dailySpendOpts])
+
+  const safePurchasingPower = baseline ? Math.max(0, baseline.lowestBalance) : Math.max(0, freeMoney)
+  const hasWeeklyContext = canForecast
+  const forecastDays = state.forecast_settings.days ?? 30
+  // When bills + typical spending exceed what's available, baseline.lowestBalance goes
+  // negative — the headline floors at ₹0, but the breakdown must show the true shortfall
+  // rather than a subtraction chain that silently doesn't add up to the floored number.
+  const isShortfall = !!baseline && baseline.lowestBalance < 0
+  const shortfallAmount = isShortfall ? Math.abs(baseline!.lowestBalance) : 0
+  // Always the true, uncapped reservation — availableBalance minus the (possibly negative)
+  // lowestBalance — never capped at what's actually available, so "Current Balance −
+  // Reserved" always equals the real projected low point, shortfall or not.
+  const reservedAmount = baseline ? Math.max(0, Math.round(d.availableBalance - baseline.lowestBalance)) : 0
+
+  // Breakdown of what's reserved, computed only from events up to the
+  // projected low point — an exact identity (availableBalance + income − bills
+  // − lifestyle === safePurchasingPower), not an approximation.
+  const reservationBreakdown = useMemo(() => {
+    if (!baseline) return null
+    const cutoff = baseline.lowestBalanceDate
+    const relevant = cutoff ? baseline.projections.filter(p => p.event.date <= cutoff) : baseline.projections
+    const bills = relevant.filter(p => p.event.type === 'expense' && p.event.source !== 'lifestyle').reduce((s, p) => s + p.event.amount, 0)
+    const lifestyle = relevant.filter(p => p.event.source === 'lifestyle').reduce((s, p) => s + p.event.amount, 0)
+    const income = relevant.filter(p => p.event.type === 'income').reduce((s, p) => s + p.event.amount, 0)
+    const days = relevant.filter(p => p.event.source === 'lifestyle').length
+    return { bills, lifestyle, income, days }
+  }, [baseline])
+
+  const confidenceInfo = (ds: DailySpendEstimate): { stars: string; text: string } | null => {
+    if (ds.source === 'manual') return { stars: '', text: 'Using your weekly budget' }
+    if (ds.source === 'budget_strategy') return { stars: '', text: 'Using your Budget Strategy' }
+    if (ds.source === null) return null
+    const stars = { low: '★★☆☆☆', medium: '★★★☆☆', high: '★★★★☆', very_high: '★★★★★' }[ds.confidence ?? 'low']
+    const days = ds.calendarDays
+    const label = ds.confidence === 'low' ? 'Low confidence' : ds.confidence === 'medium' ? 'Medium confidence' : ds.confidence === 'high' ? 'High confidence' : 'Very high confidence'
+    return { stars, text: `${label} — ${days ?? '<14'} day${days === 1 ? '' : 's'} of spending tracked` }
+  }
+
+  // "Changed since yesterday" — coarse two-bucket diff against a once-a-day snapshot.
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const changeSinceYesterday = useMemo(() => {
+    if (!baseline || !reservationBreakdown) return null
+    const snapDate = settings.affordability_snapshot_date
+    if (!snapDate || snapDate === todayIso) return null
+    const prevDaily = settings.affordability_snapshot_daily_lifestyle
+    const prevBills = settings.affordability_snapshot_bills_total
+    if (prevDaily == null || prevBills == null) return null
+    const currDaily = baseline.dailySpend.amount
+    const currBills = reservationBreakdown.bills
+    const dailyDelta = currDaily - prevDaily
+    const billsDelta = currBills - prevBills
+    const dailyChanged = prevDaily > 0 && Math.abs(dailyDelta) / prevDaily > 0.05
+    const billsChanged = prevBills > 0 && Math.abs(billsDelta) / prevBills > 0.05
+    if (!dailyChanged && !billsChanged) return null
+    // Attribute to whichever bucket moved more in absolute rupees over the reservation window
+    if (Math.abs(billsDelta) >= Math.abs(dailyDelta * (reservationBreakdown.days || 1))) {
+      return billsDelta > 0
+        ? `Bills reservation up ${fmt(Math.abs(billsDelta))} since yesterday`
+        : `Bills reservation down ${fmt(Math.abs(billsDelta))} since yesterday`
+    }
+    return dailyDelta > 0
+      ? `Lifestyle reserve up ${fmt(Math.abs(dailyDelta))}/day — recent spending increased`
+      : `Lifestyle reserve down ${fmt(Math.abs(dailyDelta))}/day — recent spending decreased`
+  }, [baseline, reservationBreakdown, settings.affordability_snapshot_date, settings.affordability_snapshot_daily_lifestyle, settings.affordability_snapshot_bills_total, todayIso])
+
+  useEffect(() => {
+    if (!baseline || !reservationBreakdown || !onUpdateSettings) return
+    if (settings.affordability_snapshot_date === todayIso) return
+    onUpdateSettings({
+      affordability_snapshot_date: todayIso,
+      affordability_snapshot_daily_lifestyle: baseline.dailySpend.amount,
+      affordability_snapshot_bills_total: reservationBreakdown.bills,
+    })
+  }, [baseline, reservationBreakdown, settings.affordability_snapshot_date, todayIso, onUpdateSettings])
 
   const check = () => {
     const a = parseFloat(amount)
@@ -202,7 +288,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
       safePurchasingPower,
       daysUntilSalary: daysLeft,
       incomePatternLabel: pattern === 'monthly' ? 'salary' : 'income',
-      weeklyBudget,
+      weeklyBudget: (baseline?.dailySpend.amount ?? 0) * 7,
       weeklySpent: d.weeklySpent,
       spendingByGroup: spendingData.spendingByGroup,
       totalSpent30d: spendingData.totalSpent30d,
@@ -217,17 +303,17 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   }
 
   const amt = parseFloat(amount)
-  const canForecast = forecastReady(state)
 
-  // Phase 1: Forecast simulation
+  // Phase 1: Forecast simulation (lifestyle-aware: known bills + estimated ongoing spending)
   const simResult = useMemo(() => {
     if (!checked || isNaN(amt) || amt <= 0 || !canForecast) return null
-    return simulatePurchase(state, d, amt)
-  }, [checked, amt, canForecast, state, d])
+    return simulateLifestylePurchase(state, d, amt, dailySpendOpts)
+  }, [checked, amt, canForecast, state, d, dailySpendOpts])
 
   const simDrivers = useMemo(() => {
     if (!simResult) return []
-    return getForecastDrivers(simResult.projections, 3)
+    // Exclude synthetic per-day lifestyle-spend entries — drivers should name real, specific items
+    return getForecastDrivers(simResult.projections.filter(p => p.event.source !== 'lifestyle'), 3)
   }, [simResult])
 
   // Phase 3: Post-salary simulation
@@ -239,67 +325,66 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     if (daysAway <= 0 || daysAway > 30) return null
     const salaryAmt = estimateForecastSalary(state).amount
     if (!salaryAmt) return null
-    const postSalaryForecast = simulatePurchase(state, {
+    const postSalaryForecast = simulateLifestylePurchase(state, {
       ...d,
       availableBalance: d.availableBalance + salaryAmt,
-    }, amt)
+    }, amt, dailySpendOpts)
     if (postSalaryForecast.lowestBalance <= (simResult.lowestBalance + LOW_CUSHION)) return null
-    const postHealth = postSalaryForecast.lowestBalance < 0 ? 'critical' : postSalaryForecast.lowestBalance < LOW_CUSHION ? 'tight' : 'safe'
-    return { daysAway, salaryDate, postLowest: postSalaryForecast.lowestBalance, postHealth }
-  }, [checked, amt, canForecast, simResult, state, d])
+    return { daysAway, salaryDate, postLowest: postSalaryForecast.lowestBalance }
+  }, [checked, amt, canForecast, simResult, state, d, dailySpendOpts])
 
   type Tier = 'safe' | 'tight' | 'risky' | 'critical'
 
-  // Sum of expense events due before salary in the simulation
+  // Sum of real (non-synthetic) expense events due before salary in the simulation
   const prePaydayExpenses = useMemo(() => {
     if (!simResult) return 0
     const salaryDate = simResult.nextSalaryDate
     return simResult.projections
-      .filter(p => p.event.type === 'expense' && (!salaryDate || p.event.date < salaryDate))
+      .filter(p => p.event.type === 'expense' && p.event.source !== 'lifestyle' && (!salaryDate || p.event.date < salaryDate))
       .reduce((s, p) => s + p.event.amount, 0)
   }, [simResult])
 
   const getStatus = () => {
     if (!checked || isNaN(amt)) return null
-
-    const exceedsFreeMoney = amt > freeMoney
-    const exceedsSPP = safePurchasingPower <= 0 || amt > safePurchasingPower
-    const simLowest = simResult?.lowestBalance ?? null
-    const forecastGoesNegative = simLowest != null && simLowest < 0
-    const forecastTight = simLowest != null && simLowest >= 0 && simLowest < LOW_CUSHION
     const balance = Math.round(d.availableBalance)
 
-    if (exceedsFreeMoney) {
+    if (amt > d.availableBalance) {
       const sub = simResult && prePaydayExpenses > 0
         ? `You have ${fmt(balance)} available. Before your ${pattern === 'monthly' ? 'next salary' : pattern === 'weekly' ? 'next income' : 'upcoming'} payments, ${fmt(prePaydayExpenses)} in payments are due. Buying this now could leave you short by ${fmt(Math.abs(simResult.lowestBalance))}.`
         : `You have ${fmt(balance)} available but this purchase costs ${fmt(amt)}.`
       return { tier: 'critical' as Tier, color: c.bad, bg: '#FEE2E2', label: 'Not Affordable', sub }
     }
-    if (forecastGoesNegative) {
-      return {
-        tier: 'critical' as Tier, color: c.bad, bg: '#FEE2E2',
-        label: 'Will Cause Shortfall',
-        sub: `You can cover this today, but ${fmt(prePaydayExpenses)} in payments are due before ${pattern === 'monthly' ? 'salary' : 'your next income'}. Your balance would drop to ${fmt(simResult!.lowestBalance)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''}.`,
-      }
+
+    if (!simResult) {
+      // No forecast context (income pattern not fully set up) — fall back to a simple comparison
+      return amt > freeMoney
+        ? { tier: 'critical' as Tier, color: c.bad, bg: '#FEE2E2', label: 'Not Affordable', sub: `You have ${fmt(balance)} available but this purchase costs ${fmt(amt)}.` }
+        : { tier: 'safe' as Tier, color: c.good, bg: '#DCFCE7', label: 'Safe Purchase', sub: 'This purchase does not affect your available money.' }
     }
-    if (exceedsSPP) return {
-      tier: 'risky' as Tier, color: '#D97706', bg: '#FEF3C7',
-      label: 'Risky Purchase',
-      sub: hasWeeklyContext
-        ? `You can afford this, but it uses ${fmt(amt - safePurchasingPower)} from money reserved for your ${weeksRemaining}-week budget.`
-        : 'You can afford this, but it uses most of your available money.',
+
+    const dateNote = simResult.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''
+
+    // Tiered directly off simResult.lowestBalance vs 0 / LOW_CUSHION — NOT off
+    // simResult.risk, which uses a 25%-of-monthly-income threshold calibrated for
+    // the standalone Cash Flow Forecast's "is my overall cash flow healthy" question.
+    // That threshold is unrelated to safePurchasingPower (this component's headline
+    // promise), so reusing it here made amounts well under Safe Purchase Amount
+    // still come back "Tight" — this direct comparison keeps the verdict consistent
+    // with the number the user was just shown.
+    if (simResult.lowestBalance < 0) return {
+      tier: 'critical' as Tier, color: c.bad, bg: '#FEE2E2',
+      label: 'Will Cause Shortfall',
+      sub: `You can cover this today, but ${fmt(prePaydayExpenses)} in payments are due before ${pattern === 'monthly' ? 'salary' : 'your next income'}. Your balance would drop to ${fmt(simResult.lowestBalance)}${dateNote}.`,
     }
-    if (forecastTight) return {
+    if (simResult.lowestBalance < LOW_CUSHION) return {
       tier: 'tight' as Tier, color: '#D97706', bg: '#FEF3C7',
       label: 'Tight — Cuts It Close',
-      sub: `You can afford this, but your balance drops to ${fmt(simLowest!)}${simResult?.lowestBalanceDate ? ` around ${shortDate(simResult.lowestBalanceDate)}` : ''} before ${pattern === 'monthly' ? 'payday' : 'your next income'}.`,
+      sub: `You can afford this, but your balance drops to ${fmt(simResult.lowestBalance)}${dateNote} before ${pattern === 'monthly' ? 'payday' : 'your next income'}.`,
     }
     return {
       tier: 'safe' as Tier, color: c.good, bg: '#DCFCE7',
       label: 'Safe Purchase',
-      sub: canForecast
-        ? 'This purchase fits comfortably. Your forecast remains healthy.'
-        : 'This purchase does not affect your remaining weekly budget.',
+      sub: `This purchase fits comfortably. Lowest projected balance: ${fmt(simResult.lowestBalance)}${dateNote}.`,
     }
   }
 
@@ -307,7 +392,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
 
   const status = getStatus()
 
-  const budgetImpact = checked && !isNaN(amt) && status?.tier === 'risky' && safePurchasingPower > 0
+  const budgetImpact = checked && !isNaN(amt) && status?.tier === 'tight' && safePurchasingPower > 0
     ? amt - safePurchasingPower
     : null
   const safePct = hasWeeklyContext && safePurchasingPower > 0 && checked && !isNaN(amt)
@@ -423,7 +508,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             </div>
             <div style={{ font: '600 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>
               {hasWeeklyContext
-                ? `Safe to spend · ${fmt(Math.max(0, safePurchasingPower))}`
+                ? `Safe purchase amount · ${fmt(safePurchasingPower)}`
                 : `Available money · ${fmt(freeMoney)}`}
             </div>
           </div>
@@ -448,7 +533,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
 
         {!checked ? (
           <>
-            {/* Safe to Spend card */}
+            {/* Safe Purchase Amount card */}
             <div style={{
               background: `linear-gradient(135deg, ${c.accent}14, ${c.accent}07)`,
               border: `1px solid ${c.accent}30`,
@@ -457,14 +542,30 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             }}>
               <div>
                 <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Safe to Spend
+                  Safe Purchase Amount
                 </div>
-                <div style={{ font: '800 26px Plus Jakarta Sans', color: c.accent, marginTop: 2, letterSpacing: '-0.02em' }}>
-                  {fmt(Math.max(0, safePurchasingPower))}
+                <div style={{ font: '800 26px Plus Jakarta Sans', color: isShortfall ? c.bad : c.accent, marginTop: 2, letterSpacing: '-0.02em' }}>
+                  {fmt(safePurchasingPower)}
                 </div>
-                {hasWeeklyContext && (
-                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 4 }}>
-                    After reserving {fmt(reservedBudget)} for {weeksRemaining}w
+                {hasWeeklyContext && baseline && (
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: isShortfall ? c.bad : c.muted, marginTop: 4 }}>
+                    {isShortfall
+                      ? `Short by ${fmt(shortfallAmount)} for bills & typical spending${baseline.lowestBalanceDate ? ` (around ${shortDate(baseline.lowestBalanceDate)})` : ''} — nothing extra is safe to spend right now`
+                      : `After reserving ${fmt(reservedAmount)} for bills & typical spending${baseline.lowestBalanceDate ? ` (lowest point ${shortDate(baseline.lowestBalanceDate)})` : ''}`}
+                  </div>
+                )}
+                {hasWeeklyContext && baseline && (() => {
+                  const conf = confidenceInfo(baseline.dailySpend)
+                  return conf ? (
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {conf.stars && <span style={{ color: c.accent, letterSpacing: '1px' }}>{conf.stars}</span>}
+                      <span>{conf.text}</span>
+                    </div>
+                  ) : null
+                })()}
+                {changeSinceYesterday && (
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.accent, marginTop: 3 }}>
+                    {changeSinceYesterday}
                   </div>
                 )}
               </div>
@@ -487,16 +588,26 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                   <Row label="Actual Balance" value={fmt(d.actualBalance)} />
                   <Row label="Emergency Fund" value={`− ${fmt(d.emergencyFund)}`} muted />
-                  <Row label="After emergency fund" value={fmt(d.availableBalance)} info="Balance after keeping your emergency fund aside" />
-                  <Row label="Upcoming commitments" value={`− ${fmt(d.remainingCommitments)}`} muted info="Bills and obligations due this cycle" />
-                  <Divider />
-                  <Row label="Available money" value={fmt(freeMoney)} bold info="What you have after all commitments" />
-                  {hasWeeklyContext && (
+                  <Row label="Current Balance" value={fmt(d.availableBalance)} bold info="Balance after keeping your emergency fund aside" />
+                  {hasWeeklyContext && reservationBreakdown ? (
                     <>
-                      <Row label={`Weekly Budget × ${weeksRemaining}w`} value={`− ${fmt(reservedBudget)}`} muted info={pattern === 'monthly' ? 'Reserved until your next salary.' : pattern === 'weekly' ? 'Reserved until your next income.' : 'Reserved to support your spending plan.'} />
+                      {reservationBreakdown.income > 0 && (
+                        <Row label="Income expected before your low point" value={`+ ${fmt(reservationBreakdown.income)}`} muted />
+                      )}
+                      <Row label="Upcoming bills" value={`− ${fmt(reservationBreakdown.bills)}`} muted info="EMI, rent, credit card bills, savings contributions — already scheduled" />
+                      <Row label={`Estimated spending (${reservationBreakdown.days} day${reservationBreakdown.days !== 1 ? 's' : ''})`} value={`− ${fmt(reservationBreakdown.lifestyle)}`} muted info="Typical day-to-day spending until your projected low point" />
                       <Divider />
-                      <Row label="Safe to Spend" value={fmt(Math.max(0, safePurchasingPower))} bold accent info="What you can spend right now without affecting your budget" />
+                      {isShortfall ? (
+                        <>
+                          <Row label="Projected shortfall" value={`− ${fmt(shortfallAmount)}`} bold color={c.bad} info="This is the true sum of the rows above — your projected balance goes negative before you're covered" />
+                          <Row label="Safe Purchase Amount" value={fmt(0)} bold accent info="Floored at ₹0 — you can't spend a negative amount. No discretionary purchase is safe until this shortfall clears." />
+                        </>
+                      ) : (
+                        <Row label="Safe Purchase Amount" value={fmt(safePurchasingPower)} bold accent info="The most you can spend right now without a projected shortfall" />
+                      )}
                     </>
+                  ) : (
+                    <Row label="Available money" value={fmt(freeMoney)} bold info="What you have after all commitments" />
                   )}
                 </div>
               </div>
@@ -518,7 +629,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             {/* Quick chips */}
             <div style={{ marginBottom: 18 }}>
               <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 8 }}>
-                Quick check · safe to spend {fmt(Math.max(0, safePurchasingPower))}
+                Quick check · safe purchase amount {fmt(safePurchasingPower)}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {quickAmounts.map(a => {
@@ -602,8 +713,8 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             {/* What happens if you buy this — chronological timeline */}
             {simResult && (() => {
               const salaryDate = simResult.nextSalaryDate
-              const beforeSalary = simResult.projections.filter(p => p.event.type === 'expense' && (!salaryDate || p.event.date < salaryDate))
-              const afterSalary = simResult.projections.filter(p => p.event.type === 'expense' && salaryDate && p.event.date >= salaryDate)
+              const beforeSalary = simResult.projections.filter(p => p.event.type === 'expense' && p.event.source !== 'lifestyle' && (!salaryDate || p.event.date < salaryDate))
+              const afterSalary = simResult.projections.filter(p => p.event.type === 'expense' && p.event.source !== 'lifestyle' && salaryDate && p.event.date >= salaryDate)
               const salaryEvent = simResult.projections.find(p => p.event.source === 'salary')
               const lowestColor = simResult.lowestBalance < 0 ? c.bad : simResult.lowestBalance < LOW_CUSHION ? '#D97706' : c.good
               const allUpcoming = [...beforeSalary, ...afterSalary]
@@ -787,15 +898,23 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             {showDetails && (
               <div style={{ background: c.surface, borderRadius: '0 0 14px 14px', padding: '10px 14px 14px', marginBottom: 14, marginTop: -1, border: `1px solid ${c.faint}`, borderTop: 'none' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  <Row label="Available money" value={fmt(freeMoney)} info="What you have after commitments and emergency fund" />
-                  {hasWeeklyContext && (
+                  {hasWeeklyContext && baseline ? (
                     <>
-                      <Row label="Weeks remaining" value={`${weeksRemaining} weeks`} muted />
-                      <Row label="Weekly budget" value={fmt(weeklyBudget)} muted info="Your planned weekly spending limit" />
-                      <Row label="Reserved for budget" value={`− ${fmt(reservedBudget)}`} muted info={pattern === 'monthly' ? 'Kept aside until your next salary.' : pattern === 'weekly' ? 'Kept aside until your next income.' : 'Reserved for your spending plan.'} />
+                      <Row label="Current Balance" value={fmt(d.availableBalance)} info="Balance after keeping your emergency fund aside" />
+                      <Row label="Forecast horizon" value={`${forecastDays} days`} muted />
+                      <Row label="Reserved (bills & spending)" value={`− ${fmt(reservedAmount)}`} muted info="Upcoming bills plus estimated day-to-day spending until your projected low point" />
                       <Divider />
-                      <Row label="Safe to spend" value={fmt(Math.max(0, safePurchasingPower))} bold info="What you can spend right now without affecting your budget" />
+                      {isShortfall ? (
+                        <>
+                          <Row label="Projected shortfall" value={`− ${fmt(shortfallAmount)}`} bold color={c.bad} />
+                          <Row label="Safe purchase amount" value={fmt(0)} bold />
+                        </>
+                      ) : (
+                        <Row label="Safe purchase amount" value={fmt(safePurchasingPower)} bold info="The most you can spend right now without a projected shortfall" />
+                      )}
                     </>
+                  ) : (
+                    <Row label="Available money" value={fmt(freeMoney)} info="What you have after commitments and emergency fund" />
                   )}
                   <Divider />
                   <Row label={item || 'Purchase amount'} value={fmt(amt)} />

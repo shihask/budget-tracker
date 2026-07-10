@@ -149,6 +149,11 @@ export interface Settings {
   // in src/App.tsx.
   cycle_start_free_money?:      number | null
   cycle_snapshot_key?:          string | null
+  // Affordability Checker "changed since yesterday" snapshot — frozen once
+  // per day so the checker can explain what moved. See AffordabilityChecker.tsx.
+  affordability_snapshot_date?:            string | null
+  affordability_snapshot_daily_lifestyle?: number | null
+  affordability_snapshot_bills_total?:     number | null
 }
 
 export type ForecastMode = 'planned' | 'lifestyle'

@@ -7,7 +7,7 @@ import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-c
 
 export type { ForecastMode }
 
-export type DailySpendSource = 'budget_strategy' | 'historical' | 'hybrid' | null
+export type DailySpendSource = 'budget_strategy' | 'historical' | 'hybrid' | 'manual' | null
 export type SpendConfidence = 'low' | 'medium' | 'high' | 'very_high'
 
 export interface DailySpendEstimate {
@@ -19,6 +19,19 @@ export interface DailySpendEstimate {
   budgetAmount?: number
   historyWeight?: number
   confidence?: SpendConfidence
+  calendarDays?: number
+  // Steady-state daily rate for forecast days beyond the current budget cycle —
+  // see buildLifestyleForecast's synthetic-events loop. Always populated; equals
+  // `amount` whenever the estimate has no cycle-specific component (historical-only,
+  // manual, or cold-start fallback).
+  normalizedAmount: number
+}
+
+export interface DailySpendOptions {
+  // When set (Manual budget mode), this figure is used as-is — the historical/
+  // strategy blend is skipped entirely. Manual mode means the app follows the
+  // user's stated budget, not an estimate of what they actually spend.
+  manualDailyAmount?: number
 }
 
 export interface BudgetRecommendation {
@@ -103,9 +116,23 @@ function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySp
   const wantsDaily = Math.round(wantsRemaining / daysRemaining)
   const total = needsDaily + wantsDaily
 
-  if (total <= 0) return null
+  // Steady-state rate for days beyond this cycle: the FULL targets spread over a
+  // FULL cycle length — not "what's left of this cycle's budget ÷ days left in it".
+  // The in-cycle rate above is only valid until cycleEnd; reusing it for a 60-day
+  // forecast that spans multiple cycles double-counts a single cycle's budget.
+  const cycleLengthDays = Math.max(1, Math.round((periodEnd.getTime() - periodStart.getTime()) / 86400000))
+  const normalizedNeedsDaily = Math.round(needsTarget / cycleLengthDays)
+  const normalizedWantsDaily = Math.round(wantsTarget / cycleLengthDays)
+  const normalizedTotal = normalizedNeedsDaily + normalizedWantsDaily
 
-  return { amount: total, source: 'budget_strategy', breakdown: { needs: needsDaily, wants: wantsDaily } }
+  if (total <= 0 && normalizedTotal <= 0) return null
+
+  return {
+    amount: total,
+    normalizedAmount: normalizedTotal,
+    source: 'budget_strategy',
+    breakdown: { needs: needsDaily, wants: wantsDaily },
+  }
 }
 
 const BEHAVIORAL_GROUP_TYPES = new Set(['discretionary', 'essential'])
@@ -166,9 +193,9 @@ function estimateFromHistory(state: AppState): HistResult | null {
   return avg > 0 ? { amount: avg, days: periodDays, spendingDays: dailyMap.size, calendarDays } : null
 }
 
-function getBudgetDailyAmount(state: AppState, d: DerivedMetrics): number | null {
+function getBudgetDailyAmount(state: AppState, d: DerivedMetrics): { amount: number; normalizedAmount: number } | null {
   const est = estimateFromBudgetStrategy(state, d)
-  return est ? est.amount : null
+  return est ? { amount: est.amount, normalizedAmount: est.normalizedAmount } : null
 }
 
 // ── Confidence & blending ──
@@ -256,40 +283,57 @@ function smoothForecast(raw: number): number {
   return raw
 }
 
-export function calculateDailySpendEstimate(state: AppState, d: DerivedMetrics): DailySpendEstimate {
+export function calculateDailySpendEstimate(state: AppState, d: DerivedMetrics, opts?: DailySpendOptions): DailySpendEstimate {
+  if (opts?.manualDailyAmount != null) {
+    return { amount: opts.manualDailyAmount, normalizedAmount: opts.manualDailyAmount, source: 'manual' }
+  }
+
   const hist = estimateFromHistory(state)
   const budgetAmt = getBudgetDailyAmount(state, d)
 
-  if (!hist && budgetAmt == null) return { amount: 0, source: null }
+  if (!hist && budgetAmt == null) {
+    // Cold start — no history and no Budget Strategy configured. Fall back to
+    // the onboarding-suggested weekly budget rather than reserving nothing.
+    const fallback = state.settings.weekly_budget > 0 ? Math.round(state.settings.weekly_budget / 7) : 0
+    return fallback > 0
+      ? { amount: fallback, normalizedAmount: fallback, source: 'manual' }
+      : { amount: 0, normalizedAmount: 0, source: null }
+  }
 
   if (!hist && budgetAmt != null) {
-    return { amount: budgetAmt, source: 'budget_strategy', budgetAmount: budgetAmt }
+    return { amount: budgetAmt.amount, normalizedAmount: budgetAmt.normalizedAmount, source: 'budget_strategy', budgetAmount: budgetAmt.amount }
   }
 
   if (hist && budgetAmt == null) {
     const amount = smoothForecast(hist.amount)
-    return { amount, source: 'historical', days: hist.days, historyAmount: hist.amount, confidence: getConfidence(hist.calendarDays) }
+    return { amount, normalizedAmount: amount, source: 'historical', days: hist.days, historyAmount: hist.amount, confidence: getConfidence(hist.calendarDays), calendarDays: hist.calendarDays }
   }
 
   const confidence = getConfidence(hist!.calendarDays)
   const histWeight = CONFIDENCE_WEIGHTS[confidence]
 
-  const raw = Math.round(hist!.amount * histWeight + budgetAmt! * (1 - histWeight))
+  const raw = Math.round(hist!.amount * histWeight + budgetAmt!.amount * (1 - histWeight))
   const amount = smoothForecast(raw)
+  // Same blend, but using the normalized (steady-state) budget-strategy rate instead
+  // of the in-cycle one — history has no cycle-boundary concept, so its contribution
+  // to the blend is identical either way.
+  const normalizedAmount = Math.round(hist!.amount * histWeight + budgetAmt!.normalizedAmount * (1 - histWeight))
   return {
     amount,
+    normalizedAmount,
     source: 'hybrid',
     days: hist!.days,
     historyAmount: hist!.amount,
-    budgetAmount: budgetAmt!,
+    budgetAmount: budgetAmt!.amount,
     historyWeight: histWeight,
     confidence,
+    calendarDays: hist!.calendarDays,
   }
 }
 
-export function buildLifestyleForecast(state: AppState, d: DerivedMetrics): LifestyleForecast {
+export function buildLifestyleForecast(state: AppState, d: DerivedMetrics, opts?: DailySpendOptions): LifestyleForecast {
   const base = buildCashFlowForecast(state, d)
-  const dailySpend = calculateDailySpendEstimate(state, d)
+  const dailySpend = calculateDailySpendEstimate(state, d, opts)
   const recommendation = calculateBudgetRecommendation(state, d)
 
   if (dailySpend.amount <= 0 || dailySpend.source === null) {
@@ -307,11 +351,16 @@ export function buildLifestyleForecast(state: AppState, d: DerivedMetrics): Life
   const today = midnight(new Date())
   const days = state.forecast_settings.days ?? 30
   const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days)
+  const cycle = d.financialCycle ?? getCurrentFinancialCycle(state)
+  const cycleEnd = midnight(cycle.cycleEnd)
 
   // Collect existing event dates to avoid doubling up on the same day
   const existingDates = new Set(base.projections.map(p => p.event.date))
 
-  // Generate synthetic daily spending events
+  // Generate synthetic daily spending events. Days within the current cycle use the
+  // in-cycle pace (dailySpend.amount); days beyond it use the normalized steady-state
+  // rate (dailySpend.normalizedAmount) — a forecast horizon longer than one cycle must
+  // not repeat "what's left of this cycle's budget" across cycles it doesn't apply to.
   const syntheticEvents: CashFlowEvent[] = []
   const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
 
@@ -320,7 +369,7 @@ export function buildLifestyleForecast(state: AppState, d: DerivedMetrics): Life
     syntheticEvents.push({
       date: iso,
       title: 'Est. Daily Spending',
-      amount: dailySpend.amount,
+      amount: cursor <= cycleEnd ? dailySpend.amount : dailySpend.normalizedAmount,
       type: 'expense',
       source: 'lifestyle',
     })
@@ -434,4 +483,10 @@ export function buildLifestyleForecast(state: AppState, d: DerivedMetrics): Life
     risk,
     lifestyleProjectionCount: syntheticEvents.length,
   }
+}
+
+// Mirrors simulatePurchase() in cashflow.ts, but runs the lifestyle-aware
+// engine (known bills + estimated ongoing spending) instead of known-events-only.
+export function simulateLifestylePurchase(state: AppState, derived: DerivedMetrics, amount: number, opts?: DailySpendOptions): LifestyleForecast {
+  return buildLifestyleForecast(state, { ...derived, availableBalance: derived.availableBalance - amount }, opts)
 }
