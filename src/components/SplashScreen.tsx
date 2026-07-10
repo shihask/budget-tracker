@@ -99,7 +99,7 @@ export function SplashScreen({ onContinue, initialPhase = 1 }: Props) {
                 marginTop: 16, font: '500 14px Plus Jakarta Sans', color: '#8A8178',
                 animation: 'mpFadeUp 0.55s 0.35s ease both',
               }}>
-                Plan Smart. Grow Better.
+                Know Before You Spend.
               </div>
               <div style={{
                 marginTop: 24, font: '400 11px Plus Jakarta Sans', color: '#16C98A',
@@ -135,7 +135,7 @@ export function SplashScreen({ onContinue, initialPhase = 1 }: Props) {
               <span style={{ color: '#16C98A' }}>Plant</span>
             </div>
             <div style={{ marginTop: 5, font: '500 13px Plus Jakarta Sans', color: '#8A8178' }}>
-              Plan Smart. Grow Better.
+              Know Before You Spend.
             </div>
           </div>
 
