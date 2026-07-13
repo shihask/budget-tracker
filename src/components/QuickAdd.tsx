@@ -760,6 +760,10 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
             <input
               {...register('amount', {
                 setValueAs: v => {
+                  // RHF also invokes this on programmatic setValue('amount', <number>, ...)
+                  // calls (AI/smart-input parsing, chip taps) — those already carry a
+                  // resolved number, not user-typed text, so pass them through untouched.
+                  if (typeof v === 'number') return Number.isFinite(v) ? round2(v) : NaN
                   const r = evaluateAmountExpression(v)
                   return r === null ? NaN : round2(r)
                 },
