@@ -2,8 +2,10 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, fmtDate } from '@/lib/utils'
+import { fmt, fmtDate, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, Borrowing } from '@/types'
 
@@ -61,12 +63,18 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   const [addInfoOpen, setAddInfoOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<BForm>(EMPTY_BFORM)
+  const totalAmountRef = useRef<HTMLInputElement | null>(null)
+  const paidAmountRef = useRef<HTMLInputElement | null>(null)
+  const [totalAmountFocused, setTotalAmountFocused] = useState(false)
+  const [paidAmountFocused, setPaidAmountFocused] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   // ── Payment form ──────────────────────────────────────────────────────────────
   const [payTarget, setPayTarget] = useState<Borrowing | null>(null)
   const [payForm, setPayForm] = useState<PayForm>(EMPTY_PAY)
+  const payAmountRef = useRef<HTMLInputElement | null>(null)
+  const [payAmountFocused, setPayAmountFocused] = useState(false)
   const [paying, setPaying] = useState(false)
 
   // ── Confirm modals ────────────────────────────────────────────────────────────
@@ -198,8 +206,9 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   }, [])
 
   const handleSave = async () => {
-    const total = parseFloat(form.total_amount)
-    const paid = parseFloat(form.paid_amount) || 0
+    const rawTotal = evaluateAmountExpression(form.total_amount)
+    const total = rawTotal === null ? NaN : round2(rawTotal)
+    const paid = round2(evaluateAmountExpression(form.paid_amount) ?? 0)
     if (!form.person_name.trim() || isNaN(total) || total <= 0) return
     const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction, transaction_date: form.transaction_date || new Date().toISOString().slice(0, 10), repayment_date: form.direction === 'borrowed' ? (form.repayment_date || null) : null }
     if (!editingId) {
@@ -242,7 +251,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
 
   const doPayment = async (addTransaction: boolean) => {
     if (!payTarget) return
-    const amt = parseFloat(payForm.amount)
+    const amt = round2(evaluateAmountExpression(payForm.amount) ?? NaN)
     setPaying(true)
     setPayConfirm(false)
     try {
@@ -539,12 +548,28 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
             <div style={{ flex: 1 }}>
               <Label>Total amount</Label>
               <HelpText>The full amount lent or borrowed.</HelpText>
-              <input type="number" inputMode="decimal" value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
+              <input ref={totalAmountRef} type="text" inputMode="decimal"
+                onFocus={() => setTotalAmountFocused(true)} onBlur={() => setTotalAmountFocused(false)}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return
+                  const r = evaluateAmountExpression(e.currentTarget.value)
+                  if (r !== null) setForm(f => ({ ...f, total_amount: String(round2(r)) }))
+                }}
+                value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="0" style={inp} />
+              {totalAmountFocused && <AmountOperatorRow inputRef={totalAmountRef} onChange={v => setForm(f => ({ ...f, total_amount: v }))} />}
             </div>
             <div style={{ flex: 1 }}>
               <Label>{form.direction === 'lent' ? 'Repaid by them' : 'Repaid by you'}</Label>
               <HelpText>How much has already been paid back. Set to 0 if nothing has been repaid yet.</HelpText>
-              <input type="number" inputMode="decimal" value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
+              <input ref={paidAmountRef} type="text" inputMode="decimal"
+                onFocus={() => setPaidAmountFocused(true)} onBlur={() => setPaidAmountFocused(false)}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return
+                  const r = evaluateAmountExpression(e.currentTarget.value)
+                  if (r !== null) setForm(f => ({ ...f, paid_amount: String(round2(r)) }))
+                }}
+                value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))} placeholder="0" style={inp} />
+              {paidAmountFocused && <AmountOperatorRow inputRef={paidAmountRef} onChange={v => setForm(f => ({ ...f, paid_amount: v }))} />}
             </div>
           </div>
           {form.direction === 'borrowed' && (
@@ -592,7 +617,15 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <Label>Payment amount</Label>
-            <input type="number" inputMode="decimal" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" min="0" step="0.01" style={inp} />
+            <input ref={payAmountRef} type="text" inputMode="decimal"
+              onFocus={() => setPayAmountFocused(true)} onBlur={() => setPayAmountFocused(false)}
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return
+                const r = evaluateAmountExpression(e.currentTarget.value)
+                if (r !== null) setPayForm(f => ({ ...f, amount: String(round2(r)) }))
+              }}
+              value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" style={inp} />
+            {payAmountFocused && <AmountOperatorRow inputRef={payAmountRef} onChange={v => setPayForm(f => ({ ...f, amount: v }))} />}
           </div>
           <div>
             <Label>Direction</Label>
@@ -625,7 +658,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
           <button onClick={closePay} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={() => { const amt = parseFloat(payForm.amount); if (!isNaN(amt) && amt > 0) setPayConfirm(true) }} disabled={paying} style={{ flex: 2, background: c.good, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.7 : 1 }}>
+          <button onClick={() => { const amt = evaluateAmountExpression(payForm.amount); if (amt !== null && amt > 0) setPayConfirm(true) }} disabled={paying} style={{ flex: 2, background: c.good, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: paying ? 'not-allowed' : 'pointer', opacity: paying ? 0.7 : 1 }}>
             {paying ? 'Saving...' : 'Record Payment'}
           </button>
         </div>
@@ -654,8 +687,8 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           title={payForm.incoming ? 'Record as income?' : 'Record as expense?'}
           message={
             payForm.incoming
-              ? <><strong style={{ color: c.ink }}>{payTarget.person_name}</strong> paid you back <strong style={{ color: c.ink }}>{fmt(parseFloat(payForm.amount))}</strong>. Add this to your income transactions?</>
-              : <>You're paying <strong style={{ color: c.ink }}>{fmt(parseFloat(payForm.amount))}</strong> to <strong style={{ color: c.ink }}>{payTarget.person_name}</strong>. Add this as an expense transaction?</>
+              ? <><strong style={{ color: c.ink }}>{payTarget.person_name}</strong> paid you back <strong style={{ color: c.ink }}>{fmt(evaluateAmountExpression(payForm.amount) ?? 0)}</strong>. Add this to your income transactions?</>
+              : <>You're paying <strong style={{ color: c.ink }}>{fmt(evaluateAmountExpression(payForm.amount) ?? 0)}</strong> to <strong style={{ color: c.ink }}>{payTarget.person_name}</strong>. Add this as an expense transaction?</>
           }
           yesLabel={payForm.incoming ? 'Yes, add as income' : 'Yes, add as expense'}
           noLabel="No, just update tracker"

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { iso, TODAY } from '@/lib/utils'
+import { iso, TODAY, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
+import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import type { ProjectMember, ProjectTransaction, ProjectBudget } from '../types'
 
 interface Props {
@@ -38,6 +40,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   const [files, setFiles] = useState<File[]>([])
   const amountRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [amountFocused, setAmountFocused] = useState(false)
 
   useEffect(() => {
     if (open && editTxn) {
@@ -59,8 +62,9 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   }, [open, editTxn, members])
 
   const handleSave = async () => {
-    const amt = parseFloat(amount)
-    if (!amt || amt <= 0 || saving || !valid) return
+    const rawAmt = evaluateAmountExpression(amount)
+    if (!rawAmt || rawAmt <= 0 || saving || !valid) return
+    const amt = round2(rawAmt)
     setSaving(true)
     try {
       await onSave({
@@ -95,7 +99,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   }
 
   const isContribution = mode === 'contribution'
-  const hasAmount = parseFloat(amount) > 0
+  const hasAmount = (evaluateAmountExpression(amount) ?? 0) > 0
   const hasSelection = members.length === 0 || !!memberId
   const valid = hasAmount && hasSelection
 
@@ -134,14 +138,22 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
             <div style={labelStyle}>Amount</div>
             <input
               ref={amountRef}
-              type="number"
+              type="text"
               value={amount}
               onChange={e => setAmount(e.target.value)}
+              onFocus={() => setAmountFocused(true)}
+              onBlur={() => setAmountFocused(false)}
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return
+                const r = evaluateAmountExpression(e.currentTarget.value)
+                if (r !== null) setAmount(String(round2(r)))
+              }}
               placeholder="0"
               style={inputStyle}
               inputMode="decimal"
               autoFocus
             />
+            {amountFocused && <AmountOperatorRow inputRef={amountRef} onChange={setAmount} />}
           </div>
 
           {!isContribution && (

@@ -1,8 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { SplashScreen } from './SplashScreen'
 import { FeatureOnboarding } from './FeatureOnboarding'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import type { IncomePattern, Settings } from '@/types'
 import { INCOME_PATTERN_OPTIONS, suggestBudgetByIncomePattern } from '@/lib/income-pattern'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { round2 } from '@/lib/utils'
 
 type AccountType = 'bank' | 'cash' | 'wallet'
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
@@ -62,21 +65,31 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
   const [accounts, setAccounts] = useState<AccountDraft[]>([
     { name: '', type: 'bank', balance: '' },
   ])
+  const balanceRefs = useRef<Array<HTMLInputElement | null>>([])
+  const [focusedBalanceIndex, setFocusedBalanceIndex] = useState<number | null>(null)
 
   // Monthly fields
   const [salaryDay, setSalaryDay]       = useState('1')
   const [monthlyIncome, setMonthlyIncome] = useState('')
+  const monthlyIncomeRef = useRef<HTMLInputElement | null>(null)
+  const [monthlyIncomeFocused, setMonthlyIncomeFocused] = useState(false)
 
   // Weekly fields
   const [weeklyIncome, setWeeklyIncome] = useState('')
   const [incomeDay, setIncomeDay]       = useState(5) // Friday
+  const weeklyIncomeRef = useRef<HTMLInputElement | null>(null)
+  const [weeklyIncomeFocused, setWeeklyIncomeFocused] = useState(false)
 
   // Variable fields
   const [avgDailyIncome, setAvgDailyIncome]     = useState('')
   const [workingDays, setWorkingDays]             = useState('6')
+  const avgDailyIncomeRef = useRef<HTMLInputElement | null>(null)
+  const [avgDailyIncomeFocused, setAvgDailyIncomeFocused] = useState(false)
 
   // Business fields
   const [businessDrawings, setBusinessDrawings] = useState('')
+  const businessDrawingsRef = useRef<HTMLInputElement | null>(null)
+  const [businessDrawingsFocused, setBusinessDrawingsFocused] = useState(false)
 
   const [saving, setSaving] = useState(false)
 
@@ -95,7 +108,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
           await onAddAccount({
             name: acc.name.trim(),
             type: acc.type,
-            current_balance: parseFloat(acc.balance) || 0,
+            current_balance: round2(evaluateAmountExpression(acc.balance) ?? 0),
           })
         }
       }
@@ -105,14 +118,14 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
         case 'monthly': {
           const day = parseInt(salaryDay)
           if (day >= 1 && day <= 31) patch.salary_date = day
-          const salary = parseFloat(monthlyIncome)
+          const salary = evaluateAmountExpression(monthlyIncome) ?? NaN
           if (salary > 0) patch.monthly_salary = Math.round(salary)
           const budget = suggestBudgetByIncomePattern('monthly', salary || null)
           if (budget) patch.weekly_budget = budget
           break
         }
         case 'weekly': {
-          const wi = parseFloat(weeklyIncome)
+          const wi = evaluateAmountExpression(weeklyIncome) ?? NaN
           if (wi > 0) patch.weekly_income = Math.round(wi)
           patch.income_day = incomeDay
           const budget = suggestBudgetByIncomePattern('weekly', wi || null)
@@ -120,14 +133,14 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
           break
         }
         case 'variable': {
-          const adi = parseFloat(avgDailyIncome)
+          const adi = evaluateAmountExpression(avgDailyIncome) ?? NaN
           if (adi > 0) patch.average_daily_income = Math.round(adi)
           const wd = parseInt(workingDays)
           if (wd >= 1 && wd <= 7) patch.working_days_per_week = wd
           break
         }
         case 'business': {
-          const bd = parseFloat(businessDrawings)
+          const bd = evaluateAmountExpression(businessDrawings) ?? NaN
           if (bd > 0) patch.business_monthly_drawings = Math.round(bd)
           break
         }
@@ -380,14 +393,24 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       font: '600 15px "Plus Jakarta Sans"', color: MUTED,
                     }}>₹</span>
                     <input
+                      ref={el => { balanceRefs.current[i] = el }}
                       value={acc.balance}
-                      onChange={e => updateAccount(i, { balance: e.target.value.replace(/\D/g, '') })}
+                      onChange={e => updateAccount(i, { balance: e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, '') })}
                       placeholder="0"
-                      inputMode="numeric"
-                      onFocus={e => e.target.select()}
+                      inputMode="decimal"
+                      onFocus={e => { e.target.select(); setFocusedBalanceIndex(i) }}
+                      onBlur={() => setFocusedBalanceIndex(null)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r !== null) updateAccount(i, { balance: String(Math.round(r)) })
+                      }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
                   </div>
+                  {focusedBalanceIndex === i && (
+                    <AmountOperatorRow inputRef={{ current: balanceRefs.current[i] }} onChange={v => updateAccount(i, { balance: v })} />
+                  )}
                 </div>
               </div>
             ))}
@@ -466,16 +489,24 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       font: '600 15px "Plus Jakarta Sans"', color: MUTED,
                     }}>₹</span>
                     <input
+                      ref={monthlyIncomeRef}
                       value={monthlyIncome}
-                      onChange={e => setMonthlyIncome(e.target.value.replace(/\D/g, ''))}
+                      onChange={e => setMonthlyIncome(e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, ''))}
                       placeholder="50,000"
-                      inputMode="numeric"
-                      onFocus={e => e.target.select()}
+                      inputMode="decimal"
+                      onFocus={e => { e.target.select(); setMonthlyIncomeFocused(true) }}
+                      onBlur={() => setMonthlyIncomeFocused(false)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r !== null) setMonthlyIncome(String(Math.round(r)))
+                      }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
                   </div>
+                  {monthlyIncomeFocused && <AmountOperatorRow inputRef={monthlyIncomeRef} onChange={setMonthlyIncome} />}
                   {(() => {
-                    const budget = suggestBudgetByIncomePattern('monthly', parseFloat(monthlyIncome) || null)
+                    const budget = suggestBudgetByIncomePattern('monthly', evaluateAmountExpression(monthlyIncome) ?? null)
                     return budget ? (
                       <div style={{ marginTop: 8, font: '500 12px "Plus Jakarta Sans"', color: ACCENT }}>
                         Suggested weekly budget: ₹{budget.toLocaleString('en-IN')}
@@ -506,16 +537,24 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       font: '600 15px "Plus Jakarta Sans"', color: MUTED,
                     }}>₹</span>
                     <input
+                      ref={weeklyIncomeRef}
                       value={weeklyIncome}
-                      onChange={e => setWeeklyIncome(e.target.value.replace(/\D/g, ''))}
+                      onChange={e => setWeeklyIncome(e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, ''))}
                       placeholder="12,000"
-                      inputMode="numeric"
-                      onFocus={e => e.target.select()}
+                      inputMode="decimal"
+                      onFocus={e => { e.target.select(); setWeeklyIncomeFocused(true) }}
+                      onBlur={() => setWeeklyIncomeFocused(false)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r !== null) setWeeklyIncome(String(Math.round(r)))
+                      }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
                   </div>
+                  {weeklyIncomeFocused && <AmountOperatorRow inputRef={weeklyIncomeRef} onChange={setWeeklyIncome} />}
                   {(() => {
-                    const budget = suggestBudgetByIncomePattern('weekly', parseFloat(weeklyIncome) || null)
+                    const budget = suggestBudgetByIncomePattern('weekly', evaluateAmountExpression(weeklyIncome) ?? null)
                     return budget ? (
                       <div style={{ marginTop: 8, font: '500 12px "Plus Jakarta Sans"', color: ACCENT }}>
                         Suggested weekly budget: ₹{budget.toLocaleString('en-IN')}
@@ -574,14 +613,22 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       font: '600 15px "Plus Jakarta Sans"', color: MUTED,
                     }}>₹</span>
                     <input
+                      ref={avgDailyIncomeRef}
                       value={avgDailyIncome}
-                      onChange={e => setAvgDailyIncome(e.target.value.replace(/\D/g, ''))}
+                      onChange={e => setAvgDailyIncome(e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, ''))}
                       placeholder="900"
-                      inputMode="numeric"
-                      onFocus={e => e.target.select()}
+                      inputMode="decimal"
+                      onFocus={e => { e.target.select(); setAvgDailyIncomeFocused(true) }}
+                      onBlur={() => setAvgDailyIncomeFocused(false)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r !== null) setAvgDailyIncome(String(Math.round(r)))
+                      }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
                   </div>
+                  {avgDailyIncomeFocused && <AmountOperatorRow inputRef={avgDailyIncomeRef} onChange={setAvgDailyIncome} />}
                 </div>
 
                 <div style={{ marginBottom: 28 }}>
@@ -637,14 +684,22 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       font: '600 15px "Plus Jakarta Sans"', color: MUTED,
                     }}>₹</span>
                     <input
+                      ref={businessDrawingsRef}
                       value={businessDrawings}
-                      onChange={e => setBusinessDrawings(e.target.value.replace(/\D/g, ''))}
+                      onChange={e => setBusinessDrawings(e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, ''))}
                       placeholder="30,000"
-                      inputMode="numeric"
-                      onFocus={e => e.target.select()}
+                      inputMode="decimal"
+                      onFocus={e => { e.target.select(); setBusinessDrawingsFocused(true) }}
+                      onBlur={() => setBusinessDrawingsFocused(false)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r !== null) setBusinessDrawings(String(Math.round(r)))
+                      }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
                   </div>
+                  {businessDrawingsFocused && <AmountOperatorRow inputRef={businessDrawingsRef} onChange={setBusinessDrawings} />}
                 </div>
               </>
             )}

@@ -3,9 +3,11 @@ import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { CAT_COLORS } from '@/lib/tokens'
 import { catById as buildCatById } from '@/lib/data'
 import { CategorySelect } from './CategorySelect'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { isRecurringCompleted, getRecurringPeriodLabel } from '@/lib/recurring'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, DerivedMetrics, Commitment } from '@/types'
@@ -67,6 +69,12 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmPay, setConfirmPay] = useState<Commitment | null>(null)
   const [confirmAccountId, setConfirmAccountId] = useState('')
+  const amountOwedRef = useRef<HTMLInputElement | null>(null)
+  const paidAmountRef = useRef<HTMLInputElement | null>(null)
+  const monthlyAmountRef = useRef<HTMLInputElement | null>(null)
+  const [amountOwedFocused, setAmountOwedFocused] = useState(false)
+  const [paidAmountFocused, setPaidAmountFocused] = useState(false)
+  const [monthlyAmountFocused, setMonthlyAmountFocused] = useState(false)
 
   // Page animation / swipe
   const [dragX, setDragX] = useState(0)
@@ -163,40 +171,41 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const set = (key: keyof CForm, val: string | boolean) => setForm(f => ({ ...f, [key]: val }))
 
   const handleAmountChange = (val: string) => {
-    const emi = parseFloat(val)
+    const emi = evaluateAmountExpression(val)
     const tenure = parseFloat(form.total_installments)
     setForm(f => ({
       ...f, amount: val,
-      total_amount: (!isNaN(emi) && !isNaN(tenure)) ? String(Math.round(emi * tenure)) : f.total_amount,
+      total_amount: (emi !== null && !isNaN(tenure)) ? String(Math.round(emi * tenure)) : f.total_amount,
     }))
   }
   const handleTotalChange = (val: string) => {
-    const total = parseFloat(val)
+    const total = evaluateAmountExpression(val)
     const tenure = parseFloat(form.total_installments)
-    const emi = parseFloat(form.amount)
+    const emi = evaluateAmountExpression(form.amount)
     setForm(f => ({
       ...f, total_amount: val,
-      amount: (!isNaN(total) && !isNaN(tenure) && tenure > 0) ? String(Math.round(total / tenure)) : f.amount,
-      remaining: (!isNaN(total) && !isNaN(emi) && emi > 0) ? String(Math.round((total / emi - parseFloat(f.current_installment || '0')) * emi)) : f.remaining,
+      amount: (total !== null && !isNaN(tenure) && tenure > 0) ? String(Math.round(total / tenure)) : f.amount,
+      remaining: (total !== null && emi !== null && emi > 0) ? String(Math.round((total / emi - parseFloat(f.current_installment || '0')) * emi)) : f.remaining,
     }))
   }
   const handleTenureChange = (val: string) => {
     const tenure = parseFloat(val)
-    const emi = parseFloat(form.amount)
-    const total = parseFloat(form.total_amount)
+    const emi = evaluateAmountExpression(form.amount)
+    const total = evaluateAmountExpression(form.total_amount)
     setForm(f => ({
       ...f, total_installments: val,
-      total_amount: (!isNaN(tenure) && !isNaN(emi)) ? String(Math.round(tenure * emi)) : f.total_amount,
-      amount: (!isNaN(tenure) && !isNaN(total) && tenure > 0 && !(!isNaN(emi) && emi > 0)) ? String(Math.round(total / tenure)) : f.amount,
+      total_amount: (!isNaN(tenure) && emi !== null) ? String(Math.round(tenure * emi)) : f.total_amount,
+      amount: (!isNaN(tenure) && total !== null && tenure > 0 && !(emi !== null && emi > 0)) ? String(Math.round(total / tenure)) : f.amount,
     }))
   }
 
   const handleSave = async () => {
-    const amount = parseFloat(form.amount)
+    const rawAmount = evaluateAmountExpression(form.amount)
+    const amount = rawAmount === null ? NaN : round2(rawAmount)
     if (!form.name.trim() || isNaN(amount) || amount <= 0) return
     const remaining = form.is_recurring
       ? amount
-      : Math.max(0, amount - (parseFloat(form.paid_amount) || 0))
+      : Math.max(0, amount - round2(evaluateAmountExpression(form.paid_amount) ?? 0))
     const payload: Omit<Commitment, 'id'> = {
       name: form.name.trim(), amount, remaining,
       category_id: form.category_id || null,
@@ -501,23 +510,39 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Amount Owed</label>
                       <HelpText>Total amount you owe for this obligation.</HelpText>
-                      <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
+                      <input ref={amountOwedRef} type="text" inputMode="decimal"
+                        onFocus={e => { e.target.select(); setAmountOwedFocused(true) }}
+                        onBlur={() => setAmountOwedFocused(false)}
+                        onKeyDown={e => {
+                          if (e.key !== 'Enter') return
+                          const r = evaluateAmountExpression(e.currentTarget.value)
+                          if (r !== null) set('amount', String(round2(r)))
+                        }}
                         value={form.amount} onChange={e => set('amount', e.target.value)}
-                        placeholder="₹" min="0" style={inp} />
+                        placeholder="₹" style={inp} />
+                      {amountOwedFocused && <AmountOperatorRow inputRef={amountOwedRef} onChange={v => set('amount', v)} />}
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Paid Amount</label>
                       <HelpText>How much you have already paid towards this.</HelpText>
-                      <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
+                      <input ref={paidAmountRef} type="text" inputMode="decimal"
+                        onFocus={e => { e.target.select(); setPaidAmountFocused(true) }}
+                        onBlur={() => setPaidAmountFocused(false)}
+                        onKeyDown={e => {
+                          if (e.key !== 'Enter') return
+                          const r = evaluateAmountExpression(e.currentTarget.value)
+                          if (r !== null) set('paid_amount', String(round2(r)))
+                        }}
                         value={form.paid_amount} onChange={e => set('paid_amount', e.target.value)}
-                        placeholder="0" min="0" style={inp} />
+                        placeholder="0" style={inp} />
+                      {paidAmountFocused && <AmountOperatorRow inputRef={paidAmountRef} onChange={v => set('paid_amount', v)} />}
                     </div>
                   </div>
                   {form.amount && (
                     <div style={{ background: c.accentSoft, borderRadius: 11, padding: '10px 12px' }}>
                       <div style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, textTransform: 'uppercase' }}>Remaining</div>
                       <div style={{ font: '800 15px Plus Jakarta Sans', color: c.accent, marginTop: 2 }}>
-                        {fmt(Math.max(0, parseFloat(form.amount) - (parseFloat(form.paid_amount) || 0)))}
+                        {fmt(Math.max(0, (evaluateAmountExpression(form.amount) ?? 0) - (evaluateAmountExpression(form.paid_amount) ?? 0)))}
                       </div>
                     </div>
                   )}
@@ -535,9 +560,17 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Monthly Amount</label>
                       <HelpText>Amount you pay each installment.</HelpText>
-                      <input type="number" inputMode="decimal" onFocus={e => e.target.select()}
+                      <input ref={monthlyAmountRef} type="text" inputMode="decimal"
+                        onFocus={e => { e.target.select(); setMonthlyAmountFocused(true) }}
+                        onBlur={() => setMonthlyAmountFocused(false)}
+                        onKeyDown={e => {
+                          if (e.key !== 'Enter') return
+                          const r = evaluateAmountExpression(e.currentTarget.value)
+                          if (r !== null) handleAmountChange(String(round2(r)))
+                        }}
                         value={form.amount} onChange={e => handleAmountChange(e.target.value)}
-                        placeholder="₹" min="0" style={inp} />
+                        placeholder="₹" style={inp} />
+                      {monthlyAmountFocused && <AmountOperatorRow inputRef={monthlyAmountRef} onChange={handleAmountChange} />}
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Total Months</label>
@@ -558,7 +591,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                     <div style={{ background: c.accentSoft, borderRadius: 11, padding: '10px 12px' }}>
                       <div style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, textTransform: 'uppercase' }}>Remaining</div>
                       <div style={{ font: '800 15px Plus Jakarta Sans', color: c.accent, marginTop: 2 }}>
-                        {fmt((parseFloat(form.total_installments) - parseFloat(form.current_installment || '0')) * parseFloat(form.amount))}
+                        {fmt((parseFloat(form.total_installments) - parseFloat(form.current_installment || '0')) * (evaluateAmountExpression(form.amount) ?? 0))}
                       </div>
                       <div style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, marginTop: 1 }}>
                         {parseFloat(form.total_installments) - parseFloat(form.current_installment || '0')} months left

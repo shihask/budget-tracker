@@ -3,11 +3,13 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, TODAY, iso } from '@/lib/utils'
+import { fmt, TODAY, iso, round2 } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
 import { parseExpenseWithAI } from '@/lib/gemini'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
 
 const schema = z.object({
@@ -146,10 +148,12 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
   const amountRef = useRef<HTMLInputElement | null>(null)
+  const [amountFocused, setAmountFocused] = useState(false)
 
   // Long press quick save
   const [longPressChip, setLongPressChip] = useState<{ label: string; category_id: string | null } | null>(null)
   const [quickAmount, setQuickAmount] = useState('')
+  const [quickAmountFocused, setQuickAmountFocused] = useState(false)
   const [quickAccountId, setQuickAccountId] = useState('')
   const [smartInput, setSmartInput] = useState('')
   const [smartParsed, setSmartParsed] = useState<{ description: string; amount: number | null; accountName: string | null; categoryName: string | null } | null>(null)
@@ -237,13 +241,13 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   }
 
   const handleQuickSave = () => {
-    const amt = parseFloat(quickAmount)
-    if (isNaN(amt) || amt <= 0 || !longPressChip) return
+    const amt = evaluateAmountExpression(quickAmount)
+    if (amt === null || amt <= 0 || !longPressChip) return
     const catId = longPressChip.category_id || guessCategory(longPressChip.label, cats) || null
     onSave({
       transaction_date: iso(TODAY),
       description: longPressChip.label,
-      amount: amt,
+      amount: round2(amt),
       transaction_type: 'expense',
       category_id: catId,
       from_account_id: quickAccountId,
@@ -705,15 +709,17 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                             <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Amount</div>
                             <input
                               ref={quickAmountRef}
-                              type="number"
+                              type="text"
                               value={quickAmount}
                               onChange={e => setQuickAmount(e.target.value)}
                               onKeyDown={e => e.key === 'Enter' && handleQuickSave()}
                               placeholder="0"
                               inputMode="decimal"
-                              onFocus={e => e.target.select()}
+                              onFocus={e => { e.target.select(); setQuickAmountFocused(true) }}
+                              onBlur={() => setQuickAmountFocused(false)}
                               style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 10px', font: '700 18px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
                             />
+                            {quickAmountFocused && <AmountOperatorRow inputRef={quickAmountRef} onChange={setQuickAmount} />}
                           </div>
                           <div style={{ flex: 1 }}>
                             <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Account</div>
@@ -729,7 +735,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                             style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
                             Cancel
                           </button>
-                          <button type="button" onClick={handleQuickSave} disabled={!quickAmount || parseFloat(quickAmount) <= 0}
+                          <button type="button" onClick={handleQuickSave} disabled={!quickAmount || (evaluateAmountExpression(quickAmount) ?? 0) <= 0}
                             style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', opacity: !quickAmount ? 0.6 : 1 }}>
                             Save ₹{quickAmount || '0'}
                           </button>
@@ -752,16 +758,40 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
               {isTransfer ? '⇄₹' : isExpense ? '−₹' : '+₹'}
             </span>
             <input
-              {...register('amount', { valueAsNumber: true })}
+              {...register('amount', {
+                setValueAs: v => {
+                  const r = evaluateAmountExpression(v)
+                  return r === null ? NaN : round2(r)
+                },
+              })}
               ref={e => { register('amount').ref(e); amountRef.current = e }}
-              type="number"
+              type="text"
               inputMode="decimal"
-              min="0"
-              step="0.01"
               placeholder="0"
-              onFocus={e => e.target.select()}
+              onFocus={e => { e.target.select(); setAmountFocused(true) }}
+              onBlur={() => setAmountFocused(false)}
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                const r = evaluateAmountExpression(e.currentTarget.value)
+                if (r === null) return
+                e.currentTarget.value = String(round2(r))
+                e.currentTarget.dispatchEvent(new Event('input', { bubbles: true }))
+              }}
               style={{ border: 'none', background: 'transparent', outline: 'none', width: 160, textAlign: 'center', font: '800 44px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em' }}
             />
+            {amountFocused && (
+              <div style={{ maxWidth: 220, margin: '8px auto 0' }}>
+                <AmountOperatorRow
+                  inputRef={amountRef}
+                  onChange={next => {
+                    if (!amountRef.current) return
+                    amountRef.current.value = next
+                    amountRef.current.dispatchEvent(new Event('input', { bubbles: true }))
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

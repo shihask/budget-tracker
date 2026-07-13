@@ -1,13 +1,14 @@
 {
   "name": "budget-tracker",
   "private": true,
-  "version": "1.54.33",
+  "version": "1.54.34",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "vitest run",
     "generate-icons": "pwa-assets-generator --preset minimal-2023 public/pwa.svg",
     "test:e2e": "dotenv -e .env.test -- playwright test",
     "test:e2e:ui": "dotenv -e .env.test -- playwright test --ui",

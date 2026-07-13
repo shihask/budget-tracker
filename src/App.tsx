@@ -7,9 +7,10 @@ import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import { fmt, iso, TODAY, localIso } from '@/lib/utils'
+import { fmt, iso, TODAY, localIso, round2 } from '@/lib/utils'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getIncomePattern } from '@/lib/income-pattern'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import type { Layout, DashboardSectionId } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 
@@ -30,6 +31,7 @@ import { FAB, QuickAddSheet } from '@/components/QuickAdd'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { TransactionsPage } from '@/components/TransactionsPage'
 import { Glyph } from '@/components/Glyph'
+import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { PWAPrompt } from '@/components/PWAPrompt'
 import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
@@ -176,6 +178,8 @@ function AppContent({ session }: { session: Session }) {
   }
   const [emergencyEditOpen, setEmergencyEditOpen] = useState(false)
   const [emergencyInput, setEmergencyInput] = useState('')
+  const emergencyAmountRef = useRef<HTMLInputElement | null>(null)
+  const [emergencyAmountFocused, setEmergencyAmountFocused] = useState(false)
   const [savingEmergency, setSavingEmergency] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [excludePromptTxnId, setExcludePromptTxnId] = useState<string | null>(null)
@@ -203,6 +207,8 @@ function AppContent({ session }: { session: Session }) {
   const [prefillGoal, setPrefillGoal] = useState<{ name: string; goal_amount: number; current_saved: number; monthly_target: number; target_date: string } | null>(null)
   const [challengeWin, setChallengeWin] = useState<{ amount: number } | null>(null)
   const [challengeWinInput, setChallengeWinInput] = useState('')
+  const challengeWinRef = useRef<HTMLInputElement | null>(null)
+  const [challengeWinFocused, setChallengeWinFocused] = useState(false)
 
   useEffect(() => {
     if (!loading && state.accounts.length > 0) {
@@ -875,8 +881,8 @@ function AppContent({ session }: { session: Session }) {
         <BottomSheet open={!!challengeWin} onClose={() => setChallengeWin(null)} zIndex={500}>
           {challengeWin && (() => {
             const activeGoals = state.goals.filter(g => g.is_active && g.current_saved < g.goal_amount)
-            const inputAmt = parseFloat(challengeWinInput)
-            const validAmt = !isNaN(inputAmt) && inputAmt > 0 ? Math.round(inputAmt) : Math.round(challengeWin.amount)
+            const inputAmt = evaluateAmountExpression(challengeWinInput)
+            const validAmt = inputAmt !== null && inputAmt > 0 ? Math.round(inputAmt) : Math.round(challengeWin.amount)
             return (
               <>
                 <div style={{ textAlign: 'center', marginBottom: 18 }}>
@@ -896,10 +902,17 @@ function AppContent({ session }: { session: Session }) {
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                     <input
-                      type="number" inputMode="decimal"
+                      ref={challengeWinRef}
+                      type="text" inputMode="decimal"
                       value={challengeWinInput}
                       onChange={e => setChallengeWinInput(e.target.value)}
-                      onFocus={e => e.target.select()}
+                      onFocus={e => { e.target.select(); setChallengeWinFocused(true) }}
+                      onBlur={() => setChallengeWinFocused(false)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r !== null) setChallengeWinInput(String(Math.round(r)))
+                      }}
                       style={{
                         width: '100%', boxSizing: 'border-box',
                         background: c.surface2, border: `1.5px solid ${c.faint}`,
@@ -907,6 +920,7 @@ function AppContent({ session }: { session: Session }) {
                         font: '700 16px Plus Jakarta Sans', color: c.ink, outline: 'none',
                       }}
                     />
+                    {challengeWinFocused && <AmountOperatorRow inputRef={challengeWinRef} onChange={setChallengeWinInput} />}
                   </div>
                 </div>
 
@@ -964,28 +978,31 @@ function AppContent({ session }: { session: Session }) {
               <div style={{ position: 'relative', marginBottom: 14 }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                 <input
-                  type="number" inputMode="decimal" autoFocus
+                  ref={emergencyAmountRef}
+                  type="text" inputMode="decimal" autoFocus
                   value={emergencyInput}
                   onChange={e => setEmergencyInput(e.target.value)}
-                  onFocus={e => e.target.select()}
+                  onFocus={e => { e.target.select(); setEmergencyAmountFocused(true) }}
+                  onBlur={() => setEmergencyAmountFocused(false)}
                   onKeyDown={async e => {
                     if (e.key === 'Enter') {
-                      const v = parseFloat(emergencyInput)
-                      if (!isNaN(v) && v >= 0) { setSavingEmergency(true); try { await updateSettings({ emergency_fund: v }); setEmergencyEditOpen(false) } catch (_) {} setSavingEmergency(false) }
+                      const v = evaluateAmountExpression(emergencyInput)
+                      if (v !== null && v >= 0) { setSavingEmergency(true); try { await updateSettings({ emergency_fund: round2(v) }); setEmergencyEditOpen(false) } catch (_) {} setSavingEmergency(false) }
                     }
                   }}
                   style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 13, padding: '13px 14px 13px 30px', font: '800 18px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
                 />
+                {emergencyAmountFocused && <AmountOperatorRow inputRef={emergencyAmountRef} onChange={setEmergencyInput} />}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => setEmergencyEditOpen(false)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
                 <button
                   disabled={savingEmergency}
                   onClick={async () => {
-                    const v = parseFloat(emergencyInput)
-                    if (isNaN(v) || v < 0) return
+                    const v = evaluateAmountExpression(emergencyInput)
+                    if (v === null || v < 0) return
                     setSavingEmergency(true)
-                    try { await updateSettings({ emergency_fund: v }); setEmergencyEditOpen(false) } catch (_) {}
+                    try { await updateSettings({ emergency_fund: round2(v) }); setEmergencyEditOpen(false) } catch (_) {}
                     setSavingEmergency(false)
                   }}
                   style={{ flex: 2, background: c.warn, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: savingEmergency ? 'not-allowed' : 'pointer', opacity: savingEmergency ? 0.7 : 1 }}

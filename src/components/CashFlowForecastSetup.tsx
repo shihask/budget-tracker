@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { BottomSheet } from '@/components/BottomSheet'
+import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { estimateForecastSalary, SALARY_SOURCE_LABEL } from '@/lib/cashflow'
 import { getIncomePattern } from '@/lib/income-pattern'
 import type { AppState, Settings, ForecastSettings } from '@/types'
@@ -33,6 +35,8 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
   const [salaryDay, setSalaryDay] = useState(s.salary_date != null ? String(s.salary_date) : '')
   const [useCustom, setUseCustom] = useState(fs.salary_override != null && fs.salary_override > 0)
   const [customAmt, setCustomAmt] = useState(fs.salary_override != null ? String(fs.salary_override) : '')
+  const customAmtRef = useRef<HTMLInputElement | null>(null)
+  const [customAmtFocused, setCustomAmtFocused] = useState(false)
   const [commitSel, setCommitSel] = useState<Set<string>>(() => initSet(fs.commitment_ids, activeCommitments.map(x => x.id)))
   const [savingsSel, setSavingsSel] = useState<Set<string>>(() => initSet(fs.savings_ids, activeSavings.map(x => x.id)))
   const [saving, setSaving] = useState(false)
@@ -55,7 +59,7 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
     setSaving(true)
     const allCommit = activeCommitments.map(x => x.id)
     const allSavings = activeSavings.map(x => x.id)
-    const parsedCustom = parseFloat(customAmt)
+    const parsedCustom = evaluateAmountExpression(customAmt) ?? NaN
     const fPatch: Partial<ForecastSettings> = {
       enabled,
       days,
@@ -169,13 +173,21 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
         {useCustom && (
           <div style={{ marginTop: 10 }}>
             <input
+              ref={customAmtRef}
               value={customAmt}
-              onChange={e => setCustomAmt(e.target.value.replace(/[^0-9]/g, ''))}
-              inputMode="numeric"
+              onChange={e => setCustomAmt(e.target.value.replace(/[^0-9+\-*x×X/÷\s]/g, ''))}
+              inputMode="decimal"
               placeholder={pattern === 'monthly' ? 'Enter your expected salary' : pattern === 'weekly' ? 'Enter your expected weekly income' : pattern === 'variable' ? 'Enter your expected daily income' : 'Enter your expected monthly drawings'}
-              onFocus={e => e.target.select()}
+              onFocus={e => { e.target.select(); setCustomAmtFocused(true) }}
+              onBlur={() => setCustomAmtFocused(false)}
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return
+                const r = evaluateAmountExpression(e.currentTarget.value)
+                if (r !== null) setCustomAmt(String(Math.round(r)))
+              }}
               style={inp}
             />
+            {customAmtFocused && <AmountOperatorRow inputRef={customAmtRef} onChange={setCustomAmt} />}
             {hasAuto && (
               <div style={{ font: `600 11px ${F}`, color: c.muted, marginTop: 6 }}>
                 Auto-detected: {fmt(autoSalary.amount!)} ({autoSalary.source != null ? SALARY_SOURCE_LABEL[autoSalary.source] : ''})

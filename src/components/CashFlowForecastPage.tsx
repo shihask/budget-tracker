@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
 import { forecastHealth, getHealthMessage } from '@/components/CashFlowForecastCard'
 import { getIncomePattern } from '@/lib/income-pattern'
@@ -144,6 +146,8 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   const [peAdding, setPeAdding] = useState(false)
   const [peTitle, setPeTitle] = useState('')
   const [peAmount, setPeAmount] = useState('')
+  const peAmountRef = useRef<HTMLInputElement | null>(null)
+  const [peAmountFocused, setPeAmountFocused] = useState(false)
   const [peDate, setPeDate] = useState('')
   const [peCategoryId, setPeCategoryId] = useState('')
   const [peEditId, setPeEditId] = useState<string | null>(null)
@@ -189,14 +193,15 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   const resetPeForm = () => { setPeTitle(''); setPeAmount(''); setPeDate(''); setPeCategoryId(''); setPeEditId(null); setPeAdding(false) }
 
   const peImpact = useMemo(() => {
-    const amt = parseFloat(peAmount)
+    const amt = evaluateAmountExpression(peAmount) ?? NaN
     if (!peAdding || !(amt > 0)) return null
     const sim = simulatePurchase(state, d, amt)
     return { lowestBefore: forecast.lowestBalance, lowestAfter: sim.lowestBalance }
   }, [peAdding, peAmount, state, d, forecast])
 
   const savePe = async () => {
-    const amt = parseFloat(peAmount)
+    const rawAmt = evaluateAmountExpression(peAmount)
+    const amt = rawAmt === null ? NaN : round2(rawAmt)
     if (!peTitle.trim() || !(amt > 0) || !peDate || !peCategoryId) return
     setPeSaving(true)
     try {
@@ -730,9 +735,21 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                     <div style={{ font: `700 13px ${F}`, color: c.ink, marginBottom: 10 }}>{peEditId ? 'Edit Expense' : 'Add Planned Expense'}</div>
                     <input value={peTitle} onChange={e => setPeTitle(e.target.value)} placeholder="Title (e.g. Bike Tyre)" style={{ width: '100%', boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none', marginBottom: 8 }} />
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                      <input value={peAmount} onChange={e => setPeAmount(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="Amount" style={{ flex: 1, boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none' }} />
+                      <input
+                        ref={peAmountRef}
+                        value={peAmount}
+                        onChange={e => setPeAmount(e.target.value.replace(/[^0-9.+\-*x×X/÷\s]/g, ''))}
+                        onFocus={() => setPeAmountFocused(true)}
+                        onBlur={() => setPeAmountFocused(false)}
+                        onKeyDown={e => {
+                          if (e.key !== 'Enter') return
+                          const r = evaluateAmountExpression(e.currentTarget.value)
+                          if (r !== null) setPeAmount(String(round2(r)))
+                        }}
+                        inputMode="decimal" placeholder="Amount" style={{ flex: 1, boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none' }} />
                       <input type="date" value={peDate} onChange={e => setPeDate(e.target.value)} style={{ flex: 1, boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none' }} />
                     </div>
+                    {peAmountFocused && <div style={{ marginBottom: 8 }}><AmountOperatorRow inputRef={peAmountRef} onChange={setPeAmount} /></div>}
                     <div style={{ marginBottom: 8 }}>
                       <CategorySelect value={peCategoryId} onChange={setPeCategoryId} state={state} onAddCategory={onAddCategory} excludeGroups={['Income', 'Transfer', 'Borrowings', 'Adjustments']} />
                     </div>
@@ -753,7 +770,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                     )}
 
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={savePe} disabled={peSaving || !peTitle.trim() || !parseFloat(peAmount) || !peDate || !peCategoryId} style={{ flex: 1, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', font: `700 13px ${F}`, cursor: 'pointer', opacity: (peSaving || !peTitle.trim() || !parseFloat(peAmount) || !peDate || !peCategoryId) ? 0.5 : 1 }}>{peSaving ? 'Saving…' : peEditId ? 'Update' : 'Add'}</button>
+                      <button onClick={savePe} disabled={peSaving || !peTitle.trim() || !(evaluateAmountExpression(peAmount) ?? 0) || !peDate || !peCategoryId} style={{ flex: 1, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', font: `700 13px ${F}`, cursor: 'pointer', opacity: (peSaving || !peTitle.trim() || !(evaluateAmountExpression(peAmount) ?? 0) || !peDate || !peCategoryId) ? 0.5 : 1 }}>{peSaving ? 'Saving…' : peEditId ? 'Update' : 'Add'}</button>
                       <button onClick={resetPeForm} style={{ flex: 1, background: c.surface, color: c.ink, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '11px', font: `700 13px ${F}`, cursor: 'pointer' }}>Cancel</button>
                     </div>
                   </div>

@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { ACCENT_OPTIONS } from '@/lib/tokens'
 import type { IncomePattern, Layout } from '@/types'
 import { requestAndSubscribe, unsubscribeFromPush, getPermissionState, isPushSupported } from '@/lib/notifications'
 import { INCOME_PATTERN_OPTIONS } from '@/lib/income-pattern'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { AmountOperatorRow } from './AmountOperatorRow'
 
 interface SettingsPanelProps {
   accent: string
@@ -66,6 +68,14 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
   const [avgDailyInput, setAvgDailyInput] = useState(averageDailyIncome != null ? String(averageDailyIncome) : '')
   const [workingDaysInput, setWorkingDaysInput] = useState(workingDaysPerWeek ?? 6)
   const [businessDrawingsInput, setBusinessDrawingsInput] = useState(businessMonthlyDrawings != null ? String(businessMonthlyDrawings) : '')
+  const salaryAmountRef = useRef<HTMLInputElement | null>(null)
+  const weeklyIncomeRef = useRef<HTMLInputElement | null>(null)
+  const avgDailyRef = useRef<HTMLInputElement | null>(null)
+  const businessDrawingsRef = useRef<HTMLInputElement | null>(null)
+  const [salaryAmountFocused, setSalaryAmountFocused] = useState(false)
+  const [weeklyIncomeFocused, setWeeklyIncomeFocused] = useState(false)
+  const [avgDailyFocused, setAvgDailyFocused] = useState(false)
+  const [businessDrawingsFocused, setBusinessDrawingsFocused] = useState(false)
   const [savingSalary, setSavingSalary] = useState(false)
   const [savingIncomeSettings, setSavingIncomeSettings] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
@@ -100,8 +110,8 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
   const handleSalarySave = async () => {
     const v = parseInt(salaryInput)
     const val = (!salaryInput || isNaN(v)) ? null : Math.min(31, Math.max(1, v))
-    const amt = parseFloat(salaryAmountInput)
-    const salaryAmt = (!salaryAmountInput || isNaN(amt)) ? null : Math.round(amt)
+    const amt = evaluateAmountExpression(salaryAmountInput)
+    const salaryAmt = (!salaryAmountInput || amt === null) ? null : Math.round(amt)
     setSavingSalary(true)
     try {
       await onSalaryDate(val)
@@ -238,9 +248,13 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
           </div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 10 }}>Monthly salary</div>
           <input
-            type="number"
+            ref={salaryAmountRef}
+            type="text"
+            inputMode="decimal"
             value={salaryAmountInput}
             onChange={e => setSalaryAmountInput(e.target.value)}
+            onFocus={() => setSalaryAmountFocused(true)}
+            onBlur={() => setSalaryAmountFocused(false)}
             onKeyDown={e => e.key === 'Enter' && handleSalarySave()}
             placeholder="e.g. 50000"
             style={{
@@ -250,6 +264,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
               outline: 'none', marginBottom: 8,
             }}
           />
+          {salaryAmountFocused && <AmountOperatorRow inputRef={salaryAmountRef} onChange={setSalaryAmountInput} />}
           <button
             onClick={handleSalarySave}
             disabled={savingSalary}
@@ -268,9 +283,18 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
         {incomePattern === 'weekly' && (<>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 8 }}>Average weekly income</div>
           <input
-            type="number"
+            ref={weeklyIncomeRef}
+            type="text"
+            inputMode="decimal"
             value={weeklyIncomeInput}
             onChange={e => setWeeklyIncomeInput(e.target.value)}
+            onFocus={() => setWeeklyIncomeFocused(true)}
+            onBlur={() => setWeeklyIncomeFocused(false)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              const r = evaluateAmountExpression(e.currentTarget.value)
+              if (r !== null) setWeeklyIncomeInput(String(Math.round(r)))
+            }}
             placeholder="e.g. 12000"
             style={{
               width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
@@ -279,6 +303,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
               outline: 'none', marginBottom: 8,
             }}
           />
+          {weeklyIncomeFocused && <AmountOperatorRow inputRef={weeklyIncomeRef} onChange={setWeeklyIncomeInput} />}
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 10 }}>Income day</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => {
@@ -298,8 +323,8 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
           <button
             onClick={async () => {
               setSavingIncomeSettings(true)
-              const wi = parseFloat(weeklyIncomeInput)
-              await onIncomeSettings({ weekly_income: wi > 0 ? Math.round(wi) : null, income_day: incomeDayInput })
+              const wi = evaluateAmountExpression(weeklyIncomeInput)
+              await onIncomeSettings({ weekly_income: wi !== null && wi > 0 ? Math.round(wi) : null, income_day: incomeDayInput })
               setSavingIncomeSettings(false)
             }}
             disabled={savingIncomeSettings}
@@ -318,9 +343,18 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
         {incomePattern === 'variable' && (<>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 8 }}>Average daily income</div>
           <input
-            type="number"
+            ref={avgDailyRef}
+            type="text"
+            inputMode="decimal"
             value={avgDailyInput}
             onChange={e => setAvgDailyInput(e.target.value)}
+            onFocus={() => setAvgDailyFocused(true)}
+            onBlur={() => setAvgDailyFocused(false)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              const r = evaluateAmountExpression(e.currentTarget.value)
+              if (r !== null) setAvgDailyInput(String(Math.round(r)))
+            }}
             placeholder="e.g. 900"
             style={{
               width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
@@ -329,6 +363,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
               outline: 'none', marginBottom: 8,
             }}
           />
+          {avgDailyFocused && <AmountOperatorRow inputRef={avgDailyRef} onChange={setAvgDailyInput} />}
           {historicalDailyIncome != null && historicalDailyIncome !== averageDailyIncome && (
             <div style={{ background: c.accentSoft, borderRadius: 11, padding: '10px 12px', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div>
@@ -362,8 +397,8 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
           <button
             onClick={async () => {
               setSavingIncomeSettings(true)
-              const adi = parseFloat(avgDailyInput)
-              await onIncomeSettings({ average_daily_income: adi > 0 ? Math.round(adi) : null, working_days_per_week: workingDaysInput })
+              const adi = evaluateAmountExpression(avgDailyInput)
+              await onIncomeSettings({ average_daily_income: adi !== null && adi > 0 ? Math.round(adi) : null, working_days_per_week: workingDaysInput })
               setSavingIncomeSettings(false)
             }}
             disabled={savingIncomeSettings}
@@ -382,9 +417,18 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
         {incomePattern === 'business' && (<>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 8, marginTop: 8 }}>Average monthly take home</div>
           <input
-            type="number"
+            ref={businessDrawingsRef}
+            type="text"
+            inputMode="decimal"
             value={businessDrawingsInput}
             onChange={e => setBusinessDrawingsInput(e.target.value)}
+            onFocus={() => setBusinessDrawingsFocused(true)}
+            onBlur={() => setBusinessDrawingsFocused(false)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              const r = evaluateAmountExpression(e.currentTarget.value)
+              if (r !== null) setBusinessDrawingsInput(String(Math.round(r)))
+            }}
             placeholder="e.g. 30000"
             style={{
               width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
@@ -393,11 +437,12 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
               outline: 'none', marginBottom: 8,
             }}
           />
+          {businessDrawingsFocused && <AmountOperatorRow inputRef={businessDrawingsRef} onChange={setBusinessDrawingsInput} />}
           <button
             onClick={async () => {
               setSavingIncomeSettings(true)
-              const bd = parseFloat(businessDrawingsInput)
-              await onIncomeSettings({ business_monthly_drawings: bd > 0 ? Math.round(bd) : null })
+              const bd = evaluateAmountExpression(businessDrawingsInput)
+              await onIncomeSettings({ business_monthly_drawings: bd !== null && bd > 0 ? Math.round(bd) : null })
               setSavingIncomeSettings(false)
             }}
             disabled={savingIncomeSettings}

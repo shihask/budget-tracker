@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Landmark } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt } from '@/lib/utils'
+import { fmt, round2 } from '@/lib/utils'
 import { ACCOUNT_PALETTE } from '@/lib/tokens'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { Card } from './Card'
 import { Glyph } from './Glyph'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, AccountType } from '@/types'
 import type { GlyphName } from './Glyph'
@@ -43,17 +45,23 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
   const [form, setForm] = useState<AForm>(EMPTY)
   const [adding, setAdding] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const addBalanceRef = useRef<HTMLInputElement | null>(null)
+  const [addBalanceFocused, setAddBalanceFocused] = useState(false)
 
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<AForm>(EMPTY)
   const [saving, setSaving] = useState(false)
+  const editBalanceRef = useRef<HTMLInputElement | null>(null)
+  const [editBalanceFocused, setEditBalanceFocused] = useState(false)
 
   const [adjustSheetOpen, setAdjustSheetOpen] = useState(false)
   const [adjustAccount, setAdjustAccount] = useState<AppState['accounts'][0] | null>(null)
   const [adjustInput, setAdjustInput] = useState('')
   const [adjusting, setAdjusting] = useState(false)
   const [adjustDone, setAdjustDone] = useState(false)
+  const adjustInputRef = useRef<HTMLInputElement | null>(null)
+  const [adjustInputFocused, setAdjustInputFocused] = useState(false)
 
   const openAdjust = (a: AppState['accounts'][0]) => {
     setAdjustAccount(a)
@@ -64,8 +72,9 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
 
   const handleAdjust = async () => {
     if (!adjustAccount) return
-    const actual = parseFloat(adjustInput)
-    if (isNaN(actual)) return
+    const rawActual = evaluateAmountExpression(adjustInput)
+    if (rawActual === null) return
+    const actual = round2(rawActual)
     setAdjusting(true)
     try {
       await onAdjustBalance(adjustAccount.id, actual)
@@ -83,7 +92,8 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
 
   const handleEditSave = async () => {
     if (!editingId) return
-    const bal = parseFloat(editForm.current_balance)
+    const rawBal = evaluateAmountExpression(editForm.current_balance)
+    const bal = rawBal === null ? NaN : round2(rawBal)
     if (!editForm.name.trim() || isNaN(bal)) return
     setSaving(true)
     try {
@@ -108,7 +118,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
   }
 
   const handleAdd = async () => {
-    const bal = parseFloat(form.current_balance) || 0
+    const bal = round2(evaluateAmountExpression(form.current_balance) ?? 0)
     if (!form.name.trim()) return
     setAdding(true)
     try {
@@ -351,12 +361,15 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                 <HelpText>Current balance in this account right now.</HelpText>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
-                  <input type="number" inputMode="decimal" value={editForm.current_balance}
+                  <input ref={editBalanceRef} type="text" inputMode="decimal" value={editForm.current_balance}
                     onChange={e => setEditForm(f => ({ ...f, current_balance: e.target.value }))}
+                    onFocus={() => setEditBalanceFocused(true)}
+                    onBlur={() => setEditBalanceFocused(false)}
                     onKeyDown={e => e.key === 'Enter' && handleEditSave()}
-                    placeholder="0" min="0" step="0.01"
+                    placeholder="0"
                     style={{ ...inp, paddingLeft: 28 }} />
                 </div>
+                {editBalanceFocused && <AmountOperatorRow inputRef={editBalanceRef} onChange={v => setEditForm(f => ({ ...f, current_balance: v }))} />}
               </div>
             </div>
 
@@ -371,7 +384,8 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
       {/* Adjust Balance Sheet */}
       <BottomSheet open={adjustSheetOpen} onClose={() => { setAdjustSheetOpen(false); setAdjustDone(false) }}>
         {adjustAccount && (() => {
-          const actual = parseFloat(adjustInput)
+          const rawActual = evaluateAmountExpression(adjustInput)
+          const actual = rawActual === null ? NaN : round2(rawActual)
           const diff = isNaN(actual) ? null : actual - adjustAccount.current_balance
           const diffFmt = diff === null ? null
             : diff === 0 ? 'No change'
@@ -417,9 +431,17 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', font: '700 13px Plus Jakarta Sans', color: c.muted }}>₹</span>
                     <input
-                      type="number" inputMode="decimal"
+                      ref={adjustInputRef}
+                      type="text" inputMode="decimal"
                       value={adjustInput}
                       onChange={e => setAdjustInput(e.target.value)}
+                      onFocus={() => setAdjustInputFocused(true)}
+                      onBlur={() => setAdjustInputFocused(false)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r !== null) setAdjustInput(String(round2(r)))
+                      }}
                       style={{
                         background: c.surface, border: `1.5px solid ${c.faint}`,
                         borderRadius: 10, padding: '8px 10px 8px 24px',
@@ -429,6 +451,11 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                     />
                   </div>
                 </div>
+                {adjustInputFocused && (
+                  <div style={{ marginTop: 8, marginBottom: -4 }}>
+                    <AmountOperatorRow inputRef={adjustInputRef} onChange={setAdjustInput} />
+                  </div>
+                )}
                 {diff !== null && diff !== 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, borderTop: `1px solid ${c.faint}` }}>
                     <span style={{ font: '700 12px Plus Jakarta Sans', color: c.muted }}>Difference</span>
@@ -518,11 +545,14 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                 <HelpText>Current balance in this account right now.</HelpText>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
-                  <input type="number" inputMode="decimal" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))}
+                  <input ref={addBalanceRef} type="text" inputMode="decimal" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))}
+                    onFocus={() => setAddBalanceFocused(true)}
+                    onBlur={() => setAddBalanceFocused(false)}
                     onKeyDown={e => e.key === 'Enter' && handleAdd()}
-                    placeholder="0" min="0" step="0.01"
+                    placeholder="0"
                     style={{ ...inp, paddingLeft: 28 }} />
                 </div>
+                {addBalanceFocused && <AmountOperatorRow inputRef={addBalanceRef} onChange={v => setForm(f => ({ ...f, current_balance: v }))} />}
               </div>
             </div>
 

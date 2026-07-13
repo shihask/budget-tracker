@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { Check } from 'lucide-react'
 import { BottomSheet } from '@/components/BottomSheet'
+import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { computeChallenge } from '@/lib/challenge'
 import type { AppState, DerivedMetrics } from '@/types'
 
@@ -48,13 +50,15 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
   const [goalId, setGoalId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const amountRef = useRef<HTMLInputElement | null>(null)
+  const [amountFocused, setAmountFocused] = useState(false)
 
   // prefill amount with surplus the first time we have one
   const effAmount = amount === '' && surplus > 0 ? String(surplus) : amount
   const effGoal = goalId ?? (goals[0]?.id ?? null)
 
   const contribute = async () => {
-    const amt = parseFloat(effAmount)
+    const amt = evaluateAmountExpression(effAmount) ?? NaN
     if (!effGoal || !(amt > 0) || saving) return
     setSaving(true)
     try {
@@ -129,10 +133,17 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
 
             <label style={lbl}>Amount</label>
             <input
+              ref={amountRef}
               value={effAmount}
-              onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-              inputMode="numeric"
-              onFocus={e => e.target.select()}
+              onChange={e => setAmount(e.target.value.replace(/[^0-9.+\-*x×X/÷\s]/g, ''))}
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return
+                const r = evaluateAmountExpression(e.currentTarget.value)
+                if (r !== null) setAmount(String(Math.round(r)))
+              }}
+              inputMode="decimal"
+              onFocus={e => { e.target.select(); setAmountFocused(true) }}
+              onBlur={() => setAmountFocused(false)}
               placeholder="0"
               style={{
                 width: '100%', boxSizing: 'border-box', background: c.bg,
@@ -140,13 +151,14 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
                 font: '700 16px Plus Jakarta Sans', color: c.ink, outline: 'none', marginBottom: 14,
               }}
             />
+            {amountFocused && <AmountOperatorRow inputRef={amountRef} onChange={setAmount} />}
 
-            <button onClick={contribute} disabled={!effGoal || !(parseFloat(effAmount) > 0) || saving}
+            <button onClick={contribute} disabled={!effGoal || !((evaluateAmountExpression(effAmount) ?? 0) > 0) || saving}
               style={{
                 width: '100%', background: c.accent, color: '#fff', border: 'none',
                 borderRadius: 13, padding: '14px', font: '800 14px Plus Jakarta Sans',
                 cursor: saving ? 'default' : 'pointer',
-                opacity: (!effGoal || !(parseFloat(effAmount) > 0) || saving) ? 0.5 : 1,
+                opacity: (!effGoal || !((evaluateAmountExpression(effAmount) ?? 0) > 0) || saving) ? 0.5 : 1,
               }}>
               {saving ? 'Adding…' : 'Add to goal'}
             </button>

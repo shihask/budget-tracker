@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt } from '@/lib/utils'
+import { fmt, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { Card } from './Card'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText, HelpToggle } from './BottomSheet'
 import { getCreditCardBilling } from '@/lib/credit-card'
 import type { AppState, CreditCard } from '@/types'
@@ -62,6 +64,16 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   const [adjustAmount, setAdjustAmount] = useState('')
   const [adjustBilled, setAdjustBilled] = useState('')
   const [adjusting, setAdjusting] = useState(false)
+  const creditLimitRef = useRef<HTMLInputElement | null>(null)
+  const currentBalanceRef = useRef<HTMLInputElement | null>(null)
+  const payAmountRef = useRef<HTMLInputElement | null>(null)
+  const adjustAmountRef = useRef<HTMLInputElement | null>(null)
+  const adjustBilledRef = useRef<HTMLInputElement | null>(null)
+  const [creditLimitFocused, setCreditLimitFocused] = useState(false)
+  const [currentBalanceFocused, setCurrentBalanceFocused] = useState(false)
+  const [payAmountFocused, setPayAmountFocused] = useState(false)
+  const [adjustAmountFocused, setAdjustAmountFocused] = useState(false)
+  const [adjustBilledFocused, setAdjustBilledFocused] = useState(false)
 
   const accounts = state.accounts.filter(a => a.is_active)
   const cards = state.credit_cards || []
@@ -97,16 +109,16 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_FORM) }
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.credit_limit) return
+    if (!form.name.trim() || !form.credit_limit || evaluateAmountExpression(form.credit_limit) === null) return
     setSaving(true)
     const payload = {
       name: form.name.trim(),
       last_four: form.last_four || null,
-      credit_limit: parseFloat(form.credit_limit),
+      credit_limit: round2(evaluateAmountExpression(form.credit_limit) ?? 0),
       cycle_start_day: parseInt(form.cycle_start_day) || 1,
       bill_day: parseInt(form.bill_day) || 15,
       due_day: parseInt(form.due_day) || 30,
-      current_balance: parseFloat(form.current_balance) || 0,
+      current_balance: round2(evaluateAmountExpression(form.current_balance) ?? 0),
     }
     try {
       if (editingId) await onUpdate(editingId, payload)
@@ -117,23 +129,26 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
   }
 
   const handlePayBill = async () => {
-    if (!payTarget || !payAmount || !payAccountId) return
+    const amt = evaluateAmountExpression(payAmount)
+    if (!payTarget || amt === null || !payAccountId) return
     setPaying(true)
     try {
-      await onPayBill(payTarget, parseFloat(payAmount), payAccountId)
+      await onPayBill(payTarget, round2(amt), payAccountId)
       setPayTarget(null)
     } catch (_) {}
     setPaying(false)
   }
 
   const handleAdjustBalance = async () => {
-    if (!adjustTarget || !adjustAmount) return
+    const amt = evaluateAmountExpression(adjustAmount)
+    if (!adjustTarget || amt === null) return
     setAdjusting(true)
     try {
       const billing = getCreditCardBilling(adjustTarget, state.transactions)
-      const newBilled = adjustBilled ? parseFloat(adjustBilled) : undefined
+      const rawBilled = adjustBilled ? evaluateAmountExpression(adjustBilled) : null
+      const newBilled = rawBilled === null ? undefined : round2(rawBilled)
       const billedChanged = newBilled !== undefined && Math.abs(newBilled - billing.billedAmount) > 0.01
-      await onAdjustBalance(adjustTarget.id, parseFloat(adjustAmount), billedChanged ? newBilled : undefined)
+      await onAdjustBalance(adjustTarget.id, round2(amt), billedChanged ? newBilled : undefined)
       setAdjustTarget(null)
     } catch (_) {}
     setAdjusting(false)
@@ -429,7 +444,16 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     <InfoIcon id="limit" text="The maximum amount you can spend on this card. Check your card statement or bank app." />
                   </label>
                   <HelpText>Your total approved credit limit on this card.</HelpText>
-                  <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
+                  <input ref={creditLimitRef} type="text" inputMode="decimal"
+                    onFocus={e => { e.target.select(); setCreditLimitFocused(true) }}
+                    onBlur={() => setCreditLimitFocused(false)}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter') return
+                      const r = evaluateAmountExpression(e.currentTarget.value)
+                      if (r !== null) setForm(f => ({ ...f, credit_limit: String(round2(r)) }))
+                    }}
+                    value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
+                  {creditLimitFocused && <AmountOperatorRow inputRef={creditLimitRef} onChange={v => setForm(f => ({ ...f, credit_limit: v }))} />}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -465,7 +489,16 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     <InfoIcon id="balance" text="How much you currently owe on this card right now. Check your bank app or last statement." />
                   </label>
                   <HelpText>How much you currently owe on this card. Check your card app or last statement.</HelpText>
-                  <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
+                  <input ref={currentBalanceRef} type="text" inputMode="decimal"
+                    onFocus={e => { e.target.select(); setCurrentBalanceFocused(true) }}
+                    onBlur={() => setCurrentBalanceFocused(false)}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter') return
+                      const r = evaluateAmountExpression(e.currentTarget.value)
+                      if (r !== null) setForm(f => ({ ...f, current_balance: String(round2(r)) }))
+                    }}
+                    value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
+                  {currentBalanceFocused && <AmountOperatorRow inputRef={currentBalanceRef} onChange={v => setForm(f => ({ ...f, current_balance: v }))} />}
                 </div>
               ) : (
                 <div style={{ background: c.surface2, borderRadius: 11, padding: '10px 12px' }}>
@@ -497,7 +530,16 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Payment Amount</label>
-                <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" style={inp} />
+                <input ref={payAmountRef} type="text" inputMode="decimal"
+                  onFocus={e => { e.target.select(); setPayAmountFocused(true) }}
+                  onBlur={() => setPayAmountFocused(false)}
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return
+                    const r = evaluateAmountExpression(e.currentTarget.value)
+                    if (r !== null) setPayAmount(String(round2(r)))
+                  }}
+                  value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" style={inp} />
+                {payAmountFocused && <AmountOperatorRow inputRef={payAmountRef} onChange={setPayAmount} />}
               </div>
               <div>
                 <label style={lbl}>Pay from Account</label>
@@ -510,7 +552,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button onClick={() => setPayTarget(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
               <button onClick={handlePayBill} disabled={paying || !payAmount || !payAccountId} style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: paying ? 0.7 : 1 }}>
-                {paying ? 'Processing...' : `Pay ${fmt(parseFloat(payAmount) || 0)}`}
+                {paying ? 'Processing...' : `Pay ${fmt(evaluateAmountExpression(payAmount) ?? 0)}`}
               </button>
             </div>
       </BottomSheet>
@@ -519,8 +561,10 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       <BottomSheet open={!!adjustTarget} onClose={() => setAdjustTarget(null)} zIndex={350} showHelpButton={false}>
             {(() => {
               const billing = adjustTarget ? getCreditCardBilling(adjustTarget, state.transactions) : null
-              const totalChanged = adjustTarget && adjustAmount !== '' && Math.abs(parseFloat(adjustAmount) - adjustTarget.current_balance) > 0.01
-              const billedChanged = billing && adjustBilled !== '' && Math.abs(parseFloat(adjustBilled) - billing.billedAmount) > 0.01
+              const adjustAmountVal = evaluateAmountExpression(adjustAmount)
+              const adjustBilledVal = evaluateAmountExpression(adjustBilled)
+              const totalChanged = adjustTarget && adjustAmount !== '' && adjustAmountVal !== null && Math.abs(adjustAmountVal - adjustTarget.current_balance) > 0.01
+              const billedChanged = billing && adjustBilled !== '' && adjustBilledVal !== null && Math.abs(adjustBilledVal - billing.billedAmount) > 0.01
               const hasChange = totalChanged || billedChanged
               return <>
                 <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Adjust Balance</div>
@@ -530,19 +574,41 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div>
                     <label style={lbl}>Total Outstanding</label>
-                    <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="0" style={inp} />
+                    <input ref={adjustAmountRef} type="text" inputMode="decimal"
+                      onFocus={e => { e.target.select(); setAdjustAmountFocused(true) }}
+                      onBlur={() => setAdjustAmountFocused(false)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r !== null) setAdjustAmount(String(round2(r)))
+                      }}
+                      value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="0" style={inp} />
+                    {adjustAmountFocused && <AmountOperatorRow inputRef={adjustAmountRef} onChange={setAdjustAmount} />}
                   </div>
                   <div>
                     <label style={lbl}>Billed Amount</label>
-                    <input type="number" inputMode="decimal" onFocus={e => e.target.select()} value={adjustBilled} onChange={e => {
+                    <input ref={adjustBilledRef} type="text" inputMode="decimal"
+                      onFocus={e => { e.target.select(); setAdjustBilledFocused(true) }}
+                      onBlur={() => setAdjustBilledFocused(false)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return
+                        const r = evaluateAmountExpression(e.currentTarget.value)
+                        if (r === null) return
+                        const total = adjustAmountVal ?? 0
+                        if (r > total) return
+                        setAdjustBilled(String(round2(r)))
+                      }}
+                      value={adjustBilled} onChange={e => {
                       const val = e.target.value
-                      const total = parseFloat(adjustAmount) || 0
-                      if (val !== '' && parseFloat(val) > total) return
+                      const total = adjustAmountVal ?? 0
+                      const parsedVal = evaluateAmountExpression(val)
+                      if (val !== '' && parsedVal !== null && parsedVal > total) return
                       setAdjustBilled(val)
                     }} placeholder="0" style={inp} />
+                    {adjustBilledFocused && <AmountOperatorRow inputRef={adjustBilledRef} onChange={setAdjustBilled} />}
                     {adjustAmount && adjustBilled !== '' && (
                       <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted, marginTop: 4 }}>
-                        Unbilled: {fmt(Math.max(0, (parseFloat(adjustAmount) || 0) - (parseFloat(adjustBilled) || 0)))}
+                        Unbilled: {fmt(Math.max(0, (adjustAmountVal ?? 0) - (adjustBilledVal ?? 0)))}
                       </div>
                     )}
                   </div>
@@ -550,11 +616,11 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                 {hasChange && (
                   <div style={{ marginTop: 10, background: c.surface2, borderRadius: 10, padding: '8px 12px', font: '600 12px Plus Jakarta Sans', color: c.muted, display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {totalChanged && (() => {
-                      const diff = parseFloat(adjustAmount) - adjustTarget!.current_balance
+                      const diff = adjustAmountVal! - adjustTarget!.current_balance
                       return <div>Outstanding {diff > 0 ? 'increases' : 'decreases'} by {fmt(Math.abs(diff))}</div>
                     })()}
                     {billedChanged && (() => {
-                      const diff = parseFloat(adjustBilled) - billing!.billedAmount
+                      const diff = adjustBilledVal! - billing!.billedAmount
                       return <div>Billed {diff > 0 ? 'increases' : 'decreases'} by {fmt(Math.abs(diff))}</div>
                     })()}
                   </div>

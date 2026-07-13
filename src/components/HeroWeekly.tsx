@@ -1,11 +1,13 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { X, BarChart3 } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, iso, TODAY, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
+import { fmt, iso, TODAY, addDays, getWeekStart, getMonthStart, round2 } from '@/lib/utils'
 import { ProgressRing } from './ProgressRing'
 import { BottomSheet, HelpText } from './BottomSheet'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import type { DerivedMetrics, AppState, WeeklyBudgetScope } from '@/types'
 import { getIncomePattern } from '@/lib/income-pattern'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 
 interface HeroWeeklyProps {
   d: DerivedMetrics
@@ -54,6 +56,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   // ── Edit form state ──────────────────────────────────────────────────────────
   const [salaryDateInput, setSalaryDateInput] = useState(String(settings.salary_date || ''))
   const [budgetInput, setBudgetInput] = useState(String(settings.weekly_budget))
+  const budgetInputRef = useRef<HTMLInputElement | null>(null)
+  const [budgetInputFocused, setBudgetInputFocused] = useState(false)
   const [budgetPeriod, setBudgetPeriod] = useState<'daily' | 'weekly' | 'monthly'>(settings.budget_period ?? 'weekly')
   const [weeklyStartDay, setWeeklyStartDay] = useState(settings.weekly_start_day ?? 1)
   const [monthlyStartDate, setMonthlyStartDate] = useState(String(settings.monthly_start_date ?? 1))
@@ -123,7 +127,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   const suggestedUnit = budgetPeriod === 'daily' ? 'day' : budgetPeriod === 'monthly' ? 'month' : 'week'
 
   const handleSave = async () => {
-    const budget = parseFloat(budgetInput)
+    const rawBudget = evaluateAmountExpression(budgetInput)
+    const budget = rawBudget === null ? NaN : round2(rawBudget)
     const sd = parseInt(salaryDateInput) || null
     if (budgetMode === 'manual' && (isNaN(budget) || budget <= 0)) return
     setSaving(true)
@@ -1244,10 +1249,12 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 <label style={lbl}>{(pattern === 'variable' || pattern === 'business') ? `${budgetPeriod === 'daily' ? 'Daily' : budgetPeriod === 'monthly' ? 'Monthly' : 'Weekly'} spending target` : `${budgetPeriod === 'daily' ? 'Daily' : budgetPeriod === 'monthly' ? 'Monthly' : 'Weekly'} budget`}</label>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
-                  <input type="number" inputMode="decimal" value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSave()} placeholder="0" min="0"
+                  <input ref={budgetInputRef} type="text" inputMode="decimal" value={budgetInput} onChange={e => setBudgetInput(e.target.value)}
+                    onFocus={() => setBudgetInputFocused(true)} onBlur={() => setBudgetInputFocused(false)}
+                    onKeyDown={e => e.key === 'Enter' && handleSave()} placeholder="0"
                     style={{ ...inp, paddingLeft: 28 }} />
                 </div>
+                {budgetInputFocused && <AmountOperatorRow inputRef={budgetInputRef} onChange={setBudgetInput} />}
               </div>
             </>
           )}

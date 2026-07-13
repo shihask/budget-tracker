@@ -1,8 +1,10 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { BottomSheet } from './BottomSheet'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
 import { forecastReady, getForecastDrivers, estimateForecastSalary, daysUntil as forecastDaysUntil } from '@/lib/cashflow'
 import { buildLifestyleForecast, simulateLifestylePurchase, type DailySpendEstimate } from '@/features/forecast/lib/lifestyleForecast'
@@ -62,6 +64,8 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const [open, setOpen] = useState(false)
   const [item, setItem] = useState('')
   const [amount, setAmount] = useState('')
+  const amountRef = useRef<HTMLInputElement | null>(null)
+  const [amountFocused, setAmountFocused] = useState(false)
   const [checked, setChecked] = useState(false)
   const [showWhy, setShowWhy] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
@@ -197,7 +201,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   }, [baseline, reservationBreakdown, settings.affordability_snapshot_date, todayIso, onUpdateSettings])
 
   const check = () => {
-    const a = parseFloat(amount)
+    const a = evaluateAmountExpression(amount) ?? NaN
     if (isNaN(a) || a <= 0) return
     setChecked(true)
     setAddedToForecast(false)
@@ -254,7 +258,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   }
 
   const getGoalPlanAI = async (plan: ReturnType<typeof calcPurchasePlan>) => {
-    const a = parseFloat(amount)
+    const a = evaluateAmountExpression(amount) ?? NaN
     if (isNaN(a)) return
     setGoalPlanAILoading(true)
     setGoalPlanAI(null)
@@ -276,7 +280,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
   const close = () => { setOpen(false); reset() }
 
   const getAIInsight = async () => {
-    const a = parseFloat(amount)
+    const a = evaluateAmountExpression(amount) ?? NaN
     if (isNaN(a)) return
     setAiLoading(true)
     setAiInsight(null)
@@ -302,7 +306,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
     setAiLoading(false)
   }
 
-  const amt = parseFloat(amount)
+  const amt = evaluateAmountExpression(amount) ?? NaN
 
   // Phase 1: Forecast simulation (lifestyle-aware: known bills + estimated ongoing spending)
   const simResult = useMemo(() => {
@@ -621,8 +625,16 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
               </div>
               <div>
                 <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Amount (₹)</label>
-                <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
-                  onFocus={e => e.target.select()} placeholder="0" style={inp} />
+                <input ref={amountRef} type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
+                  onFocus={e => { e.target.select(); setAmountFocused(true) }}
+                  onBlur={() => setAmountFocused(false)}
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return
+                    const r = evaluateAmountExpression(e.currentTarget.value)
+                    if (r !== null) setAmount(String(round2(r)))
+                  }}
+                  placeholder="0" style={inp} />
+                {amountFocused && <AmountOperatorRow inputRef={amountRef} onChange={setAmount} />}
               </div>
             </div>
 
@@ -689,7 +701,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                       <button
                         onClick={async () => {
                           if (!forecastDate) return
-                          await onAddPlannedExpense({ title: item.trim() || 'Planned Purchase', amount: parseFloat(amount), planned_date: forecastDate, category_id: null, notes: null, is_completed: false })
+                          await onAddPlannedExpense({ title: item.trim() || 'Planned Purchase', amount: round2(evaluateAmountExpression(amount) ?? 0), planned_date: forecastDate, category_id: null, notes: null, is_completed: false })
                           setAddedToForecast(true)
                           setShowForecastDate(false)
                         }}

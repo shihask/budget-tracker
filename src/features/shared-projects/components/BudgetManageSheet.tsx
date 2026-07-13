@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
+import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import type { ProjectBudget } from '../types'
 
 interface BudgetRow {
@@ -25,6 +27,8 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
   const c = useTheme()
   const [rows, setRows] = useState<BudgetRow[]>([])
   const [saving, setSaving] = useState(false)
+  const rowRefs = useRef<Array<HTMLInputElement | null>>([])
+  const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -37,7 +41,7 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
     }
   }, [open, budgets])
 
-  const total = rows.reduce((s, r) => s + (parseFloat(r.budget_amount) || 0), 0)
+  const total = rows.reduce((s, r) => s + (evaluateAmountExpression(r.budget_amount) ?? 0), 0)
   const overBudget = targetAmount > 0 && total > targetAmount
 
   const addRow = () => {
@@ -65,7 +69,7 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
       }
 
       for (const row of rows) {
-        const amt = parseFloat(row.budget_amount) || 0
+        const amt = round2(evaluateAmountExpression(row.budget_amount) ?? 0)
         if (!row.category.trim() || amt <= 0) continue
 
         if (row.id && existingIds.has(row.id)) {
@@ -110,29 +114,42 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {rows.map((row, idx) => (
-            <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                value={row.category}
-                onChange={e => updateRow(idx, 'category', e.target.value)}
-                placeholder="Category"
-                style={{ ...inputStyle, flex: 2 }}
-              />
-              <input
-                type="number"
-                value={row.budget_amount}
-                onChange={e => updateRow(idx, 'budget_amount', e.target.value)}
-                placeholder="Amount"
-                inputMode="decimal"
-                style={{ ...inputStyle, flex: 1 }}
-              />
-              <button
-                onClick={() => removeRow(idx)}
-                style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
+            <div key={idx}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  value={row.category}
+                  onChange={e => updateRow(idx, 'category', e.target.value)}
+                  placeholder="Category"
+                  style={{ ...inputStyle, flex: 2 }}
+                />
+                <input
+                  ref={el => { rowRefs.current[idx] = el }}
+                  type="text"
+                  value={row.budget_amount}
+                  onChange={e => updateRow(idx, 'budget_amount', e.target.value)}
+                  onFocus={() => setFocusedRowIndex(idx)}
+                  onBlur={() => setFocusedRowIndex(null)}
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return
+                    const r = evaluateAmountExpression(e.currentTarget.value)
+                    if (r !== null) updateRow(idx, 'budget_amount', String(round2(r)))
+                  }}
+                  placeholder="Amount"
+                  inputMode="decimal"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={() => removeRow(idx)}
+                  style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+              {focusedRowIndex === idx && (
+                <AmountOperatorRow inputRef={{ current: rowRefs.current[idx] }} onChange={v => updateRow(idx, 'budget_amount', v)} />
+              )}
             </div>
           ))}
         </div>

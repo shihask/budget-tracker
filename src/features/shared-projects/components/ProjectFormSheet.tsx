@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
+import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import type { Project, ProjectStatus } from '../types'
 
 interface Props {
@@ -18,6 +21,8 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
   const [target, setTarget] = useState('')
   const [status, setStatus] = useState<ProjectStatus>('active')
   const [saving, setSaving] = useState(false)
+  const targetRef = useRef<HTMLInputElement | null>(null)
+  const [targetFocused, setTargetFocused] = useState(false)
 
   useEffect(() => {
     if (open && project) {
@@ -43,7 +48,7 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
         name: name.trim(),
         description: description.trim() || undefined,
         notes: notes.trim() || undefined,
-        target_amount: parseFloat(target) || 0,
+        target_amount: round2(evaluateAmountExpression(target) ?? 0),
         status: project ? status : undefined,
       })
       onClose()
@@ -100,13 +105,22 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
           <div>
             <div style={labelStyle}>Target Amount</div>
             <input
-              type="number"
+              ref={targetRef}
+              type="text"
               value={target}
               onChange={e => setTarget(e.target.value)}
+              onFocus={() => setTargetFocused(true)}
+              onBlur={() => setTargetFocused(false)}
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return
+                const r = evaluateAmountExpression(e.currentTarget.value)
+                if (r !== null) setTarget(String(round2(r)))
+              }}
               placeholder="0"
               style={inputStyle}
               inputMode="decimal"
             />
+            {targetFocused && <AmountOperatorRow inputRef={targetRef} onChange={setTarget} />}
           </div>
 
           <div>

@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, AlertTriangle, Flame } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { goalProgressInsightWithAI } from '@/lib/gemini'
 import { calcGoalStatus, calcGoalForecast, calcGoalMomentum, calcTargetInfo, MS_MONTH } from '@/lib/goals'
 import type { Goal, GoalType, GoalContribution, DerivedMetrics, Settings, Transaction } from '@/types'
@@ -86,6 +88,14 @@ export function GoalsSection({
   const [saving, setSaving] = useState(false)
   const [savingsInput, setSavingsInput] = useState('')
   const [savingsAdding, setSavingsAdding] = useState(false)
+  const goalAmountRef = useRef<HTMLInputElement | null>(null)
+  const currentSavedRef = useRef<HTMLInputElement | null>(null)
+  const monthlyTargetRef = useRef<HTMLInputElement | null>(null)
+  const savingsInputRef = useRef<HTMLInputElement | null>(null)
+  const [goalAmountFocused, setGoalAmountFocused] = useState(false)
+  const [currentSavedFocused, setCurrentSavedFocused] = useState(false)
+  const [monthlyTargetFocused, setMonthlyTargetFocused] = useState(false)
+  const [savingsInputFocused, setSavingsInputFocused] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [goalAI, setGoalAI] = useState<Record<string, string>>({})
   const [goalAILoading, setGoalAILoading] = useState<string | null>(null)
@@ -132,9 +142,9 @@ export function GoalsSection({
 
   const closeAdd = () => { setAddOpen(false); setForm(EMPTY_FORM) }
 
-  const goalAmt = parseFloat(form.goalAmount) || 0
-  const curSaved = parseFloat(form.currentSaved) || 0
-  const monthly = parseFloat(form.monthlyTarget) || 0
+  const goalAmt = evaluateAmountExpression(form.goalAmount) ?? 0
+  const curSaved = evaluateAmountExpression(form.currentSaved) ?? 0
+  const monthly = evaluateAmountExpression(form.monthlyTarget) ?? 0
   const target = calcTargetInfo(goalAmt, curSaved, monthly)
 
   const handleAdd = async () => {
@@ -144,9 +154,9 @@ export function GoalsSection({
       await onAddGoal({
         name: form.name.trim(),
         goal_type: form.goalType,
-        goal_amount: goalAmt,
-        current_saved: curSaved,
-        monthly_target: monthly,
+        goal_amount: round2(goalAmt),
+        current_saved: round2(curSaved),
+        monthly_target: round2(monthly),
         target_date: form.targetDate || target.iso,
         is_active: true,
       })
@@ -160,8 +170,9 @@ export function GoalsSection({
 
   const handleAddSavings = async () => {
     if (!detailGoal) return
-    const amt = parseFloat(savingsInput)
-    if (isNaN(amt) || amt <= 0) return
+    const rawAmt = evaluateAmountExpression(savingsInput)
+    if (rawAmt === null || rawAmt <= 0) return
+    const amt = round2(rawAmt)
     setSavingsAdding(true)
     try {
       await onAddSavings(detailGoal.id, amt, 'manual')
@@ -343,13 +354,21 @@ export function GoalsSection({
           <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Goal Amount (₹)</label>
           <HelpText>Total amount you need to save to reach this goal.</HelpText>
           <input
-            type="number" inputMode="decimal"
+            ref={goalAmountRef}
+            type="text" inputMode="decimal"
             value={form.goalAmount}
             onChange={e => setForm(f => ({ ...f, goalAmount: e.target.value }))}
-            onFocus={e => e.target.select()}
+            onFocus={e => { e.target.select(); setGoalAmountFocused(true) }}
+            onBlur={() => setGoalAmountFocused(false)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              const r = evaluateAmountExpression(e.currentTarget.value)
+              if (r !== null) setForm(f => ({ ...f, goalAmount: String(round2(r)) }))
+            }}
             placeholder="0"
             style={inp}
           />
+          {goalAmountFocused && <AmountOperatorRow inputRef={goalAmountRef} onChange={v => setForm(f => ({ ...f, goalAmount: v }))} />}
         </div>
 
         {/* Already Saved */}
@@ -357,13 +376,21 @@ export function GoalsSection({
           <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Already Saved (₹) <span style={{ textTransform: 'none', fontWeight: 600 }}>— optional</span></label>
           <HelpText>If you have already set aside money for this goal, enter it here.</HelpText>
           <input
-            type="number" inputMode="decimal"
+            ref={currentSavedRef}
+            type="text" inputMode="decimal"
             value={form.currentSaved}
             onChange={e => setForm(f => ({ ...f, currentSaved: e.target.value }))}
-            onFocus={e => e.target.select()}
+            onFocus={e => { e.target.select(); setCurrentSavedFocused(true) }}
+            onBlur={() => setCurrentSavedFocused(false)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              const r = evaluateAmountExpression(e.currentTarget.value)
+              if (r !== null) setForm(f => ({ ...f, currentSaved: String(round2(r)) }))
+            }}
             placeholder="0"
             style={inp}
           />
+          {currentSavedFocused && <AmountOperatorRow inputRef={currentSavedRef} onChange={v => setForm(f => ({ ...f, currentSaved: v }))} />}
         </div>
 
         {/* Target Date */}
@@ -393,13 +420,21 @@ export function GoalsSection({
           </label>
           <HelpText>How much to save each month. Auto-calculated from goal amount and target date — you can override it.</HelpText>
           <input
-            type="number" inputMode="decimal"
+            ref={monthlyTargetRef}
+            type="text" inputMode="decimal"
             value={form.monthlyTarget}
             onChange={e => setForm(f => ({ ...f, monthlyTarget: e.target.value }))}
-            onFocus={e => e.target.select()}
+            onFocus={e => { e.target.select(); setMonthlyTargetFocused(true) }}
+            onBlur={() => setMonthlyTargetFocused(false)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              const r = evaluateAmountExpression(e.currentTarget.value)
+              if (r !== null) setForm(f => ({ ...f, monthlyTarget: String(round2(r)) }))
+            }}
             placeholder={String(suggestedMonthly)}
             style={inp}
           />
+          {monthlyTargetFocused && <AmountOperatorRow inputRef={monthlyTargetRef} onChange={v => setForm(f => ({ ...f, monthlyTarget: v }))} />}
           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 5 }}>
             Suggested based on your spending: {fmt(suggestedMonthly)}/mo
           </div>
@@ -774,22 +809,30 @@ export function GoalsSection({
                       <div style={{ position: 'relative', flex: 1 }}>
                         <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', font: '700 13px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                         <input
-                          type="number" inputMode="decimal"
+                          ref={savingsInputRef}
+                          type="text" inputMode="decimal"
                           value={savingsInput}
                           onChange={e => setSavingsInput(e.target.value)}
-                          onFocus={e => e.target.select()}
+                          onFocus={e => { e.target.select(); setSavingsInputFocused(true) }}
+                          onBlur={() => setSavingsInputFocused(false)}
+                          onKeyDown={e => {
+                            if (e.key !== 'Enter') return
+                            const r = evaluateAmountExpression(e.currentTarget.value)
+                            if (r !== null) setSavingsInput(String(round2(r)))
+                          }}
                           placeholder="Amount"
                           style={{ ...inp, paddingLeft: 24 }}
                         />
                       </div>
                       <button
                         onClick={handleAddSavings}
-                        disabled={savingsAdding || !savingsInput || parseFloat(savingsInput) <= 0}
-                        style={{ background: cfg.color, color: '#fff', border: 'none', borderRadius: 11, padding: '10px 18px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', flexShrink: 0, opacity: (savingsAdding || !savingsInput || parseFloat(savingsInput) <= 0) ? 0.5 : 1 }}
+                        disabled={savingsAdding || !savingsInput || (evaluateAmountExpression(savingsInput) ?? 0) <= 0}
+                        style={{ background: cfg.color, color: '#fff', border: 'none', borderRadius: 11, padding: '10px 18px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', flexShrink: 0, opacity: (savingsAdding || !savingsInput || (evaluateAmountExpression(savingsInput) ?? 0) <= 0) ? 0.5 : 1 }}
                       >
                         {savingsAdding ? '…' : 'Add'}
                       </button>
                     </div>
+                    {savingsInputFocused && <AmountOperatorRow inputRef={savingsInputRef} onChange={setSavingsInput} />}
                   </div>
                 </>
               )}

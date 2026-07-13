@@ -3,9 +3,11 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
-import { fmt, fmtDate, fmtTime } from '@/lib/utils'
+import { fmt, fmtDate, fmtTime, round2 } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, Transaction, TransactionType } from '@/types'
 
@@ -89,6 +91,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [snapping, setSnapping] = useState(false)
   const [entryPlayed, setEntryPlayed] = useState(false)
   const dragXRef = useRef(0)
+  const editAmountRef = useRef<HTMLInputElement | null>(null)
+  const [editAmountFocused, setEditAmountFocused] = useState(false)
   const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
@@ -266,7 +270,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
   const handleEditSave = async () => {
     if (!editingTx || !editForm) return
-    const amount = parseFloat(editForm.amount)
+    const rawAmount = evaluateAmountExpression(editForm.amount)
+    const amount = rawAmount === null ? NaN : round2(rawAmount)
     if (!editForm.description.trim() || isNaN(amount) || amount <= 0) return
     setSaving(true)
     try {
@@ -589,16 +594,28 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                   <Label>Amount</Label>
                   <HelpText>Transaction amount in rupees.</HelpText>
                   <input
-                    type="number"
+                    ref={editAmountRef}
+                    type="text"
                     inputMode="decimal"
                     value={editForm.amount}
                     onChange={e => setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
-                    onFocus={e => e.target.select()}
+                    onFocus={e => { e.target.select(); setEditAmountFocused(true) }}
+                    onBlur={() => setEditAmountFocused(false)}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter') return
+                      const r = evaluateAmountExpression(e.currentTarget.value)
+                      if (r === null) return
+                      setEditForm(f => f ? { ...f, amount: String(round2(r)) } : f)
+                    }}
                     style={inp}
                     placeholder="0"
-                    min="0"
-                    step="0.01"
                   />
+                  {editAmountFocused && (
+                    <AmountOperatorRow
+                      inputRef={editAmountRef}
+                      onChange={v => setEditForm(f => f ? { ...f, amount: v } : f)}
+                    />
+                  )}
                 </div>
                 <div style={{ flex: 1 }}>
                   <Label>Date</Label>

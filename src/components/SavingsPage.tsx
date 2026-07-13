@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt } from '@/lib/utils'
+import { fmt, round2 } from '@/lib/utils'
+import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
+import { AmountOperatorRow } from './AmountOperatorRow'
 import { CategorySelect } from './CategorySelect'
 import { SAVINGS_GROUP } from '@/lib/constants'
 import { isRecurringCompleted, getRecurringPeriodLabel, getNextRecurringDueDate } from '@/lib/recurring'
@@ -92,7 +94,7 @@ function payloadFromForm(form: SForm): Omit<Savings, 'id' | 'created_at'> {
   return {
     name: form.name.trim(),
     type: form.type,
-    amount: parseFloat(form.amount) || 0,
+    amount: round2(evaluateAmountExpression(form.amount) ?? 0),
     is_recurring: cfg.isRecurring,
     frequency: cfg.isRecurring ? form.frequency : null,
     due_day: (cfg.isRecurring && form.frequency === 'monthly' && form.due_day) ? parseInt(form.due_day) : null,
@@ -100,8 +102,8 @@ function payloadFromForm(form: SForm): Omit<Savings, 'id' | 'created_at'> {
     current_installment: (isChit && form.is_prized && form.prize_month)
       ? Math.max(parseInt(form.current_installment) || 0, parseInt(form.prize_month) || 0)
       : parseInt(form.current_installment) || 0,
-    total_target: form.total_target ? parseFloat(form.total_target) : null,
-    current_value: (isChit && form.is_prized) ? (parseFloat(form.current_value) || 0) : (!isChit ? parseFloat(form.current_value) || 0 : 0),
+    total_target: form.total_target ? round2(evaluateAmountExpression(form.total_target) ?? 0) : null,
+    current_value: (isChit && form.is_prized) ? round2(evaluateAmountExpression(form.current_value) ?? 0) : (!isChit ? round2(evaluateAmountExpression(form.current_value) ?? 0) : 0),
     maturity_date: form.maturity_date || null,
     interest_rate: form.interest_rate ? parseFloat(form.interest_rate) : null,
     from_account_id: form.from_account_id || null,
@@ -168,6 +170,17 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   const [saveError, setSaveError] = useState<string | null>(null)
   const [deleteProtect, setDeleteProtect] = useState<Savings | null>(null)
   const [archiving, setArchiving] = useState<string | null>(null)
+
+  const amountRef = useRef<HTMLInputElement | null>(null)
+  const totalTargetRef = useRef<HTMLInputElement | null>(null)
+  const currentValueRef = useRef<HTMLInputElement | null>(null)
+  const payoutAmountRef = useRef<HTMLInputElement | null>(null)
+  const newValueRef = useRef<HTMLInputElement | null>(null)
+  const [amountFocused, setAmountFocused] = useState(false)
+  const [totalTargetFocused, setTotalTargetFocused] = useState(false)
+  const [currentValueFocused, setCurrentValueFocused] = useState(false)
+  const [payoutAmountFocused, setPayoutAmountFocused] = useState(false)
+  const [newValueFocused, setNewValueFocused] = useState(false)
 
   const active = state.savings.filter(s => s.is_active)
   const accounts = state.accounts.filter(a => a.is_active)
@@ -303,7 +316,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
   const handleUpdateValue = async () => {
     if (!updateValueId) return
-    const val = parseFloat(newValueInput)
+    const rawVal = evaluateAmountExpression(newValueInput)
+    const val = rawVal === null ? NaN : round2(rawVal)
     if (isNaN(val) || val < 0) return
     setSaving(true)
     try { await onUpdateValue(updateValueId, val) } catch (_) {}
@@ -911,12 +925,21 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
               <input
-                type="text" inputMode="decimal" onFocus={e => e.target.select()}
+                ref={amountRef}
+                type="text" inputMode="decimal"
+                onFocus={e => { e.target.select(); setAmountFocused(true) }}
+                onBlur={() => setAmountFocused(false)}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return
+                  const r = evaluateAmountExpression(e.currentTarget.value)
+                  if (r !== null) set('amount', String(round2(r)))
+                }}
                 value={form.amount} onChange={e => set('amount', e.target.value)}
-                placeholder={cfg.placeholder.replace('₹ ', '')} min="0"
+                placeholder={cfg.placeholder.replace('₹ ', '')}
                 style={{ ...inp, paddingLeft: 28 }}
               />
             </div>
+            {amountFocused && <AmountOperatorRow inputRef={amountRef} onChange={v => set('amount', v)} />}
           </div>
 
           {/* Recurring plan fields */}
@@ -979,7 +1002,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
               <label style={{ ...lbl, marginBottom: 0 }}>{form.type === 'chit' ? 'Chit Value' : form.type === 'fd' ? 'Maturity Value (Optional)' : 'Goal amount (optional)'}</label>
               {(() => {
-                const amt = parseFloat(form.amount), months = parseInt(form.total_installments)
+                const amt = evaluateAmountExpression(form.amount) ?? 0, months = parseInt(form.total_installments)
                 const autoVal = cfg.isRecurring && amt > 0 && months > 0 ? amt * months : null
                 return autoVal && String(autoVal) === form.total_target
                   ? <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 8px' }}>Auto-calculated</span>
@@ -989,10 +1012,21 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <HelpText>{form.type === 'chit' ? 'The fixed prize value of this chit fund. Auto-fills from contribution × members.' : form.type === 'fd' ? 'Expected maturity value of this Fixed Deposit.' : 'Total amount you aim to accumulate. Auto-fills from amount × months — you can override it.'}</HelpText>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
-              <input type="text" inputMode="decimal" value={form.total_target}
+              <input
+                ref={totalTargetRef}
+                type="text" inputMode="decimal"
+                onFocus={() => setTotalTargetFocused(true)}
+                onBlur={() => setTotalTargetFocused(false)}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return
+                  const r = evaluateAmountExpression(e.currentTarget.value)
+                  if (r !== null) set('total_target', String(round2(r)))
+                }}
+                value={form.total_target}
                 onChange={e => set('total_target', e.target.value)} placeholder="e.g. 60,000"
-                min="0" style={{ ...inp, paddingLeft: 28 }} />
+                style={{ ...inp, paddingLeft: 28 }} />
             </div>
+            {totalTargetFocused && <AmountOperatorRow inputRef={totalTargetRef} onChange={v => set('total_target', v)} />}
           </div>
 
           {/* Maturity date + interest rate */}
@@ -1061,9 +1095,20 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 <HelpText>Actual cash received after deductions (charity, current month, etc.).</HelpText>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
-                  <input type="text" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
+                  <input
+                    ref={currentValueRef}
+                    type="text" inputMode="decimal"
+                    onFocus={() => setCurrentValueFocused(true)}
+                    onBlur={() => setCurrentValueFocused(false)}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter') return
+                      const r = evaluateAmountExpression(e.currentTarget.value)
+                      if (r !== null) set('current_value', String(round2(r)))
+                    }}
+                    value={form.current_value === '0' ? '' : form.current_value}
                     onChange={e => set('current_value', e.target.value || '0')} placeholder="e.g. 43,000"
-                    min="0" style={{ ...inp, paddingLeft: 28 }} />
+                    style={{ ...inp, paddingLeft: 28 }} />
+                  {currentValueFocused && <AmountOperatorRow inputRef={currentValueRef} onChange={v => set('current_value', v || '0')} />}
                 </div>
               </div>
             </div>
@@ -1076,9 +1121,20 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <HelpText>Current market value from your fund app or bank statement. Used to track gains/losses.</HelpText>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
-                <input type="text" inputMode="decimal" value={form.current_value === '0' ? '' : form.current_value}
+                <input
+                  ref={currentValueRef}
+                  type="text" inputMode="decimal"
+                  onFocus={() => setCurrentValueFocused(true)}
+                  onBlur={() => setCurrentValueFocused(false)}
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return
+                    const r = evaluateAmountExpression(e.currentTarget.value)
+                    if (r !== null) set('current_value', String(round2(r)))
+                  }}
+                  value={form.current_value === '0' ? '' : form.current_value}
                   onChange={e => set('current_value', e.target.value || '0')} placeholder="As per latest NAV"
-                  min="0" style={{ ...inp, paddingLeft: 28 }} />
+                  style={{ ...inp, paddingLeft: 28 }} />
+                {currentValueFocused && <AmountOperatorRow inputRef={currentValueRef} onChange={v => set('current_value', v || '0')} />}
               </div>
             </div>
           )}
@@ -1187,15 +1243,23 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
                 <input
+                  ref={payoutAmountRef}
                   type="text" inputMode="decimal"
                   value={payoutAmount}
                   onChange={e => setPayoutAmount(e.target.value)}
-                  onFocus={e => e.target.select()}
+                  onFocus={e => { e.target.select(); setPayoutAmountFocused(true) }}
+                  onBlur={() => setPayoutAmountFocused(false)}
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return
+                    const r = evaluateAmountExpression(e.currentTarget.value)
+                    if (r !== null) setPayoutAmount(String(round2(r)))
+                  }}
                   placeholder="Amount received"
                   autoFocus
                   style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px 10px 28px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
                 />
               </div>
+              {payoutAmountFocused && <AmountOperatorRow inputRef={payoutAmountRef} onChange={setPayoutAmount} />}
             </div>
 
             <div style={{ marginBottom: 20 }}>
@@ -1210,8 +1274,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <button
                 onClick={async () => {
                   const sv = confirmPayout
-                  const amount = parseFloat(payoutAmount)
-                  if (!amount || amount <= 0 || !payoutAccountId) return
+                  const rawAmount = evaluateAmountExpression(payoutAmount)
+                  if (!rawAmount || rawAmount <= 0 || !payoutAccountId) return
+                  const amount = round2(rawAmount)
                   setConfirmPayout(null)
                   setRecordingPayout(sv.id)
                   try { await onRecordPayout(sv, amount, payoutAccountId) } catch (_) {}
@@ -1287,14 +1352,22 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div style={{ position: 'relative', marginBottom: 16 }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '600 14px Plus Jakarta Sans', color: c.muted }}>₹</span>
               <input
+                ref={newValueRef}
                 type="text" inputMode="decimal" value={newValueInput}
                 onChange={e => setNewValueInput(e.target.value)}
-                onFocus={e => e.target.select()}
+                onFocus={e => { e.target.select(); setNewValueFocused(true) }}
+                onBlur={() => setNewValueFocused(false)}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return
+                  const r = evaluateAmountExpression(e.currentTarget.value)
+                  if (r !== null) setNewValueInput(String(round2(r)))
+                }}
                 placeholder="Current portfolio value"
                 autoFocus
                 style={{ ...inp, paddingLeft: 28 }}
               />
             </div>
+            {newValueFocused && <AmountOperatorRow inputRef={newValueRef} onChange={setNewValueInput} />}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setUpdateValueId(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleUpdateValue} disabled={saving} style={{ flex: 2, background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
