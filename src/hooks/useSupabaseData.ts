@@ -4,7 +4,7 @@ import type { AppState, Transaction, Commitment, TransactionType, Group, Categor
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
 
-const delta = (type: TransactionType, amount: number) => {
+export const delta = (type: TransactionType, amount: number) => {
   switch (type) {
     case 'income':
     case 'opening_balance':
@@ -1571,8 +1571,37 @@ export function useSupabaseData(userId: string) {
     }
   }, [userId, allTransactionsLoaded, loadingMore])
 
+  // The AA sync promotion loop writes accounts/transactions via RPC, not
+  // through addTransaction/addAccount, so those rows never reach AppState
+  // through the normal optimistic-setState path (useSupabaseData has no
+  // realtime subscription — see the Phase 1b plan). Re-fetches just the
+  // account balances and the most recent page of transactions and merges
+  // them in, keeping this hook the sole owner of AppState's shape.
+  const refetchAccountsAndRecentTransactions = useCallback(async () => {
+    const [{ data: accounts }, { data: transactions }] = await Promise.all([
+      supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
+      supabase.from('transactions')
+        .select('*, category:categories(*)')
+        .eq('user_id', userId)
+        .order('transaction_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(TXN_PAGE_SIZE),
+    ])
+
+    const freshTxns = (transactions as Transaction[]) || []
+    const freshIds = new Set(freshTxns.map(t => t.id))
+    const olderTxns = stateRef.current.transactions.filter(t => !freshIds.has(t.id))
+
+    setState(s => ({
+      ...s,
+      accounts: accounts ?? s.accounts,
+      transactions: [...freshTxns, ...olderTxns],
+    }))
+  }, [userId])
+
   return {
     state, setState, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions,
+    refetchAccountsAndRecentTransactions,
     addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings,
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,

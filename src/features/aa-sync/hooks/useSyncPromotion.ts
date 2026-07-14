@@ -1,0 +1,296 @@
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
+import { delta } from '@/hooks/useSupabaseData'
+import { categorizeForSync } from '@/lib/categorize'
+import { INCOME_GROUP, TRANSFER_GROUP } from '@/lib/constants'
+import { fetchDedupCandidates, scoreDedupCandidates, type PromotionDecision } from '../lib/dedup'
+import { suggestAccountLink, defaultAccountName } from '../lib/accountLinking'
+import type { SyncEvent } from '../types'
+import type { Account, Category } from '@/types'
+
+// One page of the pending backlog per DB round-trip, not one unbounded
+// synchronous burst — Phase 1a may have already accumulated real pending
+// sync_events by the time this hook first mounts for a given user.
+const BACKLOG_PAGE_SIZE = 25
+
+// ReBIT `type` values this pipeline knows how to sign — a real
+// money-correctness gap Phase 0 flagged and never finished ("type/mode need
+// their own translation table, not fuzzy-matched"). Any value outside this
+// allowlist throws (→ status='error', see processEvent) rather than
+// silently defaulting to debit. Confirmed live that at least one real value
+// ("OPENING", on recurring-deposit opening entries — see
+// scripts/aa-discovery-spike/samples/rd-session.json) exists outside this
+// allowlist, so unrecognized values are not a hypothetical.
+const DIRECTION_MAP: Record<string, 'income' | 'expense'> = {
+  CREDIT: 'income',
+  DEBIT: 'expense',
+}
+
+function str(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null
+}
+
+// raw_payload.amount is a numeric-looking STRING in real captured payloads
+// (e.g. "5000.0"), not a JSON number — verified live, not assumed.
+function num(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+interface FinalizeResult {
+  claimed: boolean
+  transaction_id?: string
+}
+
+type ProcessOutcome = 'promoted' | 'handled' | 'left_pending'
+
+interface UseSyncPromotionOptions {
+  userId: string
+  enabled: boolean
+  accounts: Pick<Account, 'id' | 'name' | 'type'>[]
+  categories: Category[]
+  onPromoted: (count: number) => void
+}
+
+// Serial promotion loop — turns pending sync_events into real
+// transactions/accounts. Kept separate from useAaSyncData (read-only
+// connection status, no writes) since this hook performs writes and has its
+// own trigger/error shape. Mirrors useAaSyncData's mountedRef +
+// postgres_changes channel-per-user idiom.
+export function useSyncPromotion({ userId, enabled, accounts, categories, onPromoted }: UseSyncPromotionOptions) {
+  const [processing, setProcessing] = useState(false)
+  const mountedRef = useRef(true)
+  const runningRef = useRef(false)
+  const accountsRef = useRef(accounts)
+  accountsRef.current = accounts
+  const categoriesRef = useRef(categories)
+  categoriesRef.current = categories
+  const onPromotedRef = useRef(onPromoted)
+  onPromotedRef.current = onPromoted
+
+  // Nested inside drainBacklog (not hook-level functions) so there's no
+  // separate reactive identity for useCallback's dependency array to track
+  // — both close over drainBacklog's own batchAccountCache/userId and the
+  // refs above, which are always current regardless of when they run.
+  const drainBacklog = useCallback(async () => {
+    if (runningRef.current) return
+    runningRef.current = true
+    setProcessing(true)
+    const batchAccountCache = new Map<string, string>()
+    let totalPromoted = 0
+
+    async function finalize(eventId: string, outcome: string, extra: Record<string, unknown> = {}): Promise<FinalizeResult> {
+      const { data, error } = await supabase.rpc('mp_finalize_sync_event', {
+        p_sync_event_id: eventId,
+        p_outcome: outcome,
+        p_processor: 'client',
+        p_transaction: null,
+        p_merge_transaction_id: null,
+        p_review_reason: null,
+        p_review_context: null,
+        ...extra,
+      })
+      if (error) throw error
+      return data as FinalizeResult
+    }
+
+    async function processEvent(event: SyncEvent): Promise<ProcessOutcome> {
+      // Step 1: resolve the provider account to a real MoneyPlant Account,
+      // cached per batch so it's resolved once per (connection, account) pair.
+      const cacheKey = `${event.provider_connection_id}:${event.provider_account_id}`
+      let accountId = batchAccountCache.get(cacheKey)
+
+      if (accountId === undefined) {
+        const maskedAccNumber = str((event.provider_metadata as Record<string, unknown>)?.maskedAccNumber)
+        const suggestion = maskedAccNumber ? suggestAccountLink(maskedAccNumber, accountsRef.current) : null
+
+        // A likely-matching existing Account was found — don't guess which
+        // one is right. Leave the event pending; AccountLinkReviewSheet
+        // resolves it (confirm or create-separate), which re-triggers this
+        // hook via the sync_events realtime subscription.
+        if (suggestion) return 'left_pending'
+
+        const { data, error } = await supabase.rpc('mp_link_sync_account', {
+          p_provider: event.provider,
+          p_provider_connection_id: event.provider_connection_id,
+          p_provider_account_id: event.provider_account_id,
+          p_existing_account_id: null,
+          p_new_account: {
+            name: maskedAccNumber ? defaultAccountName(maskedAccNumber) : 'Bank account',
+            type: 'bank',
+            current_balance: 0,
+          },
+          p_provider_metadata: event.provider_metadata ?? {},
+        })
+        if (error) throw error
+        accountId = (data as { account_id: string }).account_id
+        batchAccountCache.set(cacheKey, accountId)
+      }
+
+      // Step 2: non-transaction events (balance/profile) skip straight
+      // through — no reconciliation against current_balance this phase (see
+      // Phase 1b plan §1: a balance event reports an absolute value, not a
+      // delta, and current_balance is maintained exclusively via pre-computed
+      // signed deltas everywhere else in this codebase).
+      if (event.event_type !== 'transaction') {
+        await finalize(event.id, 'skip')
+        return 'handled'
+      }
+
+      const payload = event.raw_payload as Record<string, unknown>
+      const metadata = event.provider_metadata as Record<string, unknown>
+      const amount = num(payload?.amount)
+      const rawDate = str(payload?.valueDate)
+      const description = str(payload?.narration)
+      const directionRaw = str(metadata?.type)
+      const direction = directionRaw ? DIRECTION_MAP[directionRaw] : undefined
+
+      // Malformed/unexpected upstream data is an operational failure to
+      // investigate, not a dedup decision — goes through the plain
+      // status='error' path (see the catch block below), never a silent
+      // debit default.
+      if (amount == null || !rawDate) {
+        throw new Error(`sync_event ${event.id}: missing amount or valueDate in raw_payload`)
+      }
+      if (!direction) {
+        throw new Error(`sync_event ${event.id}: unrecognized transaction direction "${directionRaw ?? 'null'}"`)
+      }
+
+      // Step 3: dedup-score against a fresh server-side candidate pool —
+      // never state.transactions (paginated to the most recent 200 rows).
+      const candidateEvent = { amount, date: rawDate, description }
+      const candidates = await fetchDedupCandidates(userId, accountId, candidateEvent)
+      const decision: PromotionDecision = scoreDedupCandidates(candidateEvent, candidates)
+
+      // Step 4: categorize only when it can matter. A merge keeps the manual
+      // entry's own category untouched, so scoring before categorizing avoids
+      // wasted work on every event that ends up merged.
+      let categoryId: string | null = null
+      if ((decision.action === 'insert' || decision.action === 'review') && description) {
+        const pool = direction === 'income'
+          ? categoriesRef.current.filter(c => c.group_name === INCOME_GROUP)
+          : categoriesRef.current.filter(c => c.group_name !== INCOME_GROUP && c.group_name !== TRANSFER_GROUP)
+        categoryId = categorizeForSync(description, pool).categoryId
+      }
+
+      // Step 5: translate the decision into mp_finalize_sync_event's
+      // outcome vocabulary. Score + matched fields are stored in
+      // review_context even on an auto-merge (not just review cases) — a
+      // data trail to recalibrate thresholds once real bank narration is
+      // observed.
+      if (decision.action === 'merge') {
+        await finalize(event.id, 'merge_into', {
+          p_merge_transaction_id: decision.matchedTransactionId,
+          p_review_context: { confidence: decision.confidence, explanation: decision.explanation },
+        })
+        return 'handled' // no balance write — the manual entry already applied its own delta
+      }
+
+      if (decision.action === 'review') {
+        await finalize(event.id, 'needs_review', {
+          p_review_reason: 'medium_confidence_dedup',
+          p_review_context: {
+            confidence: decision.confidence,
+            explanation: decision.explanation,
+            candidate_transaction_id: decision.matchedTransactionId ?? null,
+            suggested_category_id: categoryId,
+            amount, date: rawDate, description, direction, account_id: accountId,
+          },
+        })
+        return 'handled'
+      }
+
+      const result = await finalize(event.id, 'insert', {
+        p_transaction: {
+          account_id: accountId,
+          transaction_date: rawDate,
+          description: description ?? '',
+          amount,
+          transaction_type: direction,
+          category_id: categoryId,
+          account_delta: delta(direction, amount),
+        },
+        p_review_context: { confidence: decision.confidence, explanation: decision.explanation },
+      })
+      return result.claimed ? 'promoted' : 'handled'
+    }
+
+    try {
+      for (;;) {
+        const { data, error } = await supabase
+          .from('sync_events')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .order('fetched_at', { ascending: true })
+          .limit(BACKLOG_PAGE_SIZE)
+
+        if (error) {
+          console.error('[useSyncPromotion] failed to fetch backlog:', error)
+          break
+        }
+
+        const events = (data as SyncEvent[]) ?? []
+        if (events.length === 0) break
+
+        let progressed = false
+        for (const event of events) {
+          if (!mountedRef.current) return
+          try {
+            const outcome = await processEvent(event)
+            if (outcome === 'promoted') { totalPromoted++; progressed = true }
+            else if (outcome === 'handled') { progressed = true }
+            // 'left_pending' — awaiting AccountLinkReviewSheet, no progress this pass
+          } catch (e) {
+            console.error('[useSyncPromotion] event failed, marking error:', event.id, e)
+            await supabase
+              .from('sync_events')
+              .update({ status: 'error', error_message: String(e), processed_at: new Date().toISOString(), processor: 'client' })
+              .eq('id', event.id)
+              .eq('status', 'pending')
+            progressed = true
+          }
+        }
+
+        // Stop once the page is smaller than a full page (backlog drained)
+        // or once a full page made zero progress (everything left is stuck
+        // awaiting account-link review — retrying would spin forever).
+        if (events.length < BACKLOG_PAGE_SIZE || !progressed) break
+      }
+    } finally {
+      runningRef.current = false
+      if (mountedRef.current) setProcessing(false)
+      if (totalPromoted > 0) onPromotedRef.current(totalPromoted)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    mountedRef.current = true
+    if (!enabled) return
+
+    drainBacklog()
+
+    const channel = supabase
+      .channel(`aa-sync-promotion-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sync_events', filter: `user_id=eq.${userId}` },
+        () => { if (mountedRef.current) drainBacklog() }
+      )
+      .subscribe()
+
+    return () => {
+      mountedRef.current = false
+      supabase.removeChannel(channel)
+    }
+  }, [userId, enabled, drainBacklog])
+
+  // Exposed so AccountLinkReviewSheet can re-trigger draining right after
+  // resolving an account link — that action writes account_connections,
+  // not sync_events, so it never fires the realtime subscription above.
+  return { processing, drain: drainBacklog }
+}

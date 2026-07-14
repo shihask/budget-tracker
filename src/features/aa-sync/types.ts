@@ -11,7 +11,7 @@ export type SyncConnectionStatus =
 
 export type SyncFetchType = 'onetime' | 'periodic'
 
-export type SyncEventStatus = 'pending' | 'processed' | 'merged' | 'skipped' | 'error'
+export type SyncEventStatus = 'pending' | 'processed' | 'merged' | 'skipped' | 'error' | 'needs_review'
 
 export type SyncEventType = 'transaction' | 'balance' | 'profile'
 
@@ -56,6 +56,8 @@ export interface SyncEvent {
   processed_at: string | null
   processor: string | null
   error_message: string | null
+  review_reason: string | null
+  review_context: Record<string, unknown> | null
   created_at: string
 }
 
