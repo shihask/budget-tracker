@@ -38,3 +38,6 @@ playwright-report/
 test-results/
 
 client_secret_*.json
+
+# Supabase CLI local cache (versions, linked project info) — machine-local, not shared state
+supabase/.temp/
