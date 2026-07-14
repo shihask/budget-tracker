@@ -22,7 +22,16 @@ const cors = {
 // Phase 0 — see docs/aa-integration-phase0.md. PERIODIC/1-per-DAY, not
 // ONETIME: a ONETIME consent is single-use forever (confirmed in Phase 0),
 // unusable as the basis for real recurring sync.
-const DEFAULT_FI_TYPES = ['DEPOSIT']
+//
+// RECURRING_DEPOSIT added alongside DEPOSIT: Phase 0 found DEPOSIT-type
+// sandbox mock accounts consistently come back with zero transaction line
+// items (data.account.transactions has no `transaction` array at all,
+// despite TRANSACTIONS being a requested consentType) — it's the account's
+// FI type that determines this, not a fetch bug. A RECURRING_DEPOSIT mock
+// account surfaced real transaction data in Phase 0 testing (see
+// scripts/aa-discovery-spike/issues.md), letting the promotion pipeline be
+// exercised against real (if synthetic) transaction-shaped sandbox data.
+const DEFAULT_FI_TYPES = ['DEPOSIT', 'RECURRING_DEPOSIT']
 const DEFAULT_CONSENT_TYPES: Array<'PROFILE' | 'SUMMARY' | 'TRANSACTIONS'> = ['PROFILE', 'SUMMARY', 'TRANSACTIONS']
 const PURPOSE_CODE = '102' // "Customer spending and budget analysis"
 const PURPOSE_TEXT = 'Track spending and manage budget in MoneyPlant'
