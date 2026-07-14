@@ -126,7 +126,7 @@ export function AccountLinkReviewSheet({ open, onClose, accounts, onLinked }: Pr
                   Bank account {row.masked_acc_number ? `···${row.masked_acc_number.match(/[^X]+$/)?.[0] ?? ''}` : ''}
                 </div>
                 <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginBottom: 10 }}>
-                  {row.pending_count} transaction{row.pending_count === 1 ? '' : 's'} waiting
+                  {row.pending_count} item{row.pending_count === 1 ? '' : 's'} waiting — balances, transactions, or profile updates
                 </div>
 
                 {suggestedAccount && !isCreating && (
