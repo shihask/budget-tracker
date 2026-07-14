@@ -359,7 +359,11 @@ export function GoalsSection({
             value={form.goalAmount}
             onChange={e => setForm(f => ({ ...f, goalAmount: e.target.value }))}
             onFocus={e => { e.target.select(); setGoalAmountFocused(true) }}
-            onBlur={() => setGoalAmountFocused(false)}
+            onBlur={e => {
+              setGoalAmountFocused(false)
+              const r = evaluateAmountExpression(e.target.value)
+              if (r !== null) setForm(f => ({ ...f, goalAmount: String(round2(r)) }))
+            }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
@@ -381,7 +385,11 @@ export function GoalsSection({
             value={form.currentSaved}
             onChange={e => setForm(f => ({ ...f, currentSaved: e.target.value }))}
             onFocus={e => { e.target.select(); setCurrentSavedFocused(true) }}
-            onBlur={() => setCurrentSavedFocused(false)}
+            onBlur={e => {
+              setCurrentSavedFocused(false)
+              const r = evaluateAmountExpression(e.target.value)
+              if (r !== null) setForm(f => ({ ...f, currentSaved: String(round2(r)) }))
+            }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
@@ -425,7 +433,11 @@ export function GoalsSection({
             value={form.monthlyTarget}
             onChange={e => setForm(f => ({ ...f, monthlyTarget: e.target.value }))}
             onFocus={e => { e.target.select(); setMonthlyTargetFocused(true) }}
-            onBlur={() => setMonthlyTargetFocused(false)}
+            onBlur={e => {
+              setMonthlyTargetFocused(false)
+              const r = evaluateAmountExpression(e.target.value)
+              if (r !== null) setForm(f => ({ ...f, monthlyTarget: String(round2(r)) }))
+            }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
@@ -814,7 +826,11 @@ export function GoalsSection({
                           value={savingsInput}
                           onChange={e => setSavingsInput(e.target.value)}
                           onFocus={e => { e.target.select(); setSavingsInputFocused(true) }}
-                          onBlur={() => setSavingsInputFocused(false)}
+                          onBlur={e => {
+                            setSavingsInputFocused(false)
+                            const r = evaluateAmountExpression(e.target.value)
+                            if (r !== null) setSavingsInput(String(round2(r)))
+                          }}
                           onKeyDown={e => {
                             if (e.key !== 'Enter') return
                             const r = evaluateAmountExpression(e.currentTarget.value)

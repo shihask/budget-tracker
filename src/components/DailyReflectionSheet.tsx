@@ -143,7 +143,11 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
               }}
               inputMode="decimal"
               onFocus={e => { e.target.select(); setAmountFocused(true) }}
-              onBlur={() => setAmountFocused(false)}
+              onBlur={e => {
+                setAmountFocused(false)
+                const r = evaluateAmountExpression(e.target.value)
+                if (r !== null) setAmount(String(Math.round(r)))
+              }}
               placeholder="0"
               style={{
                 width: '100%', boxSizing: 'border-box', background: c.bg,

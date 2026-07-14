@@ -179,7 +179,11 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
               inputMode="decimal"
               placeholder={pattern === 'monthly' ? 'Enter your expected salary' : pattern === 'weekly' ? 'Enter your expected weekly income' : pattern === 'variable' ? 'Enter your expected daily income' : 'Enter your expected monthly drawings'}
               onFocus={e => { e.target.select(); setCustomAmtFocused(true) }}
-              onBlur={() => setCustomAmtFocused(false)}
+              onBlur={e => {
+                setCustomAmtFocused(false)
+                const r = evaluateAmountExpression(e.target.value)
+                if (r !== null) setCustomAmt(String(Math.round(r)))
+              }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 const r = evaluateAmountExpression(e.currentTarget.value)

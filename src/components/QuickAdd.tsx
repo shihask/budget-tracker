@@ -716,7 +716,11 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                               placeholder="0"
                               inputMode="decimal"
                               onFocus={e => { e.target.select(); setQuickAmountFocused(true) }}
-                              onBlur={() => setQuickAmountFocused(false)}
+                              onBlur={e => {
+                                setQuickAmountFocused(false)
+                                const r = evaluateAmountExpression(e.target.value)
+                                if (r !== null) setQuickAmount(String(round2(r)))
+                              }}
                               style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 10px', font: '700 18px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
                             />
                             {quickAmountFocused && <AmountOperatorRow inputRef={quickAmountRef} onChange={setQuickAmount} />}
@@ -773,7 +777,13 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
               inputMode="decimal"
               placeholder="0"
               onFocus={e => { e.target.select(); setAmountFocused(true) }}
-              onBlur={() => setAmountFocused(false)}
+              onBlur={e => {
+                setAmountFocused(false)
+                const r = evaluateAmountExpression(e.target.value)
+                if (r === null) return
+                e.target.value = String(round2(r))
+                e.target.dispatchEvent(new Event('input', { bubbles: true }))
+              }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 e.preventDefault()

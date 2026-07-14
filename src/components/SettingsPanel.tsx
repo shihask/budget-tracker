@@ -254,7 +254,11 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             value={salaryAmountInput}
             onChange={e => setSalaryAmountInput(e.target.value)}
             onFocus={() => setSalaryAmountFocused(true)}
-            onBlur={() => setSalaryAmountFocused(false)}
+            onBlur={e => {
+              setSalaryAmountFocused(false)
+              const r = evaluateAmountExpression(e.target.value)
+              if (r !== null) setSalaryAmountInput(String(Math.round(r)))
+            }}
             onKeyDown={e => e.key === 'Enter' && handleSalarySave()}
             placeholder="e.g. 50000"
             style={{
@@ -289,7 +293,11 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             value={weeklyIncomeInput}
             onChange={e => setWeeklyIncomeInput(e.target.value)}
             onFocus={() => setWeeklyIncomeFocused(true)}
-            onBlur={() => setWeeklyIncomeFocused(false)}
+            onBlur={e => {
+              setWeeklyIncomeFocused(false)
+              const r = evaluateAmountExpression(e.target.value)
+              if (r !== null) setWeeklyIncomeInput(String(Math.round(r)))
+            }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
@@ -349,7 +357,11 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             value={avgDailyInput}
             onChange={e => setAvgDailyInput(e.target.value)}
             onFocus={() => setAvgDailyFocused(true)}
-            onBlur={() => setAvgDailyFocused(false)}
+            onBlur={e => {
+              setAvgDailyFocused(false)
+              const r = evaluateAmountExpression(e.target.value)
+              if (r !== null) setAvgDailyInput(String(Math.round(r)))
+            }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
@@ -423,7 +435,11 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             value={businessDrawingsInput}
             onChange={e => setBusinessDrawingsInput(e.target.value)}
             onFocus={() => setBusinessDrawingsFocused(true)}
-            onBlur={() => setBusinessDrawingsFocused(false)}
+            onBlur={e => {
+              setBusinessDrawingsFocused(false)
+              const r = evaluateAmountExpression(e.target.value)
+              if (r !== null) setBusinessDrawingsInput(String(Math.round(r)))
+            }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)

@@ -364,7 +364,11 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                   <input ref={editBalanceRef} type="text" inputMode="decimal" value={editForm.current_balance}
                     onChange={e => setEditForm(f => ({ ...f, current_balance: e.target.value }))}
                     onFocus={() => setEditBalanceFocused(true)}
-                    onBlur={() => setEditBalanceFocused(false)}
+                    onBlur={e => {
+                      setEditBalanceFocused(false)
+                      const r = evaluateAmountExpression(e.target.value)
+                      if (r !== null) setEditForm(f => ({ ...f, current_balance: String(round2(r)) }))
+                    }}
                     onKeyDown={e => e.key === 'Enter' && handleEditSave()}
                     placeholder="0"
                     style={{ ...inp, paddingLeft: 28 }} />
@@ -436,7 +440,11 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                       value={adjustInput}
                       onChange={e => setAdjustInput(e.target.value)}
                       onFocus={() => setAdjustInputFocused(true)}
-                      onBlur={() => setAdjustInputFocused(false)}
+                      onBlur={e => {
+                        setAdjustInputFocused(false)
+                        const r = evaluateAmountExpression(e.target.value)
+                        if (r !== null) setAdjustInput(String(round2(r)))
+                      }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
@@ -547,7 +555,11 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input ref={addBalanceRef} type="text" inputMode="decimal" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))}
                     onFocus={() => setAddBalanceFocused(true)}
-                    onBlur={() => setAddBalanceFocused(false)}
+                    onBlur={e => {
+                      setAddBalanceFocused(false)
+                      const r = evaluateAmountExpression(e.target.value)
+                      if (r !== null) setForm(f => ({ ...f, current_balance: String(round2(r)) }))
+                    }}
                     onKeyDown={e => e.key === 'Enter' && handleAdd()}
                     placeholder="0"
                     style={{ ...inp, paddingLeft: 28 }} />

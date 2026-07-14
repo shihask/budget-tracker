@@ -928,7 +928,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 ref={amountRef}
                 type="text" inputMode="decimal"
                 onFocus={e => { e.target.select(); setAmountFocused(true) }}
-                onBlur={() => setAmountFocused(false)}
+                onBlur={e => {
+                  setAmountFocused(false)
+                  const r = evaluateAmountExpression(e.target.value)
+                  if (r !== null) set('amount', String(round2(r)))
+                }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
@@ -1016,7 +1020,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 ref={totalTargetRef}
                 type="text" inputMode="decimal"
                 onFocus={() => setTotalTargetFocused(true)}
-                onBlur={() => setTotalTargetFocused(false)}
+                onBlur={e => {
+                  setTotalTargetFocused(false)
+                  const r = evaluateAmountExpression(e.target.value)
+                  if (r !== null) set('total_target', String(round2(r)))
+                }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
@@ -1099,7 +1107,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                     ref={currentValueRef}
                     type="text" inputMode="decimal"
                     onFocus={() => setCurrentValueFocused(true)}
-                    onBlur={() => setCurrentValueFocused(false)}
+                    onBlur={e => {
+                      setCurrentValueFocused(false)
+                      const r = evaluateAmountExpression(e.target.value)
+                      if (r !== null) set('current_value', String(round2(r)))
+                    }}
                     onKeyDown={e => {
                       if (e.key !== 'Enter') return
                       const r = evaluateAmountExpression(e.currentTarget.value)
@@ -1125,7 +1137,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   ref={currentValueRef}
                   type="text" inputMode="decimal"
                   onFocus={() => setCurrentValueFocused(true)}
-                  onBlur={() => setCurrentValueFocused(false)}
+                  onBlur={e => {
+                    setCurrentValueFocused(false)
+                    const r = evaluateAmountExpression(e.target.value)
+                    if (r !== null) set('current_value', String(round2(r)))
+                  }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)
@@ -1248,7 +1264,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   value={payoutAmount}
                   onChange={e => setPayoutAmount(e.target.value)}
                   onFocus={e => { e.target.select(); setPayoutAmountFocused(true) }}
-                  onBlur={() => setPayoutAmountFocused(false)}
+                  onBlur={e => {
+                    setPayoutAmountFocused(false)
+                    const r = evaluateAmountExpression(e.target.value)
+                    if (r !== null) setPayoutAmount(String(round2(r)))
+                  }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)
@@ -1356,7 +1376,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 type="text" inputMode="decimal" value={newValueInput}
                 onChange={e => setNewValueInput(e.target.value)}
                 onFocus={e => { e.target.select(); setNewValueFocused(true) }}
-                onBlur={() => setNewValueFocused(false)}
+                onBlur={e => {
+                  setNewValueFocused(false)
+                  const r = evaluateAmountExpression(e.target.value)
+                  if (r !== null) setNewValueInput(String(round2(r)))
+                }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)

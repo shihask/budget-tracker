@@ -110,7 +110,11 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
               value={target}
               onChange={e => setTarget(e.target.value)}
               onFocus={() => setTargetFocused(true)}
-              onBlur={() => setTargetFocused(false)}
+              onBlur={e => {
+                setTargetFocused(false)
+                const r = evaluateAmountExpression(e.target.value)
+                if (r !== null) setTarget(String(round2(r)))
+              }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 const r = evaluateAmountExpression(e.currentTarget.value)

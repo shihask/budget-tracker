@@ -142,7 +142,11 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
               value={amount}
               onChange={e => setAmount(e.target.value)}
               onFocus={() => setAmountFocused(true)}
-              onBlur={() => setAmountFocused(false)}
+              onBlur={e => {
+                setAmountFocused(false)
+                const r = evaluateAmountExpression(e.target.value)
+                if (r !== null) setAmount(String(round2(r)))
+              }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 const r = evaluateAmountExpression(e.currentTarget.value)

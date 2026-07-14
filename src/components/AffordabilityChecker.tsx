@@ -627,7 +627,11 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
                 <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Amount (₹)</label>
                 <input ref={amountRef} type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
                   onFocus={e => { e.target.select(); setAmountFocused(true) }}
-                  onBlur={() => setAmountFocused(false)}
+                  onBlur={e => {
+                    setAmountFocused(false)
+                    const r = evaluateAmountExpression(e.target.value)
+                    if (r !== null) setAmount(String(round2(r)))
+                  }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)

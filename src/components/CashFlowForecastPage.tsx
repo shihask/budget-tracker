@@ -740,7 +740,11 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                         value={peAmount}
                         onChange={e => setPeAmount(e.target.value.replace(/[^0-9.+\-*x×X/÷\s]/g, ''))}
                         onFocus={() => setPeAmountFocused(true)}
-                        onBlur={() => setPeAmountFocused(false)}
+                        onBlur={e => {
+                          setPeAmountFocused(false)
+                          const r = evaluateAmountExpression(e.target.value)
+                          if (r !== null) setPeAmount(String(round2(r)))
+                        }}
                         onKeyDown={e => {
                           if (e.key !== 'Enter') return
                           const r = evaluateAmountExpression(e.currentTarget.value)

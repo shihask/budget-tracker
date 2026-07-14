@@ -512,7 +512,11 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <HelpText>Total amount you owe for this obligation.</HelpText>
                       <input ref={amountOwedRef} type="text" inputMode="decimal"
                         onFocus={e => { e.target.select(); setAmountOwedFocused(true) }}
-                        onBlur={() => setAmountOwedFocused(false)}
+                        onBlur={e => {
+                          setAmountOwedFocused(false)
+                          const r = evaluateAmountExpression(e.target.value)
+                          if (r !== null) set('amount', String(round2(r)))
+                        }}
                         onKeyDown={e => {
                           if (e.key !== 'Enter') return
                           const r = evaluateAmountExpression(e.currentTarget.value)
@@ -527,7 +531,11 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <HelpText>How much you have already paid towards this.</HelpText>
                       <input ref={paidAmountRef} type="text" inputMode="decimal"
                         onFocus={e => { e.target.select(); setPaidAmountFocused(true) }}
-                        onBlur={() => setPaidAmountFocused(false)}
+                        onBlur={e => {
+                          setPaidAmountFocused(false)
+                          const r = evaluateAmountExpression(e.target.value)
+                          if (r !== null) set('paid_amount', String(round2(r)))
+                        }}
                         onKeyDown={e => {
                           if (e.key !== 'Enter') return
                           const r = evaluateAmountExpression(e.currentTarget.value)
@@ -562,7 +570,11 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <HelpText>Amount you pay each installment.</HelpText>
                       <input ref={monthlyAmountRef} type="text" inputMode="decimal"
                         onFocus={e => { e.target.select(); setMonthlyAmountFocused(true) }}
-                        onBlur={() => setMonthlyAmountFocused(false)}
+                        onBlur={e => {
+                          setMonthlyAmountFocused(false)
+                          const r = evaluateAmountExpression(e.target.value)
+                          if (r !== null) handleAmountChange(String(round2(r)))
+                        }}
                         onKeyDown={e => {
                           if (e.key !== 'Enter') return
                           const r = evaluateAmountExpression(e.currentTarget.value)

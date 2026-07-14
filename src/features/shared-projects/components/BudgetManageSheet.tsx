@@ -128,7 +128,11 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
                   value={row.budget_amount}
                   onChange={e => updateRow(idx, 'budget_amount', e.target.value)}
                   onFocus={() => setFocusedRowIndex(idx)}
-                  onBlur={() => setFocusedRowIndex(null)}
+                  onBlur={e => {
+                    setFocusedRowIndex(null)
+                    const r = evaluateAmountExpression(e.target.value)
+                    if (r !== null) updateRow(idx, 'budget_amount', String(round2(r)))
+                  }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)

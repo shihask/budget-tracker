@@ -907,7 +907,11 @@ function AppContent({ session }: { session: Session }) {
                       value={challengeWinInput}
                       onChange={e => setChallengeWinInput(e.target.value)}
                       onFocus={e => { e.target.select(); setChallengeWinFocused(true) }}
-                      onBlur={() => setChallengeWinFocused(false)}
+                      onBlur={e => {
+                        setChallengeWinFocused(false)
+                        const r = evaluateAmountExpression(e.target.value)
+                        if (r !== null) setChallengeWinInput(String(Math.round(r)))
+                      }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
@@ -983,7 +987,11 @@ function AppContent({ session }: { session: Session }) {
                   value={emergencyInput}
                   onChange={e => setEmergencyInput(e.target.value)}
                   onFocus={e => { e.target.select(); setEmergencyAmountFocused(true) }}
-                  onBlur={() => setEmergencyAmountFocused(false)}
+                  onBlur={e => {
+                    setEmergencyAmountFocused(false)
+                    const r = evaluateAmountExpression(e.target.value)
+                    if (r !== null) setEmergencyInput(String(round2(r)))
+                  }}
                   onKeyDown={async e => {
                     if (e.key === 'Enter') {
                       const v = evaluateAmountExpression(emergencyInput)

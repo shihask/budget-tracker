@@ -399,7 +399,11 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       placeholder="0"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setFocusedBalanceIndex(i) }}
-                      onBlur={() => setFocusedBalanceIndex(null)}
+                      onBlur={e => {
+                        setFocusedBalanceIndex(null)
+                        const r = evaluateAmountExpression(e.target.value)
+                        if (r !== null) updateAccount(i, { balance: String(Math.round(r)) })
+                      }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
@@ -495,7 +499,11 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       placeholder="50,000"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setMonthlyIncomeFocused(true) }}
-                      onBlur={() => setMonthlyIncomeFocused(false)}
+                      onBlur={e => {
+                        setMonthlyIncomeFocused(false)
+                        const r = evaluateAmountExpression(e.target.value)
+                        if (r !== null) setMonthlyIncome(String(Math.round(r)))
+                      }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
@@ -543,7 +551,11 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       placeholder="12,000"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setWeeklyIncomeFocused(true) }}
-                      onBlur={() => setWeeklyIncomeFocused(false)}
+                      onBlur={e => {
+                        setWeeklyIncomeFocused(false)
+                        const r = evaluateAmountExpression(e.target.value)
+                        if (r !== null) setWeeklyIncome(String(Math.round(r)))
+                      }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
@@ -619,7 +631,11 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       placeholder="900"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setAvgDailyIncomeFocused(true) }}
-                      onBlur={() => setAvgDailyIncomeFocused(false)}
+                      onBlur={e => {
+                        setAvgDailyIncomeFocused(false)
+                        const r = evaluateAmountExpression(e.target.value)
+                        if (r !== null) setAvgDailyIncome(String(Math.round(r)))
+                      }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
@@ -690,7 +706,11 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       placeholder="30,000"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setBusinessDrawingsFocused(true) }}
-                      onBlur={() => setBusinessDrawingsFocused(false)}
+                      onBlur={e => {
+                        setBusinessDrawingsFocused(false)
+                        const r = evaluateAmountExpression(e.target.value)
+                        if (r !== null) setBusinessDrawings(String(Math.round(r)))
+                      }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)

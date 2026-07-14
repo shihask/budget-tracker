@@ -600,7 +600,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     value={editForm.amount}
                     onChange={e => setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
                     onFocus={e => { e.target.select(); setEditAmountFocused(true) }}
-                    onBlur={() => setEditAmountFocused(false)}
+                    onBlur={e => {
+                      setEditAmountFocused(false)
+                      const r = evaluateAmountExpression(e.target.value)
+                      if (r !== null) setEditForm(f => f ? { ...f, amount: String(round2(r)) } : f)
+                    }}
                     onKeyDown={e => {
                       if (e.key !== 'Enter') return
                       const r = evaluateAmountExpression(e.currentTarget.value)

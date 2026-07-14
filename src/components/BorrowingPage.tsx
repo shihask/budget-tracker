@@ -549,7 +549,11 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <Label>Total amount</Label>
               <HelpText>The full amount lent or borrowed.</HelpText>
               <input ref={totalAmountRef} type="text" inputMode="decimal"
-                onFocus={() => setTotalAmountFocused(true)} onBlur={() => setTotalAmountFocused(false)}
+                onFocus={() => setTotalAmountFocused(true)} onBlur={e => {
+                  setTotalAmountFocused(false)
+                  const r = evaluateAmountExpression(e.target.value)
+                  if (r !== null) setForm(f => ({ ...f, total_amount: String(round2(r)) }))
+                }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
@@ -562,7 +566,11 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <Label>{form.direction === 'lent' ? 'Repaid by them' : 'Repaid by you'}</Label>
               <HelpText>How much has already been paid back. Set to 0 if nothing has been repaid yet.</HelpText>
               <input ref={paidAmountRef} type="text" inputMode="decimal"
-                onFocus={() => setPaidAmountFocused(true)} onBlur={() => setPaidAmountFocused(false)}
+                onFocus={() => setPaidAmountFocused(true)} onBlur={e => {
+                  setPaidAmountFocused(false)
+                  const r = evaluateAmountExpression(e.target.value)
+                  if (r !== null) setForm(f => ({ ...f, paid_amount: String(round2(r)) }))
+                }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
@@ -618,7 +626,11 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           <div>
             <Label>Payment amount</Label>
             <input ref={payAmountRef} type="text" inputMode="decimal"
-              onFocus={() => setPayAmountFocused(true)} onBlur={() => setPayAmountFocused(false)}
+              onFocus={() => setPayAmountFocused(true)} onBlur={e => {
+                setPayAmountFocused(false)
+                const r = evaluateAmountExpression(e.target.value)
+                if (r !== null) setPayForm(f => ({ ...f, amount: String(round2(r)) }))
+              }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 const r = evaluateAmountExpression(e.currentTarget.value)
