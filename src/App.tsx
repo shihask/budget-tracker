@@ -60,6 +60,9 @@ import { BudgetStrategyCard } from '@/components/BudgetStrategyCard'
 import { CategoryBucketMapper } from '@/components/CategoryBucketMapper'
 import { BudgetStrategySheet } from '@/components/BudgetStrategySheet'
 import { ConnectBankSheet } from '@/features/aa-sync/components/ConnectBankSheet'
+import { AccountLinkReviewSheet } from '@/features/aa-sync/components/AccountLinkReviewSheet'
+import { DedupReviewSheet } from '@/features/aa-sync/components/DedupReviewSheet'
+import { useSyncPromotion } from '@/features/aa-sync/hooks/useSyncPromotion'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
 import { GuidedTour } from '@/components/GuidedTour'
@@ -196,10 +199,25 @@ function AppContent({ session }: { session: Session }) {
   // actually gets a chance to run — otherwise the params sit in the URL
   // unread since nothing else on this page reacts to them.
   const [aaSyncOpen, setAaSyncOpen] = useState(() => window.location.pathname === '/aa/redirect')
+  const [accountLinkReviewOpen, setAccountLinkReviewOpen] = useState(false)
+  const [dedupReviewOpen, setDedupReviewOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
   const [tourTarget, setTourTarget] = useState<string | null>(null)
 
-  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
+
+  // Turns pending sync_events into real transactions/accounts — the
+  // acceptance-gated final step of Phase 1b. onPromoted only fires for
+  // 'insert' outcomes (new transaction + balance change); merges/skips
+  // never need AppState to catch up since nothing about the account
+  // balance or an already-visible manual entry changed.
+  const { drain: drainSyncPromotion } = useSyncPromotion({
+    userId: session.user.id,
+    enabled: state.settings.track_aa_sync ?? false,
+    accounts: state.accounts,
+    categories: state.categories,
+    onPromoted: () => refetchAccountsAndRecentTransactions(),
+  })
 
   const projectsSummary = useProjectsSummary(session.user.id)
   const unseenSharedCount = projectsSummary.sharedProjects.filter(p => !seenSharedIds.has(p.id)).length
@@ -859,6 +877,23 @@ function AppContent({ session }: { session: Session }) {
           open={aaSyncOpen}
           onClose={() => setAaSyncOpen(false)}
           userId={session.user.id}
+          onOpenAccountLinkReview={() => setAccountLinkReviewOpen(true)}
+          onOpenDedupReview={() => setDedupReviewOpen(true)}
+        />
+
+        <AccountLinkReviewSheet
+          open={accountLinkReviewOpen}
+          onClose={() => setAccountLinkReviewOpen(false)}
+          accounts={state.accounts}
+          onLinked={drainSyncPromotion}
+        />
+
+        <DedupReviewSheet
+          open={dedupReviewOpen}
+          onClose={() => setDedupReviewOpen(false)}
+          userId={session.user.id}
+          categories={state.categories}
+          onResolved={refetchAccountsAndRecentTransactions}
         />
 
         <BudgetStrategySheet

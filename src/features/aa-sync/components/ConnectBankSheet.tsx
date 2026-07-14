@@ -10,6 +10,8 @@ interface Props {
   open: boolean
   onClose: () => void
   userId: string
+  onOpenAccountLinkReview: () => void
+  onOpenDedupReview: () => void
 }
 
 const HEALTH_LABEL: Record<ConnectionHealth, string> = {
@@ -28,7 +30,7 @@ const HEALTH_DOT: Record<ConnectionHealth, string> = {
   revoked: '#ef4444',
 }
 
-export function ConnectBankSheet({ open, onClose, userId }: Props) {
+export function ConnectBankSheet({ open, onClose, userId, onOpenAccountLinkReview, onOpenDedupReview }: Props) {
   const c = useTheme()
   const { connections, loading, refetch } = useAaSyncData(userId)
   const [mobile, setMobile] = useState('')
@@ -107,6 +109,29 @@ export function ConnectBankSheet({ open, onClose, userId }: Props) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {connections.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            <button
+              onClick={onOpenAccountLinkReview}
+              style={{
+                flex: 1, padding: '10px', borderRadius: 12, border: `1.5px solid ${c.faint}`,
+                background: 'transparent', color: c.muted, font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+              }}
+            >
+              Confirm accounts
+            </button>
+            <button
+              onClick={onOpenDedupReview}
+              style={{
+                flex: 1, padding: '10px', borderRadius: 12, border: `1.5px solid ${c.faint}`,
+                background: 'transparent', color: c.muted, font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+              }}
+            >
+              Review duplicates
+            </button>
           </div>
         )}
 
