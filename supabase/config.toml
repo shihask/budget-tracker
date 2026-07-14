@@ -1,0 +1,13 @@
+# First config.toml in this repo — added for Phase 1a's aa-webhook function.
+# Every other Edge Function relies on default JWT verification succeeding
+# (either a real user's JWT, or — for cron-triggered functions like
+# push-send — the service_role key itself, which IS a validly-signed JWT).
+# aa-webhook is called by Setu/Finvu directly, an external caller with no
+# Supabase JWT at all, so it needs the platform-level check disabled; its own
+# verification (shared-secret token + consentId cross-check) is documented in
+# supabase/functions/aa-webhook/index.ts.
+
+project_id = "prkzgxympgupuwppytlf"
+
+[functions.aa-webhook]
+verify_jwt = false
