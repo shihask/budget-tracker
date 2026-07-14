@@ -8,7 +8,7 @@ export interface AccountLinkSuggestion {
 // maskedAccNumber is verified live (Phase 0 sandbox captures, e.g.
 // "XXXXXXXXXXXXXXXXaf56") as uppercase 'X' padding followed by a lowercase
 // alphanumeric suffix — that trailing run is the real matching signal.
-function trailingSuffix(maskedAccNumber: string): string {
+export function trailingSuffix(maskedAccNumber: string): string {
   const match = maskedAccNumber.match(/[^X]+$/)
   return match ? match[0].toLowerCase() : ''
 }

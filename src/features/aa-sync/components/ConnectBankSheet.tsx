@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { BottomSheet } from '@/components/BottomSheet'
+import { useAppDialog } from '@/components/AppDialog'
 import { connectAaBank } from '../lib/connect'
+import { trailingSuffix } from '../lib/accountLinking'
 import { useAaSyncData, type SyncConnectionWithHealth } from '../hooks/useAaSyncData'
 import type { ConnectionHealth } from '../types'
 
@@ -30,12 +32,22 @@ const HEALTH_DOT: Record<ConnectionHealth, string> = {
   revoked: '#ef4444',
 }
 
+// Statuses where the connection has already stopped syncing — Remove
+// Connection only makes sense here, and Reconnect replaces Disconnect.
+const DISCONNECTED_STATUSES = new Set(['revoked', 'expired', 'error'])
+
 export function ConnectBankSheet({ open, onClose, userId, onOpenAccountLinkReview, onOpenDedupReview }: Props) {
   const c = useTheme()
+  const { confirm, alert, dialogNode } = useAppDialog()
   const { connections, loading, refetch } = useAaSyncData(userId)
   const [mobile, setMobile] = useState('')
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [manageOpenId, setManageOpenId] = useState<string | null>(null)
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null)
+  // provider_connection_id -> masked account suffix, so rows can show
+  // "Bank account ···af56" instead of a generic fallback once linked.
+  const [maskedSuffixes, setMaskedSuffixes] = useState<Map<string, string>>(new Map())
 
   // Redirect-return fallback (Failure Recovery, Phase 1a plan): if we land
   // back here with ?success=true&id=... and the webhook hasn't caught up
@@ -61,6 +73,28 @@ export function ConnectBankSheet({ open, onClose, userId, onOpenAccountLinkRevie
     return () => clearTimeout(t)
   }, [open])
 
+  async function fetchMaskedSuffixes() {
+    const { data } = await supabase
+      .from('account_connections')
+      .select('provider_connection_id, provider_metadata')
+      .eq('user_id', userId)
+
+    const map = new Map<string, string>()
+    for (const row of data ?? []) {
+      const masked = (row.provider_metadata as Record<string, unknown> | null)?.maskedAccNumber
+      if (typeof masked === 'string') {
+        const suffix = trailingSuffix(masked)
+        if (suffix) map.set(row.provider_connection_id, suffix)
+      }
+    }
+    setMaskedSuffixes(map)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    fetchMaskedSuffixes()
+  }, [open, connections.length])
+
   const handleConnect = async () => {
     if (!/^\d{10}$/.test(mobile) || connecting) return
     setConnecting(true)
@@ -74,11 +108,100 @@ export function ConnectBankSheet({ open, onClose, userId, onOpenAccountLinkRevie
     }
   }
 
+  function rowLabel(conn: SyncConnectionWithHealth): string {
+    const suffix = maskedSuffixes.get(conn.provider_connection_id)
+    if (suffix) return `Bank account ···${suffix}`
+    return (conn.provider_metadata?.vua as string | undefined)?.split('@')[0] ?? 'Bank account'
+  }
+
+  async function handleDisconnect(conn: SyncConnectionWithHealth) {
+    const ok = await confirm(
+      `Disconnect ${rowLabel(conn)}? Future transactions won't sync automatically. Existing imported transactions will remain.`,
+      { confirmLabel: 'Disconnect', danger: false }
+    )
+    if (!ok) return
+    setActionBusyId(conn.id)
+    try {
+      await supabase.rpc('mp_disconnect_sync_connection', { p_connection_id: conn.id })
+      setManageOpenId(null)
+      await refetch()
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  async function handleRemove(conn: SyncConnectionWithHealth) {
+    const ok = await confirm(
+      `Remove this connection? This deletes only the sync connection. Your account and its transactions stay.`,
+      { confirmLabel: 'Remove', danger: true }
+    )
+    if (!ok) return
+    setActionBusyId(conn.id)
+    try {
+      await supabase.rpc('mp_remove_sync_connection', { p_connection_id: conn.id })
+      setManageOpenId(null)
+      await refetch()
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  async function handleDeleteImported(conn: SyncConnectionWithHealth) {
+    setActionBusyId(conn.id)
+    try {
+      const { data: events } = await supabase
+        .from('sync_events')
+        .select('id')
+        .eq('connection_id', conn.id)
+        .eq('promotion_action', 'insert')
+
+      const eventIds = (events ?? []).map(e => e.id)
+      let previewCount = 0
+      let previewTotal = 0
+      if (eventIds.length > 0) {
+        const { data: txns } = await supabase.from('transactions').select('amount').in('sync_event_id', eventIds)
+        previewCount = txns?.length ?? 0
+        previewTotal = (txns ?? []).reduce((s, t) => s + Number(t.amount), 0)
+      }
+
+      if (previewCount === 0) {
+        await alert('No imported transactions to delete for this connection.')
+        return
+      }
+
+      const ok = await confirm(
+        `This will remove ${previewCount} imported transaction${previewCount === 1 ? '' : 's'}. Balance adjustment: −₹${previewTotal.toLocaleString('en-IN')}. This only removes transactions this specific sync created — not manual entries, not other accounts. Transactions merged with entries you already had are not affected.`,
+        { confirmLabel: 'Delete', danger: true }
+      )
+      if (!ok) return
+
+      const { data } = await supabase.rpc('mp_delete_synced_transactions', { p_connection_id: conn.id })
+      const result = data as { deleted_count: number; total_amount: number }
+      setManageOpenId(null)
+      await refetch()
+      await alert(`Deleted ${result.deleted_count} transaction${result.deleted_count === 1 ? '' : 's'}.`)
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  function handleReconnect(conn: SyncConnectionWithHealth) {
+    const vua = conn.provider_metadata?.vua as string | undefined
+    const digits = vua?.split('@')[0]?.replace(/\D/g, '').slice(0, 10) ?? ''
+    setMobile(digits)
+    setManageOpenId(null)
+  }
+
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '12px 14px', borderRadius: 14,
     border: `1.5px solid ${c.faint}`, background: c.surface2,
     font: '600 15px Plus Jakarta Sans', color: c.ink,
     outline: 'none', boxSizing: 'border-box',
+  }
+
+  const actionButtonStyle: React.CSSProperties = {
+    flex: 1, padding: '9px', borderRadius: 10, border: `1.5px solid ${c.faint}`,
+    background: 'transparent', color: c.muted, font: '700 11px Plus Jakarta Sans', cursor: 'pointer',
   }
 
   return (
@@ -91,24 +214,56 @@ export function ConnectBankSheet({ open, onClose, userId, onOpenAccountLinkRevie
 
         {connections.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-            {connections.map((conn: SyncConnectionWithHealth) => (
-              <div
-                key={conn.id}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '12px 14px', borderRadius: 14,
-                  border: `1.5px solid ${c.faint}`, background: c.surface2,
-                }}
-              >
-                <div style={{ width: 8, height: 8, borderRadius: 999, background: HEALTH_DOT[conn.health], flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>
-                    {(conn.provider_metadata?.vua as string | undefined)?.split('@')[0] ?? 'Bank account'}
+            {connections.map((conn: SyncConnectionWithHealth) => {
+              const isDisconnected = DISCONNECTED_STATUSES.has(conn.status)
+              const isBusy = actionBusyId === conn.id
+              const isExpanded = manageOpenId === conn.id
+
+              return (
+                <div
+                  key={conn.id}
+                  style={{
+                    padding: '12px 14px', borderRadius: 14,
+                    border: `1.5px solid ${c.faint}`, background: c.surface2,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 999, background: HEALTH_DOT[conn.health], flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {rowLabel(conn)}
+                      </div>
+                      <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>{HEALTH_LABEL[conn.health]}</div>
+                    </div>
+                    <button
+                      onClick={() => setManageOpenId(isExpanded ? null : conn.id)}
+                      style={{
+                        flexShrink: 0, padding: '6px 10px', borderRadius: 8, border: `1.5px solid ${c.faint}`,
+                        background: 'transparent', color: c.muted, font: '700 11px Plus Jakarta Sans', cursor: 'pointer',
+                      }}
+                    >
+                      Manage
+                    </button>
                   </div>
-                  <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted }}>{HEALTH_LABEL[conn.health]}</div>
+
+                  {isExpanded && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                      {isDisconnected ? (
+                        <>
+                          <button disabled={isBusy} onClick={() => handleReconnect(conn)} style={actionButtonStyle}>Reconnect</button>
+                          <button disabled={isBusy} onClick={() => handleRemove(conn)} style={actionButtonStyle}>Remove</button>
+                        </>
+                      ) : (
+                        <button disabled={isBusy} onClick={() => handleDisconnect(conn)} style={actionButtonStyle}>Disconnect</button>
+                      )}
+                      <button disabled={isBusy} onClick={() => handleDeleteImported(conn)} style={{ ...actionButtonStyle, color: '#ef4444', borderColor: '#ef4444' }}>
+                        {isBusy ? '…' : 'Delete data'}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -169,6 +324,7 @@ export function ConnectBankSheet({ open, onClose, userId, onOpenAccountLinkRevie
           <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 12, textAlign: 'center' }}>Loading…</div>
         )}
       </div>
+      {dialogNode}
     </BottomSheet>
   )
 }

@@ -1,7 +1,7 @@
 {
   "name": "budget-tracker",
   "private": true,
-  "version": "1.54.42",
+  "version": "1.54.43",
   "type": "module",
   "scripts": {
     "dev": "vite",
