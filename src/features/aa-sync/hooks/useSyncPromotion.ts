@@ -81,7 +81,20 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
     runningRef.current = true
     setProcessing(true)
     const batchAccountCache = new Map<string, string>()
+    // Seeded from accountsRef, then grown as accounts get auto-created
+    // during this batch. accountsRef only reflects state.accounts, which
+    // React only refreshes via onPromoted — which fires on a promoted
+    // transaction, never on account-creation alone (balance/profile events
+    // create-and-skip, no transaction). Without this, two sync_events from
+    // DIFFERENT provider_connection_ids that happen to represent the same
+    // real bank account (same masked suffix) can both auto-create within
+    // one batch, since the second one's suggestAccountLink check would
+    // otherwise run against a stale list that doesn't yet include the
+    // first — caught live: two "Bank account ···af56" rows created 427ms
+    // apart in the same drain pass.
+    const knownAccounts = [...accountsRef.current]
     let totalPromoted = 0
+    let accountsCreated = 0
 
     async function finalize(eventId: string, outcome: string, extra: Record<string, unknown> = {}): Promise<FinalizeResult> {
       const { data, error } = await supabase.rpc('mp_finalize_sync_event', {
@@ -106,7 +119,7 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
 
       if (accountId === undefined) {
         const maskedAccNumber = str((event.provider_metadata as Record<string, unknown>)?.maskedAccNumber)
-        const suggestion = maskedAccNumber ? suggestAccountLink(maskedAccNumber, accountsRef.current) : null
+        const suggestion = maskedAccNumber ? suggestAccountLink(maskedAccNumber, knownAccounts) : null
 
         // A likely-matching existing Account was found — don't guess which
         // one is right. Leave the event pending; AccountLinkReviewSheet
@@ -114,13 +127,14 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
         // hook via the sync_events realtime subscription.
         if (suggestion) return 'left_pending'
 
+        const newAccountName = maskedAccNumber ? defaultAccountName(maskedAccNumber) : 'Bank account'
         const { data, error } = await supabase.rpc('mp_link_sync_account', {
           p_provider: event.provider,
           p_provider_connection_id: event.provider_connection_id,
           p_provider_account_id: event.provider_account_id,
           p_existing_account_id: null,
           p_new_account: {
-            name: maskedAccNumber ? defaultAccountName(maskedAccNumber) : 'Bank account',
+            name: newAccountName,
             type: 'bank',
             current_balance: 0,
           },
@@ -129,6 +143,8 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
         if (error) throw error
         accountId = (data as { account_id: string }).account_id
         batchAccountCache.set(cacheKey, accountId)
+        knownAccounts.push({ id: accountId, name: newAccountName, type: 'bank' })
+        accountsCreated++
       }
 
       // Step 2: non-transaction events (balance/profile) skip straight
@@ -264,7 +280,12 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
     } finally {
       runningRef.current = false
       if (mountedRef.current) setProcessing(false)
-      if (totalPromoted > 0) onPromotedRef.current(totalPromoted)
+      // Refetch on a new account too, not just a promoted transaction —
+      // otherwise state.accounts (and accountsRef, seeding the next batch's
+      // knownAccounts) stays stale until some later transaction happens to
+      // get inserted, reopening the same duplicate-account window this
+      // batch's own knownAccounts tracking only closes within one pass.
+      if (totalPromoted > 0 || accountsCreated > 0) onPromotedRef.current(totalPromoted)
     }
   }, [userId])
 
