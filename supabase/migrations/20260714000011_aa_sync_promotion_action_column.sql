@@ -1,0 +1,21 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migration: aa_sync_promotion_action_column
+-- Date: 2026-07-14
+--
+-- mp_finalize_sync_event's status mapping deliberately collapses 'insert'
+-- and 'merge_into' to the same terminal status='merged' value — both mean
+-- "this event now corresponds to exactly one transactions row." That's
+-- correct for the promotion lifecycle, but it means status alone can't
+-- answer "did this transaction get CREATED by a sync, or was it a manual
+-- entry that merely got LINKED?" — a distinction the upcoming
+-- mp_delete_synced_transactions RPC needs to answer safely (deleting
+-- indiscriminately by sync_event_id would destroy manually-entered
+-- transactions that happened to get merged).
+--
+-- promotion_action stores the raw decision verbatim, separate from the
+-- collapsed status. Only populated going forward — sync_events processed
+-- before this column existed have no way to retroactively recover which
+-- one they were.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+ALTER TABLE sync_events ADD COLUMN IF NOT EXISTS promotion_action text;
