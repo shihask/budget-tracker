@@ -59,6 +59,7 @@ import { PlantPage } from '@/components/PlantPage'
 import { BudgetStrategyCard } from '@/components/BudgetStrategyCard'
 import { CategoryBucketMapper } from '@/components/CategoryBucketMapper'
 import { BudgetStrategySheet } from '@/components/BudgetStrategySheet'
+import { ConnectBankSheet } from '@/features/aa-sync/components/ConnectBankSheet'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
 import { GuidedTour } from '@/components/GuidedTour'
@@ -190,6 +191,11 @@ function AppContent({ session }: { session: Session }) {
   const [swipePct, setSwipePct] = useState(0)
   const [strategyMapperOpen, setStrategyMapperOpen] = useState(false)
   const [budgetStrategySheetOpen, setBudgetStrategySheetOpen] = useState(false)
+  // Auto-open when landing back from the AA consent redirect
+  // (?success=true&id=...) so ConnectBankSheet's own reconciliation effect
+  // actually gets a chance to run — otherwise the params sit in the URL
+  // unread since nothing else on this page reacts to them.
+  const [aaSyncOpen, setAaSyncOpen] = useState(() => window.location.pathname === '/aa/redirect')
   const [tourOpen, setTourOpen] = useState(false)
   const [tourTarget, setTourTarget] = useState<string | null>(null)
 
@@ -811,6 +817,7 @@ function AppContent({ session }: { session: Session }) {
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackSavings={state.settings.track_savings ?? false}
               trackProjects={state.settings.track_projects ?? false}
+              trackAaSync={state.settings.track_aa_sync ?? false}
               budgetStrategyEnabled={state.budget_strategy_settings.budget_strategy !== 'none'}
               challengeEnabled={state.settings.challenge_enabled ?? false}
               autopilotEnabled={state.settings.autopilot_enabled ?? false}
@@ -831,6 +838,8 @@ function AppContent({ session }: { session: Session }) {
               onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
               onTrackSavings={v => updateSettings({ track_savings: v })}
               onTrackProjects={v => updateSettings({ track_projects: v })}
+              onTrackAaSync={v => updateSettings({ track_aa_sync: v })}
+              onOpenAaSync={() => setAaSyncOpen(true)}
               onBudgetStrategy={v => { updateBudgetStrategySettings({ budget_strategy: v ? 'balanced' : 'none' }); if (v) setBudgetStrategySheetOpen(true) }}
               onChallengeEnabled={v => updateSettings({ challenge_enabled: v })}
               onAutopilot={v => updateSettings({ autopilot_enabled: v })}
@@ -845,6 +854,12 @@ function AppContent({ session }: { session: Session }) {
             />
           </>
         )}
+
+        <ConnectBankSheet
+          open={aaSyncOpen}
+          onClose={() => setAaSyncOpen(false)}
+          userId={session.user.id}
+        />
 
         <BudgetStrategySheet
           open={budgetStrategySheetOpen}

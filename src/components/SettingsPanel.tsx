@@ -24,6 +24,7 @@ interface SettingsPanelProps {
   trackBorrowings: boolean
   trackSavings: boolean
   trackProjects: boolean
+  trackAaSync: boolean
   budgetStrategyEnabled: boolean
   challengeEnabled: boolean
   autopilotEnabled: boolean
@@ -46,6 +47,8 @@ interface SettingsPanelProps {
   onTrackBorrowings: (v: boolean) => Promise<void>
   onTrackSavings: (v: boolean) => Promise<void>
   onTrackProjects: (v: boolean) => Promise<void>
+  onTrackAaSync: (v: boolean) => Promise<void>
+  onOpenAaSync: () => void
   onBudgetStrategy: (v: boolean) => void
   onChallengeEnabled: (v: boolean) => Promise<void>
   onAutopilot: (v: boolean) => Promise<void>
@@ -59,7 +62,7 @@ interface SettingsPanelProps {
   tourHighlight?: boolean
 }
 
-export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, tourHighlight }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, tourHighlight }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
@@ -546,6 +549,27 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
           <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackSavings ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </button>
       </div>
+
+      <div style={rowStyle}>
+        <div>
+          <div style={labelStyle}>Bank Auto-Sync</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Connect a bank account via Account Aggregator (sandbox only)</div>
+        </div>
+        <button
+          onClick={() => onTrackAaSync(!trackAaSync)}
+          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackAaSync ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
+        >
+          <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackAaSync ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+        </button>
+      </div>
+      {trackAaSync && (
+        <button
+          onClick={onOpenAaSync}
+          style={{ width: '100%', textAlign: 'left', padding: '10px 0 4px', background: 'none', border: 'none', cursor: 'pointer', font: '700 13px Plus Jakarta Sans', color: c.accent }}
+        >
+          Manage connected banks →
+        </button>
+      )}
 
       <div style={rowStyle}>
         <div>

@@ -122,6 +122,7 @@ export interface Settings {
   notify_evening_recap?: boolean
   track_savings?: boolean
   track_projects?: boolean
+  track_aa_sync?: boolean
   budget_mode?: 'auto' | 'manual'
   hero_mode?: 'remaining' | 'budget'
   challenge_enabled?:           boolean
