@@ -57,7 +57,7 @@ Deno.serve(async req => {
 
     const { data: connection } = await db
       .from('sync_connections')
-      .select('id, user_id, status, fetch_type, retry_count, last_processed_session_id')
+      .select('id, user_id, status, fetch_type, retry_count, last_processed_session_id, provider_metadata')
       .eq('provider', 'aa')
       .eq('provider_connection_id', consentId)
       .single()
@@ -84,15 +84,25 @@ Deno.serve(async req => {
 })
 
 // deno-lint-ignore no-explicit-any
-async function handleConsentStatusUpdate(db: any, connection: { id: string; user_id: string }, body: any) {
+async function handleConsentStatusUpdate(db: any, connection: { id: string; user_id: string; provider_metadata?: Record<string, unknown> }, body: any) {
   const setuStatus = body?.data?.status as string | undefined
   const { status, isError } = mapConsentStatus(setuStatus ?? '')
+
+  // Merge, don't overwrite — aa-connect's original provider_metadata (vua,
+  // fiTypes, consentDetail) must survive this update. This webhook's payload
+  // only ever adds/updates `accounts`; clobbering the whole object here
+  // previously wiped the vua, which is what the UI displays as the
+  // connection's label.
+  const mergedMetadata = {
+    ...(connection.provider_metadata ?? {}),
+    accounts: body?.data?.detail?.accounts ?? (connection.provider_metadata as { accounts?: unknown })?.accounts,
+  }
 
   await db
     .from('sync_connections')
     .update({
       status,
-      provider_metadata: body?.data?.detail ?? {},
+      provider_metadata: mergedMetadata,
       ...(isError ? { last_error: `Unhandled consent status: ${setuStatus}` } : {}),
       updated_at: new Date().toISOString(),
     })
