@@ -239,9 +239,12 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
                     onClick={() => confirmMerge(event, ctx)}
                     disabled={isBusy || !candidate}
                     style={{
-                      flex: 1, padding: '10px', borderRadius: 10, border: 'none',
-                      background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans',
-                      cursor: isBusy || !candidate ? 'not-allowed' : 'pointer', opacity: isBusy || !candidate ? 0.5 : 1,
+                      flex: 1, padding: '10px', borderRadius: 10,
+                      border: candidate ? 'none' : `1.5px solid ${c.faint}`,
+                      background: candidate ? c.accent : 'transparent',
+                      color: candidate ? '#fff' : c.muted,
+                      font: '700 13px Plus Jakarta Sans',
+                      cursor: isBusy || !candidate ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1,
                     }}
                   >
                     Merge with existing
@@ -250,9 +253,12 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
                     onClick={() => confirmInsert(event, ctx)}
                     disabled={isBusy}
                     style={{
-                      flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${c.faint}`,
-                      background: 'transparent', color: c.muted, font: '700 13px Plus Jakarta Sans',
-                      cursor: isBusy ? 'not-allowed' : 'pointer',
+                      flex: 1, padding: '10px', borderRadius: 10,
+                      border: candidate ? `1.5px solid ${c.faint}` : 'none',
+                      background: candidate ? 'transparent' : c.accent,
+                      color: candidate ? c.muted : '#fff',
+                      font: '700 13px Plus Jakarta Sans',
+                      cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1,
                     }}
                   >
                     Add transaction
