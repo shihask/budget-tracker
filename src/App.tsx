@@ -64,6 +64,7 @@ import { AccountLinkReviewSheet } from '@/features/aa-sync/components/AccountLin
 import { DedupReviewSheet } from '@/features/aa-sync/components/DedupReviewSheet'
 import { AaReviewBanner } from '@/features/aa-sync/components/AaReviewBanner'
 import { useAaReviewCount } from '@/features/aa-sync/hooks/useAaReviewCount'
+import { useAaLinkedAccounts } from '@/features/aa-sync/hooks/useAaLinkedAccounts'
 import { useSyncPromotion } from '@/features/aa-sync/hooks/useSyncPromotion'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
@@ -219,9 +220,10 @@ function AppContent({ session }: { session: Session }) {
     enabled: state.settings.track_aa_sync ?? false,
     accounts: state.accounts,
     categories: state.categories,
-    onPromoted: () => refetchAccountsAndRecentTransactions(),
+    onPromoted: () => { refetchAccountsAndRecentTransactions(); refetchAaLinkedAccounts() },
   })
   const { count: aaReviewCount, refetch: refetchAaReviewCount } = useAaReviewCount(session.user.id)
+  const { linkedAccountIds, refetch: refetchAaLinkedAccounts } = useAaLinkedAccounts(session.user.id)
 
   const projectsSummary = useProjectsSummary(session.user.id)
   const unseenSharedCount = projectsSummary.sharedProjects.filter(p => !seenSharedIds.has(p.id)).length
@@ -529,7 +531,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <CashFlowForecastCard state={state} d={d} onOpen={() => setCashflowOpen(true)} onSetup={() => setCashflowSetupOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} />
                       break
                     case 'accounts':
-                      el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAdjustBalance={adjustBalance} onAddTransaction={() => setSheetOpen(true)} />
+                      el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAdjustBalance={adjustBalance} onAddTransaction={() => setSheetOpen(true)} linkedAccountIds={linkedAccountIds} onOpenBankSync={() => setAaSyncOpen(true)} />
                       break
                     case 'commitments':
                       el = <CommitmentsSection state={state} onSeeAll={() => { setCommitmentsAddOnOpen(false); setCommitmentsOpen(true) }} onAdd={() => { setCommitmentsAddOnOpen(true); setCommitmentsOpen(true) }} />
@@ -890,7 +892,7 @@ function AppContent({ session }: { session: Session }) {
           open={accountLinkReviewOpen}
           onClose={() => setAccountLinkReviewOpen(false)}
           accounts={state.accounts}
-          onLinked={drainSyncPromotion}
+          onLinked={() => { drainSyncPromotion(); refetchAaLinkedAccounts() }}
         />
 
         <DedupReviewSheet

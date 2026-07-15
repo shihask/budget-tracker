@@ -29,9 +29,11 @@ interface AccountsSectionProps {
   onDeleteAccount: (id: string) => Promise<void>
   onAdjustBalance: (accountId: string, actualBalance: number) => Promise<void>
   onAddTransaction?: () => void
+  linkedAccountIds?: Set<string> // AA-synced accounts (account_connections) — shows a bank-sync badge
+  onOpenBankSync?: () => void // badge tap target — opens the Connect Bank hub (manage + review, all in one place)
 }
 
-export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDeleteAccount, onAdjustBalance, onAddTransaction }: AccountsSectionProps) {
+export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDeleteAccount, onAdjustBalance, onAddTransaction, linkedAccountIds, onOpenBankSync }: AccountsSectionProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const accs = state.accounts.filter(a => a.is_active)
@@ -208,7 +210,24 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{a.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+                      {linkedAccountIds?.has(a.id) && (
+                        <button
+                          onClick={onOpenBankSync}
+                          title="Synced via Account Aggregator — tap to manage"
+                          style={{
+                            flexShrink: 0, width: 18, height: 18, borderRadius: 999,
+                            border: 'none', background: c.accent + '22', cursor: onOpenBankSync ? 'pointer' : 'default',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 21h18M5 21V9l7-6 7 6v12M9 21v-6h6v6" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                     <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted }}>
                       {TYPE_LABEL[a.type]} · {share}%
                     </div>
