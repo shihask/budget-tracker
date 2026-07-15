@@ -1,0 +1,36 @@
+{
+  "id": "date-window-boundary-001",
+  "description": "Existing transaction exactly 3 days outside DEDUP_WINDOW_DAYS (=2), same amount and identical narration otherwise — must insert, because the candidate pool query itself excludes it before scoring ever runs. Protects DEDUP_WINDOW_DAYS from a silent widening/narrowing regression (if the window were accidentally widened to 3+ days, this fixture would flip to merge_into and fail).",
+  "scenario": {
+    "existing_transaction": {
+      "description": "GENERIC MERCHANT PAYMENT",
+      "amount": 300,
+      "transaction_type": "expense",
+      "transaction_date": "2026-07-10"
+    },
+    "provider_event_id": "fixture-date-window-boundary-001",
+    "raw_payload": {
+      "amount": "300.00",
+      "balance": "41009.50",
+      "mode": "UPI",
+      "narration": "GENERIC MERCHANT PAYMENT",
+      "reference": "REF-WINDOW-001",
+      "txnId": "fixture-date-window-boundary-001",
+      "type": "DEBIT",
+      "valueDate": "2026-07-13"
+    },
+    "provider_metadata": {
+      "fipID": "FIP-ID",
+      "maskedAccNumber": "XXXXXXXXXXXXXXXXaf56",
+      "mode": "UPI",
+      "type": "DEBIT",
+      "reference": "REF-WINDOW-001",
+      "balance": "41009.50"
+    }
+  },
+  "expectation": {
+    "promotion_action": "insert",
+    "category_group": null,
+    "merged_into_description": null
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "fuel-debit-001",
+  "description": "Fuel debit with no existing candidate should insert as expense",
+  "scenario": {
+    "existing_transaction": null,
+    "provider_event_id": "fixture-fuel-debit-001",
+    "raw_payload": {
+      "amount": "1500.00",
+      "balance": "50000.00",
+      "mode": "UPI",
+      "narration": "INDIAN OIL PETROL PUMP",
+      "reference": "REF-FUEL-001",
+      "txnId": "fixture-fuel-debit-001",
+      "type": "DEBIT",
+      "valueDate": "2026-07-14"
+    },
+    "provider_metadata": {
+      "fipID": "FIP-ID",
+      "maskedAccNumber": "XXXXXXXXXXXXXXXXaf56",
+      "mode": "UPI",
+      "type": "DEBIT",
+      "reference": "REF-FUEL-001",
+      "balance": "50000.00"
+    }
+  },
+  "expectation": {
+    "promotion_action": "insert",
+    "category_group": null,
+    "merged_into_description": null
+  }
+}

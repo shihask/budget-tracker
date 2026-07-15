@@ -1,0 +1,31 @@
+{
+  "id": "upi-transfer-001",
+  "description": "UPI debit with punctuation-heavy narration, no existing candidate — exercises dedup.ts's narration normalization (slashes/@ stripped, not glued into one token)",
+  "scenario": {
+    "existing_transaction": null,
+    "provider_event_id": "fixture-upi-transfer-001",
+    "raw_payload": {
+      "amount": "800.00",
+      "balance": "41859.50",
+      "mode": "UPI",
+      "narration": "UPI-JOHNDOE-9876543210@okhdfcbank-TRANSFER",
+      "reference": "REF-UPI-001",
+      "txnId": "fixture-upi-transfer-001",
+      "type": "DEBIT",
+      "valueDate": "2026-07-14"
+    },
+    "provider_metadata": {
+      "fipID": "FIP-ID",
+      "maskedAccNumber": "XXXXXXXXXXXXXXXXaf56",
+      "mode": "UPI",
+      "type": "DEBIT",
+      "reference": "REF-UPI-001",
+      "balance": "41859.50"
+    }
+  },
+  "expectation": {
+    "promotion_action": "insert",
+    "category_group": null,
+    "merged_into_description": null
+  }
+}

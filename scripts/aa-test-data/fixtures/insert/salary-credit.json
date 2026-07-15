@@ -1,0 +1,31 @@
+{
+  "id": "salary-credit-001",
+  "description": "Salary credit with no existing candidate should insert as income, categorized",
+  "scenario": {
+    "existing_transaction": null,
+    "provider_event_id": "fixture-salary-credit-001",
+    "raw_payload": {
+      "amount": "45000.00",
+      "balance": "95000.00",
+      "mode": "NEFT",
+      "narration": "SALARY CREDIT JULY XYZCORP",
+      "reference": "REF-SALARY-001",
+      "txnId": "fixture-salary-credit-001",
+      "type": "CREDIT",
+      "valueDate": "2026-07-14"
+    },
+    "provider_metadata": {
+      "fipID": "FIP-ID",
+      "maskedAccNumber": "XXXXXXXXXXXXXXXXaf56",
+      "mode": "NEFT",
+      "type": "CREDIT",
+      "reference": "REF-SALARY-001",
+      "balance": "95000.00"
+    }
+  },
+  "expectation": {
+    "promotion_action": "insert",
+    "category_group": "Income",
+    "merged_into_description": null
+  }
+}

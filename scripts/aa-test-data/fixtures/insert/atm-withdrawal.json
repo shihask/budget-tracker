@@ -1,0 +1,31 @@
+{
+  "id": "atm-withdrawal-001",
+  "description": "ATM cash withdrawal with no existing candidate should insert as expense",
+  "scenario": {
+    "existing_transaction": null,
+    "provider_event_id": "fixture-atm-withdrawal-001",
+    "raw_payload": {
+      "amount": "5000.00",
+      "balance": "42659.50",
+      "mode": "ATM",
+      "narration": "ATM WDL CASH NR12345",
+      "reference": "REF-ATM-001",
+      "txnId": "fixture-atm-withdrawal-001",
+      "type": "DEBIT",
+      "valueDate": "2026-07-14"
+    },
+    "provider_metadata": {
+      "fipID": "FIP-ID",
+      "maskedAccNumber": "XXXXXXXXXXXXXXXXaf56",
+      "mode": "ATM",
+      "type": "DEBIT",
+      "reference": "REF-ATM-001",
+      "balance": "42659.50"
+    }
+  },
+  "expectation": {
+    "promotion_action": "insert",
+    "category_group": null,
+    "merged_into_description": null
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "grocery-debit-001",
+  "description": "Grocery debit with no existing candidate should insert as expense",
+  "scenario": {
+    "existing_transaction": null,
+    "provider_event_id": "fixture-grocery-debit-001",
+    "raw_payload": {
+      "amount": "2340.50",
+      "balance": "47659.50",
+      "mode": "UPI",
+      "narration": "BIGBASKET GROCERY ORDER",
+      "reference": "REF-GROCERY-001",
+      "txnId": "fixture-grocery-debit-001",
+      "type": "DEBIT",
+      "valueDate": "2026-07-14"
+    },
+    "provider_metadata": {
+      "fipID": "FIP-ID",
+      "maskedAccNumber": "XXXXXXXXXXXXXXXXaf56",
+      "mode": "UPI",
+      "type": "DEBIT",
+      "reference": "REF-GROCERY-001",
+      "balance": "47659.50"
+    }
+  },
+  "expectation": {
+    "promotion_action": "insert",
+    "category_group": null,
+    "merged_into_description": null
+  }
+}

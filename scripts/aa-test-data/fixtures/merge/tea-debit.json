@@ -1,0 +1,36 @@
+{
+  "id": "tea-debit-001",
+  "description": "Same-day, same-amount, narration-overlapping debit should merge into the existing manual entry — the original Phase 1b acceptance-check scenario, now deterministic instead of dependent on sandbox luck",
+  "scenario": {
+    "existing_transaction": {
+      "description": "Tea",
+      "amount": 50,
+      "transaction_type": "expense",
+      "transaction_date": "2026-07-14"
+    },
+    "provider_event_id": "fixture-tea-debit-001",
+    "raw_payload": {
+      "amount": "50.00",
+      "balance": "41809.50",
+      "mode": "UPI",
+      "narration": "TEA STALL",
+      "reference": "REF-TEA-001",
+      "txnId": "fixture-tea-debit-001",
+      "type": "DEBIT",
+      "valueDate": "2026-07-14"
+    },
+    "provider_metadata": {
+      "fipID": "FIP-ID",
+      "maskedAccNumber": "XXXXXXXXXXXXXXXXaf56",
+      "mode": "UPI",
+      "type": "DEBIT",
+      "reference": "REF-TEA-001",
+      "balance": "41809.50"
+    }
+  },
+  "expectation": {
+    "promotion_action": "merge_into",
+    "category_group": null,
+    "merged_into_description": "Tea"
+  }
+}

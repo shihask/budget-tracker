@@ -1,0 +1,36 @@
+{
+  "id": "ambiguous-partial-match-001",
+  "description": "One day apart, same amount, partial narration overlap — medium confidence, must land in needs_review, not auto-merge or auto-insert. Exercises Phase 1b's most user-facing behavior (DedupReviewSheet), previously untested against a real fixture. Score: dateScore 25 (1 day) + descScore ~13 (1/3 word overlap) = ~38, inside the 25-55 band.",
+  "scenario": {
+    "existing_transaction": {
+      "description": "SWIGGY BANGALORE ORDER",
+      "amount": 500,
+      "transaction_type": "expense",
+      "transaction_date": "2026-07-13"
+    },
+    "provider_event_id": "fixture-ambiguous-partial-match-001",
+    "raw_payload": {
+      "amount": "500.00",
+      "balance": "41309.50",
+      "mode": "UPI",
+      "narration": "SWIGGY",
+      "reference": "REF-SWIGGY-001",
+      "txnId": "fixture-ambiguous-partial-match-001",
+      "type": "DEBIT",
+      "valueDate": "2026-07-14"
+    },
+    "provider_metadata": {
+      "fipID": "FIP-ID",
+      "maskedAccNumber": "XXXXXXXXXXXXXXXXaf56",
+      "mode": "UPI",
+      "type": "DEBIT",
+      "reference": "REF-SWIGGY-001",
+      "balance": "41309.50"
+    }
+  },
+  "expectation": {
+    "promotion_action": "needs_review",
+    "category_group": null,
+    "merged_into_description": null
+  }
+}
