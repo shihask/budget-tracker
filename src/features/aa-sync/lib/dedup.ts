@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase'
 import type { Transaction } from '@/types'
-import { SYSTEM_TX_TYPES } from '@/types'
 
 // Not derived from an existing constant — there's no prior "how many days
 // apart can two entries of the same transaction be" tunable in this
@@ -29,6 +28,7 @@ export interface DedupCandidateEvent {
   amount: number
   date: string // YYYY-MM-DD
   description: string | null
+  direction: 'income' | 'expense'
 }
 
 type CandidateRow = Pick<Transaction, 'id' | 'description' | 'amount' | 'transaction_date' | 'transaction_type'>
@@ -47,6 +47,15 @@ function daysBetween(a: string, b: string): number {
 // Candidate pool is always a fresh server-side query, never state.transactions
 // (paginated to the most recent 200 rows — see Phase 1b plan) or it would
 // silently miss older manual transactions and false-negative into dupes.
+//
+// Filtering to transaction_type = event.direction is load-bearing, not
+// incidental: without it, a refund (income) can share the exact amount and
+// similar narration as the original charge (expense) it's refunding — a
+// realistic collision, not a hypothetical one — and would otherwise be a
+// same-amount, same-window, narration-overlapping "match" across two
+// genuinely different economic events. Direction must match before any
+// scoring happens; this doubles as excluding transfer/system-type rows,
+// since neither is ever 'income' or 'expense'.
 export async function fetchDedupCandidates(
   userId: string,
   accountId: string,
@@ -59,12 +68,13 @@ export async function fetchDedupCandidates(
     .eq('from_account_id', accountId)
     .is('sync_event_id', null)
     .eq('amount', event.amount)
+    .eq('transaction_type', event.direction)
     .gte('transaction_date', addDays(event.date, -DEDUP_WINDOW_DAYS))
     .lte('transaction_date', addDays(event.date, DEDUP_WINDOW_DAYS))
 
   if (error) throw error
 
-  return (data ?? []).filter(t => t.transaction_type !== 'transfer' && !SYSTEM_TX_TYPES.has(t.transaction_type))
+  return data ?? []
 }
 
 // Deliberately its own word-normalization, not a reuse of
