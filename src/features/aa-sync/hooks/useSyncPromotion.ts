@@ -118,33 +118,56 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
       let accountId = batchAccountCache.get(cacheKey)
 
       if (accountId === undefined) {
-        const maskedAccNumber = str((event.provider_metadata as Record<string, unknown>)?.maskedAccNumber)
-        const suggestion = maskedAccNumber ? suggestAccountLink(maskedAccNumber, knownAccounts) : null
+        // Check the REAL mapping first — batchAccountCache only remembers
+        // what THIS batch has resolved, not what earlier batches already
+        // linked. Skipping this and going straight to suggestAccountLink
+        // was a real bug: once an account exists, its own name matches its
+        // own masked suffix, so every future event for that already-linked
+        // (connection, account) pair "found a likely match" against
+        // itself and returned 'left_pending' forever — no RPC call, no
+        // error, nothing to see in the network tab, silently stuck
+        // 'pending' indefinitely. Caught live: a fully-linked connection's
+        // events never processed across multiple reloads/reconnects.
+        const { data: existingLink, error: lookupError } = await supabase
+          .from('account_connections')
+          .select('account_id')
+          .eq('provider_connection_id', event.provider_connection_id)
+          .eq('provider_account_id', event.provider_account_id)
+          .maybeSingle()
+        if (lookupError) throw lookupError
 
-        // A likely-matching existing Account was found — don't guess which
-        // one is right. Leave the event pending; AccountLinkReviewSheet
-        // resolves it (confirm or create-separate), which re-triggers this
-        // hook via the sync_events realtime subscription.
-        if (suggestion) return 'left_pending'
+        if (existingLink) {
+          accountId = existingLink.account_id
+          batchAccountCache.set(cacheKey, accountId)
+        } else {
+          const maskedAccNumber = str((event.provider_metadata as Record<string, unknown>)?.maskedAccNumber)
+          const suggestion = maskedAccNumber ? suggestAccountLink(maskedAccNumber, knownAccounts) : null
 
-        const newAccountName = maskedAccNumber ? defaultAccountName(maskedAccNumber) : 'Bank account'
-        const { data, error } = await supabase.rpc('mp_link_sync_account', {
-          p_provider: event.provider,
-          p_provider_connection_id: event.provider_connection_id,
-          p_provider_account_id: event.provider_account_id,
-          p_existing_account_id: null,
-          p_new_account: {
-            name: newAccountName,
-            type: 'bank',
-            current_balance: 0,
-          },
-          p_provider_metadata: event.provider_metadata ?? {},
-        })
-        if (error) throw error
-        accountId = (data as { account_id: string }).account_id
-        batchAccountCache.set(cacheKey, accountId)
-        knownAccounts.push({ id: accountId, name: newAccountName, type: 'bank' })
-        accountsCreated++
+          // A likely-matching existing Account was found — don't guess
+          // which one is right. Leave the event pending; AccountLinkReviewSheet
+          // resolves it (confirm or create-separate), which re-triggers this
+          // hook via the sync_events realtime subscription.
+          if (suggestion) return 'left_pending'
+
+          const newAccountName = maskedAccNumber ? defaultAccountName(maskedAccNumber) : 'Bank account'
+          const { data, error } = await supabase.rpc('mp_link_sync_account', {
+            p_provider: event.provider,
+            p_provider_connection_id: event.provider_connection_id,
+            p_provider_account_id: event.provider_account_id,
+            p_existing_account_id: null,
+            p_new_account: {
+              name: newAccountName,
+              type: 'bank',
+              current_balance: 0,
+            },
+            p_provider_metadata: event.provider_metadata ?? {},
+          })
+          if (error) throw error
+          accountId = (data as { account_id: string }).account_id
+          batchAccountCache.set(cacheKey, accountId)
+          knownAccounts.push({ id: accountId, name: newAccountName, type: 'bank' })
+          accountsCreated++
+        }
       }
 
       // Step 2: non-transaction events (balance/profile) skip straight
