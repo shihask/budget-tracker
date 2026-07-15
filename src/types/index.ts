@@ -339,6 +339,7 @@ export interface DerivedMetrics {
   remainingCommitments: number
   realFreeMoney: number
   obligationBreakdown?: import('@/lib/obligations').RemainingObligations
+  cashFlowSummary?: import('@/lib/cashflow').CashFlowSummary
   // Period-based (manual mode + analytics)
   weeklyBudget: number
   weeklySpent: number

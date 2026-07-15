@@ -3,6 +3,7 @@ import { getCreditCardBilling } from '@/lib/credit-card'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getExpectedNextPrimaryIncome } from '@/lib/financial-cycle'
+import { isRecurringCompleted } from '@/lib/recurring'
 
 /* ============================================================================
    Cash Flow Forecast — projects future balance using KNOWN future events only.
@@ -114,6 +115,24 @@ export function getForecastDrivers(projections: CashFlowProjection[], limit = 5)
     .sort((a, b) => b.event.amount - a.event.amount)
     .slice(0, limit)
     .map(p => ({ title: p.event.title, amount: p.event.amount, source: p.event.source }))
+}
+
+// Semantic view of a forecast for consumers that just need "how much is safe to
+// spend and why" — keeps the internal lowestBalance field from leaking into the
+// domain layer, so future changes to how the engine computes it don't ripple out.
+export interface CashFlowSummary {
+  realFreeMoney: number
+  lowestBalanceDate?: string
+  timelineEvents: CashFlowProjection[]   // chronological slice: today's events through the lowest-balance point
+}
+
+export function summarizeCashFlow(forecast: CashFlowForecast): CashFlowSummary {
+  const cutoff = forecast.lowestBalanceDate
+  return {
+    realFreeMoney: forecast.lowestBalance,
+    lowestBalanceDate: forecast.lowestBalanceDate,
+    timelineEvents: cutoff ? forecast.projections.filter(p => p.event.date <= cutoff) : [],
+  }
 }
 
 export function forecastReady(state: AppState): boolean {
@@ -247,6 +266,10 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
       let count = 0
       for (const due of allDueDates(c.due_day, today, horizon)) {
         if (totalInstallments != null && installmentsDone + count >= totalInstallments) break
+        // Same fix as the savings loop above: skip a candidate due date already
+        // covered by last_paid_date, so a commitment paid this period isn't
+        // reserved again on its own due date.
+        if (isRecurringCompleted(c.last_paid_date, c.frequency, due)) continue
         const payAmt = Math.round(Math.min(c.amount, remainingAmt))
         if (!(payAmt > 0)) break
         events.push({ date: isoOf(due), title: c.name, amount: payAmt, type: 'expense', source: 'commitment', category_id: c.category_id })
@@ -281,6 +304,11 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     let count = 0
     for (const due of allDueDates(dueDay, today, horizon)) {
       if (s.total_installments != null && installmentsDone + count >= s.total_installments) break
+      // Skip a candidate due date if last_contribution_date already falls within
+      // that same recurrence period — otherwise a contribution just recorded this
+      // period gets reserved again on its own due date (e.g. paid 1 Jul, due 27
+      // Jul: without this check the 27 Jul event fires anyway).
+      if (isRecurringCompleted(s.last_contribution_date, s.frequency, due)) continue
       events.push({ date: isoOf(due), title: s.name, amount, type: 'expense', source: 'saving', category_id: s.category_id, is_prized: s.is_prized || undefined })
       count++
     }

@@ -7,6 +7,7 @@ import { ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, getFinancialCycleAtOffset, getPreviousFinancialCycle } from '@/lib/financial-cycle'
 import { getRemainingObligations } from '@/lib/obligations'
+import { buildCashFlowForecast, summarizeCashFlow } from '@/lib/cashflow'
 import { estimateHistoricalDailyIncome, calculateAvgDailySpending, calculateSafeUntilDays, calculateTodaySummary, calculateWeekSummary } from '@/lib/variable-income'
 
 // System transactions (opening_balance, balance_adjustment) must never count as real income/expense.
@@ -59,7 +60,14 @@ export function derive(state: AppState): DerivedMetrics {
   const cycle = getCurrentFinancialCycle(state)
   const obligations = getRemainingObligations(state, cycle)
   const remainingCommitments = obligations.total
-  const realFreeMoney = availableBalance - remainingCommitments
+
+  // Real Free Money comes from the day-by-day cash flow forecast (the same engine
+  // Affordability/Forecast/Notifications/AI already use) instead of a cycle-bucket
+  // sum, so an obligation only reduces it if it's actually due before the next
+  // income arrives, not just because it's active this cycle.
+  const forecast = buildCashFlowForecast(state, { availableBalance, financialCycle: cycle } as DerivedMetrics)
+  const cashFlowSummary = summarizeCashFlow(forecast)
+  const realFreeMoney = cashFlowSummary.realFreeMoney
 
   const weeklyBudget = state.settings.weekly_budget
   const matchesScope = makeScopeFilter(state)
@@ -164,6 +172,7 @@ export function derive(state: AppState): DerivedMetrics {
     todayIncome, todaySpending, todaySaving,
     weekEarned, weekSpent: weekSpentVar, weekSaved,
     obligationBreakdown: obligations,
+    cashFlowSummary,
   }
 }
 

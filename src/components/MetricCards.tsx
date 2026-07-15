@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { toneColor, toneSoft } from '@/lib/tokens'
-import { fmt } from '@/lib/utils'
+import { fmt, fmtDate } from '@/lib/utils'
 import { Glyph, type GlyphName } from './Glyph'
 import type { DerivedMetrics, IncomePattern, Layout } from '@/types'
 import type { ToneKey } from '@/lib/tokens'
@@ -41,12 +41,19 @@ function buildFormula(key: string, d: DerivedMetrics, commitmentItems?: Commitme
       { separator: true },
       { label: 'Spendable balance', value: d.availableBalance },
     ]
-    case 'free': return [
-      { label: 'Spendable balance', value: d.availableBalance },
-      { label: 'Bills & obligations', value: -d.remainingCommitments, muted: true },
-      { separator: true },
-      { label: 'Real free money', value: d.realFreeMoney },
-    ]
+    case 'free': {
+      const timeline = d.cashFlowSummary?.timelineEvents ?? []
+      return [
+        { label: 'Balance today', value: d.availableBalance },
+        ...timeline.map(p => ({
+          label: `${p.event.title} (${fmtDate(p.event.date)})`,
+          value: p.event.type === 'income' ? p.event.amount : -p.event.amount,
+          muted: true,
+        })),
+        { separator: true },
+        { label: 'Real free money', value: d.realFreeMoney },
+      ]
+    }
     case 'emerg': return [
       { label: 'Reserved, not for daily use', value: d.emergencyFund },
     ]
@@ -111,7 +118,7 @@ function buildMetrics(d: DerivedMetrics, incomePattern?: IncomePattern): Metric[
   }
   metrics.push(
     { key: 'emerg',   label: 'Emergency Fund',      value: d.emergencyFund,       hint: 'Reserved',                  tone: 'warn',   icon: 'lock'   },
-    { key: 'commit',  label: 'Bills & Obligations', value: d.remainingCommitments, hint: 'Still owed this cycle',    tone: 'bad',    icon: 'doc'    },
+    { key: 'commit',  label: 'Bills & Obligations', value: d.remainingCommitments, hint: 'Outstanding obligations',  tone: 'bad',    icon: 'doc'    },
   )
   return metrics
 }
@@ -374,15 +381,33 @@ export function MetricCards({ d, layout, incomePattern, onEditBudget, onEditEmer
                   <span style={{ font: '800 18px Plus Jakarta Sans', color: toneColor(c, 'accent'), letterSpacing: '-0.01em' }}>{fmt(d.availableBalance)}</span>
                 </div>
               </div>
-            ) : (activeMetric.key === 'free' || activeMetric.key === 'commit') && obligationBreakdown ? (
+            ) : activeMetric.key === 'free' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {activeMetric.key === 'free' && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <span style={{ font: '600 13px Plus Jakarta Sans', color: c.ink }}>Spendable balance</span>
-                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(d.availableBalance)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px' }}>
+                  <span style={{ font: '600 13px Plus Jakarta Sans', color: c.ink }}>Balance today</span>
+                  <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(d.availableBalance)}</span>
+                </div>
+                {(d.cashFlowSummary?.timelineEvents ?? []).map((p, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 10px' }}>
+                    <span style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, flex: 1, minWidth: 0, marginRight: 8 }}>
+                      {p.event.title} · {fmtDate(p.event.date)}
+                    </span>
+                    <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, flexShrink: 0 }}>
+                      {fmt(p.event.type === 'income' ? p.event.amount : -p.event.amount)}
+                    </span>
                   </div>
-                )}
-
+                ))}
+                <div style={{ height: 1, background: c.faint, margin: '8px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Real free money</span>
+                  <span style={{ font: '800 18px Plus Jakarta Sans', color: toneColor(c, 'good'), letterSpacing: '-0.01em' }}>{fmt(d.realFreeMoney)}</span>
+                </div>
+                <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 10, lineHeight: 1.4 }}>
+                  Lowest projected balance over your planning horizon, accounting for expected income and dated bills — not just what's owed this cycle.
+                </div>
+              </div>
+            ) : activeMetric.key === 'commit' && obligationBreakdown ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {([
                   { key: 'commitments', label: 'Bills & obligations', total: obligationBreakdown.commitments, items: obligationBreakdown.commitmentItems },
                   { key: 'creditCards', label: 'Credit cards', total: obligationBreakdown.creditCardBills, items: obligationBreakdown.creditCardItems },
@@ -428,17 +453,13 @@ export function MetricCards({ d, layout, incomePattern, onEditBudget, onEditEmer
 
                 <div style={{ height: 1, background: c.faint, margin: '8px 0' }} />
 
-                {activeMetric.key === 'free' ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Real free money</span>
-                    <span style={{ font: '800 18px Plus Jakarta Sans', color: toneColor(c, 'good'), letterSpacing: '-0.01em' }}>{fmt(d.realFreeMoney)}</span>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Total</span>
-                    <span style={{ font: '800 18px Plus Jakarta Sans', color: toneColor(c, 'bad'), letterSpacing: '-0.01em' }}>{fmt(d.remainingCommitments)}</span>
-                  </div>
-                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Total</span>
+                  <span style={{ font: '800 18px Plus Jakarta Sans', color: toneColor(c, 'bad'), letterSpacing: '-0.01em' }}>{fmt(d.remainingCommitments)}</span>
+                </div>
+                <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 10, lineHeight: 1.4 }}>
+                  This shows everything you still owe. Real Free Money only reserves the obligations expected to affect your money during your current planning horizon.
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
