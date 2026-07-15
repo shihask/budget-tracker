@@ -553,11 +553,20 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
       <div style={rowStyle}>
         <div>
           <div style={labelStyle}>Bank Auto-Sync</div>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Connect a bank account via Account Aggregator (sandbox only)</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+            {trackAaSync ? 'Connect a bank account via Account Aggregator (sandbox only)' : 'Coming soon — requires production bank data access, not yet available'}
+          </div>
         </div>
+        {/* Only ever toggleable off, never on, unless it's already on — this
+            is sandbox-only and requires Setu production KYC/onboarding
+            (a business/compliance process, not a code flag) before it can
+            be offered generally. An already-enabled account (internal
+            testing) keeps working normally. */}
         <button
-          onClick={() => onTrackAaSync(!trackAaSync)}
-          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackAaSync ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
+          onClick={() => trackAaSync && onTrackAaSync(false)}
+          disabled={!trackAaSync}
+          title={trackAaSync ? undefined : 'Coming soon'}
+          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: trackAaSync ? 'pointer' : 'not-allowed', background: trackAaSync ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0, opacity: trackAaSync ? 1 : 0.6 }}
         >
           <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackAaSync ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </button>
