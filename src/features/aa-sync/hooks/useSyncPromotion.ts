@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { delta } from '@/hooks/useSupabaseData'
 import { categorizeForSync } from '@/lib/categorize'
 import { INCOME_GROUP, TRANSFER_GROUP } from '@/lib/constants'
 import { fetchDedupCandidates, scoreDedupCandidates, type PromotionDecision } from '../lib/dedup'
@@ -46,7 +45,7 @@ interface FinalizeResult {
   transaction_id?: string
 }
 
-type ProcessOutcome = 'promoted' | 'handled' | 'left_pending'
+type ProcessOutcome = 'handled' | 'left_pending'
 
 interface UseSyncPromotionOptions {
   userId: string
@@ -83,17 +82,18 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
     const batchAccountCache = new Map<string, string>()
     // Seeded from accountsRef, then grown as accounts get auto-created
     // during this batch. accountsRef only reflects state.accounts, which
-    // React only refreshes via onPromoted — which fires on a promoted
-    // transaction, never on account-creation alone (balance/profile events
-    // create-and-skip, no transaction). Without this, two sync_events from
-    // DIFFERENT provider_connection_ids that happen to represent the same
-    // real bank account (same masked suffix) can both auto-create within
-    // one batch, since the second one's suggestAccountLink check would
-    // otherwise run against a stale list that doesn't yet include the
-    // first — caught live: two "Bank account ···af56" rows created 427ms
-    // apart in the same drain pass.
+    // React only refreshes via onPromoted — fired below whenever an account
+    // gets auto-created, the only kind of AppState-relevant write this hook
+    // still makes directly (every transaction event now lands in
+    // needs_review, never auto-inserted/merged — see the "review-everything"
+    // plan). Without this refresh, two sync_events from DIFFERENT
+    // provider_connection_ids that happen to represent the same real bank
+    // account (same masked suffix) can both auto-create within one batch,
+    // since the second one's suggestAccountLink check would otherwise run
+    // against a stale list that doesn't yet include the first — caught
+    // live: two "Bank account ···af56" rows created 427ms apart in the
+    // same drain pass.
     const knownAccounts = [...accountsRef.current]
-    let totalPromoted = 0
     let accountsCreated = 0
 
     async function finalize(eventId: string, outcome: string, extra: Record<string, unknown> = {}): Promise<FinalizeResult> {
@@ -178,61 +178,44 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
 
       // Step 3: dedup-score against a fresh server-side candidate pool —
       // never state.transactions (paginated to the most recent 200 rows).
-      const candidateEvent = { amount, date: rawDate, description }
+      const candidateEvent = { amount, date: rawDate, description, direction }
       const candidates = await fetchDedupCandidates(userId, accountId, candidateEvent)
       const decision: PromotionDecision = scoreDedupCandidates(candidateEvent, candidates)
 
-      // Step 4: categorize only when it can matter. A merge keeps the manual
-      // entry's own category untouched, so scoring before categorizing avoids
-      // wasted work on every event that ends up merged.
+      // Step 4: always categorize — every transaction event now waits for
+      // an explicit user decision (see the "review-everything" plan), so
+      // the suggested category needs to be ready regardless of how
+      // confident the dedup match looks, not just for the 'insert'/'review'
+      // tiers as before.
       let categoryId: string | null = null
-      if ((decision.action === 'insert' || decision.action === 'review') && description) {
+      if (description) {
         const pool = direction === 'income'
           ? categoriesRef.current.filter(c => c.group_name === INCOME_GROUP)
           : categoriesRef.current.filter(c => c.group_name !== INCOME_GROUP && c.group_name !== TRANSFER_GROUP)
         categoryId = categorizeForSync(description, pool).categoryId
       }
 
-      // Step 5: translate the decision into mp_finalize_sync_event's
-      // outcome vocabulary. Score + matched fields are stored in
-      // review_context even on an auto-merge (not just review cases) — a
-      // data trail to recalibrate thresholds once real bank narration is
-      // observed.
-      if (decision.action === 'merge') {
-        await finalize(event.id, 'merge_into', {
-          p_merge_transaction_id: decision.matchedTransactionId,
-          p_review_context: { confidence: decision.confidence, explanation: decision.explanation },
-        })
-        return 'handled' // no balance write — the manual entry already applied its own delta
-      }
+      // Step 5: every transaction event lands in needs_review — the dedup
+      // score becomes a suggestion for DedupReviewSheet, not a
+      // self-executing decision. mp_finalize_sync_event's 'insert'/
+      // 'merge_into' outcomes still exist and still do exactly the right
+      // thing; they're only ever reached now via that sheet's explicit
+      // "Add transaction" / "Merge with existing" actions, never from here.
+      const reviewReason = decision.action === 'merge' ? 'likely_duplicate'
+        : decision.action === 'review' ? 'possible_duplicate'
+        : 'no_match'
 
-      if (decision.action === 'review') {
-        await finalize(event.id, 'needs_review', {
-          p_review_reason: 'medium_confidence_dedup',
-          p_review_context: {
-            confidence: decision.confidence,
-            explanation: decision.explanation,
-            candidate_transaction_id: decision.matchedTransactionId ?? null,
-            suggested_category_id: categoryId,
-            amount, date: rawDate, description, direction, account_id: accountId,
-          },
-        })
-        return 'handled'
-      }
-
-      const result = await finalize(event.id, 'insert', {
-        p_transaction: {
-          account_id: accountId,
-          transaction_date: rawDate,
-          description: description ?? '',
-          amount,
-          transaction_type: direction,
-          category_id: categoryId,
-          account_delta: delta(direction, amount),
+      await finalize(event.id, 'needs_review', {
+        p_review_reason: reviewReason,
+        p_review_context: {
+          confidence: decision.confidence,
+          explanation: decision.explanation,
+          candidate_transaction_id: decision.matchedTransactionId ?? null,
+          suggested_category_id: categoryId,
+          amount, date: rawDate, description, direction, account_id: accountId,
         },
-        p_review_context: { confidence: decision.confidence, explanation: decision.explanation },
       })
-      return result.claimed ? 'promoted' : 'handled'
+      return 'handled'
     }
 
     try {
@@ -258,8 +241,7 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
           if (!mountedRef.current) return
           try {
             const outcome = await processEvent(event)
-            if (outcome === 'promoted') { totalPromoted++; progressed = true }
-            else if (outcome === 'handled') { progressed = true }
+            if (outcome === 'handled') progressed = true
             // 'left_pending' — awaiting AccountLinkReviewSheet, no progress this pass
           } catch (e) {
             console.error('[useSyncPromotion] event failed, marking error:', event.id, e)
@@ -280,12 +262,12 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
     } finally {
       runningRef.current = false
       if (mountedRef.current) setProcessing(false)
-      // Refetch on a new account too, not just a promoted transaction —
-      // otherwise state.accounts (and accountsRef, seeding the next batch's
-      // knownAccounts) stays stale until some later transaction happens to
-      // get inserted, reopening the same duplicate-account window this
-      // batch's own knownAccounts tracking only closes within one pass.
-      if (totalPromoted > 0 || accountsCreated > 0) onPromotedRef.current(totalPromoted)
+      // Refetches state.accounts so a newly auto-created account shows up
+      // — otherwise it (and accountsRef, seeding the next batch's
+      // knownAccounts) stays stale indefinitely, reopening the same
+      // duplicate-account window this batch's own knownAccounts tracking
+      // only closes within one pass.
+      if (accountsCreated > 0) onPromotedRef.current(0)
     }
   }, [userId])
 

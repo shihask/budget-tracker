@@ -35,6 +35,12 @@ interface Props {
   onResolved: () => void // refetch accounts/transactions after a merge or insert
 }
 
+// Every transaction-type sync_event lands here now, not just medium-
+// confidence dedup matches (see the "review-everything" plan) — this is the
+// one place an incoming bank transaction actually becomes a real
+// transaction, an ignored no-op, or a merge into something already logged.
+// mp_finalize_sync_event's insert/merge_into/skip outcomes only ever fire
+// from this sheet's explicit button presses now, never automatically.
 export function DedupReviewSheet({ open, onClose, userId, categories, onResolved }: Props) {
   const c = useTheme()
   const [rows, setRows] = useState<SyncEvent[]>([])
@@ -42,6 +48,7 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({})
+  const [editingCategoryFor, setEditingCategoryFor] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
   async function fetchRows() {
@@ -136,12 +143,37 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
     }
   }
 
+  // Reuses mp_finalize_sync_event's 'skip' outcome — already the right
+  // shape (claim the event, touch nothing in transactions/accounts), until
+  // now only ever reached automatically for balance/profile events. A user
+  // tapping "Ignore" is a distinct decision from "it's a duplicate": they
+  // simply don't want this bank transaction in MoneyPlant at all.
+  async function confirmIgnore(event: SyncEvent, ctx: ReviewContext) {
+    setBusyId(event.id)
+    setError(null)
+    try {
+      const { error } = await supabase.rpc('mp_finalize_sync_event', {
+        p_sync_event_id: event.id,
+        p_outcome: 'skip',
+        p_processor: 'client',
+        p_review_reason: 'user_ignored',
+        p_review_context: ctx,
+      })
+      if (error) throw error
+      setRows(prev => prev.filter(r => r.id !== event.id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not ignore transaction')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
       <div style={{ padding: '0 4px 16px' }}>
-        <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Review possible duplicates</div>
+        <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Review Bank Transactions</div>
         <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, marginBottom: 20 }}>
-          A synced transaction looks similar to one you already logged. Is it the same one?
+          Add each one, merge it with something you already logged, or ignore it.
         </div>
 
         {loading && rows.length === 0 && (
@@ -165,7 +197,9 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
             const candidate = ctx.candidate_transaction_id ? candidates.get(ctx.candidate_transaction_id) : null
             const isBusy = busyId === event.id
             const pool = categoryPool(ctx.direction)
-            const selectedCategory = categoryOverrides[event.id] ?? ctx.suggested_category_id ?? ''
+            const selectedCategoryId = categoryOverrides[event.id] ?? ctx.suggested_category_id ?? ''
+            const suggestedCategory = pool.find(cat => cat.id === (ctx.suggested_category_id ?? undefined))
+            const isEditingCategory = editingCategoryFor.has(event.id) || !suggestedCategory
 
             return (
               <div key={event.id} style={{ padding: '12px 14px', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: c.surface2 }}>
@@ -189,7 +223,7 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
                         </div>
                       </>
                     ) : (
-                      <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>—</div>
+                      <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No similar transaction found</div>
                     )}
                   </div>
                 </div>
@@ -207,10 +241,10 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
                     style={{
                       flex: 1, padding: '10px', borderRadius: 10, border: 'none',
                       background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans',
-                      cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1,
+                      cursor: isBusy || !candidate ? 'not-allowed' : 'pointer', opacity: isBusy || !candidate ? 0.5 : 1,
                     }}
                   >
-                    Same transaction
+                    Merge with existing
                   </button>
                   <button
                     onClick={() => confirmInsert(event, ctx)}
@@ -221,25 +255,56 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
                       cursor: isBusy ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    Keep both
+                    Add transaction
                   </button>
                 </div>
 
-                <select
-                  value={selectedCategory}
-                  onChange={e => setCategoryOverrides(prev => ({ ...prev, [event.id]: e.target.value }))}
+                {isEditingCategory ? (
+                  <select
+                    value={selectedCategoryId}
+                    onChange={e => setCategoryOverrides(prev => ({ ...prev, [event.id]: e.target.value }))}
+                    disabled={isBusy}
+                    style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 10,
+                      border: `1.5px solid ${c.faint}`, background: c.surface,
+                      font: '600 12px Plus Jakarta Sans', color: c.ink,
+                    }}
+                  >
+                    <option value="">Uncategorized</option>
+                    {pool.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                      Suggested: <span style={{ color: c.ink }}>{suggestedCategory!.name}</span>
+                    </span>
+                    <button
+                      onClick={() => setEditingCategoryFor(prev => new Set(prev).add(event.id))}
+                      disabled={isBusy}
+                      style={{
+                        background: 'none', border: 'none', padding: 0,
+                        font: '700 12px Plus Jakarta Sans', color: c.accent,
+                        cursor: isBusy ? 'not-allowed' : 'pointer', textDecoration: 'underline',
+                      }}
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => confirmIgnore(event, ctx)}
                   disabled={isBusy}
                   style={{
-                    width: '100%', padding: '8px 10px', borderRadius: 10,
-                    border: `1.5px solid ${c.faint}`, background: c.surface,
-                    font: '600 12px Plus Jakarta Sans', color: c.ink,
+                    width: '100%', marginTop: 8, padding: '8px', borderRadius: 10, border: 'none',
+                    background: 'transparent', color: c.muted, font: '600 12px Plus Jakarta Sans',
+                    cursor: isBusy ? 'not-allowed' : 'pointer', textDecoration: 'underline',
                   }}
                 >
-                  <option value="">Uncategorized (if kept separate)</option>
-                  {pool.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
+                  Ignore
+                </button>
               </div>
             )
           })}

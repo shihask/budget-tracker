@@ -62,6 +62,8 @@ import { BudgetStrategySheet } from '@/components/BudgetStrategySheet'
 import { ConnectBankSheet } from '@/features/aa-sync/components/ConnectBankSheet'
 import { AccountLinkReviewSheet } from '@/features/aa-sync/components/AccountLinkReviewSheet'
 import { DedupReviewSheet } from '@/features/aa-sync/components/DedupReviewSheet'
+import { AaReviewBanner } from '@/features/aa-sync/components/AaReviewBanner'
+import { useAaReviewCount } from '@/features/aa-sync/hooks/useAaReviewCount'
 import { useSyncPromotion } from '@/features/aa-sync/hooks/useSyncPromotion'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
@@ -206,11 +208,12 @@ function AppContent({ session }: { session: Session }) {
 
   const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
-  // Turns pending sync_events into real transactions/accounts — the
-  // acceptance-gated final step of Phase 1b. onPromoted only fires for
-  // 'insert' outcomes (new transaction + balance change); merges/skips
-  // never need AppState to catch up since nothing about the account
-  // balance or an already-visible manual entry changed.
+  // Stages pending sync_events for review — every transaction event lands
+  // in needs_review (DedupReviewSheet decides insert/merge/ignore from
+  // there, never this hook automatically). onPromoted only fires when this
+  // hook auto-creates an Account (balance/profile events resolving a new
+  // bank account), so state.accounts catches up; DedupReviewSheet's own
+  // confirm actions handle their own refetch separately.
   const { drain: drainSyncPromotion } = useSyncPromotion({
     userId: session.user.id,
     enabled: state.settings.track_aa_sync ?? false,
@@ -218,6 +221,7 @@ function AppContent({ session }: { session: Session }) {
     categories: state.categories,
     onPromoted: () => refetchAccountsAndRecentTransactions(),
   })
+  const { count: aaReviewCount, refetch: refetchAaReviewCount } = useAaReviewCount(session.user.id)
 
   const projectsSummary = useProjectsSummary(session.user.id)
   const unseenSharedCount = projectsSummary.sharedProjects.filter(p => !seenSharedIds.has(p.id)).length
@@ -493,6 +497,7 @@ function AppContent({ session }: { session: Session }) {
                 </div>
               )}
               <InsightCard notification={notifications[0] ?? null} onDismiss={id => snoozeNotif(id, 'permanent')} />
+              <AaReviewBanner count={aaReviewCount} onOpen={() => setDedupReviewOpen(true)} />
               {dashboardSections
                 .filter(s => s.visible)
                 .map(s => {
@@ -890,7 +895,7 @@ function AppContent({ session }: { session: Session }) {
 
         <DedupReviewSheet
           open={dedupReviewOpen}
-          onClose={() => setDedupReviewOpen(false)}
+          onClose={() => { setDedupReviewOpen(false); refetchAaReviewCount() }}
           userId={session.user.id}
           categories={state.categories}
           onResolved={refetchAccountsAndRecentTransactions}
