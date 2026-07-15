@@ -63,7 +63,12 @@ export function ConnectBankSheet({ open, onClose, userId, onOpenAccountLinkRevie
     const reconcile = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/aa-connect?connectionId=${connectionId}`, {
+      // Strip any trailing slash before concatenating — VITE_SUPABASE_URL
+      // has one in some environments, producing a double-slash 404
+      // (.co//functions/v1/...) that silently broke this reconciliation
+      // call every time. Caught live via the browser console.
+      const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string).replace(/\/$/, '')
+      await fetch(`${baseUrl}/functions/v1/aa-connect?connectionId=${connectionId}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       }).catch(() => {})
       refetch()
