@@ -137,7 +137,7 @@ export function useSyncPromotion({ userId, enabled, accounts, categories, onProm
         if (lookupError) throw lookupError
 
         if (existingLink) {
-          accountId = existingLink.account_id
+          accountId = (existingLink as { account_id: string }).account_id
           batchAccountCache.set(cacheKey, accountId)
         } else {
           const maskedAccNumber = str((event.provider_metadata as Record<string, unknown>)?.maskedAccNumber)
