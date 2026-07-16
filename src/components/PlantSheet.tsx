@@ -3,6 +3,7 @@ import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { computeChallenge } from '@/lib/challenge'
+import { derive } from '@/lib/data'
 import type { AppState } from '@/types'
 
 interface Props {
@@ -242,7 +243,9 @@ export function PlantSheet({ open, onClose, state }: Props) {
   const enabled      = settings.challenge_enabled      ?? false
 
   const difficulty = settings.challenge_difficulty ?? 'medium'
-  const calc = enabled ? computeChallenge(state, difficulty) : null
+  // PlantSheet is unreachable — never imported/rendered anywhere (PlantPage replaced it).
+  // Not deleting it here; just computing realFreeMoney locally to keep this compiling.
+  const calc = enabled ? computeChallenge(state, difficulty, derive(state).realFreeMoney) : null
 
   const stageIdx     = calc ? calc.plantGrowth.stageIdx : (() => {
     const ms = [0, 1, 5, 15, 30, 60, 100]

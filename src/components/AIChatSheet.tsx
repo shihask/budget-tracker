@@ -368,7 +368,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
 
     if (state.settings.challenge_enabled && intent !== 'spending') {
       const diff = state.settings.challenge_difficulty ?? 'medium'
-      const ch = computeChallenge(state, diff, d.financialCycle)
+      const ch = computeChallenge(state, diff, d.realFreeMoney, d.financialCycle)
       const streak = state.settings.challenge_streak ?? 0
       const totalDays = state.settings.challenge_total_days ?? 0
       const successDays = state.settings.challenge_success_days ?? 0

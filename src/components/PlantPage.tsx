@@ -6,12 +6,13 @@ import { computeChallenge } from '@/lib/challenge'
 import { Glyph } from './Glyph'
 import { PlantSVG, STAGE_VIEWBOX, STAGE_THRESHOLDS, NEXT_STAGE_REWARDS } from './PlantSVG'
 import { MoneyPlantWatermark } from './MoneyPlantWatermark'
-import type { AppState } from '@/types'
+import type { AppState, DerivedMetrics } from '@/types'
 
 interface Props {
   open: boolean
   onClose: () => void
   state: AppState
+  d: DerivedMetrics
   dark: boolean
   onToggleTheme: () => void
   userName: string
@@ -66,7 +67,7 @@ const PLANT_ANIM_STYLE = `
 }
 `
 
-export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSwipeProgress }: Props) {
+export function PlantPage({ open, onClose, state, d, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSwipeProgress }: Props) {
   const c = useTheme()
   const settings = state.settings
 
@@ -201,7 +202,7 @@ export function PlantPage({ open, onClose, state, dark, onToggleTheme, userName,
   const pot          = settings.challenge_pot          ?? 0
   const enabled      = settings.challenge_enabled      ?? false
   const difficulty   = settings.challenge_difficulty   ?? 'medium'
-  const calc         = enabled ? computeChallenge(state, difficulty) : null
+  const calc         = enabled ? computeChallenge(state, difficulty, d.realFreeMoney) : null
 
   const nextGoal      = calc?.plantGrowth.nextGoal ?? 0
   const canGrowToday  = calc !== null && calc.status !== 'exceeded' && nextGoal > 0

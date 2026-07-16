@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { computeChallenge, type ChallengeCalc } from '@/lib/challenge'
+import { derive } from '@/lib/data'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { loadFrozenSnapshot, saveFrozenSnapshot, freezeFromCalc, CHALLENGE_SNAPSHOT_VERSION } from '@/lib/challenge-snapshot'
 import { iso } from '@/lib/utils'
@@ -77,7 +78,7 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
 
 // Mirrors the merge DailyChallengeCard.tsx performs: freeze safeDailyLimit + targets, keep the rest live.
 function computeMerged(state: AppState, difficulty: 'easy' | 'medium' | 'hard') {
-  const liveCalc = computeChallenge(state, difficulty)
+  const liveCalc = computeChallenge(state, difficulty, derive(state).realFreeMoney)
   const cycle = getCurrentFinancialCycle(state)
   const cycleKey = `${iso(cycle.cycleStart)}:${cycle.status}`
   const settingsFingerprint = [
@@ -157,7 +158,7 @@ describe('Daily Challenge freeze — QA scenarios', () => {
 
   it('3. midnight/next day: a snapshot for a different calendar date is invalidated, fresh snapshot created', () => {
     const state = makeState()
-    const liveCalc = computeChallenge(state, 'easy')
+    const liveCalc = computeChallenge(state, 'easy', derive(state).realFreeMoney)
     const cycle = getCurrentFinancialCycle(state)
     const cycleKey = `${iso(cycle.cycleStart)}:${cycle.status}`
     const fingerprint = '0:monthly:28::'
@@ -189,7 +190,7 @@ describe('Daily Challenge freeze — QA scenarios', () => {
     const waitingCycle = getCurrentFinancialCycle(waitingState)
     expect(waitingCycle.status).toBe('waiting')
     const { cycleKey: waitingKey } = computeMerged(waitingState, 'easy')
-    const waitingCalc = computeChallenge(waitingState, 'easy')
+    const waitingCalc = computeChallenge(waitingState, 'easy', derive(waitingState).realFreeMoney)
 
     // Salary now recorded today -> cycle re-anchors to an active cycle starting today
     const salaryReceivedState = makeState({
@@ -282,7 +283,7 @@ describe('Daily Challenge freeze — QA scenarios', () => {
   it('snapshot carries the schema version', () => {
     const state = makeState()
     computeMerged(state, 'easy')
-    const liveCalc = computeChallenge(state, 'easy')
+    const liveCalc = computeChallenge(state, 'easy', derive(state).realFreeMoney)
     const cycle = getCurrentFinancialCycle(state)
     const cycleKey = `${iso(cycle.cycleStart)}:${cycle.status}`
     const fingerprint = '0:monthly:28::'

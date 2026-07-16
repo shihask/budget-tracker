@@ -307,7 +307,7 @@ function AppContent({ session }: { session: Session }) {
 
   const safeDailyLimit = useMemo(() => {
     if (!(state.settings.challenge_enabled)) return 0
-    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.financialCycle).safeDailyLimit
+    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.realFreeMoney, d.financialCycle).safeDailyLimit
   }, [state.accounts, state.commitments, state.settings, d.financialCycle]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const todayStr = iso(TODAY)
@@ -932,7 +932,7 @@ function AppContent({ session }: { session: Session }) {
           onUpdateBucket={updateCategoryBucket}
         />
 
-        {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
+        {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} d={d} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
 
         {/* Daily Challenge → Goal Contribution modal */}
         <BottomSheet open={!!challengeWin} onClose={() => setChallengeWin(null)} zIndex={500}>

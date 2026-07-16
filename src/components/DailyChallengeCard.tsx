@@ -95,9 +95,9 @@ export function DailyChallengeCard({ state, d, userId, onUpdateSettings, updateC
   const [expanded, setExpanded] = useState(false)
 
   const liveCalc = useMemo(
-    () => computeChallenge(state, difficulty, d.financialCycle),
+    () => computeChallenge(state, difficulty, d.realFreeMoney, d.financialCycle),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.transactions, state.accounts, state.commitments, settings]
+    [state.transactions, settings, d.realFreeMoney, d.financialCycle]
   )
 
   // Freeze "Safe Today" + Easy/Medium/Hard targets for the day so they don't shrink as you spend.

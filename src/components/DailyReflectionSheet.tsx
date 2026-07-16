@@ -38,8 +38,8 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
   const challengeOn = state.settings.challenge_enabled ?? false
   const safeLimit = useMemo(() => {
     if (!challengeOn) return 0
-    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.financialCycle).safeDailyLimit
-  }, [state, challengeOn, d.financialCycle])
+    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.realFreeMoney, d.financialCycle).safeDailyLimit
+  }, [state, challengeOn, d.realFreeMoney, d.financialCycle])
 
   const surplus = challengeOn ? Math.max(0, Math.round(safeLimit - todaySpend)) : 0
   const underLimit = challengeOn && todaySpend <= safeLimit

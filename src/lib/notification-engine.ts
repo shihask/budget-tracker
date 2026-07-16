@@ -590,7 +590,7 @@ export function generateChallengeNotifications(state: AppState, d: DerivedMetric
     })
   }
 
-  const challenge = computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.financialCycle)
+  const challenge = computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.realFreeMoney, d.financialCycle)
   if (challenge.status === 'on_track' && challenge.remaining > 0 && challenge.spentToday > 0) {
     notifications.push({
       id: `challenge_under_budget_${nowIso}`,

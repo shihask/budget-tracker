@@ -2,7 +2,6 @@ import { TODAY, iso, addDays } from '@/lib/utils'
 import type { AppState } from '@/types'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
-import { getRemainingObligations } from '@/lib/obligations'
 
 export interface PlantGrowth {
   leaves: number
@@ -16,8 +15,6 @@ export interface PlantGrowth {
 export interface ChallengeCalc {
   daysRemaining: number
   planningMode: 'salary_cycle' | 'month_end'
-  spendableCash: number
-  pendingBills: number
   availableSpendable: number
   safeDailyLimit: number
   targets: { easy: number; medium: number; hard: number }
@@ -79,27 +76,22 @@ function getDailyExpenses(transactions: AppState['transactions'], dateStr: strin
     .reduce((s, t) => s + t.amount, 0)
 }
 
+// computeChallenge() does not calculate cash availability — it consumes a precomputed
+// business metric (safeToSpend) supplied by the caller, the same one Real Free Money
+// uses. Keeps Daily Challenge consistent with the rest of the app instead of growing
+// its own duplicate financial calculation.
 export function computeChallenge(
   state: AppState,
   difficulty: 'easy' | 'medium' | 'hard',
+  safeToSpend: number,
   precomputedCycle?: FinancialCycle,
 ): ChallengeCalc {
-  const { settings, accounts, commitments, transactions } = state
+  const { settings, transactions } = state
   const now = new Date()
   const todayStr = iso(TODAY)
   const excluded = settings.challenge_excluded_txn_ids ?? []
 
-  // Spendable cash: liquid accounts only (no credit cards)
-  const spendableCash = accounts
-    .filter(a => a.is_active && a.type !== 'credit_card')
-    .reduce((s, a) => s + a.current_balance, 0)
-
-  // Pending bills: uses centralized obligation engine (same as derive())
-  const cycle = precomputedCycle ?? getCurrentFinancialCycle(state)
-  const pendingBills = getRemainingObligations(state, cycle).total
-
-  const emergencyFund = settings.emergency_fund ?? 0
-  const availableSpendable = Math.max(0, spendableCash - pendingBills - emergencyFund)
+  const availableSpendable = Math.max(0, safeToSpend)
 
   // Days horizon — Financial Cycle aware
   let daysRemaining: number
@@ -180,7 +172,7 @@ export function computeChallenge(
   const successRate = totalDays >= 3 ? Math.round((successDays / totalDays) * 100) : null
 
   return {
-    daysRemaining, planningMode, spendableCash, pendingBills, availableSpendable,
+    daysRemaining, planningMode, availableSpendable,
     safeDailyLimit, targets, recommendedDifficulty, target, adjustedTarget,
     recoveryAmount, spentToday, remaining, pctUsed, status, message, todayStr,
     currentPace, survivalStatus, todaysWin, plantGrowth, successRate, avgDailySpend30,
