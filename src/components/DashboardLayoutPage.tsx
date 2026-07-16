@@ -17,6 +17,8 @@ const LOCKED_IDS: string[] = ['hero', 'affordability']
 
 const SECTION_META: Record<DashboardSectionId, { label: string; desc: string }> = {
   hero:            { label: 'Weekly Overview',       desc: 'Spending vs budget & week summary' },
+  wealth_summary:  { label: 'Wealth Summary',         desc: 'Total savings, investments & money lent' },
+  budget_strategy: { label: 'Budget Strategy',        desc: 'Needs/Wants/Savings allocation vs plan' },
   affordability:   { label: 'Affordability Checker', desc: 'Can I afford this purchase?' },
   daily_challenge: { label: 'Daily Challenge',        desc: 'Daily spending target & streak' },
   metrics:         { label: 'Your Money',             desc: 'Balance, savings & key metrics' },
@@ -152,11 +154,12 @@ interface Props {
   sections: DashboardSection[]
   settings: Settings
   categories: Category[]
+  budgetStrategy: string
   onUpdate: (sections: DashboardSection[]) => Promise<void>
   onClose: () => void
 }
 
-export function DashboardLayoutPage({ sections, settings, categories, onUpdate, onClose }: Props) {
+export function DashboardLayoutPage({ sections, settings, categories, budgetStrategy, onUpdate, onClose }: Props) {
   const c = useTheme()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -269,6 +272,7 @@ export function DashboardLayoutPage({ sections, settings, categories, onUpdate, 
     if (id === 'savings')      return !(settings.track_savings ?? false)
     if (id === 'borrowing')    return !(settings.track_borrowings ?? true)
     if (id === 'credit_cards') return !(settings.track_credit_cards ?? false)
+    if (id === 'budget_strategy') return budgetStrategy === 'none'
     return false
   }
 
