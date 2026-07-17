@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings } from '@/types'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
+import type { PickedReceipt } from '@/lib/imageCompress'
 
 export const delta = (type: TransactionType, amount: number) => {
   switch (type) {
@@ -136,6 +137,7 @@ export function useSupabaseData(userId: string) {
   const [usingSupabase, setUsingSupabase] = useState(false)
   const [allTransactionsLoaded, setAllTransactionsLoaded] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const receiptUrlCache = useRef(new Map<string, { url: string; expiresAt: number }>())
 
   useEffect(() => {
     async function load() {
@@ -469,6 +471,11 @@ export function useSupabaseData(userId: string) {
       })
       if (error) throw error
 
+      if (t.receipt_path) {
+        try { await supabase.storage.from('transaction-receipts').remove([t.receipt_path]) }
+        catch (err) { console.error('Failed to delete receipt file:', err) }
+      }
+
       setState(s => ({
         ...s,
         transactions: s.transactions.filter(tx => tx.id !== t.id),
@@ -483,6 +490,56 @@ export function useSupabaseData(userId: string) {
         ) : s.credit_cards,
       }))
     } catch (err) { console.error('Failed to delete transaction:', err); throw err }
+  }, [])
+
+  const uploadReceipt = useCallback(async (transactionId: string, receipt: PickedReceipt) => {
+    const path = `${userId}/receipts/${transactionId}`
+    const { error: uploadErr } = await supabase.storage
+      .from('transaction-receipts')
+      .upload(path, receipt.blob, { contentType: receipt.blob.type, upsert: true })
+    if (uploadErr) throw uploadErr
+
+    const receipt_uploaded_at = new Date().toISOString()
+    const { error } = await supabase
+      .from('transactions')
+      .update({ receipt_path: path, receipt_uploaded_at })
+      .eq('id', transactionId)
+    if (error) throw error
+
+    setState(s => ({
+      ...s,
+      transactions: s.transactions.map(tx =>
+        tx.id === transactionId ? { ...tx, receipt_path: path, receipt_uploaded_at } : tx
+      ),
+    }))
+  }, [userId])
+
+  const removeReceipt = useCallback(async (transaction: Transaction) => {
+    if (!transaction.receipt_path) return
+    await supabase.storage.from('transaction-receipts').remove([transaction.receipt_path])
+    const { error } = await supabase
+      .from('transactions')
+      .update({ receipt_path: null, receipt_uploaded_at: null })
+      .eq('id', transaction.id)
+    if (error) throw error
+
+    setState(s => ({
+      ...s,
+      transactions: s.transactions.map(tx =>
+        tx.id === transaction.id ? { ...tx, receipt_path: null, receipt_uploaded_at: null } : tx
+      ),
+    }))
+  }, [])
+
+  const getReceiptUrl = useCallback(async (path: string): Promise<string | null> => {
+    const cached = receiptUrlCache.current.get(path)
+    if (cached && cached.expiresAt > Date.now()) return cached.url
+
+    const { data, error } = await supabase.storage.from('transaction-receipts').createSignedUrl(path, 3600)
+    if (error || !data?.signedUrl) return null
+
+    receiptUrlCache.current.set(path, { url: data.signedUrl, expiresAt: Date.now() + 3600_000 - 60_000 })
+    return data.signedUrl
   }, [])
 
   const updateTransaction = useCallback(async (
@@ -1603,6 +1660,7 @@ export function useSupabaseData(userId: string) {
     state, setState, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions,
     refetchAccountsAndRecentTransactions,
     addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings,
+    uploadReceipt, removeReceipt, getReceiptUrl,
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
     addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,

@@ -9,7 +9,10 @@ import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
+import { ReceiptField } from './ReceiptField'
+import { Receipt } from 'lucide-react'
 import type { AppState, Transaction, TransactionType } from '@/types'
+import type { PickedReceipt } from '@/lib/imageCompress'
 
 type EditForm = {
   description: string
@@ -44,11 +47,14 @@ interface TransactionsPageProps {
   allTransactionsLoaded?: boolean
   loadingMore?: boolean
   onLoadMore?: () => void
+  onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
+  onRemoveReceipt?: (t: Transaction) => Promise<void>
+  getReceiptUrl?: (path: string) => Promise<string | null>
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -81,6 +87,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [deleting, setDeleting] = useState<string | null>(null)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
+  const [pendingReceipt, setPendingReceipt] = useState<PickedReceipt | null>(null)
+  const [removeReceiptFlag, setRemoveReceiptFlag] = useState(false)
   const [saving, setSaving] = useState(false)
   const [quickCatTx, setQuickCatTx] = useState<Transaction | null>(null)
   const [quickCatId, setQuickCatId] = useState('')
@@ -240,9 +248,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       from_account_id: t.from_account_id || (t as any).credit_card_id || '',
       to_account_id: t.to_account_id || '',
     })
+    setPendingReceipt(null)
+    setRemoveReceiptFlag(false)
   }
 
-  const closeEdit = () => { setEditingTx(null); setEditForm(null) }
+  const closeEdit = () => { setEditingTx(null); setEditForm(null); setPendingReceipt(null); setRemoveReceiptFlag(false) }
 
   const openQuickCat = (e: React.MouseEvent, t: Transaction) => {
     e.stopPropagation()
@@ -284,6 +294,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         from_account_id: editForm.from_account_id || null,
         to_account_id: editForm.transaction_type === 'transfer' ? (editForm.to_account_id || null) : null,
       })
+      if (pendingReceipt) await onUploadReceipt?.(editingTx.id, pendingReceipt)
+      else if (removeReceiptFlag && editingTx.receipt_path) await onRemoveReceipt?.(editingTx)
       closeEdit()
     } catch (_) {}
     setSaving(false)
@@ -492,6 +504,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                        {t.receipt_path && (
+                          <span style={{ display: 'flex', alignItems: 'center', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 6px' }}>
+                            <Receipt size={11} />
+                          </span>
+                        )}
                         {t.transaction_type === 'savings_contribution' && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 999, padding: '2px 7px' }}>Savings</span>
                         )}
@@ -706,6 +723,19 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 )}
               </div>
             </div>
+
+            {editingTx && editForm?.transaction_type === 'expense' && (
+              <div style={{ marginTop: 12 }}>
+                <ReceiptField
+                  pendingReceipt={pendingReceipt}
+                  existingPath={removeReceiptFlag ? null : editingTx.receipt_path ?? null}
+                  onPick={setPendingReceipt}
+                  onRemovePending={() => setPendingReceipt(null)}
+                  onRemoveExisting={() => { setRemoveReceiptFlag(true); setPendingReceipt(null) }}
+                  getUrl={getReceiptUrl}
+                />
+              </div>
+            )}
 
             {/* Challenge exclusion toggle — only for expenses when challenge is active */}
             {editingTx && editForm?.transaction_type === 'expense' && (state.settings.challenge_enabled ?? false) && onToggleChallengeExclusion && (() => {

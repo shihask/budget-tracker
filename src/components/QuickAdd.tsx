@@ -7,6 +7,8 @@ import { fmt, TODAY, iso, round2 } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
+import { ReceiptField } from './ReceiptField'
+import type { PickedReceipt } from '@/lib/imageCompress'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
 import { parseExpenseWithAI } from '@/lib/gemini'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
@@ -85,7 +87,7 @@ export function FAB({ onClick }: FABProps) {
 interface QuickAddSheetProps {
   open: boolean
   onClose: () => void
-  onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => void
+  onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => Promise<Transaction | undefined>
   state: AppState
   onAddCategory: (name: string, group_name: string) => Promise<string>
   autopilotEnabled?: boolean
@@ -94,12 +96,14 @@ interface QuickAddSheetProps {
   onBusyChange?: (busy: boolean) => void
   defaultTxType?: 'expense' | 'income' | 'transfer'
   defaultCategoryId?: string | null
+  onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, onUploadReceipt }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
+  const [pendingReceipt, setPendingReceipt] = useState<PickedReceipt | null>(null)
   const amountRef = useRef<HTMLInputElement | null>(null)
   const [amountFocused, setAmountFocused] = useState(false)
 
@@ -239,6 +243,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       setCatSuggestions([])
       setAiParsing(false)
       setAiSuccess(false)
+      setPendingReceipt(null)
     }
   }, [open, reset])
 
@@ -410,6 +415,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   }
 
   const onSubmit = (data: FormValues) => {
+    const receiptToUpload = pendingReceipt
     if (txType === 'transfer') {
       onSave({
         transaction_date: data.date,
@@ -429,6 +435,8 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         category_id: data.category_id || null,
         from_account_id: data.from_account_id,
         to_account_id: null,
+      }).then(tx => {
+        if (receiptToUpload && tx) onUploadReceipt?.(tx.id, receiptToUpload)
       })
     }
     onClose()
@@ -882,6 +890,15 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
               <label style={labelStyle}>Date</label>
               <input type="date" {...register('date')} style={inputStyle} />
             </div>
+
+            {isExpense && (
+              <ReceiptField
+                pendingReceipt={pendingReceipt}
+                existingPath={null}
+                onPick={setPendingReceipt}
+                onRemovePending={() => setPendingReceipt(null)}
+              />
+            )}
 
             {isTransfer && transferToAccountId === fromAccountId && fromAccountId && (
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.bad, textAlign: 'center' }}>

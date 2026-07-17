@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Receipt } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, fmtDate } from '@/lib/utils'
@@ -215,7 +216,10 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
               {t.description.slice(0, 1).toUpperCase()}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
+                {t.receipt_path && <Receipt size={11} color={c.muted} style={{ flexShrink: 0 }} />}
+              </div>
               <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted }}>{subLabel}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

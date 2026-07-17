@@ -64,6 +64,9 @@ export interface Transaction {
   is_credit?: boolean | null
   // FK to savings record for savings_contribution/savings_withdrawal
   savings_id?: string | null
+  // Receipt photo (expenses only) — storage path is `${userId}/receipts/${id}`, no extension
+  receipt_path?: string | null
+  receipt_uploaded_at?: string | null
   // joined
   category?: Category
   from_account?: Account
