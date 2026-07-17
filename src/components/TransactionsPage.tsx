@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
-import { fmt, fmtDate, fmtTime, round2 } from '@/lib/utils'
+import { fmt, fmtDate, fmtTime, round2, TimeoutError } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
@@ -22,6 +22,16 @@ type EditForm = {
   category_id: string
   from_account_id: string
   to_account_id: string
+}
+
+type SavedFormSnapshot = {
+  description: string
+  amount: number
+  transaction_date: string
+  transaction_type: TransactionType
+  category_id: string | null
+  from_account_id: string | null
+  to_account_id: string | null
 }
 
 interface TransactionsPageProps {
@@ -89,6 +99,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [pendingReceipt, setPendingReceipt] = useState<PickedReceipt | null>(null)
   const [removeReceiptFlag, setRemoveReceiptFlag] = useState(false)
+  const [receiptError, setReceiptError] = useState<string | null>(null)
+  const [lastSavedForm, setLastSavedForm] = useState<SavedFormSnapshot | null>(null)
   const [saving, setSaving] = useState(false)
   const [quickCatTx, setQuickCatTx] = useState<Transaction | null>(null)
   const [quickCatId, setQuickCatId] = useState('')
@@ -250,9 +262,15 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     })
     setPendingReceipt(null)
     setRemoveReceiptFlag(false)
+    setReceiptError(null)
+    setLastSavedForm(null)
   }
 
-  const closeEdit = () => { setEditingTx(null); setEditForm(null); setPendingReceipt(null); setRemoveReceiptFlag(false) }
+  const closeEdit = () => {
+    setEditingTx(null); setEditForm(null)
+    setPendingReceipt(null); setRemoveReceiptFlag(false)
+    setReceiptError(null); setLastSavedForm(null)
+  }
 
   const openQuickCat = (e: React.MouseEvent, t: Transaction) => {
     e.stopPropagation()
@@ -284,20 +302,54 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     const amount = rawAmount === null ? NaN : round2(rawAmount)
     if (!editForm.description.trim() || isNaN(amount) || amount <= 0) return
     setSaving(true)
+    setReceiptError(null)
+
+    const form: SavedFormSnapshot = {
+      description: editForm.description.trim(),
+      amount,
+      transaction_date: editForm.transaction_date,
+      transaction_type: editForm.transaction_type,
+      category_id: editForm.category_id || null,
+      from_account_id: editForm.from_account_id || null,
+      to_account_id: editForm.transaction_type === 'transfer' ? (editForm.to_account_id || null) : null,
+    }
+
+    // If a previous attempt in this edit session already saved these exact core
+    // fields (only the receipt step failed), skip onUpdate entirely on retry —
+    // no need to touch balances again. If the form changed since then, fall back
+    // to the freshest known transaction as the reversal baseline (state.transactions
+    // is kept current by onUpdate's own setState) so the delta math can't
+    // double-apply even across multiple edit-then-retry rounds.
+    const unchanged = !!lastSavedForm
+      && lastSavedForm.description === form.description
+      && lastSavedForm.amount === form.amount
+      && lastSavedForm.transaction_date === form.transaction_date
+      && lastSavedForm.transaction_type === form.transaction_type
+      && lastSavedForm.category_id === form.category_id
+      && lastSavedForm.from_account_id === form.from_account_id
+      && lastSavedForm.to_account_id === form.to_account_id
+
+    if (!unchanged) {
+      const updateBaseline = state.transactions.find(tx => tx.id === editingTx.id) ?? editingTx
+      try {
+        await onUpdate(updateBaseline, form)
+        setLastSavedForm(form)
+      } catch (_) {
+        setSaving(false)
+        return
+      }
+    }
+
     try {
-      await onUpdate(editingTx, {
-        description: editForm.description.trim(),
-        amount,
-        transaction_date: editForm.transaction_date,
-        transaction_type: editForm.transaction_type,
-        category_id: editForm.category_id || null,
-        from_account_id: editForm.from_account_id || null,
-        to_account_id: editForm.transaction_type === 'transfer' ? (editForm.to_account_id || null) : null,
-      })
       if (pendingReceipt) await onUploadReceipt?.(editingTx.id, pendingReceipt)
       else if (removeReceiptFlag && editingTx.receipt_path) await onRemoveReceipt?.(editingTx)
       closeEdit()
-    } catch (_) {}
+    } catch (err) {
+      const timedOut = err instanceof TimeoutError
+      setReceiptError(pendingReceipt
+        ? (timedOut ? 'Receipt upload timed out. Check your connection and tap Save Changes to retry.' : 'Could not attach receipt — tap Save Changes to retry.')
+        : (timedOut ? 'Removing the receipt timed out. Check your connection and tap Save Changes to retry.' : 'Could not remove receipt — tap Save Changes to retry.'))
+    }
     setSaving(false)
   }
 
@@ -763,6 +815,12 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 </div>
               )
             })()}
+
+            {receiptError && (
+              <div style={{ marginTop: 12, font: '600 12px Plus Jakarta Sans', color: c.bad, lineHeight: 1.5 }}>
+                {receiptError}
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button

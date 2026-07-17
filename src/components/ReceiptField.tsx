@@ -26,6 +26,8 @@ export function ReceiptField({
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null)
   const [resolvingUrl, setResolvingUrl] = useState(false)
+  const [resolveFailed, setResolveFailed] = useState(false)
+  const [retryTick, setRetryTick] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,16 +39,18 @@ export function ReceiptField({
   }, [pendingReceipt])
 
   useEffect(() => {
-    if (pendingReceipt || !existingPath || !getUrl) { setResolvedUrl(null); return }
+    if (pendingReceipt || !existingPath || !getUrl) { setResolvedUrl(null); setResolveFailed(false); return }
     let cancelled = false
     setResolvingUrl(true)
+    setResolveFailed(false)
     getUrl(existingPath).then(url => {
       if (cancelled) return
       setResolvedUrl(url)
       setResolvingUrl(false)
+      if (!url) setResolveFailed(true)
     })
     return () => { cancelled = true }
-  }, [existingPath, pendingReceipt, getUrl])
+  }, [existingPath, pendingReceipt, getUrl, retryTick])
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -96,7 +100,7 @@ export function ReceiptField({
         style={{ display: 'none' }}
       />
 
-      {!showThumbnail && !resolvingUrl && (
+      {!showThumbnail && !resolvingUrl && !resolveFailed && (
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={() => cameraInputRef.current?.click()} style={pickButtonStyle}>
             <Camera size={15} /> Camera
@@ -110,6 +114,15 @@ export function ReceiptField({
       {resolvingUrl && (
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, padding: '10px 0' }}>
           Loading receipt…
+        </div>
+      )}
+
+      {!showThumbnail && !resolvingUrl && resolveFailed && (
+        <div
+          onClick={() => setRetryTick(t => t + 1)}
+          style={{ font: '600 12px Plus Jakarta Sans', color: '#EF4444', padding: '10px 0', cursor: 'pointer' }}
+        >
+          Couldn't load receipt — tap to retry
         </div>
       )}
 

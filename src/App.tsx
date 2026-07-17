@@ -7,7 +7,9 @@ import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import { fmt, iso, TODAY, localIso, round2 } from '@/lib/utils'
+import { fmt, iso, TODAY, localIso, round2, TimeoutError } from '@/lib/utils'
+import type { PickedReceipt } from '@/lib/imageCompress'
+import type { Transaction } from '@/types'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
@@ -190,6 +192,8 @@ function AppContent({ session }: { session: Session }) {
   const [savingEmergency, setSavingEmergency] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [excludePromptTxnId, setExcludePromptTxnId] = useState<string | null>(null)
+  const [receiptRetry, setReceiptRetry] = useState<{ transaction: Transaction; receipt: PickedReceipt; message: string } | null>(null)
+  const [retryingReceipt, setRetryingReceipt] = useState(false)
   const [plantSheetOpen, setPlantSheetOpen] = useState(false)
   const [reflectionOpen, setReflectionOpen] = useState(false)
   const [reflectionMode, setReflectionMode] = useState<'today' | 'yesterday'>('today')
@@ -357,6 +361,21 @@ function AppContent({ session }: { session: Session }) {
       // 'goal' / 'challenge' live inline on the dashboard — just close the sheet
       // so the user can scroll to them; no dedicated page exists for either.
     }
+  }
+
+  const receiptFailureMessage = (err: unknown) =>
+    err instanceof TimeoutError
+      ? 'Receipt upload timed out. Check your connection.'
+      : "Couldn't attach receipt."
+
+  const handleRetryReceiptUpload = async () => {
+    if (!receiptRetry) return
+    setRetryingReceipt(true)
+    try {
+      await uploadReceipt(receiptRetry.transaction.id, receiptRetry.receipt)
+      setReceiptRetry(null)
+    } catch (err) { setReceiptRetry(r => r && { ...r, message: receiptFailureMessage(err) }) }
+    setRetryingReceipt(false)
   }
 
   const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
@@ -640,6 +659,39 @@ function AppContent({ session }: { session: Session }) {
             )}
           </div>
 
+          {/* Receipt Upload Retry Toast */}
+          <div style={{
+            position: 'fixed',
+            bottom: `calc(${receiptRetry ? 192 : 160}px + env(safe-area-inset-bottom, 0px))`,
+            left: '50%', transform: 'translateX(-50%)',
+            width: `calc(min(100%, ${W}px) - 32px)`,
+            opacity: receiptRetry ? 1 : 0,
+            transition: 'all 0.35s cubic-bezier(0.32,0.72,0,1)',
+            pointerEvents: receiptRetry ? 'auto' : 'none', zIndex: 86,
+          }}>
+            {receiptRetry && (
+              <div style={{ background: c.ink, color: c.bg, borderRadius: 14, padding: '12px 16px', font: '600 13px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+                <span>{receiptRetry.message}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <button
+                    onClick={handleRetryReceiptUpload}
+                    disabled={retryingReceipt}
+                    style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', font: '700 12px Plus Jakarta Sans', cursor: retryingReceipt ? 'not-allowed' : 'pointer', opacity: retryingReceipt ? 0.7 : 1 }}
+                  >
+                    {retryingReceipt ? 'Retrying…' : 'Retry'}
+                  </button>
+                  <button
+                    onClick={() => setReceiptRetry(null)}
+                    aria-label="Dismiss"
+                    style={{ background: 'none', border: 'none', color: c.bg, cursor: 'pointer', padding: 4, opacity: 0.7 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Post-income allocation suggestion */}
           <PostIncomeSheet
             open={postIncomeAmount != null}
@@ -650,7 +702,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined) }} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} onUploadReceipt={uploadReceipt} />
+            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined) }} onSave={handleSave} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} />
           </div>
 
           {/* AI Assist FAB + Chat */}

@@ -6,6 +6,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export class TimeoutError extends Error {}
+
+// Races `promise` against a timer that rejects with a TimeoutError after `ms`.
+// Does NOT abort the underlying request — it only stops waiting for it, so
+// `promise` may still resolve in the background. Fine here since every
+// caller's follow-up write (upsert / null-out / re-fetch) is naturally idempotent.
+export function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new TimeoutError(message)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 // Indian-locale currency, no decimals unless fractional — matches data.js fmt()
 export function fmt(n: number, opts: { decimals?: number; sign?: boolean } = {}): string {
   const { sign = false } = opts

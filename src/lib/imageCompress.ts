@@ -20,6 +20,9 @@ export async function compressImage(
   file: File,
   opts?: { maxDim?: number; quality?: number }
 ): Promise<PickedReceipt> {
+  if (file.type && !file.type.startsWith('image/')) {
+    throw new Error('Please choose an image file')
+  }
   if (file.size > MAX_RECEIPT_BYTES) {
     throw new Error('Photo is too large (max 10MB)')
   }
@@ -27,16 +30,21 @@ export async function compressImage(
   const maxDim = opts?.maxDim ?? 1600
   const quality = opts?.quality ?? 0.72
 
+  const objectUrl = URL.createObjectURL(file)
+  let img: HTMLImageElement
   try {
-    const objectUrl = URL.createObjectURL(file)
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image()
       el.onload = () => resolve(el)
-      el.onerror = () => reject(new Error('Could not decode image'))
+      el.onerror = () => reject(new Error('Could not read this file as an image'))
       el.src = objectUrl
     })
+  } finally {
     URL.revokeObjectURL(objectUrl)
+  }
+  // Decode failure now propagates as a real error instead of falling through.
 
+  try {
     const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
     const canvas = document.createElement('canvas')
     canvas.width = Math.round(img.width * scale)
@@ -51,6 +59,8 @@ export async function compressImage(
 
     return { blob, originalName: file.name }
   } catch {
+    // Decode already succeeded here, so this is a genuinely valid, displayable
+    // image — safe to fall back to the uncompressed original on canvas/encode issues.
     return { blob: file, originalName: file.name }
   }
 }

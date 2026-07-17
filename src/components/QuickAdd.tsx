@@ -97,9 +97,10 @@ interface QuickAddSheetProps {
   defaultTxType?: 'expense' | 'income' | 'transfer'
   defaultCategoryId?: string | null
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
+  onReceiptFailed?: (transaction: Transaction, receipt: PickedReceipt, error: unknown) => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, onUploadReceipt }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, onUploadReceipt, onReceiptFailed }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -436,7 +437,9 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         from_account_id: data.from_account_id,
         to_account_id: null,
       }).then(tx => {
-        if (receiptToUpload && tx) onUploadReceipt?.(tx.id, receiptToUpload)
+        if (receiptToUpload && tx) {
+          onUploadReceipt?.(tx.id, receiptToUpload)?.catch(err => onReceiptFailed?.(tx, receiptToUpload, err))
+        }
       })
     }
     onClose()
