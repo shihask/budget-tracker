@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { withTimeout } from '@/lib/utils'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -45,6 +46,71 @@ export async function parseExpenseWithAI(
     console.error('[AI] parse failed:', e)
     return null
   }
+}
+
+export type AIReceiptExtraction = {
+  description: string | null
+  merchant: string | null   // same value as description today — kept distinct for future use, not read anywhere yet
+  amount: number | null
+  transaction_date: string | null
+  category: string | null
+  confidence: 'high' | 'low'
+  suggestion: { name: string; group: string } | null
+}
+
+const RECEIPT_EXTRACT_TIMEOUT_MS = 25_000   // vision completions run slower than plain text categorize
+
+export async function extractReceiptWithAI(
+  blob: Blob,
+  categoryNames: string[],
+  groupNames: string[],
+  onUsed?: (n: number) => void
+): Promise<AIReceiptExtraction | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const base64 = await blobToBase64(blob)
+    const mimeType = blob.type || 'image/jpeg'
+
+    const res = await withTimeout(fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ mode: 'receipt-extract', imageBase64: base64, mimeType, categoryNames, groupNames }),
+    }), RECEIPT_EXTRACT_TIMEOUT_MS, 'Receipt scan timed out')
+
+    if (res.status === 429) { console.warn('Mint daily limit reached (100/day)'); return null }
+    if (!res.ok) return null
+
+    const data = await res.json()
+    console.debug('[AI][receipt-extract]', data)
+    if (data.used != null) onUsed?.(data.used)
+    return {
+      description: data.description ?? null,
+      merchant: data.merchant ?? null,
+      amount: data.amount ?? null,
+      transaction_date: data.transaction_date ?? null,
+      category: data.category ?? null,
+      confidence: data.confidence === 'high' ? 'high' : 'low',
+      suggestion: data.suggestion ?? null,
+    }
+  } catch (e) {
+    console.error('[AI] receipt extraction failed:', e)
+    return null
+  }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Could not read image'))
+    reader.onload = () => {
+      const result = reader.result as string
+      const comma = result.indexOf(',')
+      resolve(comma >= 0 ? result.slice(comma + 1) : result)
+    }
+    reader.readAsDataURL(blob)
+  })
 }
 
 export type AICategorizationResult =

@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json()
-    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once } = body
+    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType } = body
 
     // ── Chat mode: conversational finance assistant with tool calling ──
     if (mode === 'chat') {
@@ -595,6 +595,113 @@ Rules:
           amount: typeof parsed.amount === 'number' ? parsed.amount : null,
           account: validAccount,
           category: validCategory,
+          used: used + 1,
+          limit: DAILY_LIMIT,
+        }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ── Receipt-extract mode: read merchant/amount/date/category off a receipt photo ──
+    if (mode === 'receipt-extract') {
+      if (!imageBase64) {
+        return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
+      }
+
+      const currentYear = new Date().getFullYear()
+      const extractPrompt = `Extract from this receipt/invoice photo. Return strict JSON only, no markdown:
+{"description":null,"amount":null,"transaction_date":null,"category":null,"confidence":"low"}
+
+- description: short, customer-friendly merchant/store name (e.g. "DMart", not "DMART RETAIL LTD. STORE 0054"). null if unreadable.
+- amount: the final TOTAL paid — prefer "Grand Total" or "Amount Paid"; never return a Subtotal/GST/Discount/Round Off line unless no final total exists on the receipt. Ignore currency symbols/commas, return the plain number only (e.g. "₹1,250.50" → 1250.50). If multiple totals appear and you're not sure which is the final paid amount, return null and confidence "low" rather than guessing.
+- transaction_date: date printed on the receipt as YYYY-MM-DD. If year is missing, assume ${currentYear}. null if illegible.
+- category: exact name from this list, or "NEW: <name> | <group>" if none fit, or null if unsure.
+- confidence: return "high" ONLY if merchant, amount, AND transaction date are all clearly readable and internally consistent. Return "low" if any of them are blurry, ambiguous, guessed, or inconsistent — prefer "low" whenever in doubt.
+
+Categories: ${(categoryNames ?? []).join(', ') || 'none'}
+Groups (for NEW only): ${(groupNames ?? []).filter((g: string) => g !== 'Income' && g !== 'Transfer').join(', ')}
+
+If this isn't a receipt/invoice, return all nulls and confidence "low".`
+
+      const extractRes = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: extractPrompt },
+              { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } },
+            ],
+          }],
+          response_format: { type: 'json_object' },
+          max_tokens: 200,
+          temperature: 0,
+        }),
+      })
+
+      if (!extractRes.ok) {
+        const errBody = await extractRes.text()
+        console.error(`[receipt-extract] Groq call failed: ${extractRes.status} ${errBody}`)
+        return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+
+      const extractData = await extractRes.json()
+      const extractRaw: string = extractData?.choices?.[0]?.message?.content?.trim() ?? ''
+
+      let extractParsed: { description?: string; amount?: unknown; transaction_date?: string; category?: string; confidence?: string } = {}
+      try {
+        const jsonMatch = extractRaw.match(/\{[\s\S]*\}/)
+        if (jsonMatch) extractParsed = JSON.parse(jsonMatch[0])
+      } catch {
+        extractParsed = {}
+      }
+
+      const validDescription = extractParsed.description?.trim() || null
+
+      let validAmount: number | null = null
+      if (typeof extractParsed.amount === 'number' && extractParsed.amount > 0 && extractParsed.amount < 10_000_000) {
+        validAmount = extractParsed.amount
+      }
+
+      let validDate: string | null = null
+      if (typeof extractParsed.transaction_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(extractParsed.transaction_date)) {
+        const candidate = new Date(extractParsed.transaction_date + 'T00:00:00')
+        const tomorrow = new Date(now)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        if (candidate <= tomorrow) validDate = extractParsed.transaction_date
+      }
+
+      let extractCategory: string | null = null
+      let extractSuggestion: { name: string; group: string } | null = null
+      const rawCategory = (extractParsed.category ?? '').trim()
+      if (rawCategory.startsWith('NEW:')) {
+        const parts = rawCategory.slice(4).split('|').map((s: string) => s.trim())
+        const extractDefaultGroup = (groupNames ?? []).find((g: string) => g !== 'Income' && g !== 'Transfer') ?? (groupNames?.[0] ?? 'Lifestyle')
+        const extractResolveGroup = (g: string) =>
+          (groupNames ?? []).find((n: string) => n.toLowerCase() === g.toLowerCase()) ?? extractDefaultGroup
+        extractSuggestion = { name: parts[0] ?? '', group: extractResolveGroup(parts[1] ?? extractDefaultGroup) }
+      } else if (rawCategory) {
+        extractCategory = (categoryNames ?? []).find((c: string) => c.toLowerCase() === rawCategory.toLowerCase()) ?? null
+      }
+
+      const validConfidence = extractParsed.confidence === 'high' ? 'high' : 'low'
+
+      await db.from('settings').update({
+        ai_requests_used: used + 1,
+        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
+      }).eq('user_id', user.id)
+
+      return new Response(
+        JSON.stringify({
+          description: validDescription,
+          merchant: validDescription,
+          amount: validAmount,
+          transaction_date: validDate,
+          category: extractCategory,
+          confidence: validConfidence,
+          suggestion: extractSuggestion,
           used: used + 1,
           limit: DAILY_LIMIT,
         }),

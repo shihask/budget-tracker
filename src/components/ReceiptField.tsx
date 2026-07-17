@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, forwardRef } from 'react'
 import { Camera, Image as ImageIcon, Receipt as ReceiptIcon, X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
+import { extractReceiptWithAI, type AIReceiptExtraction } from '@/lib/gemini'
+import { MintAnimation } from './MintAnimation'
 
 interface ReceiptFieldProps {
   pendingReceipt: PickedReceipt | null
@@ -10,6 +12,15 @@ interface ReceiptFieldProps {
   onRemovePending: () => void
   onRemoveExisting?: () => void
   getUrl?: (path: string) => Promise<string | null>
+  autopilotEnabled?: boolean
+  categoryNames?: string[]
+  groupNames?: string[]
+  onExtracted?: (result: AIReceiptExtraction) => void
+  onAiUsed?: (n: number) => void
+}
+
+export interface ReceiptFieldHandle {
+  pick: () => void
 }
 
 function formatSize(bytes: number): string {
@@ -17,9 +28,10 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function ReceiptField({
+export const ReceiptField = forwardRef<ReceiptFieldHandle, ReceiptFieldProps>(function ReceiptField({
   pendingReceipt, existingPath, onPick, onRemovePending, onRemoveExisting, getUrl,
-}: ReceiptFieldProps) {
+  autopilotEnabled, categoryNames, groupNames, onExtracted, onAiUsed,
+}, ref) {
   const c = useTheme()
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
@@ -30,6 +42,12 @@ export function ReceiptField({
   const [retryTick, setRetryTick] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [extracting, setExtracting] = useState(false)
+  const extractGenRef = useRef(0)
+
+  useImperativeHandle(ref, () => ({
+    pick: () => galleryInputRef.current?.click(),
+  }))
 
   useEffect(() => {
     if (!pendingReceipt) { setLocalPreviewUrl(null); return }
@@ -60,6 +78,14 @@ export function ReceiptField({
       setError(null)
       const receipt = await compressImage(file)
       onPick(receipt)
+
+      if (autopilotEnabled && onExtracted) {
+        const myGen = ++extractGenRef.current
+        setExtracting(true)
+        extractReceiptWithAI(receipt.blob, categoryNames ?? [], groupNames ?? [], onAiUsed)
+          .then(result => { if (result && extractGenRef.current === myGen) onExtracted(result) })
+          .finally(() => { if (extractGenRef.current === myGen) setExtracting(false) })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not attach photo')
     }
@@ -145,6 +171,12 @@ export function ReceiptField({
                 {formatSize(pendingReceipt.blob.size)}
               </div>
             )}
+            {extracting && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                <MintAnimation variant="thinking" size={16} style={{ borderRadius: 4, flexShrink: 0 }} />
+                <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Reading receipt…</span>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <button
@@ -197,4 +229,4 @@ export function ReceiptField({
       )}
     </div>
   )
-}
+})

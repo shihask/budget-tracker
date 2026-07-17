@@ -3,9 +3,11 @@ import type { ReactNode } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import type { ColorTokens } from '@/lib/tokens'
-import { parseExpenseWithAI } from '@/lib/gemini'
+import { parseExpenseWithAI, extractReceiptWithAI, type AIReceiptExtraction } from '@/lib/gemini'
+import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
 import { MintAnimation } from './MintAnimation'
+import { Camera } from 'lucide-react'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
@@ -34,7 +36,17 @@ type ChartData =
   | { type: 'budget'; spent: number; budget: number }
   | { type: 'monthly'; thisMonth: number; lastMonth: number; income: number }
 type SummaryCard = { icon: string; label: string; value: string; sub?: string; tone?: 'good' | 'warn' | 'bad' | 'neutral' }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: string[] }
+type ReceiptPrompt = {
+  receipt: PickedReceipt
+  description: string
+  amount: number
+  transactionDate: string
+  categoryId: string | null
+  categorySuggestion: { name: string; group: string } | null
+  accountId: string
+  confidence: 'high' | 'low'
+}
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: string[]; receiptPrompt?: ReceiptPrompt; imagePreviewUrl?: string }
 
 function shouldShowChart(question: string): 'categories' | 'budget' | 'monthly' | null {
   const q = question.toLowerCase()
@@ -941,14 +953,17 @@ interface AIChatSheetProps {
   onClose: () => void
   state: AppState
   d: DerivedMetrics
-  onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => void
+  onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<Transaction | undefined>
   onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<void>
   onDelete: (t: Transaction) => Promise<void>
   onUpdateSettings?: (patch: { ai_requests_used: number }) => void
   onBusyChange?: (busy: boolean) => void
+  onAddCategory: (name: string, group_name: string) => Promise<string>
+  onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
+  onReceiptFailed?: (transaction: Transaction, receipt: PickedReceipt, error: unknown) => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -962,9 +977,19 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
   const [dragY, setDragY] = useState(0)
   const [keyboardH, setKeyboardH] = useState(0)
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set())
+  const [extractingReceipt, setExtractingReceipt] = useState(false)
+  const [savingReceiptIdx, setSavingReceiptIdx] = useState<number | null>(null)
+  const receiptFileRef = useRef<HTMLInputElement | null>(null)
+  const objectUrlsRef = useRef<Set<string>>(new Set())
   const SpeechRec = typeof window !== 'undefined'
     ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
     : null
+
+  // Revoke uploaded-photo preview object URLs once the sheet closes (it stays
+  // mounted while autopilot is on, so `open` — not unmount — is the real signal).
+  useEffect(() => {
+    if (!open) { objectUrlsRef.current.forEach(url => URL.revokeObjectURL(url)); objectUrlsRef.current.clear() }
+  }, [open])
 
   useEffect(() => {
     const onResize = () => {
@@ -1048,6 +1073,68 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
     }
     chatRecognitionRef.current = recognition
     recognition.start()
+  }
+
+  const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || loading) return
+
+    let receipt: PickedReceipt
+    try {
+      receipt = await compressImage(file)
+    } catch (err) {
+      setMessages(m => [...m, { role: 'ai', text: err instanceof Error ? err.message : 'Could not read that photo.' }])
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(receipt.blob)
+    objectUrlsRef.current.add(previewUrl)
+    setMessages(m => [...m, { role: 'user', text: '📎 Receipt photo', imagePreviewUrl: previewUrl }])
+    setLoading(true)
+    setExtractingReceipt(true)
+    onBusyChange?.(true)
+
+    const allAccObjs = [
+      ...state.accounts.filter(a => a.is_active),
+      ...(state.credit_cards ?? []),
+    ]
+    const catNames = state.categories.filter(cat => cat.group_name !== INCOME_GROUP).map(cat => cat.name)
+    const groupNames = state.groups.map(g => g.name)
+
+    const result: AIReceiptExtraction | null = await extractReceiptWithAI(
+      receipt.blob, catNames, groupNames, n => onUpdateSettings?.({ ai_requests_used: n })
+    )
+
+    const amount = result?.amount
+    if (!result || amount == null) {
+      setMessages(m => [...m, { role: 'ai', text: "I couldn't find a receipt in that photo — try a clearer shot, or ask me something else." }])
+    } else {
+      const category = result.category
+        ? state.categories.find(cat => cat.name.toLowerCase() === result.category!.toLowerCase())
+        : null
+      const leadIn = result.confidence === 'high'
+        ? "🧾 Receipt detected — here's what I found:"
+        : "🧾 I found a receipt, but I'm not fully confident — please review before saving:"
+      setMessages(m => [...m, {
+        role: 'ai',
+        text: leadIn,
+        receiptPrompt: {
+          receipt,
+          description: result.description ?? 'Receipt',
+          amount,
+          transactionDate: result.transaction_date ?? new Date().toISOString().split('T')[0],
+          categoryId: category?.id ?? null,
+          categorySuggestion: !category ? (result.suggestion ?? null) : null,
+          accountId: allAccObjs[0]?.id ?? '',
+          confidence: result.confidence,
+        },
+      }])
+    }
+
+    setLoading(false)
+    setExtractingReceipt(false)
+    onBusyChange?.(false)
   }
 
   const send = async (textOverride?: string) => {
@@ -1313,6 +1400,49 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
     setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text: 'Cancelled. No changes made.' }))
   }
 
+  const updateReceiptPrompt = (msgIndex: number, patch: Partial<ReceiptPrompt>) => {
+    setMessages(m => m.map((msg, i) => i !== msgIndex || !msg.receiptPrompt ? msg : {
+      ...msg,
+      receiptPrompt: { ...msg.receiptPrompt, ...patch },
+    }))
+  }
+
+  const handleCreateReceiptCategory = async (msgIndex: number, suggestion: { name: string; group: string }) => {
+    const newId = await onAddCategory(suggestion.name, suggestion.group)
+    updateReceiptPrompt(msgIndex, { categoryId: newId, categorySuggestion: null })
+  }
+
+  const handleReceiptSave = async (msgIndex: number, rp: ReceiptPrompt) => {
+    setSavingReceiptIdx(msgIndex)
+    try {
+      const category = state.categories.find(cat => cat.id === rp.categoryId)
+      const account = [...state.accounts, ...(state.credit_cards ?? [])].find(a => a.id === rp.accountId)
+      const tx = await onSave({
+        transaction_date: rp.transactionDate,
+        description: rp.description,
+        amount: rp.amount,
+        transaction_type: 'expense',
+        category_id: rp.categoryId,
+        from_account_id: rp.accountId,
+      })
+      if (!tx) throw new Error('Save failed')
+      onUploadReceipt?.(tx.id, rp.receipt)?.catch(err => onReceiptFailed?.(tx, rp.receipt, err))
+
+      const savedExpense: SavedExpense = {
+        description: rp.description, amount: rp.amount,
+        account: account?.name ?? '', category: category?.name ?? 'Uncategorized', date: rp.transactionDate,
+      }
+      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : {
+        role: 'ai',
+        text: `Done! Recorded expense "${rp.description}" ₹${rp.amount.toLocaleString()} under ${savedExpense.category} from ${savedExpense.account}. Receipt attached.`,
+        savedExpense,
+      }))
+    } catch {
+      setMessages(m => [...m, { role: 'ai', text: "I couldn't save that transaction. Please try again." }])
+    }
+    setSavingReceiptIdx(null)
+  }
+
   const handleGrabStart = (e: React.TouchEvent) => { dragStartY.current = e.touches[0].clientY }
   const handleGrabMove = (e: React.TouchEvent) => {
     if (dragStartY.current === null) return
@@ -1408,7 +1538,12 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                 border: m.role === 'ai' ? `1px solid ${c.faint}` : 'none',
               }}>
                 {m.role === 'user' ? (
-                  <span style={{ font: '500 14px Plus Jakarta Sans', lineHeight: 1.5 }}>{m.text}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {m.imagePreviewUrl && (
+                      <img src={m.imagePreviewUrl} alt="Uploaded receipt" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                    )}
+                    <span style={{ font: '500 14px Plus Jakarta Sans', lineHeight: 1.5 }}>{m.text}</span>
+                  </div>
                 ) : (
                   renderRichText(
                     m.text, c,
@@ -1481,6 +1616,75 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                   </button>
                 </div>
               )}
+              {m.receiptPrompt && (() => {
+                const rp = m.receiptPrompt
+                const accs = state.accounts.filter(a => a.is_active)
+                const ccs = state.credit_cards ?? []
+                const allAccs = [...accs, ...ccs]
+                const category = state.categories.find(cat => cat.id === rp.categoryId)
+                const saving = savingReceiptIdx === i
+                const rowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }
+                const labelStyle: React.CSSProperties = { font: '500 12px Plus Jakarta Sans', color: c.muted }
+                const valueStyle: React.CSSProperties = { font: '700 13px Plus Jakarta Sans', color: c.ink }
+                return (
+                  <div style={{ maxWidth: '92%', width: '100%', background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '12px 14px' }}>
+                    <div style={rowStyle}><span style={labelStyle}>Merchant</span><span style={valueStyle}>{rp.description}</span></div>
+                    <div style={rowStyle}><span style={labelStyle}>Amount</span><span style={valueStyle}>₹{rp.amount.toLocaleString()}</span></div>
+                    <div style={rowStyle}><span style={labelStyle}>Date</span><span style={valueStyle}>{rp.transactionDate}</span></div>
+                    <div style={rowStyle}>
+                      <span style={labelStyle}>Category</span>
+                      {category ? <span style={valueStyle}>{category.name}</span> : rp.categorySuggestion ? (
+                        <button
+                          type="button"
+                          onClick={() => handleCreateReceiptCategory(i, rp.categorySuggestion!)}
+                          style={{ border: `1.5px dashed ${c.accent}`, background: c.accentSoft, borderRadius: 8, padding: '3px 8px', font: '600 11px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}
+                        >
+                          + Create "{rp.categorySuggestion.name}"
+                        </button>
+                      ) : <span style={valueStyle}>Uncategorized</span>}
+                    </div>
+                    <div style={rowStyle}>
+                      <span style={labelStyle}>Account</span>
+                      {allAccs.length > 1 ? (
+                        <select
+                          value={rp.accountId}
+                          onChange={e => updateReceiptPrompt(i, { accountId: e.target.value })}
+                          style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, background: c.surface2, border: `1px solid ${c.faint}`, borderRadius: 8, padding: '4px 6px' }}
+                        >
+                          <optgroup label="Bank / Cash">
+                            {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                          </optgroup>
+                          {ccs.length > 0 && (
+                            <optgroup label="Credit Cards">
+                              {ccs.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                            </optgroup>
+                          )}
+                        </select>
+                      ) : (
+                        <span style={valueStyle}>{allAccs[0]?.name ?? '—'}</span>
+                      )}
+                    </div>
+                    {rp.confidence === 'low' && (
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: '#D97706', marginTop: 6 }}>
+                        ⚠️ Low confidence — please review before saving.
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleReceiptSave(i, rp)}
+                      disabled={saving || !rp.accountId}
+                      style={{
+                        width: '100%', height: 36, borderRadius: 10, border: 'none', marginTop: 10,
+                        background: (saving || !rp.accountId) ? c.faint : c.accent,
+                        font: '700 13px Plus Jakarta Sans', color: '#fff',
+                        cursor: (saving || !rp.accountId) ? 'default' : 'pointer',
+                      }}
+                    >
+                      {saving ? 'Saving…' : !rp.accountId ? 'Add an account first' : 'Save Transaction'}
+                    </button>
+                  </div>
+                )
+              })()}
               {m.chartData && (
                 <div style={{ maxWidth: '92%', background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '12px 14px' }}>
                   {m.chartData.type === 'categories' && (() => {
@@ -1566,7 +1770,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                 background: c.surface2, borderRadius: '18px 18px 18px 4px',
                 padding: '10px 14px', font: '500 14px Plus Jakarta Sans', color: c.muted,
               }}>
-                Mint is thinking…
+                {extractingReceipt ? 'Reading receipt…' : 'Mint is thinking…'}
               </div>
             </div>
           )}
@@ -1624,6 +1828,28 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
               transition: 'border-color 0.2s',
             }}
           />
+          <input
+            ref={receiptFileRef}
+            type="file"
+            accept="image/*"
+            onChange={handleReceiptFile}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            onClick={() => receiptFileRef.current?.click()}
+            disabled={loading}
+            aria-label="Attach receipt photo"
+            style={{
+              width: 42, height: 42, borderRadius: 999, border: 'none',
+              background: c.surface2,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: loading ? 'default' : 'pointer', flexShrink: 0,
+              opacity: loading ? 0.5 : 1,
+            }}
+          >
+            <Camera size={17} color={c.sub} />
+          </button>
           {SpeechRec && (
             <button
               onPointerDown={e => { e.preventDefault(); chatListening ? stopChatVoice() : startChatVoice() }}

@@ -7,10 +7,11 @@ import { fmt, TODAY, iso, round2 } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
-import { ReceiptField } from './ReceiptField'
+import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
+import { Camera, Sparkles, X } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
-import { parseExpenseWithAI } from '@/lib/gemini'
+import { parseExpenseWithAI, type AIReceiptExtraction } from '@/lib/gemini'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
 import { findCategoryMatches, guessCategory } from '@/lib/categorize'
@@ -98,9 +99,11 @@ interface QuickAddSheetProps {
   defaultCategoryId?: string | null
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onReceiptFailed?: (transaction: Transaction, receipt: PickedReceipt, error: unknown) => void
+  showSmartInputTip?: boolean
+  onDismissSmartInputTip?: () => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, onUploadReceipt, onReceiptFailed }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -116,6 +119,9 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const [smartInput, setSmartInput] = useState('')
   const [smartParsed, setSmartParsed] = useState<{ description: string; amount: number | null; accountName: string | null; categoryName: string | null } | null>(null)
   const smartInputRef = useRef<HTMLInputElement | null>(null)
+  const receiptFieldRef = useRef<ReceiptFieldHandle | null>(null)
+  const initialCategoryIdRef = useRef('')
+  const initialDateRef = useRef('')
   const enterSubmittedRef = useRef(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
@@ -138,6 +144,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const [aiParsing, setAiParsing] = useState(false)
   const [aiSuccess, setAiSuccess] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<{ name: string; group: string } | null>(null)
+  const [receiptSuggestion, setReceiptSuggestion] = useState<AIReceiptExtraction | null>(null)
   const [catSuggestions, setCatSuggestions] = useState<Category[]>([])
   const [listening, setListening] = useState(false)
   const aiJustParsed = useRef(false)
@@ -236,6 +243,8 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         ? (defaultCategoryId || cats.find(c => c.group_name === 'Income')?.id || cats[0]?.id || '')
         : (cats.find(c => c.group_name === 'Lifestyle')?.id || cats[0]?.id || '')
       reset({ date: iso(TODAY), description: '', amount: 0, category_id: firstCat, from_account_id: firstAccount })
+      initialCategoryIdRef.current = firstCat
+      initialDateRef.current = iso(TODAY)
       setTxType(initType)
       setTransferToAccountId(secondAccount)
       setSmartInput('')
@@ -245,12 +254,14 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       setAiParsing(false)
       setAiSuccess(false)
       setPendingReceipt(null)
+      setReceiptSuggestion(null)
     }
   }, [open, reset])
 
   const descriptionVal = watch('description')
   const amountVal = watch('amount')
   const categoryVal = watch('category_id')
+  const dateVal = watch('date')
 
   // Auto-categorize: name match → keyword fallback only
   // Uses catsRef so adding a new category doesn't re-trigger this effect
@@ -292,6 +303,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
     setSmartInput(text)
     if (aiSuccess) setAiSuccess(false)
     if (!text.trim()) { setSmartParsed(null); setAiParsing(false) }
+    if (showSmartInputTip) onDismissSmartInputTip?.()
   }
 
   // Debounced local parse: fills amount/description in real-time as user types
@@ -372,6 +384,43 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   }
 
   const handleSmartSubmit = () => submitText(smartInput.trim())
+
+  // Shared by both the high-confidence auto-fill path and the low-confidence
+  // tap-to-fill suggestion's accept action — one place that actually touches setValue.
+  const applyExtractionToForm = (result: AIReceiptExtraction) => {
+    aiJustParsed.current = true
+    setCatSuggestions([])
+    setAiSuggestion(null)
+    if (result.description) setValue('description', result.description, { shouldValidate: true })
+    if (result.amount !== null) setValue('amount', result.amount, { shouldValidate: true })
+    if (result.transaction_date) setValue('date', result.transaction_date, { shouldValidate: true })
+    if (result.category) {
+      const cat = catsRef.current.find(c => c.name === result.category)
+      if (cat) setValue('category_id', cat.id, { shouldValidate: true })
+    } else if (result.suggestion) {
+      setAiSuggestion(result.suggestion)
+    }
+  }
+
+  // If the form already contains meaningful values that receipt extraction could
+  // overwrite, require an explicit tap instead of auto-applying — avoid "simplifying"
+  // this back to just description/amount as more fields are added here later.
+  const hasMeaningfulReceiptTargets = () =>
+    !!descriptionVal.trim() ||
+    amountVal > 0 ||
+    (!!categoryVal && categoryVal !== initialCategoryIdRef.current) ||
+    dateVal !== initialDateRef.current
+
+  const handleReceiptExtracted = (result: AIReceiptExtraction) => {
+    if (result.confidence === 'high' && !hasMeaningfulReceiptTargets()) applyExtractionToForm(result)
+    else setReceiptSuggestion(result)
+  }
+
+  const applyReceiptSuggestion = () => {
+    if (!receiptSuggestion) return
+    applyExtractionToForm(receiptSuggestion)
+    setReceiptSuggestion(null)
+  }
 
   const stopVoice = () => {
     recognitionRef.current?.stop()
@@ -550,8 +599,25 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                 }}
                 placeholder={autopilotEnabled ? 'e.g. "paid electricity bill 1200 via HDFC"' : 'e.g. "petrol 500 axis"'}
                 enterKeyHint="done"
-                style={{ ...inputStyle, paddingLeft: 36, paddingRight: SpeechRec ? 44 : 14 }}
+                style={{ ...inputStyle, paddingLeft: 36, paddingRight: SpeechRec ? 80 : 44 }}
               />
+              {isExpense && (
+                <button
+                  type="button"
+                  onClick={() => receiptFieldRef.current?.pick()}
+                  aria-label="Attach receipt photo"
+                  style={{
+                    position: 'absolute', right: SpeechRec ? 44 : 8, top: '50%', transform: 'translateY(-50%)',
+                    width: 32, height: 32, borderRadius: 999, border: 'none',
+                    background: pendingReceipt ? c.accentSoft : c.surface,
+                    color: pendingReceipt ? c.accent : c.sub,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  <Camera size={16} />
+                </button>
+              )}
               {SpeechRec && (
                 <button
                   type="button"
@@ -590,6 +656,28 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                 </button>
               )}
             </div>
+            {showSmartInputTip && (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8,
+                background: c.accentSoft, border: `1px solid ${c.accent}33`, borderRadius: 12, padding: '10px 12px',
+              }}>
+                <Sparkles size={14} color={c.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 2 }}>Try Smart Input</div>
+                  <div style={{ font: '500 11.5px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+                    Type naturally, like "paid electricity bill 1200 via HDFC", and it fills in the details for you. You can also tap the camera icon to attach a receipt photo — it reads the details automatically.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onDismissSmartInputTip}
+                  aria-label="Dismiss"
+                  style={{ background: 'none', border: 'none', color: c.muted, cursor: 'pointer', padding: 2, flexShrink: 0 }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
             {smartParsed && (smartParsed.description || smartParsed.amount !== null) && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
                 {smartParsed.description && (
@@ -896,11 +984,31 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
 
             {isExpense && (
               <ReceiptField
+                ref={receiptFieldRef}
                 pendingReceipt={pendingReceipt}
                 existingPath={null}
                 onPick={setPendingReceipt}
                 onRemovePending={() => setPendingReceipt(null)}
+                autopilotEnabled={autopilotEnabled}
+                categoryNames={catsRef.current.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)}
+                groupNames={state.groups.map(g => g.name)}
+                onAiUsed={n => onUpdateSettings?.({ ai_requests_used: n })}
+                onExtracted={handleReceiptExtracted}
               />
+            )}
+
+            {receiptSuggestion && (
+              <button
+                type="button"
+                onClick={applyReceiptSuggestion}
+                style={{
+                  width: '100%', border: `1.5px dashed ${c.accent}`,
+                  background: c.accentSoft, borderRadius: 10, padding: '8px 10px',
+                  font: '600 12px Plus Jakarta Sans', color: c.accent, cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                Detected: {receiptSuggestion.description ?? '—'} · {receiptSuggestion.amount != null ? fmt(receiptSuggestion.amount) : '—'} · {receiptSuggestion.transaction_date ?? '—'} — tap to fill
+              </button>
             )}
 
             {isTransfer && transferToAccountId === fromAccountId && fromAccountId && (
