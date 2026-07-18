@@ -609,25 +609,29 @@ Rules:
       }
 
       const currentYear = new Date().getFullYear()
-      const extractPrompt = `Extract from this receipt/invoice photo. Return strict JSON only, no markdown:
+      const extractPrompt = `Extract payment details from this photo. Return strict JSON only, no markdown:
 {"description":null,"amount":null,"transaction_date":null,"category":null,"confidence":"low"}
 
-- description: short, customer-friendly merchant/store name (e.g. "DMart", not "DMART RETAIL LTD. STORE 0054"). null if unreadable.
-- amount: the final TOTAL paid — prefer "Grand Total" or "Amount Paid"; never return a Subtotal/GST/Discount/Round Off line unless no final total exists on the receipt. Ignore currency symbols/commas, return the plain number only (e.g. "₹1,250.50" → 1250.50). If multiple totals appear and you're not sure which is the final paid amount, return null and confidence "low" rather than guessing.
-- transaction_date: date printed on the receipt as YYYY-MM-DD. If year is missing, assume ${currentYear}. null if illegible.
+This can be EITHER a printed/physical receipt or invoice, OR a screenshot of a payment app's transaction confirmation screen (Google Pay, PhonePe, Paytm, other UPI apps, net banking, bank apps, etc.) — both are equally valid, treat a payment-app screenshot exactly like a receipt.
+
+- description: short, customer-friendly merchant/payee name. On a paper receipt this is the store name at the top (e.g. "DMart", not "DMART RETAIL LTD. STORE 0054"). On a payment-app screenshot this is who the money was PAID TO — usually labeled "To:", "Paid to", or shown next to a "Pay again"-style button (e.g. "DAYA DISCOUNT HYPER PHARMA"). Never use the payer's own name (often labeled "From:") as the description. null if unreadable.
+- amount: the actual amount paid. On a paper receipt, prefer "Grand Total"/"Amount Paid" over a Subtotal/GST/Discount/Round Off line. On a payment-app screenshot this is usually the large prominent number near the top (e.g. "₹71"). Ignore currency symbols/commas, return the plain number only (e.g. "₹1,250.50" → 1250.50). If genuinely ambiguous, return null and confidence "low" rather than guessing.
+- transaction_date: the date (and time, if shown) of the purchase/payment, as YYYY-MM-DD. Payment-app screenshots often show it as e.g. "18 Jul 2026, 7:53pm" — convert that to date-only YYYY-MM-DD. If year is missing, assume ${currentYear}. null if illegible.
 - category: exact name from this list, or "NEW: <name> | <group>" if none fit, or null if unsure.
-- confidence: return "high" ONLY if merchant, amount, AND transaction date are all clearly readable and internally consistent. Return "low" if any of them are blurry, ambiguous, guessed, or inconsistent — prefer "low" whenever in doubt.
+- confidence: return "high" ONLY if merchant/payee, amount, AND date are all clearly readable and internally consistent. Return "low" if any of them are blurry, ambiguous, guessed, or inconsistent — prefer "low" whenever in doubt. A failed/pending payment (not "Completed"/"Success") should also lower confidence.
 
 Categories: ${(categoryNames ?? []).join(', ') || 'none'}
 Groups (for NEW only): ${(groupNames ?? []).filter((g: string) => g !== 'Income' && g !== 'Transfer').join(', ')}
 
-If this isn't a receipt/invoice, return all nulls and confidence "low".`
+Only return all nulls and confidence "low" if this is clearly neither a receipt nor a payment confirmation of any kind (e.g. a random unrelated photo).`
 
       const extractRes = await fetch(GROQ_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
         body: JSON.stringify({
-          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          // meta-llama/llama-4-scout-17b-16e-instruct was deprecated/removed by Groq
+          // (shutdown 2026-07-17) — qwen3.6-27b is the current vision-capable model.
+          model: 'qwen/qwen3.6-27b',
           messages: [{
             role: 'user',
             content: [
@@ -635,8 +639,17 @@ If this isn't a receipt/invoice, return all nulls and confidence "low".`
               { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } },
             ],
           }],
-          response_format: { type: 'json_object' },
-          max_tokens: 200,
+          // No response_format here (unlike a text-only request) — Groq's strict
+          // JSON-mode validator rejects this vision model's own output combined with
+          // an image input (400 "Failed to validate JSON"), confirmed via live logs.
+          // The prompt's own "strict JSON only" instruction + the regex-based parse
+          // below (same approach as the parse/categorize modes) is the reliable path.
+          // qwen3.6 is a reasoning model that otherwise emits a <think>...</think>
+          // trace before the actual answer — confirmed via live logs it was getting
+          // cut off mid-thought by max_tokens before ever reaching the JSON. Disable
+          // reasoning entirely since it's unnecessary for structured extraction.
+          reasoning_effort: 'none',
+          max_tokens: 300,
           temperature: 0,
         }),
       })
@@ -649,20 +662,35 @@ If this isn't a receipt/invoice, return all nulls and confidence "low".`
 
       const extractData = await extractRes.json()
       const extractRaw: string = extractData?.choices?.[0]?.message?.content?.trim() ?? ''
+      console.log('[receipt-extract] raw model output:', extractRaw)
+
+      // Defensive: strip a <think>...</think> block if one still shows up despite
+      // reasoning_effort: 'none' — only the content after it should hold the JSON.
+      const extractAfterThink = extractRaw.includes('</think>')
+        ? extractRaw.split('</think>').pop() ?? extractRaw
+        : extractRaw
 
       let extractParsed: { description?: string; amount?: unknown; transaction_date?: string; category?: string; confidence?: string } = {}
       try {
-        const jsonMatch = extractRaw.match(/\{[\s\S]*\}/)
+        const jsonMatch = extractAfterThink.match(/\{[\s\S]*\}/)
         if (jsonMatch) extractParsed = JSON.parse(jsonMatch[0])
-      } catch {
+      } catch (err) {
+        console.error('[receipt-extract] JSON parse failed:', err)
         extractParsed = {}
       }
 
       const validDescription = extractParsed.description?.trim() || null
 
+      // Some vision responses represent the amount as a string (e.g. "71" or "₹71")
+      // even in JSON mode — coerce before validating rather than rejecting outright.
       let validAmount: number | null = null
-      if (typeof extractParsed.amount === 'number' && extractParsed.amount > 0 && extractParsed.amount < 10_000_000) {
-        validAmount = extractParsed.amount
+      const rawAmountValue = typeof extractParsed.amount === 'number'
+        ? extractParsed.amount
+        : typeof extractParsed.amount === 'string'
+        ? Number(extractParsed.amount.replace(/[^0-9.]/g, ''))
+        : NaN
+      if (!isNaN(rawAmountValue) && rawAmountValue > 0 && rawAmountValue < 10_000_000) {
+        validAmount = rawAmountValue
       }
 
       let validDate: string | null = null

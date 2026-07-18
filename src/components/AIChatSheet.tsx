@@ -1124,10 +1124,15 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
       receipt.blob, catNames, groupNames, n => onUpdateSettings?.({ ai_requests_used: n })
     )
 
-    const amount = result?.amount
-    if (!result || amount == null) {
+    if (!result) {
+      // extractReceiptWithAI returns null on a network/timeout/quota/API failure —
+      // distinct from a successful call that genuinely found no receipt (below),
+      // since "try a clearer shot" is bad advice when the real issue is technical.
+      setMessages(m => [...m, { role: 'ai', text: "Something went wrong reading that photo — please try again." }])
+    } else if (result.amount == null) {
       setMessages(m => [...m, { role: 'ai', text: "I couldn't find a receipt in that photo — try a clearer shot, or ask me something else." }])
     } else {
+      const amount = result.amount
       const category = result.category
         ? state.categories.find(cat => cat.name.toLowerCase() === result.category!.toLowerCase())
         : null
