@@ -21,6 +21,7 @@ interface ReceiptFieldProps {
 
 export interface ReceiptFieldHandle {
   pick: () => void
+  receiveFile: (file: File) => void
 }
 
 function formatSize(bytes: number): string {
@@ -47,6 +48,7 @@ export const ReceiptField = forwardRef<ReceiptFieldHandle, ReceiptFieldProps>(fu
 
   useImperativeHandle(ref, () => ({
     pick: () => galleryInputRef.current?.click(),
+    receiveFile: (file: File) => processFile(file),
   }))
 
   useEffect(() => {
@@ -70,10 +72,7 @@ export const ReceiptField = forwardRef<ReceiptFieldHandle, ReceiptFieldProps>(fu
     return () => { cancelled = true }
   }, [existingPath, pendingReceipt, getUrl, retryTick])
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
+  const processFile = async (file: File) => {
     try {
       setError(null)
       const receipt = await compressImage(file)
@@ -89,6 +88,12 @@ export const ReceiptField = forwardRef<ReceiptFieldHandle, ReceiptFieldProps>(fu
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not attach photo')
     }
+  }
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) processFile(file)
   }
 
   const labelStyle: React.CSSProperties = {

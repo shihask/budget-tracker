@@ -978,6 +978,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
   const [keyboardH, setKeyboardH] = useState(0)
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set())
   const [extractingReceipt, setExtractingReceipt] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [savingReceiptIdx, setSavingReceiptIdx] = useState<number | null>(null)
   const receiptFileRef = useRef<HTMLInputElement | null>(null)
   const objectUrlsRef = useRef<Set<string>>(new Set())
@@ -1075,10 +1076,27 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
     recognition.start()
   }
 
-  const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReceiptFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file || loading) return
+    if (file) handleReceiptImage(file)
+  }
+
+  const handleChatPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData.items
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) handleReceiptImage(file)
+        return
+      }
+    }
+    // no image on the clipboard — fall through to normal text paste
+  }
+
+  const handleReceiptImage = async (file: File) => {
+    if (loading) return
 
     let receipt: PickedReceipt
     try {
@@ -1512,7 +1530,21 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div
+          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => {
+            e.preventDefault()
+            setDragOver(false)
+            const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'))
+            if (file) handleReceiptImage(file)
+          }}
+          style={{
+            flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10,
+            border: dragOver ? `2px dashed ${c.accent}` : '2px dashed transparent',
+            transition: 'border-color 0.15s',
+          }}
+        >
           <div style={{ flex: 1 }} />
           {messages.map((m, i) => (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
@@ -1819,6 +1851,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
+            onPaste={handleChatPaste}
             placeholder={chatListening ? 'Listening…' : 'Ask about your finances…'}
             enterKeyHint="send"
             style={{
@@ -1832,7 +1865,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
             ref={receiptFileRef}
             type="file"
             accept="image/*"
-            onChange={handleReceiptFile}
+            onChange={handleReceiptFileInput}
             style={{ display: 'none' }}
           />
           <button

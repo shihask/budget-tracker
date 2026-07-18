@@ -597,6 +597,17 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                   if (enterSubmittedRef.current) { enterSubmittedRef.current = false; return }
                   if (smartInput.trim().length >= 2) handleSmartSubmit()
                 }}
+                onPaste={e => {
+                  const items = e.clipboardData.items
+                  for (const item of items) {
+                    if (item.type.startsWith('image/')) {
+                      e.preventDefault()
+                      const file = item.getAsFile()
+                      if (file) receiptFieldRef.current?.receiveFile(file)
+                      return
+                    }
+                  }
+                }}
                 placeholder={autopilotEnabled ? 'e.g. "paid electricity bill 1200 via HDFC"' : 'e.g. "petrol 500 axis"'}
                 enterKeyHint="done"
                 style={{ ...inputStyle, paddingLeft: 36, paddingRight: SpeechRec ? 80 : 44 }}
