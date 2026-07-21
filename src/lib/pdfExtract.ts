@@ -1,6 +1,10 @@
+import './promiseWithResolversPolyfill'
 import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+// Custom-bundled (not pdfjs-dist's own worker file directly) so the
+// Promise.withResolvers polyfill can run inside the worker's own realm too
+// — see pdfWorkerEntry.ts.
+import pdfWorkerUrl from './pdfWorkerEntry?worker&url'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 

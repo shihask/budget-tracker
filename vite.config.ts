@@ -40,6 +40,11 @@ export default defineConfig({
     }),
   ],
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  // pdfjs-dist always constructs its worker with `new Worker(url, { type:
+  // 'module' })` (hardcoded, not conditional) — matching output format here
+  // is required, not just nicer. Only worker in the app today (see
+  // src/lib/pdfWorkerEntry.ts), so this has no effect on anything else.
+  worker: { format: 'es' },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],

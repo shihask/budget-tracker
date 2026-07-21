@@ -45,6 +45,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
   const [progress, setProgress] = useState({ processed: 0, total: 0 })
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [picking, setPicking] = useState(false)
 
   const [rows, setRows] = useState<SyncEventRow[]>([])
   const [candidates, setCandidates] = useState<Map<string, Transaction>>(new Map())
@@ -140,6 +141,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
 
   async function handlePdfPick(file: File) {
     setUploadError(null)
+    setPicking(true)
     try {
       const batchId = await createPdfImportBatch(userId, accountId, file)
       const { data } = await supabase.from('import_batches').select('*').eq('id', batchId).single()
@@ -148,11 +150,14 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
       startExtraction(created, [file])
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : 'Could not read this PDF')
+    } finally {
+      setPicking(false)
     }
   }
 
   async function handleImagesPick(files: File[]) {
     setUploadError(null)
+    setPicking(true)
     try {
       const compressed = await Promise.all(files.map(async f => (await compressImage(f)).blob as File))
       const batchId = await createImageImportBatch(userId, accountId, compressed)
@@ -162,6 +167,8 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
       startExtraction(created, compressed)
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : 'Could not read one of those images')
+    } finally {
+      setPicking(false)
     }
   }
 
@@ -309,6 +316,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
               onDragLeave={() => setDragOver(false)}
               onDrop={e => {
                 e.preventDefault(); setDragOver(false)
+                if (picking) return
                 const files = Array.from(e.dataTransfer.files)
                 const pdf = files.find(f => f.type === 'application/pdf')
                 const images = files.filter(f => f.type.startsWith('image/'))
@@ -320,19 +328,28 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
                 textAlign: 'center', marginBottom: 12, background: dragOver ? c.accentSoft : 'transparent',
               }}
             >
-              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, marginBottom: 12 }}>Drag & drop screenshots or a PDF here</div>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <label style={{ padding: '10px 16px', borderRadius: 10, background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
-                  Choose screenshots
-                  <input type="file" accept="image/*" multiple style={{ display: 'none' }}
-                    onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length) handleImagesPick(files); e.target.value = '' }} />
-                </label>
-                <label style={{ padding: '10px 16px', borderRadius: 10, border: `1.5px solid ${c.faint}`, color: c.ink, font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
-                  Choose PDF
-                  <input type="file" accept="application/pdf" style={{ display: 'none' }}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handlePdfPick(f); e.target.value = '' }} />
-                </label>
-              </div>
+              {picking ? (
+                <div style={{ padding: '8px 0' }}>
+                  <MintAnimation variant="thinking" size={28} style={{ margin: '0 auto 8px' }} />
+                  <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Uploading…</div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, marginBottom: 12 }}>Drag & drop screenshots or a PDF here</div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <label style={{ padding: '10px 16px', borderRadius: 10, background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
+                      Choose screenshots
+                      <input type="file" accept="image/*" multiple style={{ display: 'none' }}
+                        onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length) handleImagesPick(files); e.target.value = '' }} />
+                    </label>
+                    <label style={{ padding: '10px 16px', borderRadius: 10, border: `1.5px solid ${c.faint}`, color: c.ink, font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
+                      Choose PDF
+                      <input type="file" accept="application/pdf" style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePdfPick(f); e.target.value = '' }} />
+                    </label>
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
