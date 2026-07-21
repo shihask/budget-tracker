@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import * as Sentry from '@sentry/react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { BottomSheet } from '@/components/BottomSheet'
@@ -127,6 +128,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
         onProgress: (processed, total) => setProgress({ processed, total }),
       })
     } catch (e) {
+      Sentry.captureException(e, { extra: { where: 'statement-import.runExtraction', batchId: forBatch.id, provider: forBatch.provider, chunksProcessed: forBatch.chunks_processed, totalChunks: forBatch.total_chunks } })
       await supabase.from('import_batches').update({ status: 'error', error_message: e instanceof Error ? e.message : String(e) }).eq('id', forBatch.id)
       setUploadError(e instanceof Error ? e.message : 'Extraction failed')
       const { data } = await supabase.from('import_batches').select('*').eq('id', forBatch.id).single()
@@ -151,6 +153,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
       setBatch(created)
       startExtraction(created, [file])
     } catch (e) {
+      Sentry.captureException(e, { extra: { where: 'statement-import.handlePdfPick', fileName: file.name, fileSize: file.size } })
       setUploadError(e instanceof Error ? e.message : 'Could not read this PDF')
     } finally {
       setPicking(false)
@@ -168,6 +171,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
       setBatch(created)
       startExtraction(created, compressed)
     } catch (e) {
+      Sentry.captureException(e, { extra: { where: 'statement-import.handleImagesPick', fileCount: files.length } })
       setUploadError(e instanceof Error ? e.message : 'Could not read one of those images')
     } finally {
       setPicking(false)
