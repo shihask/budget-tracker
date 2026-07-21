@@ -7,6 +7,7 @@ import { parseExpenseWithAI, extractReceiptWithAI, type AIReceiptExtraction } fr
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
 import { MintAnimation } from './MintAnimation'
+import { CategorySelect } from './CategorySelect'
 import { Camera } from 'lucide-react'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
@@ -1658,27 +1659,70 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                 const accs = state.accounts.filter(a => a.is_active)
                 const ccs = state.credit_cards ?? []
                 const allAccs = [...accs, ...ccs]
-                const category = state.categories.find(cat => cat.id === rp.categoryId)
                 const saving = savingReceiptIdx === i
-                const rowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }
-                const labelStyle: React.CSSProperties = { font: '500 12px Plus Jakarta Sans', color: c.muted }
+                const rowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', gap: 10 }
+                const labelStyle: React.CSSProperties = { font: '500 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }
                 const valueStyle: React.CSSProperties = { font: '700 13px Plus Jakarta Sans', color: c.ink }
+                const editableStyle: React.CSSProperties = {
+                  font: '700 12px Plus Jakarta Sans', color: c.ink, background: c.surface2,
+                  border: `1px solid ${c.faint}`, borderRadius: 8, padding: '4px 6px', outline: 'none',
+                  textAlign: 'right', minWidth: 0,
+                }
                 return (
                   <div style={{ maxWidth: '92%', width: '100%', background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '12px 14px' }}>
-                    <div style={rowStyle}><span style={labelStyle}>Merchant</span><span style={valueStyle}>{rp.description}</span></div>
-                    <div style={rowStyle}><span style={labelStyle}>Amount</span><span style={valueStyle}>₹{rp.amount.toLocaleString()}</span></div>
-                    <div style={rowStyle}><span style={labelStyle}>Date</span><span style={valueStyle}>{rp.transactionDate}</span></div>
+                    <div style={rowStyle}>
+                      <span style={labelStyle}>Merchant</span>
+                      <input
+                        type="text"
+                        value={rp.description}
+                        onChange={e => updateReceiptPrompt(i, { description: e.target.value })}
+                        style={{ ...editableStyle, flex: 1 }}
+                      />
+                    </div>
+                    <div style={rowStyle}>
+                      <span style={labelStyle}>Amount</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={valueStyle}>₹</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={rp.amount}
+                          onChange={e => updateReceiptPrompt(i, { amount: Math.max(0, Number(e.target.value) || 0) })}
+                          style={{ ...editableStyle, width: 90 }}
+                        />
+                      </div>
+                    </div>
+                    <div style={rowStyle}>
+                      <span style={labelStyle}>Date</span>
+                      <input
+                        type="date"
+                        value={rp.transactionDate}
+                        onChange={e => updateReceiptPrompt(i, { transactionDate: e.target.value })}
+                        style={editableStyle}
+                      />
+                    </div>
                     <div style={rowStyle}>
                       <span style={labelStyle}>Category</span>
-                      {category ? <span style={valueStyle}>{category.name}</span> : rp.categorySuggestion ? (
-                        <button
-                          type="button"
-                          onClick={() => handleCreateReceiptCategory(i, rp.categorySuggestion!)}
-                          style={{ border: `1.5px dashed ${c.accent}`, background: c.accentSoft, borderRadius: 8, padding: '3px 8px', font: '600 11px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}
-                        >
-                          + Create "{rp.categorySuggestion.name}"
-                        </button>
-                      ) : <span style={valueStyle}>Uncategorized</span>}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, minWidth: 0 }}>
+                        {rp.categorySuggestion && (
+                          <button
+                            type="button"
+                            onClick={() => handleCreateReceiptCategory(i, rp.categorySuggestion!)}
+                            style={{ border: `1.5px dashed ${c.accent}`, background: c.accentSoft, borderRadius: 8, padding: '3px 8px', font: '600 11px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}
+                          >
+                            + Create "{rp.categorySuggestion.name}"
+                          </button>
+                        )}
+                        <CategorySelect
+                          value={rp.categoryId ?? ''}
+                          onChange={v => updateReceiptPrompt(i, { categoryId: v || null, categorySuggestion: null })}
+                          state={state}
+                          onAddCategory={onAddCategory}
+                          includeEmpty
+                          emptyLabel="Uncategorized"
+                          style={editableStyle}
+                        />
+                      </div>
                     </div>
                     <div style={rowStyle}>
                       <span style={labelStyle}>Account</span>
@@ -1686,7 +1730,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                         <select
                           value={rp.accountId}
                           onChange={e => updateReceiptPrompt(i, { accountId: e.target.value })}
-                          style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, background: c.surface2, border: `1px solid ${c.faint}`, borderRadius: 8, padding: '4px 6px' }}
+                          style={editableStyle}
                         >
                           <optgroup label="Bank / Cash">
                             {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
