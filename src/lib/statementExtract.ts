@@ -9,6 +9,12 @@ const STATEMENT_EXTRACT_TIMEOUT_MS = 45_000
 
 export type FieldConfidence = 'high' | 'low'
 
+export interface AccountHint {
+  raw: string | null
+  bank_name: string | null
+  masked_number: string | null
+}
+
 export interface ParsedStatementRow {
   page: number
   description: string | null
@@ -21,6 +27,8 @@ export interface ParsedStatementRow {
   category: string | null
   category_suggestion: { name: string; group: string } | null
   category_confidence: FieldConfidence
+  account_hint: AccountHint | null
+  status: 'success' | 'failed' | 'pending'
 }
 
 export interface StatementExtractResult {

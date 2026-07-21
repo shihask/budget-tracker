@@ -55,6 +55,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
   const [existingDrafts, setExistingDrafts] = useState<Record<string, { description: string; amount: string; date: string; category_id: string; from_account_id: string }>>({})
   const [newDrafts, setNewDrafts] = useState<Record<string, { description: string; amount: string; date: string; category_id: string; account_id: string }>>({})
   const [stats, setStats] = useState({ added: 0, usedExisting: 0, updated: 0, skipped: 0 })
+  const [expandedFailed, setExpandedFailed] = useState(false)
 
   const cancelRequestedRef = useRef(false)
   const activeAccounts = state.accounts.filter(a => a.is_active)
@@ -120,6 +121,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
         categories: state.categories,
         categoryNames,
         groupNames,
+        accounts: state.accounts,
         sourceFiles,
         isCancelled: () => cancelRequestedRef.current,
         onProgress: (processed, total) => setProgress({ processed, total }),
@@ -199,7 +201,10 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
   function finishRow(id: string) {
     const next = rows.filter(r => r.id !== id)
     setRows(next)
-    if (next.length === 0) setPhase('summary')
+    // Reaching summary only requires the VISIBLE queue to be empty —
+    // unactioned failed-status rows sitting in the collapsed section don't
+    // block finishing (see handleDone, which auto-skips whatever's left there).
+    if (next.filter(r => r.review_context.status !== 'failed').length === 0) setPhase('summary')
     onResolved()
   }
 
@@ -283,14 +288,171 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
     } catch (e) { setRowError(e instanceof Error ? e.message : 'Could not skip this row') } finally { setBusyId(null) }
   }
 
+  // Anything still sitting in the collapsed "Skipped failed transactions"
+  // section when the user hits Done gets auto-skipped here — the user had
+  // the chance to act on it during review; leaving it un-actioned shouldn't
+  // block finishing, but it also can't just vanish once the batch flips to
+  // 'completed' and stops being auto-resumed (that would leave an orphaned
+  // needs_review row nothing will ever surface again).
   async function handleDone() {
+    const stillFailed = rows.filter(r => r.review_context.status === 'failed')
+    try {
+      for (const row of stillFailed) {
+        const { error } = await supabase.rpc('mp_finalize_sync_event', {
+          p_sync_event_id: row.id, p_outcome: 'skip', p_processor: 'client',
+          p_review_reason: 'auto_skipped_failed_status', p_review_context: row.review_context,
+        })
+        if (error) throw error
+      }
+    } catch (e) {
+      setRowError(e instanceof Error ? e.message : 'Could not finish cleaning up skipped transactions — try Done again')
+      return
+    }
     if (batch) await supabase.from('import_batches').update({ status: 'completed' }).eq('id', batch.id)
     setBatch(null)
+    setRows([])
     setStats({ added: 0, usedExisting: 0, updated: 0, skipped: 0 })
     onClose()
   }
 
   const reviewedCount = stats.added + stats.usedExisting + stats.updated + stats.skipped
+  const visibleRows = rows.filter(r => r.review_context.status !== 'failed')
+  const failedRows = rows.filter(r => r.review_context.status === 'failed')
+
+  // "Accounts detected" — only meaningful once at least one row actually
+  // carried an account hint (matched or not); a plain screenshot batch where
+  // every row is 'no_hint' has nothing to report here beyond "everything
+  // used the default", which isn't worth a whole summary block.
+  const anyAccountHint = visibleRows.some(r => r.review_context.account_match_status !== 'no_hint')
+  const accountCounts = new Map<string, number>()
+  let unknownCount = 0
+  for (const row of visibleRows) {
+    if (row.review_context.account_match_status === 'unmatched') { unknownCount++; continue }
+    const id = row.review_context.account_id
+    accountCounts.set(id, (accountCounts.get(id) ?? 0) + 1)
+  }
+
+  function renderRow(row: SyncEventRow) {
+    const ctx = row.review_context
+    const existing = ctx.candidate_transaction_id ? candidates.get(ctx.candidate_transaction_id) : null
+    const isBusy = busyId === row.id
+    const isEditingExisting = editingExisting.has(row.id)
+    const failedBadge = ctx.status === 'failed' ? (
+      <div style={{ display: 'inline-block', marginBottom: 8, padding: '2px 8px', borderRadius: 999, background: c.badSoft, color: c.bad, font: '700 10px Plus Jakarta Sans', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        Failed
+      </div>
+    ) : null
+
+    if (existing) {
+      const draft = existingDrafts[row.id] ?? {
+        description: existing.description, amount: String(existing.amount),
+        date: existing.transaction_date, category_id: existing.category_id ?? '', from_account_id: existing.from_account_id ?? '',
+      }
+      return (
+        <div key={row.id} style={{ padding: '12px 14px', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: c.surface2 }}>
+          {failedBadge}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', marginBottom: 3 }}>Parsed</div>
+              <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ctx.description || '(no description)'}</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>₹{ctx.amount} · {ctx.date}</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', marginBottom: 3 }}>Already logged</div>
+              <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{existing.description || '(no description)'}</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>₹{existing.amount} · {existing.transaction_date}{existing.category ? ` · ${existing.category.name}` : ''}</div>
+            </div>
+          </div>
+
+          {ctx.explanation?.length > 0 && (
+            <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginBottom: 10 }}>{ctx.explanation.join(' · ')}</div>
+          )}
+
+          {isEditingExisting && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+              <input value={draft.description} onChange={e => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, description: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint }} placeholder="Description" />
+              <input type="number" value={draft.amount} onChange={e => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, amount: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint }} placeholder="Amount" />
+              <input type="date" value={draft.date} onChange={e => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, date: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint }} />
+              <CategorySelect value={draft.category_id} onChange={v => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, category_id: v } }))} state={state} onAddCategory={onAddCategory} style={{ ...inp, color: c.ink, borderColor: c.faint }} includeEmpty {...categoryProps(ctx.direction)} />
+              <select value={draft.from_account_id} onChange={e => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, from_account_id: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint }}>
+                {activeAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <button onClick={() => actUseExisting(row)} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
+              Use Existing
+            </button>
+            {isEditingExisting ? (
+              <button onClick={() => actUpdateExisting(row)} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: c.ink, color: c.surface, font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
+                Save update
+              </button>
+            ) : (
+              <button onClick={() => { setEditingExisting(p => new Set(p).add(row.id)); setExistingDrafts(p => ({ ...p, [row.id]: draft })) }} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.ink, font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer' }}>
+                Update Existing
+              </button>
+            )}
+          </div>
+          <button onClick={() => actSkip(row)} disabled={isBusy} style={{ width: '100%', padding: '8px', borderRadius: 10, border: 'none', background: 'transparent', color: c.muted, font: '600 12px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}>
+            Skip
+          </button>
+        </div>
+      )
+    }
+
+    const draft = newDrafts[row.id] ?? {
+      description: ctx.description ?? '', amount: String(ctx.amount), date: ctx.date,
+      category_id: ctx.suggested_category_id ?? '', account_id: ctx.account_id,
+    }
+    const fc = ctx.field_confidence
+    const flag = (low: boolean) => low ? <span style={{ color: c.warn, marginLeft: 4 }} title="AI isn't sure about this field">⚠</span> : null
+
+    return (
+      <div key={row.id} style={{ padding: '12px 14px', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: c.surface2 }}>
+        {failedBadge}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+          <div>
+            <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Description{flag(fc.description === 'low')}</label>
+            <input value={draft.description} onChange={e => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, description: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint, marginTop: 4 }} />
+          </div>
+          <div>
+            <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Amount{flag(fc.amount === 'low')}</label>
+            <input type="number" value={draft.amount} onChange={e => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, amount: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint, marginTop: 4 }} />
+          </div>
+          <div>
+            <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Date{flag(fc.date === 'low')}</label>
+            <input type="date" value={draft.date} onChange={e => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, date: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint, marginTop: 4 }} />
+          </div>
+          <div>
+            <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Category{flag(fc.category === 'low')}</label>
+            <div style={{ marginTop: 4 }}>
+              <CategorySelect value={draft.category_id} onChange={v => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, category_id: v } }))} state={state} onAddCategory={onAddCategory} style={{ ...inp, color: c.ink, borderColor: c.faint }} includeEmpty {...categoryProps(ctx.direction)} />
+            </div>
+          </div>
+          <div>
+            <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Account</label>
+            <select value={draft.account_id} onChange={e => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, account_id: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint, marginTop: 4 }}>
+              {activeAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            {ctx.account_match_status === 'unmatched' && (
+              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.warn, marginTop: 4 }}>
+                Detected: {ctx.account_hint?.bank_name ?? ''} {ctx.account_hint?.masked_number ?? ''} — couldn't match, please check
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => actAdd(row)} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
+            Add
+          </button>
+          <button onClick={() => actSkip(row)} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted, font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer' }}>
+            Skip
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
@@ -303,10 +465,13 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
               Upload a UPI-app history or bank statement — screenshots or a PDF. We'll find every transaction and let you review each one.
             </div>
             <div style={{ marginBottom: 14 }}>
-              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Account</div>
+              <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Default account</div>
               <select value={accountId} onChange={e => setAccountId(e.target.value)} style={{ ...inp, color: c.ink, borderColor: c.faint, background: c.surface2 }}>
                 {activeAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
+              <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 6 }}>
+                Used when we can't tell which account a row belongs to. Exports that show account info (like this one might) get matched automatically.
+              </div>
             </div>
 
             {uploadError && <div style={{ font: '600 13px Plus Jakarta Sans', color: c.bad, marginBottom: 12 }}>{uploadError}</div>}
@@ -386,124 +551,54 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
         {phase === 'review' && (
           <>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 12 }}>
-              {reviewedCount} reviewed · {rows.length} remaining
+              {reviewedCount} reviewed · {visibleRows.length} remaining
               <button onClick={handleDiscard} style={{ float: 'right', background: 'none', border: 'none', color: c.bad, font: '600 12px Plus Jakarta Sans', cursor: 'pointer', textDecoration: 'underline' }}>
                 Discard import
               </button>
             </div>
+
+            {anyAccountHint && (
+              <div style={{ padding: '10px 12px', borderRadius: 12, background: c.surface2, marginBottom: 12 }}>
+                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Accounts detected</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {[...accountCounts.entries()].map(([accId, count]) => (
+                    <div key={accId} style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>
+                      ✓ {state.accounts.find(a => a.id === accId)?.name ?? 'Unknown account'} ({count})
+                    </div>
+                  ))}
+                  {unknownCount > 0 && (
+                    <div style={{ font: '600 12px Plus Jakarta Sans', color: c.warn }}>⚠ Unknown ({unknownCount})</div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {rowError && <div style={{ font: '600 13px Plus Jakarta Sans', color: c.bad, marginBottom: 12 }}>{rowError}</div>}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {rows.map(row => {
-                const ctx = row.review_context
-                const existing = ctx.candidate_transaction_id ? candidates.get(ctx.candidate_transaction_id) : null
-                const isBusy = busyId === row.id
-                const isEditingExisting = editingExisting.has(row.id)
+              {visibleRows.map(row => renderRow(row))}
+            </div>
 
-                if (existing) {
-                  const draft = existingDrafts[row.id] ?? {
-                    description: existing.description, amount: String(existing.amount),
-                    date: existing.transaction_date, category_id: existing.category_id ?? '', from_account_id: existing.from_account_id ?? '',
-                  }
-                  return (
-                    <div key={row.id} style={{ padding: '12px 14px', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: c.surface2 }}>
-                      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', marginBottom: 3 }}>Parsed</div>
-                          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ctx.description || '(no description)'}</div>
-                          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>₹{ctx.amount} · {ctx.date}</div>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', marginBottom: 3 }}>Already logged</div>
-                          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{existing.description || '(no description)'}</div>
-                          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>₹{existing.amount} · {existing.transaction_date}{existing.category ? ` · ${existing.category.name}` : ''}</div>
-                        </div>
-                      </div>
-
-                      {ctx.explanation?.length > 0 && (
-                        <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginBottom: 10 }}>{ctx.explanation.join(' · ')}</div>
-                      )}
-
-                      {isEditingExisting && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-                          <input value={draft.description} onChange={e => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, description: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint }} placeholder="Description" />
-                          <input type="number" value={draft.amount} onChange={e => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, amount: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint }} placeholder="Amount" />
-                          <input type="date" value={draft.date} onChange={e => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, date: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint }} />
-                          <CategorySelect value={draft.category_id} onChange={v => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, category_id: v } }))} state={state} onAddCategory={onAddCategory} style={{ ...inp, color: c.ink, borderColor: c.faint }} includeEmpty {...categoryProps(ctx.direction)} />
-                          <select value={draft.from_account_id} onChange={e => setExistingDrafts(p => ({ ...p, [row.id]: { ...draft, from_account_id: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint }}>
-                            {activeAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                          </select>
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                        <button onClick={() => actUseExisting(row)} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
-                          Use Existing
-                        </button>
-                        {isEditingExisting ? (
-                          <button onClick={() => actUpdateExisting(row)} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: c.ink, color: c.surface, font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
-                            Save update
-                          </button>
-                        ) : (
-                          <button onClick={() => { setEditingExisting(p => new Set(p).add(row.id)); setExistingDrafts(p => ({ ...p, [row.id]: draft })) }} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.ink, font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer' }}>
-                            Update Existing
-                          </button>
-                        )}
-                      </div>
-                      <button onClick={() => actSkip(row)} disabled={isBusy} style={{ width: '100%', padding: '8px', borderRadius: 10, border: 'none', background: 'transparent', color: c.muted, font: '600 12px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}>
-                        Skip
-                      </button>
+            {failedRows.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <button
+                  onClick={() => setExpandedFailed(v => !v)}
+                  style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted, font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
+                >
+                  {expandedFailed ? '▾' : '▸'} Skipped failed transactions ({failedRows.length})
+                </button>
+                {expandedFailed && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginBottom: 10 }}>
+                      These looked like failed/declined transactions and won't be added automatically — add one here if it actually went through.
                     </div>
-                  )
-                }
-
-                const draft = newDrafts[row.id] ?? {
-                  description: ctx.description ?? '', amount: String(ctx.amount), date: ctx.date,
-                  category_id: ctx.suggested_category_id ?? '', account_id: ctx.account_id,
-                }
-                const fc = ctx.field_confidence
-                const flag = (low: boolean) => low ? <span style={{ color: c.warn, marginLeft: 4 }} title="AI isn't sure about this field">⚠</span> : null
-
-                return (
-                  <div key={row.id} style={{ padding: '12px 14px', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: c.surface2 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-                      <div>
-                        <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Description{flag(fc.description === 'low')}</label>
-                        <input value={draft.description} onChange={e => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, description: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint, marginTop: 4 }} />
-                      </div>
-                      <div>
-                        <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Amount{flag(fc.amount === 'low')}</label>
-                        <input type="number" value={draft.amount} onChange={e => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, amount: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint, marginTop: 4 }} />
-                      </div>
-                      <div>
-                        <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Date{flag(fc.date === 'low')}</label>
-                        <input type="date" value={draft.date} onChange={e => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, date: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint, marginTop: 4 }} />
-                      </div>
-                      <div>
-                        <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Category{flag(fc.category === 'low')}</label>
-                        <div style={{ marginTop: 4 }}>
-                          <CategorySelect value={draft.category_id} onChange={v => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, category_id: v } }))} state={state} onAddCategory={onAddCategory} style={{ ...inp, color: c.ink, borderColor: c.faint }} includeEmpty {...categoryProps(ctx.direction)} />
-                        </div>
-                      </div>
-                      <div>
-                        <label style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Account</label>
-                        <select value={draft.account_id} onChange={e => setNewDrafts(p => ({ ...p, [row.id]: { ...draft, account_id: e.target.value } }))} style={{ ...inp, color: c.ink, borderColor: c.faint, marginTop: 4 }}>
-                          {activeAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => actAdd(row)} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.7 : 1 }}>
-                        Add
-                      </button>
-                      <button onClick={() => actSkip(row)} disabled={isBusy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted, font: '700 13px Plus Jakarta Sans', cursor: isBusy ? 'not-allowed' : 'pointer' }}>
-                        Skip
-                      </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {failedRows.map(row => renderRow(row))}
                     </div>
                   </div>
-                )
-              })}
-            </div>
+                )}
+              </div>
+            )}
           </>
         )}
 
@@ -523,9 +618,15 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
                 {batch.unparsed_count} row(s) couldn't be read confidently — check the original file if you're missing something.
               </div>
             )}
+            {failedRows.length > 0 && (
+              <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginBottom: 4 }}>
+                {failedRows.length} failed transaction{failedRows.length === 1 ? '' : 's'} will be skipped — they never affected your balance.
+              </div>
+            )}
             <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginBottom: 20 }}>
               Reviewed in {Math.max(1, Math.round((Date.now() - new Date(batch.created_at).getTime()) / 60000))} minute(s)
             </div>
+            {rowError && <div style={{ font: '600 13px Plus Jakarta Sans', color: c.bad, marginBottom: 12 }}>{rowError}</div>}
             <button onClick={handleDone} style={{ padding: '12px 24px', borderRadius: 12, border: 'none', background: c.accent, color: '#fff', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>
               Done
             </button>

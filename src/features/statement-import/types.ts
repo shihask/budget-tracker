@@ -1,4 +1,5 @@
 import type { FieldConfidence } from '@/lib/statementExtract'
+import type { AccountHint } from './lib/accountHint'
 
 export type ImportProvider = 'pdf' | 'image'
 export type ImportBatchStatus = 'uploading' | 'extracting' | 'review' | 'completed' | 'cancelled' | 'error'
@@ -45,4 +46,7 @@ export interface StatementReviewContext {
   account_id: string
   page: number
   field_confidence: StatementFieldConfidence
+  account_hint: AccountHint | null
+  account_match_status: 'matched' | 'unmatched' | 'no_hint'
+  status: 'success' | 'failed' | 'pending'
 }

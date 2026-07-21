@@ -748,7 +748,7 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
       const stmtIsImages = Array.isArray(images) && images.length > 0
 
       const stmtInstructions = `Extract every individual transaction row from this ${stmtIsImages ? 'UPI-app/bank-statement screenshot' : 'bank/UPI-app statement text'}. Return strict JSON only, no markdown, matching this shape exactly:
-{"statement":{"bank":null,"period_from":null,"period_to":null},"unparsed_count":0,"transactions":[{"page":1,"description":null,"description_confidence":"high","amount":null,"amount_confidence":"high","date":null,"date_confidence":"high","type":"debit","category":null,"category_confidence":"high"}]}
+{"statement":{"bank":null,"period_from":null,"period_to":null},"unparsed_count":0,"transactions":[{"page":1,"description":null,"description_confidence":"high","amount":null,"amount_confidence":"high","date":null,"date_confidence":"high","type":"debit","category":null,"category_confidence":"high","account_hint":null,"status":"success"}]}
 
 - One entry in "transactions" per distinct transaction row, in the order they appear. Do not merge, summarize, or skip rows.
 - page: 1-based index of which image this row came from${stmtIsImages ? ` (there are ${images.length} images, in the order given)` : ' (always 1 for text input)'}.
@@ -758,6 +758,8 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
 - type: "debit" if money left the account (payment/purchase/withdrawal), "credit" if money came in (received/refund/deposit).
 - category: exact name from this list, or "NEW: <name> | <group>" if none fit, or null if unsure.
 - Each "_confidence" field is "high" only if that specific value is clearly legible and unambiguous, "low" if blurry/guessed/cut off — judge every field independently (e.g. a blurry date does not make the amount low-confidence too).
+- account_hint: ONLY when this row has its own visible bank/account label (e.g. a "Bank" column showing "Axis XX87", or an inline "Axis Bank ••87" tag) — an object {"raw": "<exact text shown>", "bank_name": "<bank name only, e.g. Axis>", "masked_number": "<masked suffix only, e.g. XX87>"}. If the row has no such per-row account label (most screenshots don't), account_hint MUST be null — never guess or invent one from context.
+- status: "failed" if this row is explicitly marked FAILED/DECLINED/REVERSED/UNSUCCESSFUL, "pending" if explicitly marked PENDING/PROCESSING, otherwise "success" (the default — most statements don't show a status at all, which also means "success").
 - unparsed_count: how many additional rows you can tell exist (partial text, a row cut off at an edge, an entry too garbled to extract) but couldn't confidently turn into a transaction entry. 0 if none.
 - statement.bank/period_from/period_to: fill in only if clearly visible, else null.
 
@@ -839,6 +841,19 @@ If there are no transaction rows at all, return an empty "transactions" array ra
       function coerceStmtConfidence(v: unknown): 'high' | 'low' {
         return v === 'high' ? 'high' : 'low'
       }
+      function coerceStmtStatus(v: unknown): 'success' | 'failed' | 'pending' {
+        return v === 'failed' || v === 'pending' ? v : 'success'
+      }
+      function coerceStmtAccountHint(v: unknown): { raw: string | null; bank_name: string | null; masked_number: string | null } | null {
+        if (!v || typeof v !== 'object') return null
+        const obj = v as Record<string, unknown>
+        const raw = typeof obj.raw === 'string' ? obj.raw.trim() || null : null
+        const bank_name = typeof obj.bank_name === 'string' ? obj.bank_name.trim() || null : null
+        const masked_number = typeof obj.masked_number === 'string' ? obj.masked_number.trim() || null : null
+        // Nothing usable — treat like no hint was given rather than an empty-but-truthy object.
+        if (!raw && !bank_name && !masked_number) return null
+        return { raw, bank_name, masked_number }
+      }
       function resolveStmtCategory(raw: unknown): { category: string | null; suggestion: { name: string; group: string } | null } {
         const rawCategory = (typeof raw === 'string' ? raw : '').trim()
         if (rawCategory.startsWith('NEW:')) {
@@ -870,6 +885,8 @@ If there are no transaction rows at all, return an empty "transactions" array ra
             category,
             category_suggestion: suggestion,
             category_confidence: coerceStmtConfidence(t.category_confidence),
+            account_hint: coerceStmtAccountHint(t.account_hint),
+            status: coerceStmtStatus(t.status),
           }
         })
         // Nothing usable at all (no description AND no amount) — not a real row.

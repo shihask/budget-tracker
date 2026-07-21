@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { Category } from '@/types'
+import type { Account, Category } from '@/types'
 import { INCOME_GROUP, TRANSFER_GROUP } from '@/lib/constants'
 import { categorizeForSync } from '@/lib/categorize'
 import { fetchDedupCandidates, scoreDedupCandidates, type PromotionAction } from '@/features/aa-sync/lib/dedup'
@@ -15,12 +15,16 @@ async function loadPdfModule() {
 }
 import { extractStatementFromImages, extractStatementFromText, blobToBase64, type ParsedStatementRow } from '@/lib/statementExtract'
 import { dedupeParsedRows } from './pure'
+import { resolveImportedAccountHint } from './accountHint'
 import type { ImportBatch, StatementReviewContext } from '../types'
 
 export const STATEMENT_IMPORTS_BUCKET = 'statement-imports'
 export const PAGES_PER_CHUNK = 8
 export const IMAGES_PER_CHUNK = 6
-const EXTRACTOR_VERSION = 1
+// Bump whenever the statement-extract prompt/schema changes in a way that
+// alters output — lets a future investigation tell which batches came from
+// which extraction contract. v2 adds per-row account_hint + status.
+const EXTRACTOR_VERSION = 2
 
 async function fetchBatch(batchId: string): Promise<ImportBatch> {
   const { data, error } = await supabase.from('import_batches').select('*').eq('id', batchId).single()
@@ -93,6 +97,7 @@ interface RunExtractionOptions {
   categories: Category[]
   categoryNames: string[]
   groupNames: string[]
+  accounts: Account[]
   sourceFiles?: File[] // skip re-downloading from Storage right after upload; omit to resume from storage
   isCancelled?: () => boolean
   onProgress?: (chunksProcessed: number, totalChunks: number) => void
@@ -162,17 +167,27 @@ async function extractImageChunk(
 // crash-safe by design: called once per chunk, right after that chunk's AI
 // call returns, before the next chunk starts.
 async function commitChunkRows(
-  batch: ImportBatch, rows: ParsedStatementRow[], categories: Category[]
+  batch: ImportBatch, rows: ParsedStatementRow[], categories: Category[], accounts: Account[]
 ): Promise<void> {
   const deduped = dedupeParsedRows(
     rows.map(r => ({ ...r, direction: (r.type === 'credit' ? 'income' : 'expense') as 'income' | 'expense' }))
   )
+  const activeBankAccounts = accounts.filter(a => a.is_active)
 
   const eventsToInsert: Record<string, unknown>[] = []
   for (const row of deduped) {
     if (row.amount == null || !row.date) continue // nothing usable to review
     const direction = row.direction
-    const candidates = await fetchDedupCandidates(batch.user_id, batch.account_id, {
+
+    // Resolve the account BEFORE dedup-scoring, not after — a row scored
+    // against the wrong account's transactions can miss a real duplicate or
+    // false-match one that just happens to share amount/date/description.
+    const accountMatch = resolveImportedAccountHint(row.account_hint, activeBankAccounts)
+    const resolvedAccountId = accountMatch?.accountId ?? batch.account_id
+    const accountMatchStatus: 'matched' | 'unmatched' | 'no_hint' =
+      !row.account_hint ? 'no_hint' : accountMatch ? 'matched' : 'unmatched'
+
+    const candidates = await fetchDedupCandidates(batch.user_id, resolvedAccountId, {
       amount: row.amount, date: row.date, description: row.description, direction,
     })
     const decision = scoreDedupCandidates({ amount: row.amount, date: row.date, description: row.description, direction }, candidates)
@@ -190,7 +205,7 @@ async function commitChunkRows(
       date: row.date,
       description: row.description,
       direction,
-      account_id: batch.account_id,
+      account_id: resolvedAccountId,
       page: row.page,
       field_confidence: {
         description: row.description_confidence,
@@ -198,6 +213,9 @@ async function commitChunkRows(
         date: row.date_confidence,
         category: row.category_confidence,
       },
+      account_hint: row.account_hint,
+      account_match_status: accountMatchStatus,
+      status: row.status,
     }
 
     eventsToInsert.push({
@@ -266,7 +284,7 @@ export async function runExtraction(batchId: string, opts: RunExtractionOptions)
 
     if (!extracted) throw new Error(`Chunk ${chunkIndex + 1} of ${totalChunks} failed to extract`)
 
-    await commitChunkRows(batch, extracted.rows, opts.categories)
+    await commitChunkRows(batch, extracted.rows, opts.categories, opts.accounts)
 
     const chunkLogEntry = { chunk_index: chunkIndex, page_start: rangeStart + 1, page_end: rangeEnd + 1, rows_found: extracted.rows.length }
     const nextChunkLog = [...batch.chunk_log, chunkLogEntry]
