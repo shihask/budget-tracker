@@ -189,6 +189,13 @@ function AppContent({ session }: { session: Session }) {
     try { localStorage.setItem('mp_smart_input_tip_seen_' + session.user.id, '1') } catch {}
     setSmartInputTipSeen(true)
   }
+  const [chatReceiptTipSeen, setChatReceiptTipSeen] = useState(
+    () => { try { return localStorage.getItem('mp_chat_receipt_tip_seen_' + session.user.id) === '1' } catch { return false } }
+  )
+  const dismissChatReceiptTip = () => {
+    try { localStorage.setItem('mp_chat_receipt_tip_seen_' + session.user.id, '1') } catch {}
+    setChatReceiptTipSeen(true)
+  }
   const snoozeNotif = (id: string, duration: SnoozeDuration) => {
     setSnoozeMap(snoozeNotification(session.user.id, id, duration))
   }
@@ -533,7 +540,7 @@ function AppContent({ session }: { session: Session }) {
                 .map(s => {
                   let el: React.ReactNode = null
                   if (s.id.startsWith('custom__')) {
-                    el = <CustomGroupSection section={s} state={state} />
+                    el = <CustomGroupSection section={s} state={state} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} />
                     return el ? <div key={s.id} data-tour={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 80 }}>{el}</div> : null
                   }
                   switch (s.id as DashboardSectionId) {
@@ -715,7 +722,7 @@ function AppContent({ session }: { session: Session }) {
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
             {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} windowWidth={windowW} busy={aiProcessing} tourHighlight={tourTarget === 'ai-fab'} />}
-            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} />
+            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} />
           </>)}
 
           {showOnboardingFlow && (

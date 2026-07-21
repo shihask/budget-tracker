@@ -132,7 +132,7 @@ export function derive(state: AppState): DerivedMetrics {
       safeWeeklySpend = 0
     } else {
       safeDailySpend = realFreeMoney / cycleDaysLeft
-      safeWeeklySpend = pattern === 'weekly' ? realFreeMoney : realFreeMoney / cycleWeeksLeft
+      safeWeeklySpend = pattern === 'weekly' ? realFreeMoney : realFreeMoney / Math.max(1, cycleWeeksLeft)
     }
   }
 

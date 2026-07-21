@@ -122,7 +122,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
       ? Math.round(d.realFreeMoney / d.cycleDaysLeft)
       : budgetPeriod === 'monthly'
       ? Math.round(d.realFreeMoney)
-      : Math.round(d.realFreeMoney / (d.cycleWeeksLeft || 1))
+      : Math.round(d.realFreeMoney / Math.max(1, d.cycleWeeksLeft))
     : null
   const suggestedUnit = budgetPeriod === 'daily' ? 'day' : budgetPeriod === 'monthly' ? 'month' : 'week'
 
@@ -1230,7 +1230,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               {d.cycleDaysLeft > 0 && !d.isWaitingForIncome && suggested !== null && suggested > 0 && pattern !== 'variable' && pattern !== 'business' && (
                 <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 6 }}>
-                    {fmt(d.realFreeMoney)} ÷ {budgetPeriod === 'daily' ? `${d.cycleDaysLeft} days` : budgetPeriod === 'monthly' ? '1 month' : `${(d.cycleWeeksLeft).toFixed(1)} weeks`}
+                    {fmt(d.realFreeMoney)} ÷ {budgetPeriod === 'daily' ? `${d.cycleDaysLeft} days` : budgetPeriod === 'monthly' ? '1 month' : `${Math.max(1, d.cycleWeeksLeft).toFixed(1)} weeks`}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>

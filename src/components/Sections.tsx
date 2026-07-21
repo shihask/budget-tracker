@@ -80,11 +80,15 @@ function getSectionIcon(name: string): { color: string; svg: React.ReactNode } {
   )
 }
 
-interface CustomGroupSectionProps { section: DashboardSection; state: AppState }
+interface CustomGroupSectionProps { section: DashboardSection; state: AppState; onEdit?: (t: Transaction) => void }
 
-export function CustomGroupSection({ section, state }: CustomGroupSectionProps) {
+export function CustomGroupSection({ section, state, onEdit }: CustomGroupSectionProps) {
   const c = useTheme()
   const catMap = buildCatById(state.categories)
+  const acctById = Object.fromEntries([
+    ...state.accounts.map(a => [a.id, a]),
+    ...(state.credit_cards ?? []).map(cc => [cc.id, { ...cc, name: cc.name }]),
+  ])
   const name = section.customName || 'Custom'
   const { color, svg: iconSvg } = getSectionIcon(name)
 
@@ -120,18 +124,25 @@ export function CustomGroupSection({ section, state }: CustomGroupSectionProps) 
         <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>No {name.toLowerCase()} spend yet this month.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {items.map(t => (
-            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color }}>
-                {iconSvg}
+          {items.map(t => {
+            const acc = acctById[t.from_account_id!] ?? (t.credit_card_id ? acctById[t.credit_card_id] : undefined)
+            const subLabel = [catMap[t.category_id!]?.name, acc?.name].filter(Boolean).join(' · ')
+            return (
+              <div key={t.id} onClick={() => onEdit?.(t)} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: onEdit ? 'pointer' : 'default' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color }}>
+                  {iconSvg}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ font: '700 13.5px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subLabel}</div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(t.amount)}</div>
+                  <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{fmtDate(t.transaction_date)}</div>
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ font: '700 13.5px Plus Jakarta Sans', color: c.ink }}>{t.description}</div>
-                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>{catMap[t.category_id!]?.name}</div>
-              </div>
-              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(t.amount)}</div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </Card>

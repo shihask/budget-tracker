@@ -8,7 +8,7 @@ import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
 import { MintAnimation } from './MintAnimation'
 import { CategorySelect } from './CategorySelect'
-import { Camera } from 'lucide-react'
+import { Camera, Sparkles } from 'lucide-react'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
@@ -21,7 +21,7 @@ const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categoriz
 
 const CHART_COLORS = ['#16C98A', '#F97316', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B']
 
-type SavedExpense = { description: string; amount: number; account: string; category: string; date: string }
+type SavedExpense = { description: string; amount: number; account: string; category: string; date: string; transaction: Transaction }
 type EditPrompt = {
   transaction: Transaction
   field: 'amount' | 'description' | 'category'
@@ -962,9 +962,12 @@ interface AIChatSheetProps {
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onReceiptFailed?: (transaction: Transaction, receipt: PickedReceipt, error: unknown) => void
+  onEditTransaction?: (t: Transaction) => void
+  showReceiptTip?: boolean
+  onDismissReceiptTip?: () => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -1098,6 +1101,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
 
   const handleReceiptImage = async (file: File) => {
     if (loading) return
+    if (showReceiptTip) onDismissReceiptTip?.()
 
     let receipt: PickedReceipt
     try {
@@ -1204,28 +1208,34 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
       const category = state.categories.find(c => c.name.toLowerCase() === (parsed.category ?? '').toLowerCase())
       const today = new Date().toISOString().split('T')[0]
 
-      onSave({
-        transaction_date: today,
-        description: parsed.description ?? text,
-        amount: parsed.amount,
-        transaction_type: txType,
-        category_id: category?.id ?? null,
-        from_account_id: account.id,
-      })
+      try {
+        const tx = await onSave({
+          transaction_date: today,
+          description: parsed.description ?? text,
+          amount: parsed.amount,
+          transaction_type: txType,
+          category_id: category?.id ?? null,
+          from_account_id: account.id,
+        })
+        if (!tx) throw new Error('Save failed')
 
-      const savedExpense: SavedExpense = {
-        description: parsed.description ?? text,
-        amount: parsed.amount,
-        account: account.name,
-        category: category?.name ?? (txType === 'income' ? 'Income' : 'Uncategorized'),
-        date: today,
+        const savedExpense: SavedExpense = {
+          description: parsed.description ?? text,
+          amount: parsed.amount,
+          account: account.name,
+          category: category?.name ?? (txType === 'income' ? 'Income' : 'Uncategorized'),
+          date: today,
+          transaction: tx,
+        }
+        const verb = txType === 'income' ? 'income' : 'expense'
+        setMessages(m => [...m, {
+          role: 'ai',
+          text: `Done! Recorded ${verb} "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}.`,
+          savedExpense,
+        }])
+      } catch {
+        setMessages(m => [...m, { role: 'ai', text: "I couldn't save that transaction. Please try again." }])
       }
-      const verb = txType === 'income' ? 'income' : 'expense'
-      setMessages(m => [...m, {
-        role: 'ai',
-        text: `Done! Recorded ${verb} "${savedExpense.description}" ₹${savedExpense.amount} under ${savedExpense.category} from ${savedExpense.account}.`,
-        savedExpense,
-      }])
       setLoading(false); onBusyChange?.(false)
       return
     }
@@ -1455,6 +1465,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
       const savedExpense: SavedExpense = {
         description: rp.description, amount: rp.amount,
         account: account?.name ?? '', category: category?.name ?? 'Uncategorized', date: rp.transactionDate,
+        transaction: tx,
       }
       setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : {
         role: 'ai',
@@ -1606,11 +1617,15 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                 </div>
               )}
               {m.savedExpense && (
-                <div style={{
-                  background: c.goodSoft, border: `1.5px solid ${c.good}33`,
-                  borderRadius: 14, padding: '10px 14px',
-                  display: 'flex', alignItems: 'center', gap: 10, maxWidth: '82%',
-                }}>
+                <div
+                  onClick={() => onEditTransaction?.(m.savedExpense!.transaction)}
+                  style={{
+                    background: c.goodSoft, border: `1.5px solid ${c.good}33`,
+                    borderRadius: 14, padding: '10px 14px',
+                    display: 'flex', alignItems: 'center', gap: 10, maxWidth: '82%',
+                    cursor: onEditTransaction ? 'pointer' : 'default',
+                  }}
+                >
                   <div style={{ width: 28, height: 28, borderRadius: 999, background: c.good, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />
@@ -1886,6 +1901,34 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                 {label}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Receipt tip — shown until dismissed, once per user */}
+        {showReceiptTip && (
+          <div style={{ padding: '0 14px 8px' }}>
+            <div style={{
+              background: c.accentSoft, border: `1px solid ${c.accent}33`, borderRadius: 12, padding: '10px 12px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <Sparkles size={14} color={c.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 2 }}>Add receipts, fast</div>
+                  <div style={{ font: '500 11.5px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+                    Paste a screenshot, drag & drop an image here, or tap the camera icon below — Mint reads the receipt and adds the transaction for you.
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={onDismissReceiptTip}
+                  style={{ background: 'none', border: 'none', color: c.accent, font: '700 12px Plus Jakarta Sans', cursor: 'pointer', padding: '4px 6px' }}
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

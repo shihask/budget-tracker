@@ -8,7 +8,7 @@ import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
-import { Camera, Sparkles, X } from 'lucide-react'
+import { Camera, Sparkles } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
 import { parseExpenseWithAI, type AIReceiptExtraction } from '@/lib/gemini'
@@ -669,24 +669,27 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
             </div>
             {showSmartInputTip && (
               <div style={{
-                display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8,
+                marginTop: 8,
                 background: c.accentSoft, border: `1px solid ${c.accent}33`, borderRadius: 12, padding: '10px 12px',
               }}>
-                <Sparkles size={14} color={c.accent} style={{ flexShrink: 0, marginTop: 1 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 2 }}>Try Smart Input</div>
-                  <div style={{ font: '500 11.5px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
-                    Type naturally, like "paid electricity bill 1200 via HDFC", and it fills in the details for you. You can also tap the camera icon to attach a receipt photo — it reads the details automatically.
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <Sparkles size={14} color={c.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 2 }}>Try Smart Input</div>
+                    <div style={{ font: '500 11.5px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+                      Type naturally, like "paid electricity bill 1200 via HDFC", and it fills in the details for you. Or paste a screenshot, or tap the camera icon, to attach a receipt photo — it reads the details automatically.
+                    </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={onDismissSmartInputTip}
-                  aria-label="Dismiss"
-                  style={{ background: 'none', border: 'none', color: c.muted, cursor: 'pointer', padding: 2, flexShrink: 0 }}
-                >
-                  <X size={14} />
-                </button>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={onDismissSmartInputTip}
+                    style={{ background: 'none', border: 'none', color: c.accent, font: '700 12px Plus Jakarta Sans', cursor: 'pointer', padding: '4px 6px' }}
+                  >
+                    Got it
+                  </button>
+                </div>
               </div>
             )}
             {smartParsed && (smartParsed.description || smartParsed.amount !== null) && (
