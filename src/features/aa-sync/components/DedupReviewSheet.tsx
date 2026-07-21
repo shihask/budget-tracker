@@ -57,6 +57,7 @@ export function DedupReviewSheet({ open, onClose, userId, categories, onResolved
       .from('sync_events')
       .select('*')
       .eq('user_id', userId)
+      .eq('provider', 'aa')
       .eq('status', 'needs_review')
       .order('fetched_at', { ascending: true })
 

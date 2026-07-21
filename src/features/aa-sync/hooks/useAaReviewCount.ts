@@ -15,6 +15,7 @@ export function useAaReviewCount(userId: string) {
       .from('sync_events')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
+      .eq('provider', 'aa')
       .eq('status', 'needs_review')
     setCount(c ?? 0)
   }, [userId])

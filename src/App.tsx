@@ -32,6 +32,7 @@ import { CustomGroupSection, RecentTxns } from '@/components/Sections'
 import { FAB, QuickAddSheet } from '@/components/QuickAdd'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { TransactionsPage } from '@/components/TransactionsPage'
+import { ImportStatementSheet } from '@/features/statement-import/components/ImportStatementSheet'
 import { Glyph } from '@/components/Glyph'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { PWAPrompt } from '@/components/PWAPrompt'
@@ -222,6 +223,7 @@ function AppContent({ session }: { session: Session }) {
   const [aaSyncOpen, setAaSyncOpen] = useState(() => window.location.pathname === '/aa/redirect')
   const [accountLinkReviewOpen, setAccountLinkReviewOpen] = useState(false)
   const [dedupReviewOpen, setDedupReviewOpen] = useState(false)
+  const [importStatementOpen, setImportStatementOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
   const [tourTarget, setTourTarget] = useState<string | null>(null)
 
@@ -795,7 +797,7 @@ function AppContent({ session }: { session: Session }) {
           }} />
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} onOpenImportStatement={() => setImportStatementOpen(true)} />
           )}
 
           {commitmentsOpen && (
@@ -975,6 +977,16 @@ function AppContent({ session }: { session: Session }) {
           onClose={() => { setDedupReviewOpen(false); refetchAaReviewCount() }}
           userId={session.user.id}
           categories={state.categories}
+          onResolved={refetchAccountsAndRecentTransactions}
+        />
+
+        <ImportStatementSheet
+          open={importStatementOpen}
+          onClose={() => setImportStatementOpen(false)}
+          userId={session.user.id}
+          state={state}
+          onAddCategory={addCategory}
+          onUpdateTransaction={updateTransaction}
           onResolved={refetchAccountsAndRecentTransactions}
         />
 

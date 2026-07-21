@@ -60,11 +60,12 @@ interface TransactionsPageProps {
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onRemoveReceipt?: (t: Transaction) => Promise<void>
   getReceiptUrl?: (path: string) => Promise<string | null>
+  onOpenImportStatement?: () => void
 }
 
 type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, onOpenImportStatement }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -403,6 +404,22 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
             {hasFilters && (
               <button onClick={clearFilters} style={{ background: c.badSoft, color: c.bad, border: 'none', borderRadius: 999, padding: '6px 12px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}>
                 Clear
+              </button>
+            )}
+            {/* Import statement */}
+            {onOpenImportStatement && (
+              <button
+                onClick={onOpenImportStatement}
+                title="Import statement"
+                style={{
+                  width: 36, height: 36, borderRadius: 999, border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  background: c.surface2,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
+                </svg>
               </button>
             )}
             {/* Filter toggle */}

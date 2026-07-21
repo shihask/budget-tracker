@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json()
-    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType } = body
+    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType, images } = body
 
     // ── Chat mode: conversational finance assistant with tool calling ──
     if (mode === 'chat') {
@@ -730,6 +730,165 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
           category: extractCategory,
           confidence: validConfidence,
           suggestion: extractSuggestion,
+          used: used + 1,
+          limit: DAILY_LIMIT,
+        }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ── Statement-extract mode: read every transaction row off a UPI-app/bank-statement
+    // screenshot chunk (one or more images) or a chunk of PDF-extracted text ──
+    if (mode === 'statement-extract') {
+      if (!images?.length && !text) {
+        return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
+      }
+
+      const stmtCurrentYear = new Date().getFullYear()
+      const stmtIsImages = Array.isArray(images) && images.length > 0
+
+      const stmtInstructions = `Extract every individual transaction row from this ${stmtIsImages ? 'UPI-app/bank-statement screenshot' : 'bank/UPI-app statement text'}. Return strict JSON only, no markdown, matching this shape exactly:
+{"statement":{"bank":null,"period_from":null,"period_to":null},"unparsed_count":0,"transactions":[{"page":1,"description":null,"description_confidence":"high","amount":null,"amount_confidence":"high","date":null,"date_confidence":"high","type":"debit","category":null,"category_confidence":"high"}]}
+
+- One entry in "transactions" per distinct transaction row, in the order they appear. Do not merge, summarize, or skip rows.
+- page: 1-based index of which image this row came from${stmtIsImages ? ` (there are ${images.length} images, in the order given)` : ' (always 1 for text input)'}.
+- description: the merchant/payee/counterparty name as shown, cleaned up for readability (drop reference numbers/IDs glued onto the name).
+- amount: the plain transaction amount, no currency symbol/commas. Never a running/closing balance column.
+- date: YYYY-MM-DD. If year is missing, assume ${stmtCurrentYear}.
+- type: "debit" if money left the account (payment/purchase/withdrawal), "credit" if money came in (received/refund/deposit).
+- category: exact name from this list, or "NEW: <name> | <group>" if none fit, or null if unsure.
+- Each "_confidence" field is "high" only if that specific value is clearly legible and unambiguous, "low" if blurry/guessed/cut off — judge every field independently (e.g. a blurry date does not make the amount low-confidence too).
+- unparsed_count: how many additional rows you can tell exist (partial text, a row cut off at an edge, an entry too garbled to extract) but couldn't confidently turn into a transaction entry. 0 if none.
+- statement.bank/period_from/period_to: fill in only if clearly visible, else null.
+
+Categories: ${(categoryNames ?? []).join(', ') || 'none'}
+Groups (for NEW only): ${(groupNames ?? []).filter((g: string) => g !== 'Income' && g !== 'Transfer').join(', ')}
+
+If there are no transaction rows at all, return an empty "transactions" array rather than guessing.`
+
+      const stmtModel = stmtIsImages ? 'qwen/qwen3.6-27b' : 'llama-3.1-8b-instant'
+      const stmtMessages = stmtIsImages
+        ? [{
+            role: 'user',
+            content: [
+              { type: 'text', text: stmtInstructions },
+              ...images.map((img: { base64: string; mimeType?: string }) => ({
+                type: 'image_url',
+                image_url: { url: `data:${img.mimeType || 'image/jpeg'};base64,${img.base64}` },
+              })),
+            ],
+          }]
+        : [{ role: 'user', content: `${stmtInstructions}\n\nSTATEMENT TEXT:\n${text}` }]
+
+      async function fetchStmtGroq(): Promise<Response> {
+        return fetch(GROQ_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+          body: JSON.stringify({
+            model: stmtModel,
+            messages: stmtMessages,
+            // Same reasoning-suppression note as receipt-extract: qwen3.6 emits a
+            // <think>...</think> trace otherwise, and no response_format here for
+            // the same "Groq's JSON validator rejects it combined with image input" reason.
+            ...(stmtIsImages ? { reasoning_effort: 'none' } : {}),
+            max_tokens: 3000,
+            temperature: 0,
+          }),
+        })
+      }
+
+      // One retry on transient failure (network hiccup / model timeout / provider
+      // blip) before surfacing an error — a chunk covering a dozen-plus rows is
+      // too expensive to force the user to re-run over a one-off glitch.
+      let stmtRes = await fetchStmtGroq()
+      if (!stmtRes.ok) stmtRes = await fetchStmtGroq()
+
+      if (!stmtRes.ok) {
+        const errBody = await stmtRes.text()
+        console.error(`[statement-extract] Groq call failed: ${stmtRes.status} ${errBody}`)
+        return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+
+      const stmtData = await stmtRes.json()
+      const stmtRaw: string = stmtData?.choices?.[0]?.message?.content?.trim() ?? ''
+      console.log('[statement-extract] raw model output:', stmtRaw)
+
+      const stmtAfterThink = stmtRaw.includes('</think>') ? stmtRaw.split('</think>').pop() ?? stmtRaw : stmtRaw
+
+      let stmtParsed: { statement?: Record<string, unknown>; unparsed_count?: unknown; transactions?: unknown[] } = {}
+      try {
+        const jsonMatch = stmtAfterThink.match(/\{[\s\S]*\}/)
+        if (jsonMatch) stmtParsed = JSON.parse(jsonMatch[0])
+      } catch (err) {
+        console.error('[statement-extract] JSON parse failed:', err)
+        stmtParsed = {}
+      }
+
+      const stmtTomorrow = new Date(now)
+      stmtTomorrow.setDate(stmtTomorrow.getDate() + 1)
+
+      function coerceStmtAmount(v: unknown): number | null {
+        const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(/[^0-9.]/g, '')) : NaN
+        return !isNaN(n) && n > 0 && n < 10_000_000 ? n : null
+      }
+      function coerceStmtDate(v: unknown): string | null {
+        if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null
+        const d = new Date(v + 'T00:00:00')
+        return d <= stmtTomorrow ? v : null
+      }
+      function coerceStmtConfidence(v: unknown): 'high' | 'low' {
+        return v === 'high' ? 'high' : 'low'
+      }
+      function resolveStmtCategory(raw: unknown): { category: string | null; suggestion: { name: string; group: string } | null } {
+        const rawCategory = (typeof raw === 'string' ? raw : '').trim()
+        if (rawCategory.startsWith('NEW:')) {
+          const parts = rawCategory.slice(4).split('|').map((s: string) => s.trim())
+          const defaultGroup = (groupNames ?? []).find((g: string) => g !== 'Income' && g !== 'Transfer') ?? (groupNames?.[0] ?? 'Lifestyle')
+          const resolveGroup = (g: string) => (groupNames ?? []).find((n: string) => n.toLowerCase() === g.toLowerCase()) ?? defaultGroup
+          return { category: null, suggestion: { name: parts[0] ?? '', group: resolveGroup(parts[1] ?? defaultGroup) } }
+        }
+        if (rawCategory) {
+          return { category: (categoryNames ?? []).find((c: string) => c.toLowerCase() === rawCategory.toLowerCase()) ?? null, suggestion: null }
+        }
+        return { category: null, suggestion: null }
+      }
+
+      const stmtTransactions = (Array.isArray(stmtParsed.transactions) ? stmtParsed.transactions : [])
+        .map((t: Record<string, unknown>) => {
+          const description = typeof t.description === 'string' ? t.description.trim() || null : null
+          const amount = coerceStmtAmount(t.amount)
+          const { category, suggestion } = resolveStmtCategory(t.category)
+          return {
+            page: typeof t.page === 'number' && t.page > 0 ? Math.floor(t.page) : 1,
+            description,
+            description_confidence: coerceStmtConfidence(t.description_confidence),
+            amount,
+            amount_confidence: coerceStmtConfidence(t.amount_confidence),
+            date: coerceStmtDate(t.date),
+            date_confidence: coerceStmtConfidence(t.date_confidence),
+            type: t.type === 'credit' ? 'credit' : 'debit',
+            category,
+            category_suggestion: suggestion,
+            category_confidence: coerceStmtConfidence(t.category_confidence),
+          }
+        })
+        // Nothing usable at all (no description AND no amount) — not a real row.
+        .filter(t => t.description !== null || t.amount !== null)
+
+      const stmtUnparsedCount = typeof stmtParsed.unparsed_count === 'number' && stmtParsed.unparsed_count >= 0
+        ? Math.floor(stmtParsed.unparsed_count)
+        : 0
+
+      await db.from('settings').update({
+        ai_requests_used: used + 1,
+        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
+      }).eq('user_id', user.id)
+
+      return new Response(
+        JSON.stringify({
+          statement: stmtParsed.statement ?? { bank: null, period_from: null, period_to: null },
+          unparsed_count: stmtUnparsedCount,
+          transactions: stmtTransactions,
           used: used + 1,
           limit: DAILY_LIMIT,
         }),
