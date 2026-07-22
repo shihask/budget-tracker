@@ -733,7 +733,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                 {peAdding ? (
                   <div style={{ background: c.surface, borderRadius: 14, padding: '14px', marginTop: 10, border: `1px solid ${c.faint}` }}>
                     <div style={{ font: `700 13px ${F}`, color: c.ink, marginBottom: 10 }}>{peEditId ? 'Edit Expense' : 'Add Planned Expense'}</div>
-                    <input value={peTitle} onChange={e => setPeTitle(e.target.value)} placeholder="Title (e.g. Bike Tyre)" style={{ width: '100%', boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none', marginBottom: 8 }} />
+                    <input value={peTitle} onChange={e => setPeTitle(e.target.value)} placeholder="Title (e.g. Laptop Repair)" style={{ width: '100%', boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none', marginBottom: 8 }} />
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                       <input
                         ref={peAmountRef}
