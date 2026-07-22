@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
+import { usePullToRefresh, PULL_CONFIG } from '@/hooks/usePullToRefresh'
 import { derive } from '@/lib/data'
 import { fmt, iso, TODAY, localIso, round2, TimeoutError } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
@@ -227,7 +228,7 @@ function AppContent({ session }: { session: Session }) {
   const [tourOpen, setTourOpen] = useState(false)
   const [tourTarget, setTourTarget] = useState<string | null>(null)
 
-  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, addTransaction, deleteTransaction, updateTransaction, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, reloadAll, addTransaction, deleteTransaction, updateTransaction, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
 
   // Stages pending sync_events for review — every transaction event lands
   // in needs_review (DedupReviewSheet decides insert/merge/ignore from
@@ -463,6 +464,10 @@ function AppContent({ session }: { session: Session }) {
   }, [])
   const W = windowW >= 768 ? Math.min(windowW * 0.6, 720) : 402
 
+  const dashboardRef = useRef<HTMLDivElement>(null)
+  const anyOverlayOpen = txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || catsOpen
+  const { pullDistance, dragging, refreshing } = usePullToRefresh(reloadAll, !anyOverlayOpen)
+
   return (
     <ThemeContext.Provider value={c}>
       <UpdateToast />
@@ -488,9 +493,24 @@ function AppContent({ session }: { session: Session }) {
             <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} />
           </div>
 
+          {/* Pull-to-refresh indicator — sits fixed below the header; the content div below is pushed down via transform while pulling, revealing this */}
           <div style={{
+            position: 'fixed', top: 'calc(64px + env(safe-area-inset-top, 0px))', left: '50%', transform: 'translateX(-50%)',
+            zIndex: 340, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            opacity: Math.min(1, pullDistance / 40), pointerEvents: 'none',
+          }}>
+            <div style={{ width: 26, height: 26, borderRadius: 999, border: `3px solid ${c.accent}`, borderTopColor: 'transparent', animation: refreshing ? 'ptrSpin 0.7s linear infinite' : 'none' }} />
+            <div style={{ fontSize: 12, fontWeight: 600, color: c.sub }}>
+              {refreshing ? 'Refreshing…' : pullDistance >= PULL_CONFIG.threshold ? 'Release to refresh' : 'Pull to refresh'}
+            </div>
+            <style>{`@keyframes ptrSpin { to { transform: rotate(360deg) } }`}</style>
+          </div>
+
+          <div ref={dashboardRef} style={{
             background: c.bg, minHeight: '100svh',
             padding: `4px 16px calc(88px + env(safe-area-inset-bottom, 0px))`,
+            transform: `translateY(${pullDistance}px)`,
+            transition: dragging ? 'none' : 'transform 180ms ease-out',
           }}>
             {/* Spacer to offset fixed header height */}
             <div style={{ height: 'calc(72px + env(safe-area-inset-top, 0px))' }} />
