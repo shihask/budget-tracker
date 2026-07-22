@@ -14,6 +14,7 @@ import type { Transaction } from '@/types'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { exportAllData } from '@/lib/exportData'
 import type { Layout, DashboardSectionId } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
 
@@ -972,6 +973,7 @@ function AppContent({ session }: { session: Session }) {
               onNotifyWeeklySummary={v => updateSettings({ notify_weekly_summary: v })}
               onNotifyEveningRecap={v => updateSettings({ notify_evening_recap: v })}
               onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }}
+              onExportData={() => exportAllData(session.user.id, session.user.email ?? undefined)}
               tourHighlight={tourOpen}
             />
           </>

@@ -59,10 +59,11 @@ interface SettingsPanelProps {
   onNotifyWeeklySummary: (v: boolean) => Promise<void>
   onNotifyEveningRecap: (v: boolean) => Promise<void>
   onDashboardLayout: () => void
+  onExportData: () => Promise<void>
   tourHighlight?: boolean
 }
 
-export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, tourHighlight }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, tourHighlight }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
@@ -83,6 +84,8 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
   const [savingIncomeSettings, setSavingIncomeSettings] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifError, setNotifError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const permState = getPermissionState()
   const pushSupported = isPushSupported()
@@ -108,6 +111,17 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
     await unsubscribeFromPush()
     await onNotificationsEnabled(false)
     setNotifLoading(false)
+  }
+
+  const handleExportData = async () => {
+    setExporting(true)
+    setExportError(null)
+    try {
+      await onExportData()
+    } catch (_) {
+      setExportError('Something went wrong. Please try again.')
+    }
+    setExporting(false)
   }
 
   const handleSalarySave = async () => {
@@ -836,6 +850,31 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
           }} />
         </button>
       </div>
+
+      <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ width: 18, height: 18, borderRadius: 5, background: '#6366F1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <path d="M7 10l5 5 5-5" />
+            <path d="M12 15V3" />
+          </svg>
+        </span>
+        Data
+      </div>
+      <div style={{ ...rowStyle, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }} onClick={exporting ? undefined : handleExportData}>
+        <div>
+          <div style={labelStyle}>Export my data</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+            {exporting ? 'Preparing your export…' : 'Download everything as a .zip (CSV + JSON)'}
+          </div>
+        </div>
+        <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke={c.muted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </div>
+      {exportError && (
+        <div style={{ font: '600 11px Plus Jakarta Sans', color: '#EF4444', padding: '4px 0 8px' }}>{exportError}</div>
+      )}
 
     </div>
   )
