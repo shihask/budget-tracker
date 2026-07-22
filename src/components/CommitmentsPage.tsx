@@ -287,10 +287,15 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
     .map(cc => ({ cc, billing: getCreditCardBilling(cc, state.transactions) }))
     .filter(({ billing }) => billing.billedAmount > 0)
 
+  const isCompleted = (cm: Commitment) => !cm.is_recurring && cm.remaining <= 0
+
   const unified: UnifiedItem[] = [
     ...active.map(cm => ({ kind: 'commitment' as const, cm })),
     ...ccBillItems.map(({ cc, billing }) => ({ kind: 'cc_bill' as const, cc, billing })),
   ].sort((a, b) => {
+    const completedA = a.kind === 'commitment' && isCompleted(a.cm)
+    const completedB = b.kind === 'commitment' && isCompleted(b.cm)
+    if (completedA !== completedB) return completedA ? 1 : -1
     const daysA = a.kind === 'commitment' ? getDaysUntilCommitment(a.cm) : getDaysUntilDay(a.cc.due_day)
     const daysB = b.kind === 'commitment' ? getDaysUntilCommitment(b.cm) : getDaysUntilDay(b.cc.due_day)
     return daysA - daysB

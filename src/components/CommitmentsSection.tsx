@@ -18,18 +18,21 @@ export function CommitmentsSection({ state, onSeeAll, onAdd }: Props) {
 
   const active = state.commitments.filter(cm => cm.is_active !== false)
 
-  const unpaidTotal = getRemainingObligations(state).commitments
+  const obligations = getRemainingObligations(state)
+  const unpaidTotal = obligations.commitments + obligations.creditCardBills
+  const ccBillCount = obligations.creditCardItems.length
 
   const monthlyTotal = active
     .filter(cm => cm.is_recurring && cm.frequency === 'monthly')
     .reduce((s, cm) => s + cm.amount, 0)
 
   const recurringCount = active.filter(cm => cm.is_recurring).length
+  const totalCount = active.length + ccBillCount
 
   return (
     <>
       <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: active.length ? 14 : 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: totalCount ? 14 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 9, background: '#8B5CF6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -54,7 +57,7 @@ export function CommitmentsSection({ state, onSeeAll, onAdd }: Props) {
           </div>
         </div>
 
-        {active.length === 0 ? (
+        {totalCount === 0 ? (
           <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
             <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><ClipboardList size={28} color="#A09890" /></div>
             <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Stay Ahead of Bills</div>
@@ -66,7 +69,7 @@ export function CommitmentsSection({ state, onSeeAll, onAdd }: Props) {
             <div style={{ flex: 1, background: 'rgba(139,92,246,0.1)', borderRadius: 14, padding: '12px 14px', cursor: 'pointer' }}>
               <div style={{ font: '600 10px Plus Jakarta Sans', color: '#8B5CF6', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Unpaid</div>
               <div style={{ font: '800 20px Plus Jakarta Sans', color: '#8B5CF6', marginTop: 3 }}>{fmt(unpaidTotal)}</div>
-              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>{active.length} bill{active.length !== 1 ? 's' : ''}</div>
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>{totalCount} bill{totalCount !== 1 ? 's' : ''}</div>
             </div>
             <div style={{ flex: 1, background: c.surface2, borderRadius: 14, padding: '12px 14px', cursor: 'pointer' }}>
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly</div>
