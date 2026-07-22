@@ -10,7 +10,9 @@ import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { isRecurringCompleted, getRecurringPeriodLabel } from '@/lib/recurring'
 import { BottomSheet, HelpText } from './BottomSheet'
-import type { AppState, DerivedMetrics, Commitment } from '@/types'
+import { getCreditCardBilling, type CreditCardBilling } from '@/lib/credit-card'
+import { colorFor } from '@/lib/credit-card-colors'
+import type { AppState, DerivedMetrics, Commitment, CreditCard } from '@/types'
 
 type Freq = 'monthly' | 'weekly' | 'yearly'
 
@@ -43,6 +45,28 @@ const ord = (n: number) => {
   return n + (s[(v - 20) % 10] || s[v] || s[0])
 }
 
+function getDaysUntilDay(day: number): number {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = new Date(now.getFullYear(), now.getMonth(), day)
+  if (target < today) target.setMonth(target.getMonth() + 1)
+  return Math.round((target.getTime() - today.getTime()) / 86400000)
+}
+
+function getDaysUntilCommitment(cm: Commitment): number {
+  if (cm.due_day) return getDaysUntilDay(cm.due_day)
+  if (cm.due_date) {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const due = new Date(cm.due_date + 'T00:00:00')
+    return Math.round((due.getTime() - today.getTime()) / 86400000)
+  }
+  return Infinity
+}
+
+type UnifiedItem =
+  | { kind: 'commitment'; cm: Commitment }
+  | { kind: 'cc_bill'; cc: CreditCard; billing: CreditCardBilling }
+
 interface Props {
   state: AppState
   d: DerivedMetrics
@@ -51,11 +75,12 @@ interface Props {
   onUpdate: (id: string, form: Omit<Commitment, 'id'>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
+  onPayCCBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
   onClose: () => void
   initialAddOpen?: boolean
 }
 
-export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelete, onAddCategory, onClose, initialAddOpen }: Props) {
+export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelete, onAddCategory, onPayCCBill, onClose, initialAddOpen }: Props) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -69,6 +94,9 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmPay, setConfirmPay] = useState<Commitment | null>(null)
   const [confirmAccountId, setConfirmAccountId] = useState('')
+  const [ccPayTarget, setCCPayTarget] = useState<{ cc: CreditCard; billing: CreditCardBilling } | null>(null)
+  const [ccPayAccountId, setCCPayAccountId] = useState('')
+  const [ccPaying, setCCPaying] = useState(false)
   const amountOwedRef = useRef<HTMLInputElement | null>(null)
   const paidAmountRef = useRef<HTMLInputElement | null>(null)
   const monthlyAmountRef = useRef<HTMLInputElement | null>(null)
@@ -254,6 +282,23 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const monthlyTotal = active.filter(cm => cm.is_recurring && cm.frequency === 'monthly').reduce((s, cm) => s + cm.amount, 0)
   const recurringCount = active.filter(cm => cm.is_recurring).length
 
+  const ccBillItems = (state.credit_cards ?? [])
+    .filter(cc => cc.is_active !== false)
+    .map(cc => ({ cc, billing: getCreditCardBilling(cc, state.transactions) }))
+    .filter(({ billing }) => billing.billedAmount > 0)
+
+  const unified: UnifiedItem[] = [
+    ...active.map(cm => ({ kind: 'commitment' as const, cm })),
+    ...ccBillItems.map(({ cc, billing }) => ({ kind: 'cc_bill' as const, cc, billing })),
+  ].sort((a, b) => {
+    const daysA = a.kind === 'commitment' ? getDaysUntilCommitment(a.cm) : getDaysUntilDay(a.cc.due_day)
+    const daysB = b.kind === 'commitment' ? getDaysUntilCommitment(b.cm) : getDaysUntilDay(b.cc.due_day)
+    return daysA - daysB
+  })
+
+  const isEmpty = active.length === 0 && ccBillItems.length === 0
+  const totalItems = active.length + ccBillItems.length
+
   return (
     <>
       <div
@@ -296,12 +341,12 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
         <div style={{ padding: '16px 16px calc(32px + env(safe-area-inset-bottom,0px))', maxWidth: 540, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
           {/* Summary strip */}
-          {active.length > 0 && (
+          {!isEmpty && (
             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
               <div style={{ flex: 1, background: 'rgba(139,92,246,0.1)', borderRadius: 14, padding: '12px 14px' }}>
                 <div style={{ font: '600 10px Plus Jakarta Sans', color: '#8B5CF6', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Unpaid</div>
                 <div style={{ font: '800 20px Plus Jakarta Sans', color: '#8B5CF6', marginTop: 3 }}>{fmt(d.remainingCommitments)}</div>
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>{active.length} bill{active.length !== 1 ? 's' : ''}</div>
+                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>{totalItems} bill{totalItems !== 1 ? 's' : ''}</div>
               </div>
               <div style={{ flex: 1, background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
                 <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly</div>
@@ -311,7 +356,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
             </div>
           )}
 
-          {active.length === 0 ? (
+          {isEmpty ? (
             <div style={{ textAlign: 'center', padding: '60px 24px' }}>
               <div style={{ width: 60, height: 60, borderRadius: 18, background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a1 1 0 0 0 1 1h4"/></svg>
@@ -322,7 +367,70 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {active.map((cm, i) => {
+              {unified.map((item, i) => {
+                const isLast = i === unified.length - 1
+                const borderStyle = isLast ? 'none' : `1px solid ${c.faint}`
+
+                if (item.kind === 'cc_bill') {
+                  const { cc, billing } = item
+                  const col = colorFor(cc.name)
+                  const daysUntilDue = getDaysUntilDay(cc.due_day)
+                  const isUrgent = daysUntilDue <= 5
+                  const isCCPaying = ccPaying && ccPayTarget?.cc.id === cc.id
+                  return (
+                    <div
+                      key={`cc-bill-${cc.id}`}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 11,
+                        paddingTop: i === 0 ? 0 : 12, paddingBottom: 12,
+                        borderBottom: borderStyle,
+                      }}
+                    >
+                      <div style={{
+                        width: 38, height: 38, borderRadius: 11, flexShrink: 0,
+                        background: col + '20',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                        </svg>
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{cc.name}</span>
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: '#EC4899', background: '#EC489915', borderRadius: 999, padding: '2px 7px' }}>
+                            Credit Card Bill
+                          </span>
+                        </div>
+                        <div style={{ font: '600 11.5px Plus Jakarta Sans', color: isUrgent ? c.bad : c.muted, marginTop: 2 }}>
+                          Due {ord(cc.due_day)} · {daysUntilDue === 0 ? 'Today' : daysUntilDue === 1 ? 'Tomorrow' : `in ${daysUntilDue} days`}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 7 }}>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              setCCPayTarget({ cc, billing })
+                              setCCPayAccountId(accounts[0]?.id || '')
+                            }}
+                            disabled={isCCPaying}
+                            style={{ background: c.goodSoft, color: c.good, border: 'none', borderRadius: 8, padding: '5px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer', opacity: isCCPaying ? 0.6 : 1 }}
+                          >
+                            {isCCPaying ? '...' : 'Pay Bill'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ font: '800 15px Plus Jakarta Sans', color: c.bad }}>{fmt(billing.billedAmount)}</div>
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>billed</div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                // Regular commitment row
+                const { cm } = item
                 const cat = catMap[cm.category_id!]
                 const col = (cat && CAT_COLORS[cat.name]) || c.accent
                 const completed = !cm.is_recurring && cm.remaining <= 0
@@ -342,7 +450,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                     style={{
                       display: 'flex', alignItems: 'flex-start', gap: 11,
                       paddingTop: i === 0 ? 0 : 12, paddingBottom: 12,
-                      borderBottom: i < active.length - 1 ? `1px solid ${c.faint}` : 'none',
+                      borderBottom: borderStyle,
                       opacity: isDeleting ? 0.4 : 1,
                       cursor: 'pointer',
                     }}
@@ -673,7 +781,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
           </div>
         </BottomSheet>
 
-        {/* Mark Paid confirmation */}
+        {/* Mark Paid confirmation (for regular commitments) */}
         {confirmPay && (() => {
           const isCreditCard = (state.credit_cards || []).some(cc => cc.id === confirmPay.from_account_id)
           const cardName = isCreditCard ? (state.credit_cards || []).find(cc => cc.id === confirmPay.from_account_id)?.name : null
@@ -732,6 +840,56 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
             </div>
           )
         })()}
+
+        {/* Pay CC Bill confirmation */}
+        {ccPayTarget && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={() => setCCPayTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+            <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+              <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Pay Credit Card Bill</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>
+                {ccPayTarget.cc.name} · Due {ord(ccPayTarget.cc.due_day)} of the month
+              </div>
+              <div style={{ background: c.surface2, borderRadius: 12, padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Billed amount</span>
+                <span style={{ font: '800 16px Plus Jakarta Sans', color: c.bad }}>{fmt(ccPayTarget.billing.billedAmount)}</span>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Pay from account</label>
+                <select
+                  value={ccPayAccountId}
+                  onChange={e => setCCPayAccountId(e.target.value)}
+                  style={{ width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
+                >
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setCCPayTarget(null)}
+                  style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={ccPaying || !ccPayAccountId}
+                  onClick={async () => {
+                    if (!ccPayAccountId) return
+                    setCCPaying(true)
+                    try {
+                      await onPayCCBill(ccPayTarget.cc, ccPayTarget.billing.billedAmount, ccPayAccountId)
+                      setCCPayTarget(null)
+                    } catch (_) {}
+                    setCCPaying(false)
+                  }}
+                  style={{ flex: 2, background: c.good, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: ccPaying ? 0.7 : 1 }}
+                >
+                  {ccPaying ? 'Paying...' : <><Check size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> Pay {fmt(ccPayTarget.billing.billedAmount)}</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {dialogNode}
       </div>

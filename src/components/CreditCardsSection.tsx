@@ -7,6 +7,7 @@ import { Card } from './Card'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText, HelpToggle } from './BottomSheet'
 import { getCreditCardBilling } from '@/lib/credit-card'
+import { colorFor } from '@/lib/credit-card-colors'
 import type { AppState, CreditCard } from '@/types'
 
 interface Props {
@@ -180,9 +181,6 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       )}
     </span>
   )
-  const cardColors = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
-  const colorFor = (name: string) => cardColors[name.charCodeAt(0) % cardColors.length]
-
   return (
     <>
       <Card>
