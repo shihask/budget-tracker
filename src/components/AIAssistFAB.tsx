@@ -49,8 +49,8 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
   const [pos, setPos] = useState(getInitialPos)
   const [isSnapping, setIsSnapping] = useState(true)
   const posRef = useRef(pos)
-  const isDraggingRef = useRef(false)
-  const hasDraggedRef = useRef(false)
+  const draggingRef = useRef(false)
+  const movedRef = useRef(false)
   const dragOffsetRef = useRef({ x: 0, y: 0 })
   const dragStartClientRef = useRef({ x: 0, y: 0 })
 
@@ -61,38 +61,54 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
     return { x: snapX, y: clampedY }
   }
 
-  const onStart = useCallback((clientX: number, clientY: number) => {
-    hasDraggedRef.current = false
-    isDraggingRef.current = true
+  useEffect(() => {
+    if (draggingRef.current) return
+    const snapped = snapToEdge(posRef.current.x, posRef.current.y)
+    posRef.current = snapped
+    setPos(snapped)
+  }, [containerWidth, windowWidth])
+
+  // Pointer Events give one unified stream for mouse/touch/pen — no separate
+  // touch vs. mouse handlers to keep in sync, and no risk of a browser's
+  // delayed synthesized "ghost" mouse event (fired ~300ms after a real touch
+  // tap) starting a second, conflicting gesture. setPointerCapture routes all
+  // subsequent events for this gesture straight to this element regardless of
+  // where the pointer travels, so no window-level listeners are needed either.
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    draggingRef.current = true
+    movedRef.current = false
     setIsSnapping(false)
-    dragStartClientRef.current = { x: clientX, y: clientY }
+    dragStartClientRef.current = { x: e.clientX, y: e.clientY }
     dragOffsetRef.current = {
-      x: clientX - posRef.current.x,
-      y: clientY - posRef.current.y,
+      x: e.clientX - posRef.current.x,
+      y: e.clientY - posRef.current.y,
     }
   }, [])
 
-  const onMove = useCallback((clientX: number, clientY: number) => {
-    if (!isDraggingRef.current) return
-    if (!hasDraggedRef.current) {
-      const dx = clientX - dragStartClientRef.current.x
-      const dy = clientY - dragStartClientRef.current.y
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return
+    if (!movedRef.current) {
+      const dx = e.clientX - dragStartClientRef.current.x
+      const dy = e.clientY - dragStartClientRef.current.y
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
-      hasDraggedRef.current = true
+      movedRef.current = true
     }
     const newPos = {
-      x: clientX - dragOffsetRef.current.x,
-      y: clientY - dragOffsetRef.current.y,
+      x: e.clientX - dragOffsetRef.current.x,
+      y: e.clientY - dragOffsetRef.current.y,
     }
     posRef.current = newPos
     setPos({ ...newPos })
   }, [])
 
-  const onEnd = useCallback(() => {
-    if (!isDraggingRef.current) return
-    isDraggingRef.current = false
+  const endGesture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return
+    draggingRef.current = false
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
 
-    if (!hasDraggedRef.current) {
+    if (!movedRef.current) {
       setIsSnapping(true)
       onOpen()
       return
@@ -105,50 +121,8 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
     try { localStorage.setItem('ai-fab-pos', JSON.stringify(snapped)) } catch {}
   }, [onOpen])
 
-  useEffect(() => {
-    if (isDraggingRef.current) return
-    const snapped = snapToEdge(posRef.current.x, posRef.current.y)
-    posRef.current = snapped
-    setPos(snapped)
-  }, [containerWidth, windowWidth])
-
-  useEffect(() => {
-    const move = (e: MouseEvent) => onMove(e.clientX, e.clientY)
-    const touchMove = (e: TouchEvent) => {
-      if (!isDraggingRef.current) return
-      e.preventDefault()
-      onMove(e.touches[0].clientX, e.touches[0].clientY)
-    }
-    const up = () => onEnd()
-
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', up)
-    window.addEventListener('touchmove', touchMove, { passive: false })
-    window.addEventListener('touchend', up)
-    return () => {
-      window.removeEventListener('mousemove', move)
-      window.removeEventListener('mouseup', up)
-      window.removeEventListener('touchmove', touchMove)
-      window.removeEventListener('touchend', up)
-    }
-  }, [onMove, onEnd])
-
-  const fabRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const el = fabRef.current
-    if (!el) return
-    const handler = (e: TouchEvent) => {
-      e.preventDefault()
-      onStart(e.touches[0].clientX, e.touches[0].clientY)
-    }
-    el.addEventListener('touchstart', handler, { passive: false })
-    return () => el.removeEventListener('touchstart', handler)
-  }, [onStart])
-
   return (
     <div
-      ref={fabRef}
       data-tour="ai-fab"
       style={{
         position: 'fixed',
@@ -162,7 +136,10 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
         touchAction: 'none',
         transition: isSnapping ? 'left 0.38s cubic-bezier(0.34,1.56,0.64,1), top 0.18s ease' : 'none',
       }}
-      onMouseDown={e => { e.preventDefault(); onStart(e.clientX, e.clientY) }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endGesture}
+      onPointerCancel={endGesture}
     >
       <div style={{
         width: SIZE, height: SIZE, borderRadius: 999,
