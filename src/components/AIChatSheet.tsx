@@ -8,7 +8,13 @@ import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
 import { MintAnimation } from './MintAnimation'
 import { CategorySelect } from './CategorySelect'
-import { Camera, Sparkles } from 'lucide-react'
+import {
+  Camera, Sparkles,
+  CheckCircle, AlertCircle, XCircle,
+  Info, ChevronDown, ChevronUp,
+  Lightbulb, AlertTriangle, TrendingUp,
+  Wallet, Calendar, BarChart2, Target, ShoppingBag, Banknote, Building2, TrendingDown,
+} from 'lucide-react'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
@@ -36,7 +42,7 @@ type ChartData =
   | { type: 'categories'; items: ChartItem[]; total: number }
   | { type: 'budget'; spent: number; budget: number }
   | { type: 'monthly'; thisMonth: number; lastMonth: number; income: number }
-type SummaryCard = { icon: string; label: string; value: string; sub?: string; tone?: 'good' | 'warn' | 'bad' | 'neutral' }
+type SummaryCard = { icon: ReactNode; label: string; value: string; sub?: string; tone?: 'good' | 'warn' | 'bad' | 'neutral' }
 type ReceiptPrompt = {
   receipt: PickedReceipt
   description: string
@@ -110,18 +116,18 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
     const freeMoney = d.realFreeMoney ?? 0
     return [
       {
-        icon: '💰', label: 'Free Money',
+        icon: <Wallet size={11} />, label: 'Free Money',
         value: `₹${freeMoney.toLocaleString()}`,
         tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good',
       },
       {
-        icon: '📅', label: 'Days Left',
+        icon: <Calendar size={11} />, label: 'Days Left',
         value: `${daysLeft}`,
         sub: 'until salary',
         tone: daysLeft <= 3 ? 'warn' : 'neutral',
       },
       {
-        icon: '📊', label: 'Daily Safe Spend',
+        icon: <BarChart2 size={11} />, label: 'Daily Safe Spend',
         value: `₹${dailySafe.toLocaleString()}/day`,
         tone: dailySafe < 500 ? 'warn' : 'good',
       },
@@ -133,18 +139,18 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
     const remaining = d.weeklyBudget - d.weeklySpent
     return [
       {
-        icon: '🎯', label: 'Weekly Budget',
+        icon: <Target size={11} />, label: 'Weekly Budget',
         value: `₹${d.weeklyBudget.toLocaleString()}`,
         tone: 'neutral',
       },
       {
-        icon: '💸', label: 'Spent',
+        icon: <ShoppingBag size={11} />, label: 'Spent',
         value: `₹${d.weeklySpent.toLocaleString()}`,
         sub: `${pct}% used`,
         tone: pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'good',
       },
       {
-        icon: '✅', label: 'Remaining',
+        icon: <Banknote size={11} />, label: 'Remaining',
         value: `₹${Math.max(0, remaining).toLocaleString()}`,
         tone: remaining < 0 ? 'bad' : 'good',
       },
@@ -161,9 +167,9 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
       .reduce((s, t) => s + t.amount, 0)
     const freeMoney = d.realFreeMoney ?? 0
     return [
-      { icon: '🏦', label: 'Balance', value: `₹${totalBalance.toLocaleString()}`, tone: 'neutral' },
-      { icon: '📉', label: 'Month Spend', value: `₹${monthlySpend.toLocaleString()}`, tone: 'neutral' },
-      { icon: '💰', label: 'Free Money', value: `₹${freeMoney.toLocaleString()}`, tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good' },
+      { icon: <Building2 size={11} />, label: 'Balance', value: `₹${totalBalance.toLocaleString()}`, tone: 'neutral' },
+      { icon: <TrendingDown size={11} />, label: 'Month Spend', value: `₹${monthlySpend.toLocaleString()}`, tone: 'neutral' },
+      { icon: <Wallet size={11} />, label: 'Free Money', value: `₹${freeMoney.toLocaleString()}`, tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good' },
     ]
   }
 
@@ -768,16 +774,25 @@ function renderRichText(
     <>
       {groups.map((group, gi) => {
         if (group.type === 'quick') {
-          // Emoji-based color: 🟢 good, 🟠 warn, 🔴 bad
-          const color = group.text.startsWith('🟢') ? c.good
-            : group.text.startsWith('🟠') ? '#F59713'
-            : group.text.startsWith('🔴') ? '#EF4444'
-            : c.ink
+          // Status icon: detect 🟢/🟠/🔴 prefix from AI for color, strip from display
+          const statusMatch = group.text.match(/^([🟢🟠🔴])\s*/)
+          const statusEmoji = statusMatch?.[1]
+          const statusColor = statusEmoji === '🟢' ? c.good : statusEmoji === '🟠' ? '#F59713' : statusEmoji === '🔴' ? '#EF4444' : null
+          const StatusIcon = statusEmoji === '🟢' ? CheckCircle : statusEmoji === '🟠' ? AlertCircle : statusEmoji === '🔴' ? XCircle : null
+          const displayText = statusMatch ? group.text.slice(statusMatch[0].length) : group.text
+
           return (
             <div key={gi}>
-              <p style={{ font: '600 17px Plus Jakarta Sans', color, lineHeight: 1.5, margin: 0 }}>
-                {renderInline(group.text, c)}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                {StatusIcon && statusColor && (
+                  <span style={{ flexShrink: 0, marginTop: 2, display: 'flex' }}>
+                    <StatusIcon size={17} color={statusColor} strokeWidth={2.5} />
+                  </span>
+                )}
+                <p style={{ font: '600 17px Plus Jakarta Sans', color: statusColor ?? c.ink, lineHeight: 1.5, margin: 0 }}>
+                  {renderInline(displayText, c)}
+                </p>
+              </div>
               {/* Summary cards injected after quick answer, inside the bubble */}
               {summaryCards && summaryCards.length > 0 && (
                 <>
@@ -785,7 +800,10 @@ function renderRichText(
                   <div style={{ display: 'grid', gridTemplateColumns: `repeat(${summaryCards.length}, 1fr)`, gap: 6 }}>
                     {summaryCards.map((card, ci) => (
                       <div key={ci}>
-                        <div style={{ font: '400 10px Plus Jakarta Sans', color: c.muted, marginBottom: 3 }}>{card.icon} {card.label}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                          <span style={{ color: c.muted, display: 'flex', flexShrink: 0 }}>{card.icon}</span>
+                          <span style={{ font: '400 10px Plus Jakarta Sans', color: c.muted }}>{card.label}</span>
+                        </div>
                         <div style={{
                           font: `700 ${card.value.length > 9 ? '14' : '16'}px Plus Jakarta Sans`,
                           color: card.tone === 'bad' ? '#EF4444' : card.tone === 'warn' ? '#F59713' : card.tone === 'good' ? c.good : c.ink,
@@ -805,7 +823,10 @@ function renderRichText(
           const isCollapsed = canCollapse && !expanded
           return (
             <div key={gi} style={{ marginTop: summaryCards ? 0 : 10 }}>
-              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>Why?</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                <Info size={13} color={c.ink} strokeWidth={2.5} />
+                <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Why?</span>
+              </div>
               {!isCollapsed && (
                 <>
                   {group.paras.map((para, pi) => (
@@ -823,7 +844,10 @@ function renderRichText(
                   background: 'none', border: 'none', padding: '4px 0 2px', cursor: 'pointer',
                   font: '500 12px Plus Jakarta Sans', color: c.accent, display: 'block',
                 }}>
-                  {isCollapsed ? '▼ Show details' : '▲ Hide details'}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    {isCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                    {isCollapsed ? 'Show details' : 'Hide details'}
+                  </span>
                 </button>
               )}
             </div>
@@ -834,7 +858,10 @@ function renderRichText(
           if (!group.bullets.length) return null
           return (
             <div key={gi} style={{ background: c.goodSoft, border: `1px solid ${c.good}33`, borderRadius: 12, padding: '11px 14px', marginTop: 10 }}>
-              <div style={{ font: '700 13px Plus Jakarta Sans', color: c.good, marginBottom: 8 }}>💡 Recommendations</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Lightbulb size={13} color={c.good} strokeWidth={2.5} />
+                <span style={{ font: '700 13px Plus Jakarta Sans', color: c.good }}>Recommendations</span>
+              </div>
               {group.bullets.map((item, bi) => (
                 <div key={bi}>{renderBullet(item, c, c.good, bi === group.bullets.length - 1)}</div>
               ))}
@@ -846,7 +873,10 @@ function renderRichText(
           if (!group.paras.length && !group.bullets.length) return null
           return (
             <div key={gi} style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 12, padding: '11px 14px', marginTop: 10 }}>
-              <div style={{ font: '700 13px Plus Jakarta Sans', color: '#D97706', marginBottom: 6 }}>⚠ Watch Out</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <AlertTriangle size={13} color="#D97706" strokeWidth={2.5} />
+                <span style={{ font: '700 13px Plus Jakarta Sans', color: '#D97706' }}>Watch Out</span>
+              </div>
               {group.paras.map((para, pi) => (
                 <p key={pi} style={{ font: '500 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.6, margin: pi < group.paras.length - 1 ? '0 0 5px 0' : 0 }}>
                   {renderInline(para, c)}
@@ -863,7 +893,10 @@ function renderRichText(
           if (!group.paras.length && !group.bullets.length) return null
           return (
             <div key={gi} style={{ background: c.goodSoft, border: `1px solid ${c.good}33`, borderRadius: 12, padding: '11px 14px', marginTop: 10 }}>
-              <div style={{ font: '700 13px Plus Jakarta Sans', color: c.good, marginBottom: 6 }}>🎉 Good News</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <TrendingUp size={13} color={c.good} strokeWidth={2.5} />
+                <span style={{ font: '700 13px Plus Jakarta Sans', color: c.good }}>Good News</span>
+              </div>
               {group.paras.map((para, pi) => (
                 <p key={pi} style={{ font: '500 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6, margin: pi < group.paras.length - 1 ? '0 0 5px 0' : 0 }}>
                   {renderInline(para, c)}

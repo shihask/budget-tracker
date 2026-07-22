@@ -378,8 +378,7 @@ FORMATTING RULES:
 - Omit any section with nothing to say. Never write an empty heading.
 - Max 2 sentences per paragraph. Never produce walls of text.
 - Never use markdown tables or code blocks.
-- For spending breakdowns, format each expense as: - [emoji] Category: **₹amount**
-  Category emojis: ⛽ fuel/petrol, 🍕 food/restaurant, 🛒 grocery, 💊 medical, 🏠 rent/EMI, 🚗 transport, 📱 phone/app/subscription, 🎉 entertainment, 👕 shopping/clothing, 💡 utilities, 🎓 education, 💸 miscellaneous/other
+- For spending breakdowns, format each expense as: - Category: **₹amount**
 
 User's financial data:
 ${context ?? ''}`
