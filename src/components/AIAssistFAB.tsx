@@ -4,6 +4,10 @@ import { MintAnimation } from './MintAnimation'
 
 const SIZE = 50
 const EDGE_PAD = 14
+// Real taps almost always jitter a pixel or two (touchscreen digitizer noise,
+// mouse hand tremor) — without this, every tap looked like a drag and never
+// opened the chat.
+const DRAG_THRESHOLD = 6
 
 interface AIAssistFABProps {
   onOpen: () => void
@@ -48,6 +52,7 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
   const isDraggingRef = useRef(false)
   const hasDraggedRef = useRef(false)
   const dragOffsetRef = useRef({ x: 0, y: 0 })
+  const dragStartClientRef = useRef({ x: 0, y: 0 })
 
   const snapToEdge = (x: number, y: number) => {
     const b = getBounds()
@@ -60,6 +65,7 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
     hasDraggedRef.current = false
     isDraggingRef.current = true
     setIsSnapping(false)
+    dragStartClientRef.current = { x: clientX, y: clientY }
     dragOffsetRef.current = {
       x: clientX - posRef.current.x,
       y: clientY - posRef.current.y,
@@ -68,7 +74,12 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
 
   const onMove = useCallback((clientX: number, clientY: number) => {
     if (!isDraggingRef.current) return
-    hasDraggedRef.current = true
+    if (!hasDraggedRef.current) {
+      const dx = clientX - dragStartClientRef.current.x
+      const dy = clientY - dragStartClientRef.current.y
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+      hasDraggedRef.current = true
+    }
     const newPos = {
       x: clientX - dragOffsetRef.current.x,
       y: clientY - dragOffsetRef.current.y,
