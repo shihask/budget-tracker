@@ -542,7 +542,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           <div>
             <Label>Person name</Label>
             <HelpText>Who you lent money to or borrowed from.</HelpText>
-            <input value={form.person_name} onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))} placeholder="e.g. Noushad" style={inp} />
+            <input value={form.person_name} onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))} placeholder="e.g. Alex" style={inp} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>

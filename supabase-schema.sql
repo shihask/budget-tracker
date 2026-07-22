@@ -77,7 +77,7 @@ insert into categories (name, group_name) values
 insert into settings (weekly_budget, emergency_fund) values (5000, 20000);
 
 insert into borrowings (person_name, total_amount, paid_amount, notes) values
-  ('Noushad', 6400, 4300, 'Lent in Apr — repaying monthly');
+  ('Alex', 6400, 4300, 'Lent in Apr — repaying monthly');
 
 -- current-cycle transactions (join category/account by name in your seed script)
 -- 2026-06-01  Petrol        950.64  expense  Fuel       Axis Bank
