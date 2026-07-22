@@ -142,7 +142,8 @@ export function useSupabaseData(userId: string) {
   const [loadingMore, setLoadingMore] = useState(false)
   const receiptUrlCache = useRef(new Map<string, { url: string; expiresAt: number }>())
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    async function load() {
       try {
         const [
           { data: settingsRow },
@@ -384,13 +385,9 @@ export function useSupabaseData(userId: string) {
       } finally {
         setLoading(false)
       }
+    }
+    load()
   }, [userId])
-
-  // load() itself is async and only calls setState after its awaited Supabase
-  // calls resolve — not synchronously in this effect body — so this isn't the
-  // set-state-in-effect anti-pattern the rule targets.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load() }, [load])
 
   const addTransaction = useCallback(async (
     form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }
@@ -1682,7 +1679,7 @@ export function useSupabaseData(userId: string) {
 
   return {
     state, setState, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions,
-    refetchAccountsAndRecentTransactions, reloadAll: load,
+    refetchAccountsAndRecentTransactions,
     addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings,
     uploadReceipt, removeReceipt, getReceiptUrl,
     addAccount, deleteAccount, updateAccount, adjustBalance,
