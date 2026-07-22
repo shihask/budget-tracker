@@ -53,6 +53,7 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
   const movedRef = useRef(false)
   const dragOffsetRef = useRef({ x: 0, y: 0 })
   const dragStartClientRef = useRef({ x: 0, y: 0 })
+  const rafIdRef = useRef<number | null>(null)
 
   const snapToEdge = (x: number, y: number) => {
     const b = getBounds()
@@ -67,6 +68,12 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
     posRef.current = snapped
     setPos(snapped)
   }, [containerWidth, windowWidth])
+
+  // Cancel any in-flight rAF if the button unmounts mid-drag (e.g. chat opens
+  // via some other path) so a stray setPos never fires after unmount.
+  useEffect(() => () => {
+    if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current)
+  }, [])
 
   // Pointer Events give one unified stream for mouse/touch/pen — no separate
   // touch vs. mouse handlers to keep in sync, and no risk of a browser's
@@ -99,14 +106,29 @@ export function AIAssistFAB({ onOpen, containerWidth, windowWidth, busy = false,
       x: e.clientX - dragOffsetRef.current.x,
       y: e.clientY - dragOffsetRef.current.y,
     }
+    // posRef updates immediately (cheap, no re-render) so endGesture always
+    // snaps from the latest pointer position. The actual setPos — which
+    // triggers a render — is batched to at most once per animation frame:
+    // pointermove can fire well above the display's repaint rate, and
+    // re-rendering on every single event (each one touching layout-affecting
+    // left/top) is what made the drag feel choppy.
     posRef.current = newPos
-    setPos({ ...newPos })
+    if (rafIdRef.current === null) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafIdRef.current = null
+        setPos({ ...posRef.current })
+      })
+    }
   }, [])
 
   const endGesture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!draggingRef.current) return
     draggingRef.current = false
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
 
     if (!movedRef.current) {
       setIsSnapping(true)
