@@ -150,7 +150,18 @@ function AppContent({ session }: { session: Session }) {
   const userEmail = user.email || ''
 
   const [accent, setAccent] = useState('#10B981')
-  const [dark, setDark] = useState(false)
+  const [dark, setDark] = useState(() => {
+    try { return window.matchMedia('(prefers-color-scheme: dark)').matches } catch (_) { return false }
+  })
+  // Once the user manually picks a theme, stop following the phone's OS-level changes for the session.
+  const themeOverriddenRef = useRef(false)
+  const setDarkManual: typeof setDark = v => { themeOverriddenRef.current = true; setDark(v) }
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (e: MediaQueryListEvent) => { if (!themeOverriddenRef.current) setDark(e.matches) }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
   const [layout, setLayout] = useState<Layout>('grid')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -486,7 +497,7 @@ function AppContent({ session }: { session: Session }) {
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || catsOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
-            <Header dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} />
+            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} />
           </div>
 
           <div style={{
@@ -798,7 +809,7 @@ function AppContent({ session }: { session: Session }) {
           }} />
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} onOpenImportStatement={() => setImportStatementOpen(true)} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} onOpenImportStatement={() => setImportStatementOpen(true)} />
           )}
 
           {commitmentsOpen && (
@@ -932,7 +943,7 @@ function AppContent({ session }: { session: Session }) {
               notifyCommitments={state.settings.notify_commitments ?? true}
               notifyWeeklySummary={state.settings.notify_weekly_summary ?? true}
               notifyEveningRecap={state.settings.notify_evening_recap ?? true}
-              onAccent={setAccent} onDark={setDark} onLayout={setLayout}
+              onAccent={setAccent} onDark={setDarkManual} onLayout={setLayout}
               onIncomePattern={v => updateSettings({ income_pattern: v })}
               onSalaryDate={v => updateSettings({ salary_date: v })}
               onMonthlySalary={v => updateSettings({ monthly_salary: v })}
@@ -1021,7 +1032,7 @@ function AppContent({ session }: { session: Session }) {
           onUpdateBucket={updateCategoryBucket}
         />
 
-        {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} d={d} dark={dark} onToggleTheme={() => setDark(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
+        {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} d={d} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
 
         {/* Daily Challenge → Goal Contribution modal */}
         <BottomSheet open={!!challengeWin} onClose={() => setChallengeWin(null)} zIndex={500}>
