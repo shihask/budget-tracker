@@ -1,43 +1,12 @@
 import JSZip from 'jszip'
 import { supabase } from '@/lib/supabase'
 import { version as APP_VERSION } from '../../package.json'
+import { fetchAllPages } from '@/lib/supabasePagination'
+import { toCsv } from '@/lib/csvUtils'
 import type {
   Account, Category, Group, CreditCard, Borrowing, Commitment, Goal,
   GoalContribution, Savings, PlannedExpense, Settings, ForecastSettings, BudgetStrategySettings,
 } from '@/types'
-
-const PAGE_SIZE = 1000
-
-async function fetchAllPages<T>(table: string, userId: string, orderCol: string): Promise<T[]> {
-  const rows: T[] = []
-  let offset = 0
-  for (;;) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .eq('user_id', userId)
-      .order(orderCol, { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1)
-    if (error) throw error
-    const page = (data as T[]) || []
-    rows.push(...page)
-    if (page.length < PAGE_SIZE) break
-    offset += PAGE_SIZE
-  }
-  return rows
-}
-
-function csvEscape(v: unknown): string {
-  if (v === null || v === undefined) return ''
-  const s = typeof v === 'string' ? v : JSON.stringify(v)
-  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-}
-
-function toCsv<T extends object>(rows: T[], columns: string[]): string {
-  const lines = [columns.join(',')]
-  for (const row of rows) lines.push(columns.map(c => csvEscape((row as Record<string, unknown>)[c])).join(','))
-  return '﻿' + lines.join('\n')
-}
 
 const TRANSACTION_COLUMNS = [
   'id', 'transaction_date', 'description', 'amount', 'transaction_type', 'category_id',

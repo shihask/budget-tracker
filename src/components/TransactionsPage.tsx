@@ -10,7 +10,9 @@ import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { ReceiptField } from './ReceiptField'
+import { ExportTransactionsSheet } from './ExportTransactionsSheet'
 import { Receipt } from 'lucide-react'
+import { filterAndSortTransactions, type TxnSortKey } from '@/lib/transactionFilters'
 import type { AppState, Transaction, TransactionType } from '@/types'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
@@ -60,12 +62,10 @@ interface TransactionsPageProps {
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onRemoveReceipt?: (t: Transaction) => Promise<void>
   getReceiptUrl?: (path: string) => Promise<string | null>
-  onOpenImportStatement?: () => void
+  userId: string
 }
 
-type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
-
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, onOpenImportStatement }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -93,7 +93,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [filterGroup, setFilterGroup] = useState('all')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('date_desc')
+  const [sortKey, setSortKey] = useState<TxnSortKey>('date_desc')
+  const [exportOpen, setExportOpen] = useState(false)
   const [showSystemTxns, setShowSystemTxns] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
@@ -177,30 +178,12 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const accounts = state.accounts.filter(a => a.is_active)
   const groups = state.groups
 
-  const filtered = useMemo(() => {
-    let txns = [...state.transactions]
-    if (!showSystemTxns) txns = txns.filter(t => t.transaction_type !== 'opening_balance' && t.transaction_type !== 'balance_adjustment' && t.transaction_type !== 'cc_opening_balance' && t.transaction_type !== 'cc_balance_adjustment')
-    if (search.trim()) txns = txns.filter(t => t.description.toLowerCase().includes(search.toLowerCase()))
-    if (filterAccount !== 'all') txns = txns.filter(t => t.from_account_id === filterAccount || (t as any).credit_card_id === filterAccount)
-    if (filterCategory !== 'all') txns = txns.filter(t => t.category_id === filterCategory)
-    if (filterGroup !== 'all') txns = txns.filter(t => catMap[t.category_id!]?.group_name === filterGroup)
-    if (filterDateFrom) txns = txns.filter(t => t.transaction_date >= filterDateFrom)
-    if (filterDateTo) txns = txns.filter(t => t.transaction_date <= filterDateTo)
-    txns.sort((a, b) => {
-      if (sortKey === 'date_desc') {
-        if (a.transaction_date !== b.transaction_date) return a.transaction_date < b.transaction_date ? 1 : -1
-        return a.created_at < b.created_at ? 1 : -1
-      }
-      if (sortKey === 'date_asc') {
-        if (a.transaction_date !== b.transaction_date) return a.transaction_date > b.transaction_date ? 1 : -1
-        return a.created_at > b.created_at ? 1 : -1
-      }
-      if (sortKey === 'amount_desc') return b.amount - a.amount
-      if (sortKey === 'amount_asc')  return a.amount - b.amount
-      return 0
-    })
-    return txns
-  }, [state.transactions, search, filterAccount, filterCategory, filterGroup, filterDateFrom, filterDateTo, sortKey, showSystemTxns])
+  const filtered = useMemo(() => filterAndSortTransactions(
+    state.transactions,
+    state.categories,
+    { search, account: filterAccount, category: filterCategory, group: filterGroup, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns },
+    sortKey,
+  ), [state.transactions, state.categories, search, filterAccount, filterCategory, filterGroup, filterDateFrom, filterDateTo, sortKey, showSystemTxns])
 
   const totalFiltered = filtered.reduce((s, t) => s + t.amount, 0)
 
@@ -406,22 +389,20 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 Clear
               </button>
             )}
-            {/* Import statement */}
-            {onOpenImportStatement && (
-              <button
-                onClick={onOpenImportStatement}
-                title="Import statement"
-                style={{
-                  width: 36, height: 36, borderRadius: 999, border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  background: c.surface2,
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
-                </svg>
-              </button>
-            )}
+            {/* Export transactions */}
+            <button
+              onClick={() => setExportOpen(true)}
+              title="Export transactions"
+              style={{
+                width: 36, height: 36, borderRadius: 999, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                background: c.surface2,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
+              </svg>
+            </button>
             {/* Filter toggle */}
             <button
               onClick={() => setFiltersVisible(v => !v)}
@@ -488,7 +469,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                   </optgroup>
                 )}
               </select>
-              <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)} style={{ ...inp, flex: 1 }}>
+              <select value={sortKey} onChange={e => setSortKey(e.target.value as TxnSortKey)} style={{ ...inp, flex: 1 }}>
                 <option value="date_desc">Newest first</option>
                 <option value="date_asc">Oldest first</option>
                 <option value="amount_desc">Highest amount</option>
@@ -878,6 +859,16 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
           </button>
         </div>
       </BottomSheet>
+
+      <ExportTransactionsSheet
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        state={state}
+        userId={userId}
+        allTransactionsLoaded={!!allTransactionsLoaded}
+        initialFilters={{ search, account: filterAccount, category: filterCategory, group: filterGroup, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns }}
+        initialSortKey={sortKey}
+      />
 
       {/* Borrowing-linked delete confirmation */}
       {borrowingDeleteTarget && createPortal(
