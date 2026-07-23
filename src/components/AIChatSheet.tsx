@@ -1611,7 +1611,7 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                   <span style={{ font: '500 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.6 }}>{m.text}</span>
                 </div>
               ) : (
-              <div style={{
+              m.role === 'ai' && !m.text ? null : <div style={{
                 maxWidth: m.role === 'user' ? '82%' : 'min(90%, 640px)',
                 background: m.role === 'user' ? c.accent : c.surface2,
                 color: m.role === 'user' ? '#fff' : c.ink,
@@ -1635,7 +1635,8 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
                   )
                 )}
               </div>
-              )}
+              )
+              }
               {/* Action chips — shown below the AI bubble */}
               {m.role === 'ai' && !m.warning && m.actionChips && m.actionChips.length > 0 && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: 'min(92%, 640px)' }}>
