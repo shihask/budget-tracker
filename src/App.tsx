@@ -739,7 +739,7 @@ function AppContent({ session }: { session: Session }) {
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
             {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} windowWidth={windowW} busy={aiProcessing} tourHighlight={tourTarget === 'ai-fab'} />}
-            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} />
+            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} />
           </>)}
 
           {showOnboardingFlow && (

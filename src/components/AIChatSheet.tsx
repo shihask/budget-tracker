@@ -14,7 +14,12 @@ import {
   Info, ChevronDown, ChevronUp,
   Lightbulb, AlertTriangle, TrendingUp,
   Wallet, Calendar, BarChart2, Target, ShoppingBag, Banknote, Building2, TrendingDown,
+  FileDown,
 } from 'lucide-react'
+import { detectMintAction } from '@/lib/mintActions'
+import type { MintAction } from '@/lib/mintActions'
+import { exportTransactionsCsv } from '@/lib/exportTransactionsCsv'
+import { ActionCard } from '@/components/mint-actions/ActionCard'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
@@ -53,7 +58,7 @@ type ReceiptPrompt = {
   accountId: string
   confidence: 'high' | 'low'
 }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: string[]; receiptPrompt?: ReceiptPrompt; imagePreviewUrl?: string }
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: string[]; receiptPrompt?: ReceiptPrompt; imagePreviewUrl?: string; actionCard?: MintAction }
 
 function shouldShowChart(question: string): 'categories' | 'budget' | 'monthly' | null {
   const q = question.toLowerCase()
@@ -1152,6 +1157,7 @@ interface AIChatSheetProps {
   onClose: () => void
   state: AppState
   d: DerivedMetrics
+  userId: string
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<Transaction | undefined>
   onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<void>
   onDelete: (t: Transaction) => Promise<void>
@@ -1165,7 +1171,7 @@ interface AIChatSheetProps {
   onDismissReceiptTip?: () => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -1184,6 +1190,18 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
   const [savingReceiptIdx, setSavingReceiptIdx] = useState<number | null>(null)
   const receiptFileRef = useRef<HTMLInputElement | null>(null)
   const objectUrlsRef = useRef<Set<string>>(new Set())
+
+  const handleMintAction = async (action: MintAction) => {
+    if (action.type === 'export_transactions') {
+      await exportTransactionsCsv(
+        userId,
+        { categories: state.categories, accounts: state.accounts, creditCards: state.credit_cards ?? [] },
+        action.filters,
+        action.sortKey,
+      )
+    }
+  }
+
   const SpeechRec = typeof window !== 'undefined'
     ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
     : null
@@ -1525,6 +1543,14 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
       return
     }
 
+    // Mint Action — bypass AI entirely for recognized intents (export, etc.)
+    const mintAction = detectMintAction(text, state, d)
+    if (mintAction) {
+      setMessages(m => [...m, { role: 'ai', text: '', actionCard: mintAction }])
+      setLoading(false); onBusyChange?.(false)
+      return
+    }
+
     // No amount found — treat as Q&A (streamed)
     const contextIntent = classifyContextIntent(text)
     const context = buildContext(state, d, contextIntent)
@@ -1763,6 +1789,9 @@ export function AIChatSheet({ open, onClose, state, d, onSave, onUpdate, onDelet
           <div style={{ flex: 1 }} />
           {messages.map((m, i) => (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
+              {m.actionCard && (
+                <ActionCard action={m.actionCard} onAction={handleMintAction} c={c} />
+              )}
               {m.warning ? (
                 <div style={{
                   maxWidth: '82%', display: 'flex', alignItems: 'flex-start', gap: 10,
