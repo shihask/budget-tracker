@@ -107,8 +107,39 @@ function buildMonthlyChart(state: AppState): ChartData {
   return { type: 'monthly', thisMonth, lastMonth, income }
 }
 
+// Movement class classifier — maps raw transaction_type + is_credit to a semantic role.
+// Add new transaction types here (e.g. 'cashback', 'emi') as the platform grows.
+type MovementClass = 'recurring-income' | 'temporary-cash' | 'one-time-source' | 'recoverable-realized' | 'lent-out' | 'debt-payment' | 'savings-contributed' | 'savings-withdrawn' | 'expense' | 'transfer' | 'other'
+function getMovementClass(t: Transaction): MovementClass {
+  if (t.transaction_type === 'income')                                          return 'recurring-income'
+  if (t.transaction_type === 'borrowing'           &&  t.is_credit)            return 'temporary-cash'
+  if (t.transaction_type === 'borrowing'           && !t.is_credit)            return 'lent-out'
+  if (t.transaction_type === 'borrowing_repayment' &&  t.is_credit)            return 'recoverable-realized'
+  if (t.transaction_type === 'borrowing_repayment' && !t.is_credit)            return 'debt-payment'
+  if (t.transaction_type === 'savings_withdrawal')                              return 'one-time-source'
+  if (t.transaction_type === 'savings_contribution')                            return 'savings-contributed'
+  if (t.transaction_type === 'transfer')                                        return 'transfer'
+  if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') return 'expense'
+  return 'other'
+}
+
 function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string): SummaryCard[] | null {
   const q = question.toLowerCase()
+
+  if (/chart|story|this week|what happened|financial story/i.test(q)) {
+    const freeMoney = d.realFreeMoney ?? 0
+    const daysLeft  = d.cycleDaysLeft ?? 0
+    const nowD = new Date()
+    const mStart = new Date(nowD.getFullYear(), nowD.getMonth(), 1)
+    const monthSpend = state.transactions
+      .filter(t => new Date(t.transaction_date) >= mStart && t.transaction_type === 'expense')
+      .reduce((s, t) => s + t.amount, 0)
+    return [
+      { icon: <TrendingDown size={11} />, label: 'Month Spend', value: `₹${monthSpend.toLocaleString()}`, tone: 'neutral' },
+      { icon: <Wallet size={11} />,       label: 'Free Money',  value: `₹${freeMoney.toLocaleString()}`,  tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good' },
+      { icon: <Calendar size={11} />,     label: 'Days Left',   value: `${daysLeft}`,                     tone: daysLeft <= 3 ? 'warn' : 'neutral' },
+    ]
+  }
 
   if (/survive|afford|enough|make it|tight|last until/i.test(q)) {
     const daysLeft = d.cycleDaysLeft ?? 0
@@ -375,6 +406,140 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
       `\nCategories(month): ${topCats || 'no data'}` +
       `\nRecurring(90d): ${recurring || 'none'}` +
       `\nRecent:\n${recent}`
+    )
+  }
+
+  // ── MODULE: MoneyMovement — complete cash-flow picture for financial story telling ──
+  // Answers: where did money come from? where did it go? what is the net effect? what's the pressure?
+  if (['spending', 'general'].includes(intent)) {
+    // Period: current financial cycle (most meaningful window); fall back to calendar month
+    const periodStart = d.financialCycle?.cycleStart ?? monthStart
+    const periodLabel = d.financialCycle
+      ? `Salary Cycle (${d.financialCycle.startLabel} → ${localDateStr})`
+      : `This Month`
+    const periodTxns = state.transactions.filter(t =>
+      new Date(t.transaction_date) >= periodStart && !isSystemTx(t)
+    )
+
+    // Classify each transaction into a movement role
+    const byClass: Partial<Record<MovementClass, { total: number; items: Transaction[] }>> = {}
+    for (const t of periodTxns) {
+      const cls = getMovementClass(t)
+      if (!byClass[cls]) byClass[cls] = { total: 0, items: [] }
+      byClass[cls]!.total += t.amount
+      byClass[cls]!.items.push(t)
+    }
+    const clsTotal = (c: MovementClass) => byClass[c]?.total ?? 0
+    const clsItems = (c: MovementClass) => byClass[c]?.items ?? []
+
+    // Cash IN buckets
+    const recurringIn   = clsTotal('recurring-income')
+    const temporaryCash = clsTotal('temporary-cash')       // borrowed money received — LIABILITY
+    const oneTimeIn     = clsTotal('one-time-source')      // savings withdrawn, gifts, refunds
+    const recoverableIn = clsTotal('recoverable-realized') // repaid back to you
+    const totalCashIn   = recurringIn + temporaryCash + oneTimeIn + recoverableIn
+
+    // Cash OUT buckets (non-expense flows)
+    const expenseOut  = clsTotal('expense')
+    const lentOut     = clsTotal('lent-out')               // money lent — recoverable asset
+    const debtPayment = clsTotal('debt-payment')
+    const savingsOut  = clsTotal('savings-contributed')
+    const totalCashOut = expenseOut + lentOut + debtPayment + savingsOut
+
+    const netChange = totalCashIn - totalCashOut
+    const tempPct   = totalCashIn > 0 && temporaryCash > 0 ? Math.round(temporaryCash / totalCashIn * 100) : 0
+
+    // Starting balance approximation: current balance + period expenses - period income
+    const periodIncomeTotal = recurringIn
+    const periodExpenseTotal = expenseOut
+    const startingBalance = Math.round(totalBalance + periodExpenseTotal - periodIncomeTotal)
+
+    // Timeline — newest first, max 12 non-expense events
+    const timelineTxns = periodTxns
+      .filter(t => getMovementClass(t) !== 'expense')
+      .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+      .slice(0, 12)
+    const timeline = timelineTxns.map(t => {
+      const cls = getMovementClass(t)
+      const sign = ['recurring-income', 'temporary-cash', 'one-time-source', 'recoverable-realized'].includes(cls) ? '+' : '-'
+      return `${t.transaction_date} ${sign}₹${t.amount.toLocaleString()} [${cls}] ${t.description}`
+    }).join('\n')
+
+    // Largest events (pre-computed so AI doesn't have to search)
+    const biggestExpense = clsItems('expense').sort((a, b) => b.amount - a.amount)[0]
+    const biggestCashIn  = [...clsItems('recurring-income'), ...clsItems('temporary-cash'), ...clsItems('one-time-source')].sort((a, b) => b.amount - a.amount)[0]
+    const largestIn  = biggestCashIn  ? `${biggestCashIn.transaction_date} +₹${biggestCashIn.amount.toLocaleString()} [${getMovementClass(biggestCashIn)}] ${biggestCashIn.description}` : ''
+    const largestOut = biggestExpense ? `${biggestExpense.transaction_date} -₹${biggestExpense.amount.toLocaleString()} [expense] ${biggestExpense.description}` : ''
+
+    // Derived: Financial Pressure
+    const freeMoney   = d.realFreeMoney ?? 0
+    const daysLeft    = d.cycleDaysLeft ?? 99
+    const budgetPct   = d.weeklyBudget > 0 ? Math.round(d.weeklySpent / d.weeklyBudget * 100) : 0
+
+    const outstandingOwed = state.borrowings.filter(b => b.direction === 'borrowed' && b.remaining_amount > 0)
+    const outstandingLent = state.borrowings.filter(b => b.direction === 'lent'     && b.remaining_amount > 0)
+    const hasOverdue = outstandingOwed.some(b => b.repayment_date && new Date(b.repayment_date) < now)
+
+    const pressureLevel =
+      freeMoney < 0 || hasOverdue || (daysLeft <= 3 && freeMoney < 1000)      ? 'high'
+      : freeMoney < 2000 || (daysLeft <= 7 && freeMoney < 3000) || budgetPct > 90 ? 'medium'
+      : 'low'
+    const pressureReason =
+      freeMoney < 0             ? 'Free money is negative'
+      : hasOverdue              ? 'Overdue repayment obligation'
+      : daysLeft <= 3 && freeMoney < 1000 ? `Only ₹${freeMoney.toLocaleString()} with ${daysLeft} days left`
+      : budgetPct > 90          ? `Budget ${budgetPct}% used`
+      : freeMoney < 2000        ? 'Low free money buffer'
+      : 'Sufficient buffer for remaining cycle'
+
+    // Story confidence
+    const storyConfidence =
+      !d.financialCycle                                        ? 'low — no salary cycle configured'
+      : d.isWaitingForIncome                                   ? 'medium — salary not yet received this cycle'
+      : periodIncomeTotal === 0 && periodTxns.length < 5       ? 'medium — limited data'
+      : 'high — complete cycle data available'
+
+    // Next important event
+    const nextDue = outstandingOwed.filter(b => b.repayment_date).sort((a, b) => (a.repayment_date!).localeCompare(b.repayment_date!))[0]
+    const nextEventStr = nextDue
+      ? `borrowing-repayment ₹${nextDue.remaining_amount.toLocaleString()} to ${nextDue.person_name} due:${nextDue.repayment_date}`
+      : 'none'
+
+    // Outstanding liabilities / assets
+    const liabLines  = outstandingOwed.slice(0, 3).map(b => `${b.person_name} ₹${b.remaining_amount.toLocaleString()}${b.repayment_date ? ` due:${b.repayment_date}` : ''}`).join(', ')
+    const assetLines = outstandingLent.slice(0, 3).map(b => `${b.person_name} ₹${b.remaining_amount.toLocaleString()}`).join(', ')
+
+    parts.push(
+      `MoneyMovement(period:${periodLabel}):` +
+      // ── Facts ──
+      `\n[Facts]` +
+      `\nStartingBalance: ₹${startingBalance.toLocaleString()}` +
+      `\nCashIn(total:₹${totalCashIn.toLocaleString()}): recurring-income:₹${recurringIn.toLocaleString()}` +
+        (temporaryCash > 0 ? ` | temporary-cash(LIABILITY-${tempPct}%-of-cash-in):₹${temporaryCash.toLocaleString()}` : '') +
+        (oneTimeIn     > 0 ? ` | one-time-source:₹${oneTimeIn.toLocaleString()}` : '') +
+        (recoverableIn > 0 ? ` | recoverable-realized:₹${recoverableIn.toLocaleString()}` : '') +
+      `\nCashOut(total:₹${totalCashOut.toLocaleString()}): expenses:₹${expenseOut.toLocaleString()}` +
+        (lentOut     > 0 ? ` | lent-out(recoverable-asset):₹${lentOut.toLocaleString()}` : '') +
+        (debtPayment > 0 ? ` | debt-payment:₹${debtPayment.toLocaleString()}` : '') +
+        (savingsOut  > 0 ? ` | savings-contributed:₹${savingsOut.toLocaleString()}` : '') +
+      `\nEndingBalance: ₹${totalBalance.toLocaleString()}` +
+      (largestIn  ? `\nLargestCashIn:  ${largestIn}` : '') +
+      (largestOut ? `\nLargestExpense: ${largestOut}` : '') +
+      (timeline   ? `\nTimeline(newest-first):\n${timeline}` : '') +
+      // ── Derived insights ──
+      `\n[DerivedInsights]` +
+      `\nNetCashChange: ${netChange >= 0 ? '+' : ''}₹${netChange.toLocaleString()}` +
+      `\nFinancialPressure: ${pressureLevel} — ${pressureReason}` +
+      `\nNextImportantEvent: ${nextEventStr}` +
+      (liabLines  ? `\nLiabilities(you-owe): ${liabLines}` : '') +
+      (assetLines ? `\nRecoverableAssets(owed-to-you): ${assetLines}` : '') +
+      // ── Current position ──
+      `\n[CurrentPosition]` +
+      `\nFreeMoney: ₹${freeMoney.toLocaleString()}` +
+      `\nBudgetUsed: ${budgetPct}%` +
+      (d.cycleDaysLeft  != null ? `\nDaysLeftInCycle: ${d.cycleDaysLeft}` : '') +
+      (d.safeDailySpend != null ? `\nSafeDailySpend: ₹${Math.round(d.safeDailySpend).toLocaleString()}` : '') +
+      `\nStoryConfidence: ${storyConfidence}`
     )
   }
 
