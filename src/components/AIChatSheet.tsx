@@ -774,12 +774,12 @@ function renderRichText(
     <>
       {groups.map((group, gi) => {
         if (group.type === 'quick') {
-          // Status icon: detect 🟢/🟠/🔴 prefix from AI for color, strip from display
-          const statusMatch = group.text.match(/^([🟢🟠🔴])\s*/)
-          const statusEmoji = statusMatch?.[1]
-          const statusColor = statusEmoji === '🟢' ? c.good : statusEmoji === '🟠' ? '#F59713' : statusEmoji === '🔴' ? '#EF4444' : null
-          const StatusIcon = statusEmoji === '🟢' ? CheckCircle : statusEmoji === '🟠' ? AlertCircle : statusEmoji === '🔴' ? XCircle : null
-          const displayText = statusMatch ? group.text.slice(statusMatch[0].length) : group.text
+          // Status icon: 🟢 U+1F7E2 / 🟠 U+1F7E0 / 🔴 U+1F534 — use codePoint for reliable match
+          const cp = group.text.codePointAt(0)
+          const statusColor = cp === 0x1F7E2 ? c.good : cp === 0x1F7E0 ? '#F59713' : cp === 0x1F534 ? '#EF4444' : null
+          const StatusIcon = cp === 0x1F7E2 ? CheckCircle : cp === 0x1F7E0 ? AlertCircle : cp === 0x1F534 ? XCircle : null
+          // Supplementary plane emoji = 2 UTF-16 code units; skip 2 chars then trim leading space
+          const displayText = statusColor !== null ? group.text.slice(2).trimStart() : group.text
 
           return (
             <div key={gi}>
