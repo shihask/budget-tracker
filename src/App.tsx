@@ -162,6 +162,9 @@ function AppContent({ session }: { session: Session }) {
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
+  useEffect(() => {
+    document.body.style.background = dark ? '#0C0A07' : '#EDE7DD'
+  }, [dark])
   const [layout, setLayout] = useState<Layout>('grid')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
