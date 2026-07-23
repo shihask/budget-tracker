@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmtDate } from '@/lib/utils'
+import { fmtDate, openDatePicker } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
 import { filterAndSortTransactions, DEFAULT_TXN_FILTERS, type TransactionFilterState, type TxnSortKey } from '@/lib/transactionFilters'
 import { exportTransactionsCsv } from '@/lib/exportTransactionsCsv'
@@ -23,6 +23,7 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportedCount, setExportedCount] = useState<number | null>(null)
+  const dateToRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -139,9 +140,17 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
           </select>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({ ...f, dateFrom: e.target.value }))} style={{ ...inp, flex: 1 }} />
+          <input
+            type="date"
+            value={filters.dateFrom}
+            onChange={e => {
+              setFilters(f => ({ ...f, dateFrom: e.target.value }))
+              if (e.target.value) openDatePicker(dateToRef.current)
+            }}
+            style={{ ...inp, flex: 1 }}
+          />
           <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>to</span>
-          <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} style={{ ...inp, flex: 1 }} />
+          <input ref={dateToRef} type="date" value={filters.dateTo} onChange={e => setFilters(f => ({ ...f, dateTo: e.target.value }))} style={{ ...inp, flex: 1 }} />
         </div>
         <button
           onClick={() => setFilters(f => ({ ...f, showSystemTxns: !f.showSystemTxns }))}

@@ -8,6 +8,20 @@ export function cn(...inputs: ClassValue[]) {
 
 export class TimeoutError extends Error {}
 
+// Focuses and opens a native <input type="date"> picker, if the browser supports
+// showPicker() (Chrome/Edge, Safari 16.4+, Firefox 108+). No-ops silently otherwise —
+// e.g. iOS Safari's own date picker isn't openable programmatically, so the field
+// just ends up focused, which is still a reasonable fallback.
+export function openDatePicker(el: HTMLInputElement | null) {
+  if (!el) return
+  el.focus()
+  try {
+    el.showPicker?.()
+  } catch {
+    // ignore — showPicker() can throw if not called from a user gesture
+  }
+}
+
 // Races `promise` against a timer that rejects with a TimeoutError after `ms`.
 // Does NOT abort the underlying request — it only stops waiting for it, so
 // `promise` may still resolve in the background. Fine here since every

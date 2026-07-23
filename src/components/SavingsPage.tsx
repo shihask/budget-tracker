@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt, round2 } from '@/lib/utils'
+import { fmt, round2, openDatePicker } from '@/lib/utils'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -192,6 +192,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   const [fStatus, setFStatus] = useState<'active' | 'inactive' | 'all'>('active')
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
+  const fDateToRef = useRef<HTMLInputElement>(null)
   const activeFilterCount =
     (fQuery.trim() ? 1 : 0) + fTypes.size + (fStatus !== 'active' ? 1 : 0) + (fDateFrom ? 1 : 0) + (fDateTo ? 1 : 0)
   const clearFilters = () => { setFQuery(''); setFTypes(new Set()); setFStatus('active'); setFDateFrom(''); setFDateTo('') }
@@ -544,8 +545,16 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} style={{ ...inp, flex: 1 }} />
-              <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
+              <input
+                type="date"
+                value={fDateFrom}
+                onChange={e => {
+                  setFDateFrom(e.target.value)
+                  if (e.target.value) openDatePicker(fDateToRef.current)
+                }}
+                style={{ ...inp, flex: 1 }}
+              />
+              <input ref={fDateToRef} type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
             </div>
 
             <button

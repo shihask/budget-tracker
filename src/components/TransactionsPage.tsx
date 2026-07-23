@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
-import { fmt, fmtDate, fmtTime, round2, TimeoutError } from '@/lib/utils'
+import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
@@ -93,6 +93,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [filterGroup, setFilterGroup] = useState('all')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
+  const dateToRef = useRef<HTMLInputElement>(null)
   const [sortKey, setSortKey] = useState<TxnSortKey>('date_desc')
   const [exportOpen, setExportOpen] = useState(false)
   const [showSystemTxns, setShowSystemTxns] = useState(false)
@@ -477,9 +478,17 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </select>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={{ ...inp, flex: 1 }} />
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={e => {
+                  setFilterDateFrom(e.target.value)
+                  if (e.target.value) openDatePicker(dateToRef.current)
+                }}
+                style={{ ...inp, flex: 1 }}
+              />
               <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0 }}>to</span>
-              <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
+              <input ref={dateToRef} type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={{ ...inp, flex: 1 }} />
             </div>
             <button
               onClick={() => setShowSystemTxns(v => !v)}
