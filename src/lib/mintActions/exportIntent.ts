@@ -70,9 +70,17 @@ export function classifyExportIntent(
     }
   }
 
+  // Strip period/intent keywords before category matching so "salary cycle"
+  // doesn't accidentally match the "Salary" income category.
+  const catQ = q
+    .replace(/\b(salary cycle|this cycle|current cycle|last month|this month|current month|this week|current week)\b/g, ' ')
+    .replace(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/g, ' ')
+    .replace(/\b(export|download|csv|get me|all|transactions?)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim()
+
   // Longest-match category to avoid partial name collisions
   const matchedCat = state.categories
-    .filter(cat => q.includes(cat.name.toLowerCase()))
+    .filter(cat => catQ.includes(cat.name.toLowerCase()))
     .sort((a, b) => b.name.length - a.name.length)[0] ?? null
   const category = matchedCat?.id ?? 'all'
   if (matchedCat) periodLabel = `${matchedCat.name} — ${periodLabel}`
