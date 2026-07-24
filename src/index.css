@@ -11,6 +11,10 @@ html {
   /* overflow-x clip on html is safe — doesn't break iOS vertical scroll */
   overflow-x: clip;
   -webkit-text-size-adjust: 100%;
+  /* Block the browser/webview's native edge-swipe back/forward navigation so it
+     doesn't show a blank/black page during the gesture; app-level swipe-to-close
+     handlers (left-edge, on overlay pages) remain unaffected. */
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -18,6 +22,7 @@ body {
   padding: 0;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   /* Do NOT set overflow-x: hidden on body — iOS Safari kills vertical scroll */
+  overscroll-behavior-x: none;
 }
 
 /* ── Scrollbars ────────────────────────────────────────────────────────────── */
