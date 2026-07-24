@@ -144,8 +144,9 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
             type="date"
             value={filters.dateFrom}
             onChange={e => {
-              setFilters(f => ({ ...f, dateFrom: e.target.value }))
-              if (e.target.value) openDatePicker(dateToRef.current)
+              const value = e.target.value
+              setFilters(f => ({ ...f, dateFrom: value }))
+              if (value && !filters.dateTo) openDatePicker(dateToRef.current)
             }}
             style={{ ...inp, flex: 1 }}
           />

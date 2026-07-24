@@ -550,7 +550,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 value={fDateFrom}
                 onChange={e => {
                   setFDateFrom(e.target.value)
-                  if (e.target.value) openDatePicker(fDateToRef.current)
+                  if (e.target.value && !fDateTo) openDatePicker(fDateToRef.current)
                 }}
                 style={{ ...inp, flex: 1 }}
               />

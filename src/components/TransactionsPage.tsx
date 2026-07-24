@@ -483,7 +483,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 value={filterDateFrom}
                 onChange={e => {
                   setFilterDateFrom(e.target.value)
-                  if (e.target.value) openDatePicker(dateToRef.current)
+                  if (e.target.value && !filterDateTo) openDatePicker(dateToRef.current)
                 }}
                 style={{ ...inp, flex: 1 }}
               />
