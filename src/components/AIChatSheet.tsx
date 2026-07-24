@@ -20,6 +20,7 @@ import { detectMintAction } from '@/lib/mintActions'
 import type { MintAction } from '@/lib/mintActions'
 import { exportTransactionsCsv } from '@/lib/exportTransactionsCsv'
 import { ActionCard } from '@/components/mint-actions/ActionCard'
+import { parseBankSms } from '@/lib/bankSms'
 import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
@@ -49,7 +50,7 @@ type ChartData =
   | { type: 'monthly'; thisMonth: number; lastMonth: number; income: number }
 type SummaryCard = { icon: ReactNode; label: string; value: string; sub?: string; tone?: 'good' | 'warn' | 'bad' | 'neutral' }
 type ReceiptPrompt = {
-  receipt: PickedReceipt
+  receipt?: PickedReceipt  // absent when parsed from bank SMS
   description: string
   amount: number
   transactionDate: string
@@ -1390,6 +1391,27 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     setLoading(true)
     onBusyChange?.(true)
 
+    // Bank SMS — detect before intent classifier to avoid the amount parser grabbing it
+    const smsData = parseBankSms(text, state)
+    if (smsData) {
+      const defaultAccId = smsData.accountId || state.accounts.find(a => a.is_active)?.id || ''
+      setMessages(m => [...m, {
+        role: 'ai',
+        text: '',
+        receiptPrompt: {
+          description: smsData.description,
+          amount: smsData.amount,
+          transactionDate: smsData.transactionDate,
+          accountId: defaultAccId,
+          categoryId: smsData.categoryId,
+          categorySuggestion: smsData.categorySuggestion,
+          confidence: 'high',
+        },
+      }])
+      setLoading(false); onBusyChange?.(false)
+      return
+    }
+
     const allAccObjs = [
       ...state.accounts.filter(a => a.is_active),
       ...(state.credit_cards ?? []),
@@ -1684,7 +1706,9 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
         from_account_id: rp.accountId,
       })
       if (!tx) throw new Error('Save failed')
-      onUploadReceipt?.(tx.id, rp.receipt)?.catch(err => onReceiptFailed?.(tx, rp.receipt, err))
+      if (rp.receipt) {
+        onUploadReceipt?.(tx.id, rp.receipt)?.catch(err => onReceiptFailed?.(tx, rp.receipt!, err))
+      }
 
       const savedExpense: SavedExpense = {
         description: rp.description, amount: rp.amount,
@@ -1693,7 +1717,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
       }
       setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : {
         role: 'ai',
-        text: `Done! Recorded expense "${rp.description}" ₹${rp.amount.toLocaleString()} under ${savedExpense.category} from ${savedExpense.account}. Receipt attached.`,
+        text: `Done! Recorded expense "${rp.description}" ₹${rp.amount.toLocaleString()} under ${savedExpense.category} from ${savedExpense.account}.${rp.receipt ? ' Receipt attached.' : ''}`,
         savedExpense,
       }))
     } catch {
@@ -1913,6 +1937,12 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
                 }
                 return (
                   <div style={{ maxWidth: '92%', width: '100%', background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 16, padding: '12px 14px' }}>
+                    {!rp.receipt && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                        <Info size={13} color={c.accent} strokeWidth={2.2} />
+                        <span style={{ font: '600 12px Plus Jakarta Sans', color: c.accent }}>From bank SMS</span>
+                      </div>
+                    )}
                     <div style={rowStyle}>
                       <span style={labelStyle}>Merchant</span>
                       <input
