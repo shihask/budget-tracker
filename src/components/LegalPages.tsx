@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react'
 import { LeafWatermark } from './AuthPage'
+import { version } from '../../package.json'
 
 const accent = '#16C98A'
 
@@ -43,8 +44,13 @@ const backBtn: React.CSSProperties = {
   padding: 0, marginBottom: 20,
 }
 
+const link: React.CSSProperties = {
+  color: accent, textDecoration: 'underline', fontWeight: 700,
+}
+
 const EFFECTIVE_DATE = 'June 26, 2025'
 const CONTACT_EMAIL = 'hello@moneyplant.online'
+const WEBSITE_URL = 'moneyplant.online'
 
 export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
   return (
@@ -193,6 +199,77 @@ export function TermsOfService({ onBack }: { onBack: () => void }) {
         <div style={p}>
           Questions about these terms? Contact us at <strong>{CONTACT_EMAIL}</strong>.
         </div>
+      </div>
+    </div>
+  )
+}
+
+export function AboutPage({ onBack }: { onBack: () => void }) {
+  return (
+    <div style={wrap}>
+      <LeafWatermark />
+      <div style={card}>
+        <button onClick={onBack} style={backBtn}>
+          <ArrowLeft size={16} /> Back
+        </button>
+        <div style={h1}>About MoneyPlant</div>
+        <div style={updated}>Know Before You Spend.</div>
+
+        <div style={p}>
+          MoneyPlant predicts your future cash flow so you always know what you can safely spend
+          before your next income. Track expenses, manage commitments, plan savings, and make
+          confident money decisions — without complicated spreadsheets.
+        </div>
+
+        <div style={h2}>Who It's For</div>
+        <div style={p}>
+          MoneyPlant is built for salaried employees planning around payday, families coordinating
+          bills and shared expenses, freelancers managing variable income, and students staying
+          within budget.
+        </div>
+
+        <div style={h2}>Version</div>
+        <div style={p}>v{version}</div>
+
+        <div style={h2}>Website</div>
+        <div style={p}>
+          <a href={`https://${WEBSITE_URL}`} target="_blank" rel="noopener noreferrer" style={link}>
+            {WEBSITE_URL}
+          </a>
+        </div>
+
+        <div style={h2}>Disclaimer</div>
+        <div style={p}>
+          MoneyPlant is a personal finance tracking tool. It is not a financial advisor, bank, or
+          investment platform. Any insights or suggestions are informational only.
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ContactPage({ onBack }: { onBack: () => void }) {
+  return (
+    <div style={wrap}>
+      <LeafWatermark />
+      <div style={card}>
+        <button onClick={onBack} style={backBtn}>
+          <ArrowLeft size={16} /> Back
+        </button>
+        <div style={h1}>Support & Contact</div>
+        <div style={updated}>Need help with MoneyPlant?</div>
+
+        <div style={h2}>Email Support</div>
+        <div style={p}>
+          <a href={`mailto:${CONTACT_EMAIL}`} style={link}>{CONTACT_EMAIL}</a>
+        </div>
+        <div style={p}>
+          • Questions about your account<br />
+          • Report a bug<br />
+          • Suggest a feature
+        </div>
+
+        <div style={p}>We do our best to respond as soon as possible.</div>
       </div>
     </div>
   )

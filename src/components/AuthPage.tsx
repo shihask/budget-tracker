@@ -8,11 +8,11 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { version } from '../../package.json'
-import { PrivacyPolicy, TermsOfService } from './LegalPages'
+import { PrivacyPolicy, TermsOfService, AboutPage, ContactPage } from './LegalPages'
 import { MintAnimation } from './MintAnimation'
 
 type Mode = 'login' | 'signup' | 'check-email' | 'forgot' | 'forgot-sent'
-type LegalPage = 'privacy' | 'terms' | null
+type LegalPage = 'privacy' | 'terms' | 'about' | 'contact' | null
 
 const accent = '#16C98A'
 
@@ -219,6 +219,8 @@ export function AuthPage() {
 
   if (legalPage === 'privacy') return <PrivacyPolicy onBack={() => setLegalPage(null)} />
   if (legalPage === 'terms') return <TermsOfService onBack={() => setLegalPage(null)} />
+  if (legalPage === 'about') return <AboutPage onBack={() => setLegalPage(null)} />
+  if (legalPage === 'contact') return <ContactPage onBack={() => setLegalPage(null)} />
 
   const handleOAuth = async (provider: 'google') => {
     clearError(); setLoading(true)
@@ -524,7 +526,7 @@ export function AuthPage() {
 function LandingScreen({ onSignIn, onSignUp, onLegal }: {
   onSignIn: () => void
   onSignUp: () => void
-  onLegal: (page: 'privacy' | 'terms') => void
+  onLegal: (page: Exclude<LegalPage, null>) => void
 }) {
   const [navStuck, setNavStuck] = useState(false)
 
@@ -742,6 +744,8 @@ function LandingScreen({ onSignIn, onSignUp, onLegal }: {
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
       <footer className="mp-footer">
         <span>v{version}</span>
+        <button onClick={() => onLegal('about')}>About</button>
+        <button onClick={() => onLegal('contact')}>Contact</button>
         <button onClick={() => onLegal('privacy')}>Privacy Policy</button>
         <button onClick={() => onLegal('terms')}>Terms of Service</button>
       </footer>
