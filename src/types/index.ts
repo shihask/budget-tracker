@@ -414,7 +414,9 @@ export interface JourneyGoalItem    { name: string; target: number; current: num
 export interface JourneyMilestone   { emoji: string; text: string; section: 'seed' | 'roots' | 'stem' | 'branch' | 'flower' }
 export interface JourneyFlowItem    { name: string; amount: number }
 export interface JourneyHealthItem  { label: string; score: number; max: number }
-export type JourneyEventType = 'income' | 'savings' | 'commitment' | 'goal' | 'expense'
+export type JourneyEventType =
+  | 'income' | 'savings' | 'commitment' | 'goal' | 'expense'
+  | 'borrowed' | 'lent' | 'repayment_in' | 'repayment_out'
 export interface JourneyReplayEvent {
   date: string; emoji: string; title: string; subtitle?: string; amount?: number
   eventType: JourneyEventType
@@ -464,13 +466,18 @@ export interface JourneyData {
   spendingPct: number
   // Efficiency
   efficiencyPct: number
-  // Cycle comparison
-  prevRootsTotal: number
-  prevSavingsContributed: number
-  hasPrevData: boolean
+  // Borrowing activity this month
+  borrowedTotal: number
+  lentTotal: number
+  repaidToOthersTotal: number
+  repaymentsReceivedTotal: number
+  hasBorrowingActivity: boolean
+  // Balance bookends
+  openingBalance: number
+  closingBalance: number
   // Meta
-  cycleLabel: string
-  isCurrentCycle: boolean
+  monthLabel: string
+  isCurrentMonth: boolean
 }
 
 export type Layout = 'grid' | 'carousel' | 'list'

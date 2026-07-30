@@ -5,7 +5,8 @@ import type { AppState, DerivedMetrics, TrendPoint, BarPoint, CatPoint, Timeline
 import { TODAY, iso, localIso, addDays, getWeekStart, getMonthStart } from '@/lib/utils'
 import { ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
-import { getCurrentFinancialCycle, getFinancialCycleAtOffset, getPreviousFinancialCycle } from '@/lib/financial-cycle'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
+import { getCurrentBalance, getOpeningBalanceForMonth, getClosingBalanceForMonth } from '@/lib/account-balance'
 import { getRemainingObligations } from '@/lib/obligations'
 import { buildCashFlowForecast, summarizeCashFlow } from '@/lib/cashflow'
 import { estimateHistoricalDailyIncome, calculateAvgDailySpending, calculateSafeUntilDays, calculateTodaySummary, calculateWeekSummary } from '@/lib/variable-income'
@@ -52,8 +53,7 @@ function makeScopeFilter(state: AppState) {
 
 export function derive(state: AppState): DerivedMetrics {
   const catMap = catById(state.categories)
-  const accs = state.accounts.filter(a => a.is_active)
-  const actualBalance = accs.reduce((s, a) => s + a.current_balance, 0)
+  const actualBalance = getCurrentBalance(state)
   const emergencyFund = state.settings.emergency_fund
   const availableBalance = actualBalance - emergencyFund
   const now = new Date()
@@ -299,23 +299,22 @@ const SAVINGS_TYPE_LABEL: Record<string, string> = {
   fd: 'Fixed Deposit', ppf_nps: 'PPF / NPS', chit: 'Chit Fund', custom: 'Investment',
 }
 
-export function journeyData(state: AppState, cycleOffset: number = 0): JourneyData {
-  const pattern = getIncomePattern(state.settings)
-  const cycle = cycleOffset === 0 ? getCurrentFinancialCycle(state) : getFinancialCycleAtOffset(state, cycleOffset)
-  const cycleStart = cycle.cycleStart
-  const cycleEnd = cycle.cycleEnd
-  const cycleStartIso = iso(cycleStart)
-  const cycleEndIso = iso(cycleEnd)
-  const cycleEndExclusive = new Date(cycleEnd.getTime() + 86400000)
-  const inCycle = (dateStr: string) => dateStr >= cycleStartIso && dateStr <= cycleEndIso
-  const inCycleTs = (d: Date) => d >= cycleStart && d < cycleEndExclusive
-  const cycleLabel = cycleStart.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
-  const isCurrentCycle = cycleOffset === 0
+export function journeyData(state: AppState, monthOffset: number = 0): JourneyData {
+  const target = new Date(TODAY.getFullYear(), TODAY.getMonth() - monthOffset, 1)
+  const y = target.getFullYear()
+  const m = target.getMonth()
+  const prefix = `${y}-${String(m + 1).padStart(2, '0')}`
+  const monthLabel = monthLabelForOffset(monthOffset)
+  const isCurrentMonth = monthOffset === 0
+  const monthStart = target
+  const monthEndExclusive = new Date(y, m + 1, 1)
+  const inMonth = (dateStr: string) => dateStr.startsWith(prefix)
+  const inMonthTs = (d: Date) => d >= monthStart && d < monthEndExclusive
   const catMap = catById(state.categories)
 
-  // Seed — income in this cycle
+  // Seed — income this month
   const incomeTxns = state.transactions.filter(
-    t => t.transaction_type === 'income' && inCycle(t.transaction_date)
+    t => t.transaction_type === 'income' && inMonth(t.transaction_date)
   )
   const incomeByCat: Record<string, number> = {}
   incomeTxns.forEach(t => {
@@ -329,13 +328,13 @@ export function journeyData(state: AppState, cycleOffset: number = 0): JourneyDa
 
   // Roots — commitments paid + savings contributed + goal contributions
   const commitmentsPaid = state.transactions
-    .filter(t => t.transaction_type === 'commitment' && inCycle(t.transaction_date))
+    .filter(t => t.transaction_type === 'commitment' && inMonth(t.transaction_date))
     .reduce((s, t) => s + t.amount, 0)
   const savingsContributed = state.transactions
-    .filter(t => t.transaction_type === 'savings_contribution' && inCycle(t.transaction_date))
+    .filter(t => t.transaction_type === 'savings_contribution' && inMonth(t.transaction_date))
     .reduce((s, t) => s + t.amount, 0)
   const goalsContributed = state.goal_contributions
-    .filter(gc => inCycleTs(new Date(gc.created_at)))
+    .filter(gc => inMonthTs(new Date(gc.created_at)))
     .reduce((s, gc) => s + gc.amount, 0)
   const rootsTotal = commitmentsPaid + savingsContributed + goalsContributed
   const rootsPct = totalIncome > 0 ? Math.round((rootsTotal / totalIncome) * 100) : 0
@@ -372,7 +371,7 @@ export function journeyData(state: AppState, cycleOffset: number = 0): JourneyDa
   if (totalWealth > 0 && totalWealth >= rootsTotal) {
     heroValue = totalWealth; heroLabel = 'Future Wealth Built'
   } else if (rootsTotal > 0) {
-    heroValue = rootsTotal; heroLabel = 'Growth This Cycle'
+    heroValue = rootsTotal; heroLabel = 'Growth This Month'
   } else {
     heroValue = totalIncome; heroLabel = 'Seed Received'
   }
@@ -386,14 +385,14 @@ export function journeyData(state: AppState, cycleOffset: number = 0): JourneyDa
   if (challengeEnabled) {
     if (streak >= 14) milestones.push({ emoji: 'flame', text: `${streak}-day streak — unstoppable!`, section: 'stem' })
     else if (streak >= 7) milestones.push({ emoji: 'leaf', text: `${streak}-day streak — keep going!`, section: 'stem' })
-    else if (successDays === 1) milestones.push({ emoji: 'leaf', text: 'First challenge win this cycle!', section: 'stem' })
+    else if (successDays === 1) milestones.push({ emoji: 'leaf', text: 'First challenge win this month!', section: 'stem' })
   }
   if (totalWealth >= 100000)
     milestones.push({ emoji: 'tree', text: 'Wealth crossed ₹1 lakh!', section: 'branch' })
   else if (totalWealth >= 50000)
     milestones.push({ emoji: 'tree', text: 'Wealth crossed ₹50,000!', section: 'branch' })
   if (completedGoals >= 1)
-    milestones.push({ emoji: 'flower', text: `${completedGoals} goal${completedGoals > 1 ? 's' : ''} achieved this cycle!`, section: 'flower' })
+    milestones.push({ emoji: 'flower', text: `${completedGoals} goal${completedGoals > 1 ? 's' : ''} achieved this month!`, section: 'flower' })
 
   // Story line — one human sentence
   const brief = (n: number) => '₹' + (n >= 100000 ? +(n / 100000).toFixed(1) + 'L' : n >= 1000 ? Math.round(n / 1000) + 'k' : n)
@@ -429,9 +428,9 @@ export function journeyData(state: AppState, cycleOffset: number = 0): JourneyDa
   const healthScore = savingsScore + challengeScore + goalScore + wealthScore
   const healthLabel = healthScore >= 85 ? 'Thriving' : healthScore >= 70 ? 'Growing Strong' : healthScore >= 55 ? 'Building' : healthScore >= 40 ? 'Sprouting' : 'Just Planted'
 
-  // Lifestyle spending — regular expenses in the cycle
+  // Lifestyle spending — regular expenses this month
   const lifestyleTxns = state.transactions.filter(
-    t => t.transaction_type === 'expense' && inCycle(t.transaction_date)
+    t => t.transaction_type === 'expense' && inMonth(t.transaction_date)
   )
   const lifestyleSpending = lifestyleTxns.reduce((s, t) => s + t.amount, 0)
   const lifeCatAcc: Record<string, number> = {}
@@ -445,16 +444,16 @@ export function journeyData(state: AppState, cycleOffset: number = 0): JourneyDa
     .slice(0, 4)
   const spendingPct = totalIncome > 0 ? Math.round((lifestyleSpending / totalIncome) * 100) : 0
 
-  // Saved breakdown — individual contributions this cycle grouped by name
+  // Saved breakdown — individual contributions this month grouped by name
   const savedAcc: Record<string, number> = {}
   state.transactions
-    .filter(t => t.transaction_type === 'savings_contribution' && inCycle(t.transaction_date))
+    .filter(t => t.transaction_type === 'savings_contribution' && inMonth(t.transaction_date))
     .forEach(t => { const n = t.description || 'Savings'; savedAcc[n] = (savedAcc[n] || 0) + t.amount })
   state.transactions
-    .filter(t => t.transaction_type === 'commitment' && inCycle(t.transaction_date))
+    .filter(t => t.transaction_type === 'commitment' && inMonth(t.transaction_date))
     .forEach(t => { const n = t.description || 'Commitment'; savedAcc[n] = (savedAcc[n] || 0) + t.amount })
   state.goal_contributions
-    .filter(gc => inCycleTs(new Date(gc.created_at)))
+    .filter(gc => inMonthTs(new Date(gc.created_at)))
     .forEach(gc => { const n = state.goals.find(g => g.id === gc.goal_id)?.name || 'Goal'; savedAcc[n] = (savedAcc[n] || 0) + gc.amount })
   const savedBreakdown: JourneyFlowItem[] = Object.entries(savedAcc)
     .map(([name, amount]) => ({ name, amount }))
@@ -473,42 +472,60 @@ export function journeyData(state: AppState, cycleOffset: number = 0): JourneyDa
   }
   const replayEvents: JourneyReplayEvent[] = []
   state.transactions
-    .filter(t => t.transaction_type === 'income' && inCycle(t.transaction_date))
+    .filter(t => t.transaction_type === 'income' && inMonth(t.transaction_date))
     .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'coins', title: t.description, subtitle: catMap[t.category_id ?? '']?.name, amount: t.amount, eventType: 'income' }))
   state.transactions
-    .filter(t => t.transaction_type === 'savings_contribution' && inCycle(t.transaction_date))
+    .filter(t => t.transaction_type === 'savings_contribution' && inMonth(t.transaction_date))
     .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'trending-up', title: t.description, amount: t.amount, eventType: 'savings' }))
   state.transactions
-    .filter(t => t.transaction_type === 'commitment' && inCycle(t.transaction_date))
+    .filter(t => t.transaction_type === 'commitment' && inMonth(t.transaction_date))
     .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'sprout', title: t.description, amount: t.amount, eventType: 'commitment' }))
   state.goal_contributions
-    .filter(gc => inCycleTs(new Date(gc.created_at)))
+    .filter(gc => inMonthTs(new Date(gc.created_at)))
     .forEach(gc => replayEvents.push({ date: gc.created_at.slice(0, 10), emoji: 'target', title: state.goals.find(g => g.id === gc.goal_id)?.name ?? 'Goal funded', amount: gc.amount, eventType: 'goal' }))
   lifestyleTxns.forEach(t => {
     const catName = catMap[t.category_id ?? '']?.name
     replayEvents.push({ date: t.transaction_date, emoji: expenseCatEmoji(catName), title: t.description, subtitle: catName, amount: t.amount, eventType: 'expense' })
   })
+
+  // Borrowing activity — borrowed/lent + their repayments, joined to state.borrowings
+  // for the counterparty's name (natural-language titles, e.g. "Borrowed from Arun").
+  const borrowingById = Object.fromEntries(state.borrowings.map(b => [b.id, b] as const))
+  const titleByEvent: Record<'borrowed' | 'lent' | 'repayment_out' | 'repayment_in', (name: string) => string> = {
+    borrowed: name => `Borrowed from ${name}`,
+    lent: name => `Lent to ${name}`,
+    repayment_out: name => `Repaid ${name}`,
+    repayment_in: name => `Received from ${name}`,
+  }
+  let borrowedTotal = 0, lentTotal = 0, repaidToOthersTotal = 0, repaymentsReceivedTotal = 0
+  state.transactions
+    .filter(t => (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment') && inMonth(t.transaction_date))
+    .forEach(t => {
+      const isRepayment = t.transaction_type === 'borrowing_repayment'
+      const b = t.borrowing_id ? borrowingById[t.borrowing_id] : undefined
+      const credit = t.is_credit ?? (b ? b.direction === (isRepayment ? 'lent' : 'borrowed') : true)
+      const eventType = isRepayment
+        ? (credit ? 'repayment_in' : 'repayment_out')
+        : (credit ? 'borrowed' : 'lent')
+      if (eventType === 'borrowed') borrowedTotal += t.amount
+      else if (eventType === 'lent') lentTotal += t.amount
+      else if (eventType === 'repayment_out') repaidToOthersTotal += t.amount
+      else repaymentsReceivedTotal += t.amount
+      const title = b ? titleByEvent[eventType](b.person_name) : t.description
+      replayEvents.push({ date: t.transaction_date, emoji: 'landmark', title, amount: t.amount, eventType })
+    })
+  const hasBorrowingActivity = borrowedTotal > 0 || lentTotal > 0 || repaidToOthersTotal > 0 || repaymentsReceivedTotal > 0
+
   replayEvents.sort((a, b) => a.date.localeCompare(b.date))
 
   // Growth efficiency = rootsTotal as % of totalIncome
   const efficiencyPct = totalIncome > 0 ? Math.round((rootsTotal / totalIncome) * 100) : 0
 
-  // Previous cycle — one step further back than whichever cycle is being viewed
-  const prevCycle = getPreviousFinancialCycle(state, cycle, pattern)
-  const prevCycleStartIso = iso(prevCycle.cycleStart)
-  const prevCycleEndIso = iso(prevCycle.cycleEnd)
-  const prevCycleEndExclusive = new Date(prevCycle.cycleEnd.getTime() + 86400000)
-  const inPrevCycle = (dateStr: string) => dateStr >= prevCycleStartIso && dateStr <= prevCycleEndIso
-  const prevRootsTotal = state.transactions
-    .filter(t => ['commitment', 'savings_contribution'].includes(t.transaction_type) && inPrevCycle(t.transaction_date))
-    .reduce((s, t) => s + t.amount, 0)
-    + state.goal_contributions
-      .filter(gc => { const d = new Date(gc.created_at); return d >= prevCycle.cycleStart && d < prevCycleEndExclusive })
-      .reduce((s, gc) => s + gc.amount, 0)
-  const prevSavingsContributed = state.transactions
-    .filter(t => t.transaction_type === 'savings_contribution' && inPrevCycle(t.transaction_date))
-    .reduce((s, t) => s + t.amount, 0)
-  const hasPrevData = prevRootsTotal > 0 || prevSavingsContributed > 0
+  // Balance bookends — reconstructed via the general-purpose Account Balance Engine.
+  // Pass TODAY explicitly so "is this the current month" agrees with isCurrentMonth above
+  // (both derived from the same frozen "now", not a fresh Date() read mid-render).
+  const openingBalance = getOpeningBalanceForMonth(state, y, m)
+  const closingBalance = getClosingBalanceForMonth(state, y, m, TODAY)
 
   return {
     totalIncome, incomeItems,
@@ -523,7 +540,8 @@ export function journeyData(state: AppState, cycleOffset: number = 0): JourneyDa
     replayEvents,
     lifestyleSpending, lifestyleCategories, savedBreakdown, spendingPct,
     efficiencyPct,
-    prevRootsTotal, prevSavingsContributed, hasPrevData,
-    cycleLabel, isCurrentCycle,
+    borrowedTotal, lentTotal, repaidToOthersTotal, repaymentsReceivedTotal, hasBorrowingActivity,
+    openingBalance, closingBalance,
+    monthLabel, isCurrentMonth,
   }
 }

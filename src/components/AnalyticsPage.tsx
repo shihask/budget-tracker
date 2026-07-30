@@ -17,7 +17,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; style?: Reac
   sprout: Sprout, leaf: Leaf, flame: Flame, tree: TreeDeciduous, flower: Flower2,
   coins: Coins, 'trending-up': TrendingUp, target: Target, 'shopping-cart': ShoppingCart,
   utensils: UtensilsCrossed, lightbulb: Lightbulb, fuel: Fuel, 'shopping-bag': ShoppingBag,
-  hospital: Hospital, 'circle-dot': CircleDot,
+  hospital: Hospital, 'circle-dot': CircleDot, landmark: Landmark,
 }
 function IconByName({ name, size = 16, style }: { name: string; size?: number; style?: React.CSSProperties }) {
   const Icon = ICON_MAP[name]
@@ -57,7 +57,6 @@ const DAY_W = 32
 const WEEK_BAR_W = 46
 const WEEKS_HISTORY = 20
 const MAX_MONTHS_BACK = 36
-const MAX_CYCLES_BACK = 24
 const J = { seed: '#D97706', roots: '#059669', stem: '#16A34A', branch: '#0D9488', flower: '#D946EF' }
 
 function NavChevron({ dir, disabled, onClick }: { dir: 'left' | 'right'; disabled?: boolean; onClick: () => void }) {
@@ -177,15 +176,15 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const barsScrollRef = useRef<HTMLDivElement>(null)
 
-  // Past-period navigation — Category/Timeline share a calendar-month offset, Journey has its own cycle offset
+  // Past-period navigation — Category/Timeline share a calendar-month offset; Journey has its own, independent one (also calendar-month, since Journey is now a monthly diary, not salary-cycle-based)
   const [monthOffset, setMonthOffset] = useState(0)
-  const [cycleOffset, setCycleOffset] = useState(0)
+  const [journeyMonthOffset, setJourneyMonthOffset] = useState(0)
   useEffect(() => { setSelectedDay(null) }, [monthOffset])
   useEffect(() => { setSelectedTrendDate(null) }, [trendRange])
   const goPrevMonth = () => setMonthOffset(o => Math.min(MAX_MONTHS_BACK, o + 1))
   const goNextMonth = () => setMonthOffset(o => Math.max(0, o - 1))
-  const goPrevCycle = () => setCycleOffset(o => Math.min(MAX_CYCLES_BACK, o + 1))
-  const goNextCycle = () => setCycleOffset(o => Math.max(0, o - 1))
+  const goPrevJourneyMonth = () => setJourneyMonthOffset(o => Math.min(MAX_MONTHS_BACK, o + 1))
+  const goNextJourneyMonth = () => setJourneyMonthOffset(o => Math.max(0, o - 1))
 
   // Swipe-back gesture
   const [dragX, setDragX] = useState(0)
@@ -251,7 +250,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const timeline = useMemo(() => monthTimeline(state, monthOffset), [state, monthOffset])
   const catsMonthLabel = monthOffset === 0 ? 'This month' : monthLabelForOffset(monthOffset)
   const maxDayTotal = useMemo(() => Math.max(...timeline.byDay.map(d => d.total), 1), [timeline])
-  const journey  = useMemo(() => journeyData(state, cycleOffset), [state, cycleOffset])
+  const journey  = useMemo(() => journeyData(state, journeyMonthOffset), [state, journeyMonthOffset])
 
   useEffect(() => {
     if (tab === 'weeks' && barsScrollRef.current) {
@@ -747,6 +746,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
           const nextPts     = plantStage < 5 ? [20,40,60,80,100][plantStage - 1] - journey.healthScore : 0
           const PlantIcon   = [Sprout, Leaf, TreeDeciduous, TreeDeciduous, Flower2][plantStage - 1]
           const hColor      = journey.healthScore >= 80 ? '#D946EF' : journey.healthScore >= 60 ? '#0D9488' : journey.healthScore >= 40 ? '#16A34A' : journey.healthScore >= 20 ? '#D97706' : '#9CA3AF'
+          const journeyMonthNameOnly = journey.monthLabel.split(' ')[0]
+          const journeyNoActivity    = journey.openingBalance === journey.closingBalance
           const treeStages = [
             { icon: 'flower', label: 'Flowers', value: journey.activeGoals > 0 ? `${journey.activeGoals} active` : '—', color: J.flower, has: journey.activeGoals > 0 },
             { icon: 'tree', label: 'Branches', value: journey.totalWealth > 0 ? fmt(journey.totalWealth) : '—', color: J.branch, has: journey.totalWealth > 0 },
@@ -760,11 +761,11 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
             {/* Header + view switcher */}
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <NavChevron dir="left" onClick={goPrevCycle} disabled={cycleOffset >= MAX_CYCLES_BACK} />
+                <NavChevron dir="left" onClick={goPrevJourneyMonth} disabled={journeyMonthOffset >= MAX_MONTHS_BACK} />
                 <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', flex: 1, textAlign: 'center' }}>
-                  {journey.cycleLabel} Journey
+                  {journey.monthLabel} Journey
                 </div>
-                <NavChevron dir="right" onClick={goNextCycle} disabled={cycleOffset === 0} />
+                <NavChevron dir="right" onClick={goNextJourneyMonth} disabled={journeyMonthOffset === 0} />
               </div>
               <div style={{ display: 'flex', gap: 3, background: c.surface2, borderRadius: 12, padding: 3 }}>
                 {(['flow', 'timeline', 'plant'] as const).map(v => (
@@ -803,7 +804,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                           </div>
                         ))}
                       </div>
-                    : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No income logged this cycle</div>
+                    : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No income logged this month</div>
                   }
                 </div>
 
@@ -842,7 +843,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                           </div>
                         ))}
                       </div>
-                    : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Nothing saved this cycle yet</div>
+                    : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Nothing saved this month yet</div>
                   }
                 </div>
 
@@ -881,9 +882,62 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                           </div>
                         ))}
                       </div>
-                    : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No lifestyle spending this cycle</div>
+                    : <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No lifestyle spending this month</div>
                   }
                 </div>
+
+                {/* → Borrowing connector */}
+                {journey.hasBorrowingActivity && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '3px 0' }}>
+                    <div style={{ width: 1.5, height: 26, background: 'linear-gradient(to bottom,#0EA5E9,#0284C7)', opacity: 0.3, borderRadius: 1 }} />
+                  </div>
+                )}
+
+                {/* Borrowing */}
+                {journey.hasBorrowingActivity && (
+                  <div style={{ background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid #0EA5E920` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <span style={{ lineHeight: 1, display: 'flex', alignItems: 'center' }}><Landmark size={22} /></span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Borrowing</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {(journey.borrowedTotal > 0 || journey.repaidToOthersTotal > 0) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {journey.borrowedTotal > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>Borrowed</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(journey.borrowedTotal)}</span>
+                            </div>
+                          )}
+                          {journey.repaidToOthersTotal > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>Repaid</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(journey.repaidToOthersTotal)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {(journey.lentTotal > 0 || journey.repaymentsReceivedTotal > 0) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {journey.lentTotal > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>Lent</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(journey.lentTotal)}</span>
+                            </div>
+                          )}
+                          {journey.repaymentsReceivedTotal > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>Received Back</span>
+                              <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(journey.repaymentsReceivedTotal)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* → Wealth connector */}
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '3px 0' }}>
@@ -955,41 +1009,38 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                   }
                 </div>
 
-                {/* vs Last Cycle */}
-                {journey.hasPrevData && (
-                  <div style={{ marginTop: 14, background: c.surface, borderRadius: 18, padding: 16, boxShadow: c.cardShadow, border: `1px solid ${c.faint}` }}>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 12 }}>vs Last Cycle</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {[
-                        { label: 'Saved & Invested', curr: journey.rootsTotal, prev: journey.prevRootsTotal, color: '#10B981' },
-                        { label: 'Savings', curr: journey.savingsContributed, prev: journey.prevSavingsContributed, color: '#6366F1' },
-                      ].filter(r => r.prev > 0 || r.curr > 0).map(row => {
-                        const diff = row.prev > 0 ? Math.round(((row.curr - row.prev) / row.prev) * 100) : null
-                        return (
-                          <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ width: 7, height: 7, borderRadius: 2, background: row.color, flexShrink: 0 }} />
-                            <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{row.label}</span>
-                            <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(row.curr)}</span>
-                            {diff !== null && (
-                              <span style={{ font: '700 11px Plus Jakarta Sans', color: diff >= 0 ? '#16A34A' : '#EF4444', background: diff >= 0 ? '#16A34A18' : '#EF444418', borderRadius: 6, padding: '2px 8px', minWidth: 44, textAlign: 'center', flexShrink: 0 }}>
-                                {diff >= 0 ? '+' : ''}{diff}%
-                              </span>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-
               </div>
             )}
 
             {/* ─────── TIMELINE VIEW ─────── */}
             {journeyView === 'timeline' && (
               <div>
+                {/* Summary strip — titleless, scrolls away naturally with the rest of the content */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                  {[
+                    { label: 'Opening', value: journey.openingBalance },
+                    { label: 'Income', value: journey.totalIncome },
+                    { label: 'Spent', value: journey.lifestyleSpending },
+                    { label: 'Saved', value: journey.rootsTotal },
+                    { label: 'Closing', value: journey.closingBalance },
+                  ].map(item => (
+                    <div key={item.label} style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+                      <div style={{ font: '600 9.5px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{item.label}</div>
+                      <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fmt(item.value)}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Opening Balance bookend — visually distinct from event rows, narrative not ledger copy */}
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 7, padding: '10px 0', background: c.surface2, borderRadius: 10, marginBottom: 10 }}>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Started {journeyMonthNameOnly} with</span>
+                  <span style={{ font: '800 13px Plus Jakarta Sans', color: c.ink }}>{fmt(journey.openingBalance)}</span>
+                </div>
+
                 {journey.replayEvents.length === 0
-                  ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0' }}>No events to replay this cycle yet.</div>
+                  ? <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '20px 0', textAlign: 'center' }}>
+                      {journeyNoActivity ? 'No financial activity this month. Your balance remained unchanged.' : 'No events to replay this month yet.'}
+                    </div>
                   : (() => {
                       const grouped: Record<string, typeof journey.replayEvents> = {}
                       journey.replayEvents.forEach(ev => {
@@ -1030,8 +1081,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                                         {ev.subtitle && <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{ev.subtitle}</div>}
                                       </div>
                                       {ev.amount != null && (
-                                        <div style={{ font: '700 12px Plus Jakarta Sans', color: ev.eventType === 'income' ? '#10B981' : c.ink, flexShrink: 0 }}>
-                                          {ev.eventType === 'income' ? '+' : ''}{fmt(ev.amount)}
+                                        <div style={{ font: '700 12px Plus Jakarta Sans', color: (ev.eventType === 'income' || ev.eventType === 'borrowed' || ev.eventType === 'repayment_in') ? '#10B981' : c.ink, flexShrink: 0 }}>
+                                          {(ev.eventType === 'income' || ev.eventType === 'borrowed' || ev.eventType === 'repayment_in') ? '+' : ''}{fmt(ev.amount)}
                                         </div>
                                       )}
                                     </div>
@@ -1048,8 +1099,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                                                 {ev.subtitle && <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{ev.subtitle}</div>}
                                               </div>
                                               {ev.amount != null && (
-                                                <div style={{ font: '700 12px Plus Jakarta Sans', color: ev.eventType === 'income' ? '#10B981' : c.ink, flexShrink: 0 }}>
-                                                  {ev.eventType === 'income' ? '+' : ''}{fmt(ev.amount)}
+                                                <div style={{ font: '700 12px Plus Jakarta Sans', color: (ev.eventType === 'income' || ev.eventType === 'borrowed' || ev.eventType === 'repayment_in') ? '#10B981' : c.ink, flexShrink: 0 }}>
+                                                  {(ev.eventType === 'income' || ev.eventType === 'borrowed' || ev.eventType === 'repayment_in') ? '+' : ''}{fmt(ev.amount)}
                                                 </div>
                                               )}
                                             </div>
@@ -1074,6 +1125,15 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                       )
                     })()
                 }
+
+                {/* Closing/Current Balance bookend */}
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 7, padding: '10px 0', background: c.surface2, borderRadius: 10, marginTop: 10 }}>
+                  <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                    {journey.isCurrentMonth ? 'Current balance' : `Ended ${journeyMonthNameOnly} with`}
+                  </span>
+                  <span style={{ font: '800 13px Plus Jakarta Sans', color: c.ink }}>{fmt(journey.closingBalance)}</span>
+                  {journey.isCurrentMonth && <span style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>(as of today)</span>}
+                </div>
               </div>
             )}
 
