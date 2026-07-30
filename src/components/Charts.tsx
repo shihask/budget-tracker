@@ -9,16 +9,21 @@ import { fmt } from '@/lib/utils'
 import type { TrendPoint, BarPoint, CatPoint } from '@/types'
 
 // ── Area Trend ────────────────────────────────────────────────────────────────
-interface AreaTrendProps { data: TrendPoint[] }
+interface AreaTrendProps { data: TrendPoint[]; onPointClick?: (point: TrendPoint) => void; selectedDate?: string | null }
 
-export function AreaTrend({ data }: AreaTrendProps) {
+export function AreaTrend({ data, onPointClick, selectedDate }: AreaTrendProps) {
   const c = useTheme()
   const gradId = 'trend-grad-' + c.accent.replace('#', '')
   const n = data.length
   const tickInterval = n <= 7 ? 0 : n <= 15 ? 2 : 4
   return (
     <ResponsiveContainer width="100%" height={132}>
-      <AreaChart data={data} margin={{ top: 10, right: 4, left: 4, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 10, right: 4, left: 4, bottom: 0 }}
+        onClick={onPointClick ? (e: any) => {
+          const idx = e?.activeIndex
+          if (idx != null && data[Number(idx)]) onPointClick(data[Number(idx)])
+        } : undefined}
+      >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={c.accent} stopOpacity={0.28} />
@@ -39,22 +44,24 @@ export function AreaTrend({ data }: AreaTrendProps) {
           stroke={c.accent}
           strokeWidth={2.5}
           fill={`url(#${gradId})`}
+          style={onPointClick ? { cursor: 'pointer' } : undefined}
           dot={(props: any) => {
-            const { cx, cy, index } = props
+            const { cx, cy, index, payload } = props
             const isLast = index === data.length - 1
-            if (n > 7 && !isLast) return <g key={index} />
+            const isSel = selectedDate != null && payload?.date === selectedDate
+            if (n > 7 && !isLast && !isSel) return <g key={index} />
             return (
               <g key={index}>
-                {isLast && <circle cx={cx} cy={cy} r={6.5} fill={c.accent} fillOpacity={0.18} />}
-                <circle cx={cx} cy={cy} r={isLast ? 4 : 2.6}
-                  fill={isLast ? c.accent : '#fff'}
+                {(isLast || isSel) && <circle cx={cx} cy={cy} r={6.5} fill={c.accent} fillOpacity={0.18} />}
+                <circle cx={cx} cy={cy} r={isLast || isSel ? 4 : 2.6}
+                  fill={isLast || isSel ? c.accent : '#fff'}
                   stroke={c.accent}
-                  strokeWidth={isLast ? 0 : 2}
+                  strokeWidth={isLast || isSel ? 0 : 2}
                 />
               </g>
             )
           }}
-          activeDot={{ r: 5, fill: c.accent }}
+          activeDot={{ r: 5, fill: c.accent, style: onPointClick ? { cursor: 'pointer' } : undefined }}
         />
       </AreaChart>
     </ResponsiveContainer>

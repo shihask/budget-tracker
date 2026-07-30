@@ -7,7 +7,7 @@ import { CAT_COLORS } from '@/lib/tokens'
 import { weeklyTrend, weeklyBars, categorySplit, monthTimeline, journeyData, monthLabelForOffset } from '@/lib/data'
 import { AreaTrend } from './Charts'
 import { analyticsInsightWithAI } from '@/lib/gemini'
-import type { AppState, DerivedMetrics, JourneyMilestone } from '@/types'
+import type { AppState, DerivedMetrics, JourneyMilestone, Transaction } from '@/types'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell as PieCell,
@@ -135,6 +135,26 @@ function TimelineDayRuler({ daysInMonth, todayDay, mutedColor, accentColor }: { 
   )
 }
 
+function TxnMiniList({ transactions, categories }: { transactions: Transaction[]; categories: AppState['categories'] }) {
+  const c = useTheme()
+  if (transactions.length === 0) return <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No expenses</div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {transactions.map(t => {
+        const theCat = categories.find(cc => cc.id === t.category_id)
+        const dotColor = theCat ? (CAT_COLORS[theCat.name] || c.accent) : c.muted
+        return (
+          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: dotColor, flexShrink: 0 }} />
+            <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{t.description}</span>
+            <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(t.amount)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>('trend')
@@ -144,6 +164,8 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const [insightError, setInsightError] = useState<string | null>(null)
   const [timelineView, setTimelineView] = useState<'day' | 'category' | 'group'>('day')
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const [selectedTrendDate, setSelectedTrendDate] = useState<string | null>(null)
+  const [selectedWeekLabel, setSelectedWeekLabel] = useState<string | null>(null)
   const [replayExpanded, setReplayExpanded] = useState(false)
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const [journeyView, setJourneyView] = useState<'flow' | 'timeline' | 'plant'>(() => {
@@ -159,6 +181,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
   const [monthOffset, setMonthOffset] = useState(0)
   const [cycleOffset, setCycleOffset] = useState(0)
   useEffect(() => { setSelectedDay(null) }, [monthOffset])
+  useEffect(() => { setSelectedTrendDate(null) }, [trendRange])
   const goPrevMonth = () => setMonthOffset(o => Math.min(MAX_MONTHS_BACK, o + 1))
   const goNextMonth = () => setMonthOffset(o => Math.max(0, o - 1))
   const goPrevCycle = () => setCycleOffset(o => Math.min(MAX_CYCLES_BACK, o + 1))
@@ -363,19 +386,43 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 ))}
               </div>
             </div>
-            <AreaTrend data={trend} />
+            <AreaTrend data={trend} selectedDate={selectedTrendDate} onPointClick={(point) => setSelectedTrendDate(sel => sel === point.date ? null : point.date)} />
             {trendRange === 7 && (
               <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
-                {trend.map(t => (
-                  <div key={t.date} style={{ background: c.surface2, borderRadius: 10, padding: '8px 4px', textAlign: 'center' }}>
-                    <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>{t.label}</div>
-                    <div style={{ font: '700 11px Plus Jakarta Sans', color: t.value > 0 ? c.ink : c.muted, marginTop: 3 }}>
-                      {t.value > 0 ? `₹${Math.round(t.value / 1000) > 0 ? (t.value / 1000).toFixed(1) + 'k' : Math.round(t.value)}` : '—'}
+                {trend.map(t => {
+                  const isSel = selectedTrendDate === t.date
+                  return (
+                    <div key={t.date}
+                      onClick={() => setSelectedTrendDate(isSel ? null : t.date)}
+                      style={{
+                        background: isSel ? c.accent + '1F' : c.surface2, borderRadius: 10, padding: '8px 4px',
+                        textAlign: 'center', cursor: 'pointer',
+                        border: `1px solid ${isSel ? c.accent : 'transparent'}`,
+                      }}>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>{t.label}</div>
+                      <div style={{ font: '700 11px Plus Jakarta Sans', color: t.value > 0 ? c.ink : c.muted, marginTop: 3 }}>
+                        {t.value > 0 ? `₹${Math.round(t.value / 1000) > 0 ? (t.value / 1000).toFixed(1) + 'k' : Math.round(t.value)}` : '—'}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
+            {selectedTrendDate && (() => {
+              const dayData = trend.find(t => t.date === selectedTrendDate)
+              if (!dayData) return null
+              return (
+                <div style={{ marginTop: 10, background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>
+                      {new Date(dayData.date + 'T12:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </div>
+                    <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(dayData.value)}</div>
+                  </div>
+                  <TxnMiniList transactions={dayData.transactions} categories={state.categories} />
+                </div>
+              )
+            })()}
           </div>
         )}
 
@@ -397,9 +444,17 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                       formatter={(v) => [fmt(Number(v)), 'Spent']}
                       cursor={{ fill: c.faint }}
                     />
-                    <Bar dataKey="value" radius={[8, 8, 8, 8]}
+                    <Bar dataKey="value" radius={[8, 8, 8, 8]} cursor="pointer"
+                      onClick={(entry: any) => {
+                        const label = entry?.payload?.label
+                        if (label) setSelectedWeekLabel(sel => sel === label ? null : label)
+                      }}
                       label={{ position: 'top', fontSize: 9.5, fontFamily: 'ui-monospace, monospace', fontWeight: 700, fill: c.muted }}>
-                      {bars.map((_, i) => <Cell key={i} fill={barColors[i]} />)}
+                      {bars.map((b, i) => (
+                        <Cell key={i} fill={barColors[i]}
+                          stroke={selectedWeekLabel === b.label ? c.ink : 'none'}
+                          strokeWidth={selectedWeekLabel === b.label ? 2 : 0} />
+                      ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -426,6 +481,20 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                 Weekly average: <strong style={{ color: c.ink }}>{fmt(Math.round(barAvg))}</strong>
               </span>
             </div>
+
+            {selectedWeekLabel && (() => {
+              const wk = bars.find(b => b.label === selectedWeekLabel)
+              if (!wk) return null
+              return (
+                <div style={{ marginTop: 12, background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{wk.label}</div>
+                    <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(wk.value)}</div>
+                  </div>
+                  <TxnMiniList transactions={wk.transactions} categories={state.categories} />
+                </div>
+              )
+            })()}
           </div>
         )}
 
@@ -574,22 +643,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
                         </div>
                         <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(dayData.total)}</div>
                       </div>
-                      {dayData.transactions.length === 0
-                        ? <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>No expenses</div>
-                        : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {dayData.transactions.map(t => {
-                              const theCat = state.categories.find(cc => cc.id === t.category_id)
-                              const dotColor = theCat ? (CAT_COLORS[theCat.name] || c.accent) : c.muted
-                              return (
-                                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                  <span style={{ width: 7, height: 7, borderRadius: 2, background: dotColor, flexShrink: 0 }} />
-                                  <span style={{ flex: 1, font: '600 12px Plus Jakarta Sans', color: c.ink }}>{t.description}</span>
-                                  <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>{fmt(t.amount)}</span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                      }
+                      <TxnMiniList transactions={dayData.transactions} categories={state.categories} />
                     </div>
                   )
                 })()}
@@ -1229,7 +1283,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         )}
       </div>
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes growUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}} @keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}} .tab-scroll::-webkit-scrollbar{display:none}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes growUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}} @keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}} .tab-scroll::-webkit-scrollbar{display:none} .recharts-wrapper :focus{outline:none}`}</style>
     </div>,
     document.body
   )

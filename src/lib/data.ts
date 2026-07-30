@@ -180,13 +180,12 @@ export function weeklyTrend(state: AppState, days: number = 7): TrendPoint[] {
   const catMap = catById(state.categories)
   return Array.from({ length: days }, (_, i) => {
     const d = addDays(TODAY, -(days - 1 - i))
-    const total = state.transactions
-      .filter(t => isLifestyle(t, catMap) && t.transaction_date === iso(d))
-      .reduce((s, t) => s + t.amount, 0)
+    const dayTxns = state.transactions.filter(t => isLifestyle(t, catMap) && t.transaction_date === iso(d))
+    const total = dayTxns.reduce((s, t) => s + t.amount, 0)
     const label = days <= 7
       ? ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()]
       : `${d.getDate()}/${d.getMonth() + 1}`
-    return { label, date: iso(d), value: total }
+    return { label, date: iso(d), value: total, transactions: dayTxns }
   })
 }
 
@@ -196,10 +195,9 @@ export function weeklyBars(state: AppState, weeks: number = 12): BarPoint[] {
     const wOff = weeks - 1 - w
     const ws = addDays(WEEK_START, -7 * wOff)
     const we = addDays(ws, 7)
-    const total = state.transactions
-      .filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= ws && new Date(t.transaction_date) < we)
-      .reduce((s, t) => s + t.amount, 0)
-    return { label: wOff === 0 ? 'This wk' : wOff + 'w ago', value: Math.round(total * 100) / 100 }
+    const weekTxns = state.transactions.filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= ws && new Date(t.transaction_date) < we)
+    const total = weekTxns.reduce((s, t) => s + t.amount, 0)
+    return { label: wOff === 0 ? 'This wk' : wOff + 'w ago', value: Math.round(total * 100) / 100, transactions: weekTxns }
   })
 }
 

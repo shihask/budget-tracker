@@ -376,8 +376,8 @@ export interface DerivedMetrics {
   weekSaved?: number
 }
 
-export interface TrendPoint { label: string; date: string; value: number }
-export interface BarPoint   { label: string; value: number }
+export interface TrendPoint { label: string; date: string; value: number; transactions: Transaction[] }
+export interface BarPoint   { label: string; value: number; transactions: Transaction[] }
 export interface CatPoint   { name: string; value: number }
 
 export interface TimelineDayPoint {
