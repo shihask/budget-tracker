@@ -12,6 +12,7 @@ import { isRecurringCompleted, getRecurringPeriodLabel } from '@/lib/recurring'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { getCreditCardBilling, type CreditCardBilling } from '@/lib/credit-card'
 import { colorFor } from '@/lib/credit-card-colors'
+import { getRemainingObligations } from '@/lib/obligations'
 import type { AppState, DerivedMetrics, Commitment, CreditCard } from '@/types'
 
 type Freq = 'monthly' | 'weekly' | 'yearly'
@@ -281,6 +282,8 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const active = state.commitments.filter(cm => cm.is_active !== false)
   const monthlyTotal = active.filter(cm => cm.is_recurring && cm.frequency === 'monthly').reduce((s, cm) => s + cm.amount, 0)
   const recurringCount = active.filter(cm => cm.is_recurring).length
+  const obligations = getRemainingObligations(state)
+  const unpaidTotal = obligations.commitments + obligations.creditCardBills
 
   const ccBillItems = (state.credit_cards ?? [])
     .filter(cc => cc.is_active !== false)
@@ -350,7 +353,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
               <div style={{ flex: 1, background: 'rgba(139,92,246,0.1)', borderRadius: 14, padding: '12px 14px' }}>
                 <div style={{ font: '600 10px Plus Jakarta Sans', color: '#8B5CF6', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Unpaid</div>
-                <div style={{ font: '800 20px Plus Jakarta Sans', color: '#8B5CF6', marginTop: 3 }}>{fmt(d.remainingCommitments)}</div>
+                <div style={{ font: '800 20px Plus Jakarta Sans', color: '#8B5CF6', marginTop: 3 }}>{fmt(unpaidTotal)}</div>
                 <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>{totalItems} bill{totalItems !== 1 ? 's' : ''}</div>
               </div>
               <div style={{ flex: 1, background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
