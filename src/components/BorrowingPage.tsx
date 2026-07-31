@@ -4,7 +4,6 @@ import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, fmtDate, round2 } from '@/lib/utils'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
-import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, Borrowing } from '@/types'
@@ -23,14 +22,13 @@ type BForm = {
 type PayForm = {
   amount: string
   account_id: string
-  category_id: string
   incoming: boolean
 }
 
 type SortKey = 'remaining_desc' | 'remaining_asc' | 'amount_desc' | 'amount_asc' | 'name_asc' | 'name_desc'
 
 const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent', account_id: '', transaction_date: new Date().toISOString().slice(0, 10), repayment_date: '' }
-const EMPTY_PAY: PayForm = { amount: '', account_id: '', category_id: '', incoming: true }
+const EMPTY_PAY: PayForm = { amount: '', account_id: '', incoming: true }
 
 interface BorrowingPageProps {
   state: AppState
@@ -54,7 +52,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   // ── Filters ──────────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('')
   const [filterDirection, setFilterDirection] = useState<'all' | 'lent' | 'borrowed'>('all')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'cleared'>('all')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'cleared'>('active')
   const [sortKey, setSortKey] = useState<SortKey>('remaining_desc')
   const [filtersVisible, setFiltersVisible] = useState(false)
 
@@ -187,8 +185,8 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
     .filter(b => (b.direction || 'lent') === 'borrowed')
     .reduce((s, b) => s + Math.max(0, b.remaining_amount ?? (b.total_amount - b.paid_amount)), 0)
 
-  const hasFilters = search || filterDirection !== 'all' || filterStatus !== 'all'
-  const clearFilters = () => { setSearch(''); setFilterDirection('all'); setFilterStatus('all') }
+  const hasFilters = search || filterDirection !== 'all' || filterStatus !== 'active'
+  const clearFilters = () => { setSearch(''); setFilterDirection('all'); setFilterStatus('active') }
 
   // ── Add / Edit handlers ───────────────────────────────────────────────────────
   const openAdd = () => { setEditingId(null); setForm({ ...EMPTY_BFORM, account_id: accounts[0]?.id || '', transaction_date: new Date().toISOString().slice(0, 10) }); setSheetOpen(true) }
@@ -245,7 +243,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   const openPay = (b: Borrowing) => {
     setPayTarget(b)
     const incoming = (b.direction || 'lent') === 'lent'
-    setPayForm({ amount: String(b.remaining_amount || 0), account_id: accounts[0]?.id || '', category_id: '', incoming })
+    setPayForm({ amount: String(b.remaining_amount || 0), account_id: accounts[0]?.id || '', incoming })
   }
   const closePay = () => { setPayTarget(null); setPayForm(EMPTY_PAY) }
 
@@ -255,7 +253,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
     setPaying(true)
     setPayConfirm(false)
     try {
-      await onPayment(payTarget, amt, payForm.account_id || null, payForm.incoming, payForm.category_id || null, addTransaction)
+      await onPayment(payTarget, amt, payForm.account_id || null, payForm.incoming, null, addTransaction)
       closePay()
     } catch (_) {}
     setPaying(false)
@@ -664,8 +662,13 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
             </select>
           </div>
           <div>
-            <Label>Category (optional)</Label>
-            <CategorySelect value={payForm.category_id} onChange={v => setPayForm(f => ({ ...f, category_id: v }))} state={state} onAddCategory={onAddCategory} style={inp} includeEmpty emptyLabel="No category" />
+            <Label>Category</Label>
+            <div style={{ ...inp, display: 'flex', alignItems: 'center', color: c.muted }}>
+              {payForm.incoming ? 'Lent Repayment' : 'Borrow Repayment'}
+            </div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 5 }}>
+              Automatically set based on payment direction
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
