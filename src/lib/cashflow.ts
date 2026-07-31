@@ -314,16 +314,16 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     }
   }
 
-  // ── Upcoming credit-card bills (billed amount due on the card's due day) ──
+  // ── Upcoming credit-card bills (billed amount due on the card's next due date) ──
   if (state.settings.track_credit_cards) {
     for (const cc of state.credit_cards) {
       if (cc.is_active === false) continue
       if (!(cc.current_balance > 0)) continue
       const billing = getCreditCardBilling(cc, state.transactions, today)
-      const amount = Math.round(billing.billedAmount || cc.current_balance)
-      for (const due of allDueDates(cc.due_day, today, horizon)) {
-        events.push({ date: isoOf(due), title: `${cc.name} bill`, amount, type: 'expense', source: 'card', card_id: cc.id })
-      }
+      if (!(billing.billedAmount > 0)) continue
+      const due = new Date(billing.nextDueDate + 'T00:00:00')
+      if (due < today || due > horizon) continue
+      events.push({ date: billing.nextDueDate, title: `${cc.name} bill`, amount: Math.round(billing.billedAmount), type: 'expense', source: 'card', card_id: cc.id })
     }
   }
 
