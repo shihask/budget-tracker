@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { X, BarChart3 } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, iso, TODAY, addDays, getWeekStart, getMonthStart, round2 } from '@/lib/utils'
+import { fmt, iso, localIso, TODAY, addDays, getWeekStart, getMonthStart, round2 } from '@/lib/utils'
 import { ProgressRing } from './ProgressRing'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -33,6 +33,8 @@ function Row({ label, value, muted, accent, bad, bold }: { label: string; value:
 }
 
 const DEFAULT_SCOPE_GROUPS = ['Lifestyle']
+// ₹ swing large enough to pause for an explicit confirmation before re-anchoring the cycle budget
+const BASELINE_CONFIRM_THRESHOLD = 5000
 
 function scopeLabel(scope: WeeklyBudgetScope | null | undefined, categories: AppState['categories']): string {
   if (!scope || (scope.groups.length === 0 && scope.categoryIds.length === 0)) return 'Lifestyle'
@@ -66,6 +68,9 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   const [popup, setPopup] = useState<'budget' | 'spent' | 'safeUntil' | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const [showScopeSystemGroups, setShowScopeSystemGroups] = useState(false)
+  const [updatingBaseline, setUpdatingBaseline] = useState(false)
+  const [confirmingUpdate, setConfirmingUpdate] = useState(false)
+  const [lastUpdateDelta, setLastUpdateDelta] = useState<number | null>(null)
 
   const initScopeGroups = () => {
     const s = settings.weekly_budget_scope
@@ -148,6 +153,29 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     } catch (_) {}
     setSaving(false)
   }
+
+  const handleUpdateBaselineClick = () => {
+    if (Math.abs(baselineDrift) >= BASELINE_CONFIRM_THRESHOLD) { setConfirmingUpdate(true); return }
+    applyUpdateBaseline()
+  }
+
+  const applyUpdateBaseline = async () => {
+    if (!d.financialCycle) return
+    const delta = baselineDrift
+    setConfirmingUpdate(false)
+    setUpdatingBaseline(true)
+    try {
+      await onUpdateSettings({
+        cycle_start_free_money: liveBaseline,
+        cycle_snapshot_key: localIso(d.financialCycle.cycleStart),
+      })
+      setLastUpdateDelta(delta)
+      setTimeout(() => setLastUpdateDelta(null), 2500)
+    } catch (err) { console.error('Failed to update budget baseline:', err) }
+    setUpdatingBaseline(false)
+  }
+
+  const closeCalcPopup = () => { setPopup(null); setConfirmingUpdate(false) }
 
   const toggleGroup = (name: string) => {
     setScopeGroups(prev => {
@@ -235,6 +263,12 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     ? { t: 'Budget Warning', col: c.warn }
     : { t: 'Budget On Track', col: c.good }
   const hasSalaryDate = hasIncomeCycle
+
+  // ── Budget baseline drift (frozen envelope vs. what it'd be if opened today) ──
+  const liveBaseline = round2(d.realFreeMoney + d.cycleSpent)
+  const baselineDrift = round2(liveBaseline - d.cycleStartFreeMoney)
+  const driftThreshold = Math.min(100, d.cycleStartFreeMoney * 0.01)
+  const hasDrift = d.cycleTrackingReady && Math.abs(baselineDrift) >= driftThreshold
 
   // ── Shared chip row ───────────────────────────────────────────────────────────
   const StreakChip = () => streak >= 2 ? (
@@ -487,6 +521,41 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 </div>
               </div>
 
+              {/* Budget baseline drift banner */}
+              {((hasDrift && !d.isWaitingForIncome) || lastUpdateDelta !== null) && (
+                <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: '12px 14px' }}>
+                  {lastUpdateDelta !== null ? (
+                    <div style={{ font: '700 12px Plus Jakarta Sans', color: '#fff', lineHeight: 1.5 }}>
+                      {lastUpdateDelta >= 0
+                        ? `Budget updated — ${fmt(lastUpdateDelta)} of recent financial changes are now included.`
+                        : `Budget updated — recent changes reduced this cycle's available budget by ${fmt(Math.abs(lastUpdateDelta))}.`}
+                    </div>
+                  ) : confirmingUpdate ? (
+                    <>
+                      <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.9)', lineHeight: 1.5, marginBottom: 10 }}>
+                        Update this budget? Your budget will be updated using today's financial position. Your spending history won't be reset.
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => setConfirmingUpdate(false)} style={{ flex: 1, background: 'rgba(255,255,255,0.14)', border: 'none', borderRadius: 8, padding: '8px 12px', font: '700 12px Plus Jakarta Sans', color: '#fff', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={applyUpdateBaseline} disabled={updatingBaseline} style={{ flex: 1, background: 'rgba(255,255,255,0.28)', border: 'none', borderRadius: 8, padding: '8px 12px', font: '700 12px Plus Jakarta Sans', color: '#fff', cursor: 'pointer', opacity: updatingBaseline ? 0.6 : 1 }}>
+                          {updatingBaseline ? 'Updating…' : 'Update'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: '#fff' }}>Your finances have changed.</div>
+                      <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.75)', marginTop: 3, marginBottom: 10 }}>
+                        {fmt(baselineDrift, { sign: true })} isn't reflected in this budget yet.
+                      </div>
+                      <button onClick={handleUpdateBaselineClick} disabled={updatingBaseline} style={{ background: 'rgba(255,255,255,0.22)', border: 'none', borderRadius: 8, padding: '7px 14px', font: '700 12px Plus Jakarta Sans', color: '#fff', cursor: 'pointer', opacity: updatingBaseline ? 0.6 : 1 }}>
+                        {updatingBaseline ? 'Updating…' : 'Update Budget'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Waiting for income banner */}
               {d.isWaitingForIncome && (
                 <div style={{ marginTop: 12, background: 'rgba(255,200,50,0.18)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -606,7 +675,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {(isAutoMode ? [
-                { title: 'Cycle Budget Remaining', desc: `The free money you had at the start of this ${pattern === 'weekly' ? 'week' : 'income cycle'} (after emergency fund and obligations), minus what you've spent since. This stays fixed for the whole ${pattern === 'weekly' ? 'week' : 'cycle'}, so it won't jump around as your live balance changes.` },
+                { title: 'Cycle Budget Remaining', desc: `The free money you had at the start of this ${pattern === 'weekly' ? 'week' : 'income cycle'} (after emergency fund and obligations), minus what you've spent since. This stays fixed for the whole ${pattern === 'weekly' ? 'week' : 'cycle'}, so it won't jump around as your live balance changes. If a windfall or new bill throws this off mid-cycle, you can update the budget from the Free Money breakdown.` },
                 { title: 'Budget Progress', desc: 'Measures how much of your original cycle budget you\'ve used.' },
                 { title: 'Cash Health', desc: 'Measures whether you currently have spendable money available after balances, commitments, savings, and repayments. Independent of Budget Progress — you can be on track with your cycle budget but still have a cash shortfall.' },
                 { title: 'Free Money', desc: `Your real-time spendable balance right now — current balance minus emergency fund and remaining obligations. Updates immediately, independent of your cycle's fixed budget.` },
@@ -636,7 +705,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
       {/* ── Calculation popup ────────────────────────────────────────────────────── */}
       {popup && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={() => setPopup(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div onClick={closeCalcPopup} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink }}>
@@ -646,7 +715,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                   : (isAutoMode ? 'Cycle Spent' : `${activePeriod === 'daily' ? 'Daily' : activePeriod === 'monthly' ? 'Monthly' : 'Weekly'} Spent`)
                 }
               </div>
-              <button onClick={() => setPopup(null)} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+              <button onClick={closeCalcPopup} style={{ background: c.surface2, border: 'none', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', font: '700 14px Plus Jakarta Sans', color: c.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
             </div>
 
             {popup === 'safeUntil' ? (
@@ -717,6 +786,45 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                         <Row label="Cycle spent" value={`− ${fmt(d.cycleSpent)}`} muted />
                         <div style={{ height: 1, background: c.faint }} />
                         <Row label="Budget remaining" value={fmt(d.cycleRemaining)} accent={d.cycleRemaining >= 0} bad={d.cycleRemaining < 0} bold />
+                        {(hasDrift || lastUpdateDelta !== null) && (
+                          <>
+                            <div style={{ height: 1, background: c.faint }} />
+                            {lastUpdateDelta !== null ? (
+                              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 10, padding: '10px 12px', lineHeight: 1.5 }}>
+                                {lastUpdateDelta >= 0
+                                  ? `Budget updated — ${fmt(lastUpdateDelta)} of recent financial changes are now included.`
+                                  : `Budget updated — recent changes reduced this cycle's available budget by ${fmt(Math.abs(lastUpdateDelta))}.`}
+                              </div>
+                            ) : (
+                              <>
+                                <Row label="If updated today" value={fmt(liveBaseline)} />
+                                <Row label="Change" value={fmt(baselineDrift, { sign: true })} accent={baselineDrift >= 0} bad={baselineDrift < 0} />
+                                {confirmingUpdate ? (
+                                  <div style={{ background: c.surface2, borderRadius: 12, padding: '12px 14px', marginTop: 4 }}>
+                                    <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5, marginBottom: 10 }}>
+                                      Update this budget? Your budget will be updated using today's financial position. Your spending history won't be reset.
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                      <button onClick={() => setConfirmingUpdate(false)} style={{ flex: 1, background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 8, padding: '8px 12px', font: '700 12px Plus Jakarta Sans', color: c.ink, cursor: 'pointer' }}>Cancel</button>
+                                      <button onClick={applyUpdateBaseline} disabled={updatingBaseline} style={{ flex: 1, background: c.accent, border: 'none', borderRadius: 8, padding: '8px 12px', font: '700 12px Plus Jakarta Sans', color: '#fff', cursor: 'pointer', opacity: updatingBaseline ? 0.6 : 1 }}>
+                                        {updatingBaseline ? 'Updating…' : 'Update'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <button onClick={handleUpdateBaselineClick} disabled={updatingBaseline} style={{ marginTop: 4, background: c.accentSoft, border: 'none', borderRadius: 10, padding: '9px 14px', font: '700 12px Plus Jakarta Sans', color: c.accent, cursor: 'pointer', opacity: updatingBaseline ? 0.6 : 1, alignSelf: 'flex-start' }}>
+                                      {updatingBaseline ? 'Updating…' : 'Update Budget'}
+                                    </button>
+                                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+                                      Include recent financial changes without resetting your spending history.
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
                       </>
                     )
                   ) : null
