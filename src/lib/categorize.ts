@@ -1,4 +1,4 @@
-import type { Category } from '@/types'
+import type { Category, Transaction } from '@/types'
 
 // Keyword → category name mapping for auto-detection
 const KEYWORD_CATS: [string[], string][] = [
@@ -19,6 +19,22 @@ const KEYWORD_CATS: [string[], string][] = [
   [['plumbing', 'pipe', 'tap', 'bathroom', 'toilet', 'sink'], 'Plumbing'],
   [['family', 'home expense', 'domestic'], 'Family'],
 ]
+
+// Reuse whatever category was picked last time this exact description was
+// entered — assumes transactions is already sorted most-recent-first (the
+// order state.transactions is loaded/maintained in), so the first match wins.
+export function findHistoricalCategory(
+  description: string,
+  transactionType: 'expense' | 'income',
+  transactions: Pick<Transaction, 'description' | 'transaction_type' | 'category_id'>[],
+): string | null {
+  const target = description.trim().toLowerCase()
+  if (!target) return null
+  const match = transactions.find(t =>
+    t.transaction_type === transactionType && t.description.trim().toLowerCase() === target
+  )
+  return match?.category_id ?? null
+}
 
 // Match description words against actual category names — returns ranked matches
 export function findCategoryMatches(description: string, categories: Category[]): Category[] {

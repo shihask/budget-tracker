@@ -14,7 +14,7 @@ import type { AppState, Transaction, TransactionType, Category } from '@/types'
 import { parseExpenseWithAI, type AIReceiptExtraction } from '@/lib/gemini'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
-import { findCategoryMatches, guessCategory } from '@/lib/categorize'
+import { findCategoryMatches, guessCategory, findHistoricalCategory } from '@/lib/categorize'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -236,8 +236,11 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   // Reset with correct first account & category each time sheet opens
   useEffect(() => {
     if (open) {
-      const firstAccount = accs[0]?.id || ''
-      const secondAccount = accs[1]?.id || ''
+      const lastUsedAccountId = state.transactions[0]?.from_account_id
+      const firstAccount = (lastUsedAccountId && accs.some(a => a.id === lastUsedAccountId))
+        ? lastUsedAccountId
+        : (accs[0]?.id || '')
+      const secondAccount = accs.find(a => a.id !== firstAccount)?.id || ''
       const initType = defaultTxType ?? 'expense'
       const firstCat = initType === 'income'
         ? (defaultCategoryId || cats.find(c => c.group_name === 'Income')?.id || cats[0]?.id || '')
@@ -263,7 +266,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const categoryVal = watch('category_id')
   const dateVal = watch('date')
 
-  // Auto-categorize: name match → keyword fallback only
+  // Auto-categorize: history match → name match → keyword fallback
   // Uses catsRef so adding a new category doesn't re-trigger this effect
   useEffect(() => {
     if (aiJustParsed.current) { aiJustParsed.current = false; return }
@@ -272,12 +275,25 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
     if (txType === 'income') {
       setAiSuggestion(null); setCatSuggestions([])
       const incomeCats = catsRef.current.filter(c => c.group_name === INCOME_GROUP)
+      const historical = findHistoricalCategory(descriptionVal, 'income', state.transactions)
+      if (historical && incomeCats.some(c => c.id === historical)) {
+        setValue('category_id', historical, { shouldValidate: true })
+        return
+      }
       const guessed = guessCategory(descriptionVal, incomeCats)
       if (guessed) setValue('category_id', guessed, { shouldValidate: true })
       return
     }
 
     const expenseCats = catsRef.current.filter(c => c.group_name !== INCOME_GROUP && c.group_name !== TRANSFER_GROUP)
+
+    // 0. Reuse the category picked last time this exact description was used
+    const historical = findHistoricalCategory(descriptionVal, 'expense', state.transactions)
+    if (historical && expenseCats.some(c => c.id === historical)) {
+      setValue('category_id', historical, { shouldValidate: true })
+      setCatSuggestions([]); setAiSuggestion(null)
+      return
+    }
 
     // 1. Match against actual category names
     const nameMatches = findCategoryMatches(descriptionVal, expenseCats)

@@ -95,7 +95,8 @@ When filtering `forecast.projections` for itemized UI (timeline lists, driver su
 
 `d.weeklyBudget` / `d.safeWeeklySpend` (Dashboard's `HeroWeekly.tsx` pacing card) are a **separate, deliberately independent** concept — "spend at this rate and hit zero by payday" — not reused here; using it for purchase-safety reservation is circular (see git history on the Affordability fix for why).
 
-## Auto-categorize in QuickAdd (three-tier)
+## Auto-categorize in QuickAdd (four-tier)
+0. **History match** (`findHistoricalCategory`) — same description used before (exact, case-insensitive) → same category as the most recent matching transaction
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  
 2. **Keyword fallback** (`guessCategory`) — hardcoded `KEYWORD_CATS` table  
 3. **AI** (`categorizeWithAI`) — Groq via Edge Function, min 4 chars + 1200 ms debounce, only when `autopilotEnabled === true`
