@@ -500,7 +500,19 @@ function AppContent({ session }: { session: Session }) {
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || catsOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
-            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} />
+            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)}
+              onTransactions={() => setTxnsOpen(true)}
+              onAnalytics={() => setAnalyticsOpen(true)}
+              onCashflow={() => setCashflowOpen(true)}
+              onCommitments={() => { setCommitmentsAddOnOpen(false); setCommitmentsOpen(true) }}
+              onSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }}
+              onBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }}
+              onProjects={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }}
+              onPlant={() => setPlantSheetOpen(true)}
+              trackSavings={state.settings.track_savings ?? false}
+              trackBorrowings={state.settings.track_borrowings ?? true}
+              trackProjects={state.settings.track_projects ?? false}
+            />
           </div>
 
           <div style={{

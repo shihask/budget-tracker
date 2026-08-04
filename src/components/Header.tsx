@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { Glyph } from './Glyph'
+import { NavMenu } from './NavMenu'
 
 interface HeaderProps {
   dark: boolean
@@ -14,9 +15,24 @@ interface HeaderProps {
   notificationCount?: number
   onNotifications?: () => void
   onTour?: () => void
+  onTransactions: () => void
+  onAnalytics: () => void
+  onCashflow: () => void
+  onCommitments: () => void
+  onSavings: () => void
+  onBorrowing: () => void
+  onProjects: () => void
+  onPlant: () => void
+  trackSavings: boolean
+  trackBorrowings: boolean
+  trackProjects: boolean
 }
 
-export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications, onTour }: HeaderProps) {
+export function Header({
+  dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications, onTour,
+  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onPlant,
+  trackSavings, trackBorrowings, trackProjects,
+}: HeaderProps) {
   const c = useTheme()
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -24,6 +40,7 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
 
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const [navMenuOpen, setNavMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -90,8 +107,17 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
         </div>
       </div>
 
-      {/* Right: notification bell + avatar */}
+      {/* Right: hamburger menu + notification bell + avatar */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button onClick={() => setNavMenuOpen(true)} aria-label="Menu" style={iconBtnStyle}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </button>
+
         <button onClick={onNotifications} aria-label="Notifications" style={iconBtnStyle}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.ink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -222,6 +248,24 @@ export function Header({ dark, onToggleTheme, userName, userEmail, synced, onSig
           )}
         </div>
       </div>
+
+      <NavMenu
+        open={navMenuOpen}
+        onClose={() => setNavMenuOpen(false)}
+        onTransactions={onTransactions}
+        onAnalytics={onAnalytics}
+        onCashflow={onCashflow}
+        onCommitments={onCommitments}
+        onSavings={onSavings}
+        onBorrowing={onBorrowing}
+        onProjects={onProjects}
+        onPlant={onPlant}
+        onCategories={onCategories}
+        onSettings={onSettings}
+        trackSavings={trackSavings}
+        trackBorrowings={trackBorrowings}
+        trackProjects={trackProjects}
+      />
     </div>
   )
 }
