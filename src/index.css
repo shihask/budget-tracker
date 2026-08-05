@@ -114,6 +114,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   50%       { transform: scaleY(1); }
 }
 
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
 /* ── MoneyPlant Landing Page v2 ──────────────────────────────────────────── */
 
 /* Scroll reveal */

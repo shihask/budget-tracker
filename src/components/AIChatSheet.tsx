@@ -33,6 +33,15 @@ const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categoriz
 
 const CHART_COLORS = ['#16C98A', '#F97316', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B']
 
+const REVEAL_TICK_MS = 60
+const REVEAL_WORDS_CALM = 1
+const REVEAL_WORDS_CATCHUP = 2
+const REVEAL_WORDS_FAST = 4
+const BACKLOG_CATCHUP_CHARS = 150
+const BACKLOG_FAST_CHARS = 400
+const SENTENCE_LOOKAHEAD_CHARS = 24
+const NEAR_BOTTOM_PX = 120
+
 type SavedExpense = { description: string; amount: number; account: string; category: string; date: string; transaction: Transaction }
 type EditPrompt = {
   transaction: Transaction
@@ -851,6 +860,40 @@ function parseBlocks(text: string): Block[] {
   return blocks
 }
 
+function advanceWords(text: string, from: number, words: number): number {
+  let i = from
+  for (let w = 0; w < words; w++) {
+    while (i < text.length && /\s/.test(text[i])) i++
+    while (i < text.length && !/\s/.test(text[i])) i++
+  }
+  return i
+}
+
+function extendToSentenceEnd(full: string, target: number): number {
+  const window = full.slice(target, target + SENTENCE_LOOKAHEAD_CHARS)
+  const m = window.match(/^[^.!?\n]*[.!?]/)
+  return m ? target + m[0].length : target
+}
+
+function safeRevealBoundary(full: string, target: number, streamDone: boolean): number {
+  const upTo = full.slice(0, target)
+  if ((upTo.match(/\*\*/g) || []).length % 2 === 0) return target
+  const closeIdx = full.indexOf('**', target)
+  if (closeIdx !== -1) return closeIdx + 2
+  return streamDone ? target : upTo.lastIndexOf('**')
+}
+
+function renderCursor(active: boolean, c: ColorTokens): ReactNode {
+  return (
+    <span style={{
+      color: c.accent, fontWeight: 700,
+      ...(active
+        ? { animation: 'blink 1s step-end infinite' }
+        : { opacity: 0, transition: 'opacity 150ms ease-out' }),
+    }}>▋</span>
+  )
+}
+
 function renderInline(text: string, c: ColorTokens): ReactNode {
   const parts = text.split(/(\*\*[^*]+\*\*)/)
   return parts.map((part, i) => {
@@ -1192,6 +1235,24 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
   const receiptFileRef = useRef<HTMLInputElement | null>(null)
   const objectUrlsRef = useRef<Set<string>>(new Set())
 
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const nearBottomRef = useRef(true)
+  const prevMsgCountRef = useRef(0)
+
+  const [hasContent, setHasContent] = useState(false)
+  const [cursorOn, setCursorOn] = useState(false)
+  const pendingRef = useRef('')
+  const revealedLenRef = useRef(0)
+  const streamDoneRef = useRef(false)
+  const revealTimerRef = useRef<number | null>(null)
+
+  const onBusyChangeRef = useRef(onBusyChange)
+  useEffect(() => { onBusyChangeRef.current = onBusyChange }, [onBusyChange])
+
+  useEffect(() => {
+    return () => { if (revealTimerRef.current != null) window.clearInterval(revealTimerRef.current) }
+  }, [])
+
   const handleMintAction = async (action: MintAction) => {
     if (action.type === 'export_transactions') {
       await exportTransactionsCsv(
@@ -1270,7 +1331,15 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
   }, [open])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const isNewMessage = messages.length !== prevMsgCountRef.current
+    prevMsgCountRef.current = messages.length
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+    if (isNewMessage) {
+      nearBottomRef.current = true
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    } else if (nearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+    }
   }, [messages])
 
   const stopChatVoice = () => {
@@ -1382,6 +1451,40 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     onBusyChange?.(false)
   }
 
+  const finishReveal = () => {
+    if (revealTimerRef.current != null) {
+      window.clearInterval(revealTimerRef.current)
+      revealTimerRef.current = null
+    }
+    setLoading(false)
+    onBusyChangeRef.current?.(false)
+    setTimeout(() => setCursorOn(false), 150)
+  }
+
+  const tick = () => {
+    const full = pendingRef.current
+    const shown = revealedLenRef.current
+    if (shown < full.length) {
+      const backlog = full.length - shown
+      const words = backlog > BACKLOG_FAST_CHARS ? REVEAL_WORDS_FAST
+        : backlog > BACKLOG_CATCHUP_CHARS ? REVEAL_WORDS_CATCHUP
+        : REVEAL_WORDS_CALM
+      const wordBoundary = extendToSentenceEnd(full, advanceWords(full, shown, words))
+      const next = safeRevealBoundary(full, wordBoundary, streamDoneRef.current)
+      if (next > shown) {
+        revealedLenRef.current = next
+        if (shown === 0) setHasContent(true)
+        setMessages(m => {
+          const copy = [...m]
+          copy[copy.length - 1] = { ...copy[copy.length - 1], text: full.slice(0, next) }
+          return copy
+        })
+      }
+    } else if (streamDoneRef.current) {
+      finishReveal()
+    }
+  }
+
   const send = async (textOverride?: string) => {
     const text = (textOverride ?? input).trim()
     if (!text || loading) return
@@ -1390,6 +1493,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     setMessages(next)
     setLoading(true)
     onBusyChange?.(true)
+    setHasContent(false)
 
     // Bank SMS — detect before intent classifier to avoid the amount parser grabbing it
     const smsData = parseBankSms(text, state)
@@ -1587,19 +1691,35 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
       actionChips: actionChipsArr.length ? actionChipsArr : undefined,
     }])
 
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+    if (!reducedMotion) {
+      if (revealTimerRef.current != null) {
+        window.clearInterval(revealTimerRef.current)
+        revealTimerRef.current = null
+      }
+      pendingRef.current = ''
+      revealedLenRef.current = 0
+      streamDoneRef.current = false
+      setCursorOn(true)
+      revealTimerRef.current = window.setInterval(tick, REVEAL_TICK_MS)
+    }
+
     try {
       const { used } = await streamChat(
         text,
         next.slice(-6),
         context,
         abortRef.current.signal,
-        (token) => {
-          setMessages(m => {
-            const copy = [...m]
-            copy[copy.length - 1] = { role: 'ai', text: (copy[copy.length - 1].text) + token }
-            return copy
-          })
-        },
+        reducedMotion
+          ? (token: string) => {
+              setHasContent(true)
+              setMessages(m => {
+                const copy = [...m]
+                copy[copy.length - 1] = { ...copy[copy.length - 1], text: copy[copy.length - 1].text + token }
+                return copy
+              })
+            }
+          : (token: string) => { pendingRef.current += token },
       )
       if (used != null) onUpdateSettings?.({ ai_requests_used: used })
 
@@ -1620,16 +1740,19 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
         const msg = err instanceof Error && err.message === 'quota_exceeded'
           ? 'Mint has reached its daily limit (100 requests/day). Please try again tomorrow.'
           : 'Something went wrong. Please try again.'
+        pendingRef.current = msg
+        revealedLenRef.current = msg.length
+        setHasContent(true)
         setMessages(m => {
           const copy = [...m]
-          copy[copy.length - 1] = { role: 'ai', text: msg }
+          copy[copy.length - 1] = { ...copy[copy.length - 1], text: msg }
           return copy
         })
       }
     } finally {
       abortRef.current = null
-      setLoading(false)
-      onBusyChange?.(false)
+      streamDoneRef.current = true
+      if (reducedMotion) { setLoading(false); onBusyChangeRef.current?.(false) }
     }
   }
 
@@ -1796,6 +1919,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
 
         {/* Messages */}
         <div
+          ref={scrollContainerRef}
           onDragOver={e => { e.preventDefault(); setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}
           onDrop={e => {
@@ -1803,6 +1927,10 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
             setDragOver(false)
             const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'))
             if (file) handleReceiptImage(file)
+          }}
+          onScroll={() => {
+            const el = scrollContainerRef.current
+            if (el) nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX
           }}
           style={{
             flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10,
@@ -1845,12 +1973,15 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
                     <span style={{ font: '500 14px Plus Jakarta Sans', lineHeight: 1.5 }}>{m.text}</span>
                   </div>
                 ) : (
-                  renderRichText(
-                    m.text, c,
-                    expandedMessages.has(i),
-                    () => setExpandedMessages(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n }),
-                    m.summaryCards,
-                  )
+                  <>
+                    {renderRichText(
+                      m.text, c,
+                      expandedMessages.has(i),
+                      () => setExpandedMessages(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n }),
+                      m.summaryCards,
+                    )}
+                    {i === messages.length - 1 && cursorOn && hasContent && renderCursor(loading, c)}
+                  </>
                 )}
               </div>
               )
@@ -2117,7 +2248,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
               )}
             </div>
           ))}
-          {loading && (
+          {loading && (extractingReceipt || !hasContent) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <MintAnimation variant="thinking" size={38} style={{ borderRadius: 9, flexShrink: 0 }} />
               <div style={{
