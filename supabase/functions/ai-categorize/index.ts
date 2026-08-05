@@ -470,7 +470,10 @@ ${context ?? ''}`
         const toolResults = await Promise.all(
           toolCalls.map(async (tc) => {
             let args: ToolArgs = {}
-            try { args = JSON.parse(tc.function.arguments) as ToolArgs } catch { /* fall through with empty args */ }
+            try {
+              const parsed = JSON.parse(tc.function.arguments)
+              if (parsed && typeof parsed === 'object') args = parsed as ToolArgs
+            } catch { /* fall through with empty args */ }
             const result = await executeTool(tc.function.name, args, user.id, db)
             return { role: 'tool' as const, tool_call_id: tc.id, content: JSON.stringify(result) }
           })
