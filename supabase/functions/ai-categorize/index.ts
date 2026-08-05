@@ -469,7 +469,8 @@ ${context ?? ''}`
         const toolCalls: ToolCall[] = roundChoice.message.tool_calls ?? []
         const toolResults = await Promise.all(
           toolCalls.map(async (tc) => {
-            const args = JSON.parse(tc.function.arguments) as ToolArgs
+            let args: ToolArgs = {}
+            try { args = JSON.parse(tc.function.arguments) as ToolArgs } catch { /* fall through with empty args */ }
             const result = await executeTool(tc.function.name, args, user.id, db)
             return { role: 'tool' as const, tool_call_id: tc.id, content: JSON.stringify(result) }
           })
