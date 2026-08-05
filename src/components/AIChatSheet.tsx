@@ -508,7 +508,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     // Next important event
     const nextDue = outstandingOwed.filter(b => b.repayment_date).sort((a, b) => (a.repayment_date!).localeCompare(b.repayment_date!))[0]
     const nextEventStr = nextDue
-      ? `borrowing-repayment ₹${nextDue.remaining_amount.toLocaleString()} to ${nextDue.person_name} due:${nextDue.repayment_date}`
+      ? `you-owe-repayment: YOU must pay ₹${nextDue.remaining_amount.toLocaleString()} to ${nextDue.person_name} (a liability, not incoming money) due:${nextDue.repayment_date}`
       : 'none'
 
     // Outstanding liabilities / assets
