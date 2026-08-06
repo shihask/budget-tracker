@@ -22,6 +22,8 @@ export interface ChallengeCalc {
   target: number
   adjustedTarget: number
   recoveryAmount: number
+  yesterdayOverspend: number
+  yesterdaySpent: number
   spentToday: number
   remaining: number
   pctUsed: number
@@ -174,8 +176,82 @@ export function computeChallenge(
   return {
     daysRemaining, planningMode, availableSpendable,
     safeDailyLimit, targets, recommendedDifficulty, target, adjustedTarget,
-    recoveryAmount, spentToday, remaining, pctUsed, status, message, todayStr,
+    recoveryAmount, yesterdayOverspend, yesterdaySpent, spentToday, remaining, pctUsed, status, message, todayStr,
     currentPace, survivalStatus, todaysWin, plantGrowth, successRate, avgDailySpend30,
+  }
+}
+
+export interface ChallengeResultUpdate {
+  newStreak: number
+  newCleanStreak: number
+  potDelta: number
+  leafDelta: number
+  isGrace: boolean
+  isComeback: boolean
+  monthLeaves: number
+  newTotalDays: number
+  newSuccessDays: number
+}
+
+// Pure scoring logic for a single evaluated day — split out of useSupabaseData.ts's
+// updateChallengeResult so it's testable without mocking Supabase (same reasoning as
+// keeping computeChallenge itself pure). The caller does the actual settings write plus
+// any achievement-unlock side effect from `isComeback`.
+export function computeChallengeResultUpdate(
+  current: {
+    streak: number; total: number; success: number; cleanStreak: number
+    monthLeaves: number; lastDate: string | null
+  },
+  result: 'success' | 'miss',
+  savedAmount: number,
+  target: number,
+  todayStr: string,
+): ChallengeResultUpdate {
+  const isSuccess = result === 'success'
+
+  let newStreak: number
+  let potDelta = 0
+  let leafDelta = 0
+  let isGrace = false
+
+  if (isSuccess) {
+    newStreak = current.streak + 1
+    potDelta = Math.max(0, savedAmount)
+    leafDelta = 2
+  } else {
+    const overPct = target > 0 ? Math.abs(savedAmount) / target : 1
+    if (overPct < 0.10) {
+      newStreak = current.streak   // grace pass: streak preserved, not incremented
+      leafDelta = 1
+      isGrace = true
+    } else {
+      newStreak = 0
+      leafDelta = 0
+    }
+  }
+
+  // Streak milestone bonuses (fire when streak crosses the threshold)
+  if (newStreak === 7)  leafDelta += 3
+  if (newStreak === 30) leafDelta += 10
+  if (newStreak === 90) leafDelta += 25
+
+  // Monthly leaf counter: reset when calendar month changes
+  const currentMonth = todayStr.substring(0, 7)
+  const lastMonth = (current.lastDate ?? '').substring(0, 7)
+  const monthLeaves = (lastMonth === currentMonth ? current.monthLeaves : 0) + leafDelta
+
+  // Clean streak — like the regular streak, but a grace pass resets it too (the Perfect
+  // Week achievement needs "no recovery days," not just "didn't fully miss").
+  const newCleanStreak = (isSuccess && !isGrace) ? current.cleanStreak + 1 : 0
+
+  // Comeback achievement: a success right after a broken streak, not the user's very
+  // first evaluated day ever.
+  const isComeback = isSuccess && current.streak === 0 && current.total > 0
+
+  return {
+    newStreak, newCleanStreak, potDelta, leafDelta, isGrace, isComeback, monthLeaves,
+    newTotalDays: current.total + 1,
+    newSuccessDays: current.success + (isSuccess && !isGrace ? 1 : 0),
   }
 }
 

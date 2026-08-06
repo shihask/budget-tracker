@@ -76,7 +76,7 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
   } as AppState
 }
 
-// Mirrors the merge DailyChallengeCard.tsx performs: freeze safeDailyLimit + targets, keep the rest live.
+// Mirrors the merge useDailyChallenge.ts performs: freeze safeDailyLimit + targets, keep the rest live.
 function computeMerged(state: AppState, difficulty: 'easy' | 'medium' | 'hard') {
   const liveCalc = computeChallenge(state, difficulty, derive(state).realFreeMoney)
   const cycle = getCurrentFinancialCycle(state)
@@ -278,6 +278,24 @@ describe('Daily Challenge freeze — QA scenarios', () => {
     } finally {
       g.localStorage = original
     }
+  })
+
+  it('9. yesterdaySpent reflects real spend, distinguishing "succeeded with activity" from "empty day" (both read yesterdayOverspend === 0)', () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = iso(yesterday)
+
+    const emptyDay = makeState()
+    const emptyCalc = computeChallenge(emptyDay, 'easy', derive(emptyDay).realFreeMoney)
+    expect(emptyCalc.yesterdayOverspend).toBe(0)
+    expect(emptyCalc.yesterdaySpent).toBe(0) // no transactions yesterday — not a "succeeded" day, just empty
+
+    const spentUnderTarget = makeState({
+      transactions: [makeTx({ transaction_date: yesterdayStr, amount: 10 })],
+    })
+    const spentCalc = computeChallenge(spentUnderTarget, 'easy', derive(spentUnderTarget).realFreeMoney)
+    expect(spentCalc.yesterdayOverspend).toBe(0)
+    expect(spentCalc.yesterdaySpent).toBe(10) // genuine tracked spend, still under target
   })
 
   it('snapshot carries the schema version', () => {

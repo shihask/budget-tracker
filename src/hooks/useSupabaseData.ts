@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings } from '@/types'
+import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency } from '@/types'
+import { evaluateEvent } from '@/lib/achievement-engine'
+import { computeChallengeResultUpdate } from '@/lib/challenge'
+import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
-import { withTimeout } from '@/lib/utils'
+import { withTimeout, iso, TODAY } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
 const RECEIPT_NETWORK_TIMEOUT_MS = 20_000
@@ -23,7 +26,7 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, notify_evening_recap: true, track_savings: false, budget_mode: 'auto', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, last_reflection_date: null, monthly_salary: null, income_pattern: 'monthly', weekly_income: null, income_day: null, average_daily_income: null, working_days_per_week: null, business_monthly_drawings: null, primary_income_category_id: null, cycle_start_free_money: null, cycle_snapshot_key: null, affordability_snapshot_date: null, affordability_snapshot_daily_lifestyle: null, affordability_snapshot_bills_total: null, track_aa_sync: false },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, notify_evening_recap: true, track_savings: false, budget_mode: 'auto', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, challenge_clean_streak: 0, reflection_days_count: 0, last_reflection_date: null, monthly_salary: null, income_pattern: 'monthly', weekly_income: null, income_day: null, average_daily_income: null, working_days_per_week: null, business_monthly_drawings: null, primary_income_category_id: null, cycle_start_free_money: null, cycle_snapshot_key: null, affordability_snapshot_date: null, affordability_snapshot_daily_lifestyle: null, affordability_snapshot_bills_total: null, track_aa_sync: false },
   forecast_settings: { id: '', enabled: true, days: 30, commitment_ids: null, savings_ids: null, salary_override: null, forecast_mode: 'planned' },
   budget_strategy_settings: { id: '', budget_strategy: 'none', custom_needs_pct: 50, custom_wants_pct: 30, custom_savings_pct: 20, budget_strategy_base: 'income' },
   commitments: [],
@@ -31,6 +34,8 @@ const EMPTY_STATE: AppState = {
   transactions: [],
   goals: [],
   goal_contributions: [],
+  user_achievements: [],
+  habits: [],
   savings: [],
   planned_expenses: [],
 }
@@ -156,6 +161,8 @@ export function useSupabaseData(userId: string) {
           { data: transactions },
           { data: goals },
           { data: goalContribs },
+          { data: userAchievements },
+          { data: habitsRows },
           { data: savingsRows },
           { data: forecastRow },
           { data: budgetStrategyRow },
@@ -176,6 +183,8 @@ export function useSupabaseData(userId: string) {
             .limit(TXN_PAGE_SIZE),
           supabase.from('goals').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }),
           supabase.from('goal_contributions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(200),
+          supabase.from('user_achievements').select('*').eq('user_id', userId).order('unlocked_at', { ascending: false }),
+          supabase.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
           supabase.from('savings').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
           supabase.from('forecast_settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('budget_strategy_settings').select('*').eq('user_id', userId).limit(1).single(),
@@ -375,6 +384,8 @@ export function useSupabaseData(userId: string) {
           transactions: txnList,
           goals: (goals as Goal[]) || [],
           goal_contributions: (goalContribs as GoalContribution[]) || [],
+          user_achievements: (userAchievements as UserAchievement[]) || [],
+          habits: (habitsRows as Habit[]) || [],
           savings: (savingsRows as Savings[]) || [],
           planned_expenses: (plannedExpenses as PlannedExpense[]) || [],
         })
@@ -1108,6 +1119,148 @@ export function useSupabaseData(userId: string) {
     }))
   }, [userId])
 
+  // ── Achievements ─────────────────────────────────────────────────────────────
+  // Single write path for every unlock, whichever evaluation mode found it (see
+  // src/lib/achievement-engine.ts). UNIQUE(user_id, achievement_id) on the table makes
+  // a duplicate call harmless, but callers already filter to not-yet-unlocked ids first.
+
+  const unlockAchievement = useCallback(async (achievementId: string, metadata: AchievementMetadata = {}) => {
+    const { data: unlocked } = await supabase
+      .from('user_achievements')
+      .insert({ achievement_id: achievementId, user_id: userId, metadata })
+      .select('*')
+      .single()
+    if (unlocked) {
+      setState(s => ({ ...s, user_achievements: [unlocked as UserAchievement, ...s.user_achievements] }))
+    }
+  }, [userId])
+
+  // ── Habits ───────────────────────────────────────────────────────────────────
+
+  const addHabit = useCallback(async (form: {
+    title: string
+    description?: string | null
+    category: string
+    preset_key?: string | null
+    frequency: HabitFrequency
+    days_of_week?: number[]
+    weekly_day?: number | null
+    monthly_day?: number | null
+    target_amount?: number | null
+  }) => {
+    const todayStr = iso(TODAY)
+    const { data: created } = await supabase
+      .from('habits')
+      .insert({
+        user_id: userId,
+        title: form.title,
+        description: form.description ?? null,
+        category: form.category,
+        preset_key: form.preset_key ?? null,
+        frequency: form.frequency,
+        days_of_week: form.days_of_week ?? [],
+        weekly_day: form.weekly_day ?? null,
+        monthly_day: form.monthly_day ?? null,
+        target_amount: form.target_amount ?? null,
+        status: 'active',
+        created_date: todayStr,
+        // Seeded to creation date so the catch-up pass never looks at days before this
+        // habit existed.
+        last_evaluated_date: todayStr,
+      })
+      .select('*')
+      .single()
+    if (created) {
+      setState(s => ({ ...s, habits: [created as Habit, ...s.habits] }))
+    }
+    return created as Habit | null
+  }, [userId])
+
+  // Covers on-hold/resume/archive with one function rather than a single-purpose
+  // archiveHabit — "on hold" is temporary and resumable, "archived" is a one-way hide.
+  const setHabitStatus = useCallback(async (habitId: string, status: HabitStatus) => {
+    await supabase.from('habits').update({ status }).eq('id', habitId)
+    setState(s => ({ ...s, habits: s.habits.map(h => h.id === habitId ? { ...h, status } : h) }))
+  }, [])
+
+  // Today only, user-initiated. Completion is immutable once recorded (Habit Engine
+  // Contract) — a same-day re-call is a no-op, not an upsert, so a double-tap reads as
+  // "already recorded" instead of surfacing the UNIQUE(habit_id, date) constraint as a
+  // raw error.
+  const recordHabitCompletion = useCallback(async (habitId: string, status: HabitCompletionStatus, metadata: HabitCompletionMetadata = {}) => {
+    const habit = stateRef.current.habits.find(h => h.id === habitId)
+    if (!habit) return
+    const todayStr = iso(TODAY)
+    if (habit.last_evaluated_date === todayStr) return
+
+    await supabase.from('habit_completions').insert({ habit_id: habitId, user_id: userId, date: todayStr, status, metadata })
+    const upd = computeHabitUpdate(
+      { streak: habit.current_streak, bestStreak: habit.best_streak, completions: habit.total_completions, paused: habit.total_paused, missed: habit.total_missed },
+      status,
+    )
+    const patch: Partial<Habit> = {
+      current_streak: upd.streak,
+      best_streak: upd.bestStreak,
+      total_completions: upd.completions,
+      total_paused: upd.paused,
+      total_missed: upd.missed,
+      last_evaluated_date: todayStr,
+      ...(status === 'completed' ? { last_completed_date: todayStr } : {}),
+    }
+    await supabase.from('habits').update(patch).eq('id', habitId)
+    setState(s => ({ ...s, habits: s.habits.map(h => h.id === habitId ? { ...h, ...patch } : h) }))
+  }, [userId])
+
+  // Used by useHabitEvaluation's lazy catch-up pass — batches a backlog gap's missed
+  // days into one insert and one habits-row update, not one write per day.
+  const applyHabitCatchUp = useCallback(async (
+    habitId: string,
+    missedDates: string[],
+    finalCounters: HabitCounters,
+    lastEvaluatedDate: string,
+  ) => {
+    if (missedDates.length > 0) {
+      await supabase.from('habit_completions').insert(
+        missedDates.map(date => ({ habit_id: habitId, user_id: userId, date, status: 'missed' as const, metadata: {} }))
+      )
+    }
+    const patch: Partial<Habit> = {
+      current_streak: finalCounters.streak,
+      best_streak: finalCounters.bestStreak,
+      total_completions: finalCounters.completions,
+      total_paused: finalCounters.paused,
+      total_missed: finalCounters.missed,
+      last_evaluated_date: lastEvaluatedDate,
+    }
+    await supabase.from('habits').update(patch).eq('id', habitId)
+    setState(s => ({ ...s, habits: s.habits.map(h => h.id === habitId ? { ...h, ...patch } : h) }))
+  }, [userId])
+
+  // On-demand, date-bounded only — never part of global AppState (see Grow Phase 4 plan
+  // for why: avoids the goal_contributions-style capped-array scale problem).
+  const fetchHabitCompletions = useCallback(async (habitId: string, sinceDate: string): Promise<HabitCompletion[]> => {
+    const { data } = await supabase
+      .from('habit_completions')
+      .select('*')
+      .eq('habit_id', habitId)
+      .gte('date', sinceDate)
+      .order('date', { ascending: false })
+    return (data as HabitCompletion[]) || []
+  }, [])
+
+  // One bounded query across every habit's recent completions — for the Grow "🌿 Habits"
+  // summary card's 30-day consistency %. Still date-bounded (never unbounded history),
+  // just scoped to "all habits" instead of a single habit's own detail view.
+  const fetchHabitConsistency = useCallback(async (sinceDate: string): Promise<{ completed: number; total: number }> => {
+    const { data } = await supabase
+      .from('habit_completions')
+      .select('status')
+      .eq('user_id', userId)
+      .gte('date', sinceDate)
+    const rows = (data as { status: HabitCompletionStatus }[]) || []
+    return { completed: rows.filter(r => r.status === 'completed').length, total: rows.length }
+  }, [userId])
+
   // ── Savings CRUD ─────────────────────────────────────────────────────────────
 
   const addSavings = useCallback(async (form: Omit<Savings, 'id' | 'created_at'>, debitAccountId?: string) => {
@@ -1558,50 +1711,51 @@ export function useSupabaseData(userId: string) {
     todayStr: string
   ) => {
     const s = stateRef.current.settings
-    const streak  = s.challenge_streak       ?? 0
-    const total   = s.challenge_total_days   ?? 0
-    const success = s.challenge_success_days ?? 0
-    const isSuccess = result === 'success'
-
-    let newStreak: number
-    let potDelta = 0
-    let leafDelta = 0
-    let isGrace = false
-
-    if (isSuccess) {
-      newStreak = streak + 1
-      potDelta = Math.max(0, savedAmount)
-      leafDelta = 2
-    } else {
-      const overPct = target > 0 ? Math.abs(savedAmount) / target : 1
-      if (overPct < 0.10) {
-        newStreak = streak   // grace pass: streak preserved, not incremented
-        leafDelta = 1
-        isGrace = true
-      } else {
-        newStreak = 0
-        leafDelta = 0
-      }
-    }
-
-    // Streak milestone bonuses (fire when streak crosses the threshold)
-    if (newStreak === 7)  leafDelta += 3
-    if (newStreak === 30) leafDelta += 10
-    if (newStreak === 90) leafDelta += 25
-
-    // Monthly leaf counter: reset when calendar month changes
-    const currentMonth = todayStr.substring(0, 7)
-    const lastMonth = (s.challenge_last_date ?? '').substring(0, 7)
-    const monthLeaves = lastMonth === currentMonth ? (s.challenge_month_leaves ?? 0) : 0
+    // Comeback is unlocked inline through the same evaluateEvent/unlockAchievement path
+    // any event-triggered achievement uses, rather than a settings flag for something
+    // else to poll later — its underlying fact is transient, only knowable right here.
+    const upd = computeChallengeResultUpdate(
+      {
+        streak: s.challenge_streak ?? 0,
+        total: s.challenge_total_days ?? 0,
+        success: s.challenge_success_days ?? 0,
+        cleanStreak: s.challenge_clean_streak ?? 0,
+        monthLeaves: s.challenge_month_leaves ?? 0,
+        lastDate: s.challenge_last_date ?? null,
+      },
+      result, savedAmount, target, todayStr,
+    )
 
     await updateSettings({
-      challenge_streak:       newStreak,
-      challenge_pot:          (s.challenge_pot ?? 0) + potDelta,
-      challenge_leaves:       (s.challenge_leaves ?? 0) + leafDelta,
-      challenge_month_leaves: monthLeaves + leafDelta,
+      challenge_streak:       upd.newStreak,
+      challenge_clean_streak: upd.newCleanStreak,
+      challenge_pot:          (s.challenge_pot ?? 0) + upd.potDelta,
+      challenge_leaves:       (s.challenge_leaves ?? 0) + upd.leafDelta,
+      challenge_month_leaves: upd.monthLeaves,
       challenge_last_date:    todayStr,
-      challenge_total_days:   total + 1,
-      challenge_success_days: success + (isSuccess && !isGrace ? 1 : 0),
+      challenge_total_days:   upd.newTotalDays,
+      challenge_success_days: upd.newSuccessDays,
+    })
+
+    if (upd.isComeback) {
+      const alreadyUnlockedIds = new Set(stateRef.current.user_achievements.map(a => a.achievement_id))
+      const newlyUnlocked = evaluateEvent({ type: 'challenge_comeback' }, alreadyUnlockedIds)
+      for (const def of newlyUnlocked) {
+        await unlockAchievement(def.id)
+      }
+    }
+  }, [updateSettings, unlockAchievement])
+
+  // Single wrapper for stamping reflection activity — owns the reflection_days_count
+  // bookkeeping so it isn't duplicated at each of the ~3 call sites that used to set
+  // last_reflection_date directly. Only increments on a genuinely new date, never on a
+  // same-day re-open.
+  const recordReflection = useCallback(async (todayStr: string) => {
+    const s = stateRef.current.settings
+    const alreadyToday = s.last_reflection_date === todayStr
+    await updateSettings({
+      last_reflection_date: todayStr,
+      reflection_days_count: alreadyToday ? (s.reflection_days_count ?? 0) : (s.reflection_days_count ?? 0) + 1,
     })
   }, [updateSettings])
 
@@ -1692,5 +1846,7 @@ export function useSupabaseData(userId: string) {
     addGoal, updateGoal, deleteGoal, addGoalSavings,
     addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout,
     updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion,
+    unlockAchievement, recordReflection,
+    addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency,
   }
 }

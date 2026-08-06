@@ -138,6 +138,8 @@ export interface Settings {
   challenge_excluded_txn_ids?:  string[] | null
   challenge_total_days?:        number
   challenge_success_days?:      number
+  challenge_clean_streak?:      number
+  reflection_days_count?:       number
   last_reflection_date?:        string | null
   monthly_salary?:              number | null
   income_pattern?:              IncomePattern
@@ -257,6 +259,73 @@ export interface GoalContribution {
   created_at: string
 }
 
+// Untyped jsonb in the DB — only the TS side is checked, so `achievement.metadata.streak`
+// is a caught typo instead of a silently-undefined read.
+export interface AchievementMetadata {
+  streak?: number
+  leaves?: number
+  amount?: number
+  goalId?: string
+}
+
+export interface UserAchievement {
+  id: string
+  user_id?: string
+  achievement_id: string
+  unlocked_at: string
+  metadata: AchievementMetadata
+}
+
+export type HabitFrequency = 'daily' | 'weekdays' | 'weekends' | 'specific_days' | 'weekly' | 'monthly'
+export type HabitStatus = 'active' | 'on_hold' | 'archived'
+export type HabitCompletionStatus = 'completed' | 'paused' | 'missed'
+
+// Untyped jsonb in the DB, same reasoning as AchievementMetadata — only the TS side is
+// checked. Nothing writes anything but {} in Phase 4; reserved for later sources.
+export interface HabitCompletionMetadata {
+  source?: 'manual' | 'notification' | 'mint' | 'automation'
+  savedAmount?: number
+  note?: string
+}
+
+export interface Habit {
+  id: string
+  user_id?: string
+  title: string
+  description: string | null
+  category: string
+  preset_key: string | null
+  frequency: HabitFrequency
+  days_of_week: number[]
+  weekly_day: number | null
+  monthly_day: number | null
+  target_amount: number | null
+  status: HabitStatus
+  snoozed_until: string | null
+  current_streak: number
+  best_streak: number
+  total_completions: number
+  total_paused: number
+  total_missed: number
+  last_completed_date: string | null
+  last_evaluated_date: string | null
+  created_date: string
+  created_at: string
+}
+
+// Not part of AppState — fetched on-demand, date-bounded, only when a habit's recent
+// history is actually needed (see Grow Phase 4 plan: avoids the goal_contributions-style
+// capped-array scale problem).
+export interface HabitCompletion {
+  id: string
+  habit_id: string
+  user_id?: string
+  date: string
+  status: HabitCompletionStatus
+  metadata: HabitCompletionMetadata
+  created_at: string
+}
+
 export interface PlannedExpense {
   id: string
   user_id?: string
@@ -282,6 +351,8 @@ export interface AppState {
   transactions: Transaction[]
   goals: Goal[]
   goal_contributions: GoalContribution[]
+  user_achievements: UserAchievement[]
+  habits: Habit[]
   savings: Savings[]
   planned_expenses: PlannedExpense[]
 }

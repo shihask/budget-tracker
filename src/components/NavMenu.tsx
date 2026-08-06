@@ -11,6 +11,7 @@ interface NavMenuProps {
   onSavings: () => void
   onBorrowing: () => void
   onProjects: () => void
+  onGrow: () => void
   onPlant: () => void
   onCategories: () => void
   onSettings: () => void
@@ -29,7 +30,7 @@ function NavIcon({ children, color }: { children: React.ReactNode; color: string
 
 export function NavMenu({
   open, onClose,
-  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onPlant, onCategories, onSettings,
+  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onGrow, onPlant, onCategories, onSettings,
   trackSavings, trackBorrowings, trackProjects,
 }: NavMenuProps) {
   const c = useTheme()
@@ -62,6 +63,10 @@ export function NavMenu({
     {
       id: 'projects', label: 'Projects', onClick: onProjects, hidden: !trackProjects,
       icon: <NavIcon color={c.ink}><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></NavIcon>,
+    },
+    {
+      id: 'grow', label: 'Grow', onClick: onGrow,
+      icon: <NavIcon color={c.ink}><path d="M12 2v8"/><path d="M12 22c-4-2-7-6-7-11 4 0 7 2 7 6 0-4 3-6 7-6 0 5-3 9-7 11z"/></NavIcon>,
     },
     {
       id: 'plant', label: 'Plant', onClick: onPlant,

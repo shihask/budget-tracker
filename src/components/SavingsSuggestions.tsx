@@ -18,6 +18,31 @@ interface Suggestion {
   type: 'reduce' | 'cut' | 'swap' | 'alert'
 }
 
+export interface RecurringExpense {
+  description: string
+  monthlyAmount: number
+  count: number
+}
+
+// Extracted so Mint Suggestions (src/lib/mint-suggestions.ts) can reuse the same
+// detection for its own top-1 copy instead of parsing analyzeSavings' joined string.
+export function detectRecurringExpenses(state: AppState): RecurringExpense[] {
+  const now = new Date()
+  const descCount: Record<string, { count: number; total: number }> = {}
+  state.transactions
+    .filter(t => new Date(t.transaction_date) >= new Date(now.getFullYear(), now.getMonth() - 3, 1) && t.transaction_type === 'expense' && t.amount < 1000)
+    .forEach(t => {
+      const key = t.description.toLowerCase().trim()
+      if (!descCount[key]) descCount[key] = { count: 0, total: 0 }
+      descCount[key].count++
+      descCount[key].total += t.amount
+    })
+  return Object.entries(descCount)
+    .filter(([, v]) => v.count >= 3)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([description, v]) => ({ description, monthlyAmount: Math.round(v.total / 3), count: v.count }))
+}
+
 function analyzeSavings(state: AppState, d: DerivedMetrics): Suggestion[] {
   const suggestions: Suggestion[] = []
   const now = new Date()
@@ -100,23 +125,11 @@ function analyzeSavings(state: AppState, d: DerivedMetrics): Suggestion[] {
   }
 
   // 6. Recurring small subscriptions
-  const descCount: Record<string, { count: number; total: number }> = {}
-  state.transactions
-    .filter(t => new Date(t.transaction_date) >= new Date(now.getFullYear(), now.getMonth() - 3, 1) && t.transaction_type === 'expense' && t.amount < 1000)
-    .forEach(t => {
-      const key = t.description.toLowerCase().trim()
-      if (!descCount[key]) descCount[key] = { count: 0, total: 0 }
-      descCount[key].count++
-      descCount[key].total += t.amount
-    })
-  const smallRecurring = Object.entries(descCount)
-    .filter(([, v]) => v.count >= 3)
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 3)
+  const smallRecurring = detectRecurringExpenses(state).slice(0, 3)
 
   if (smallRecurring.length > 0) {
-    const totalSmall = smallRecurring.reduce((s, [, v]) => s + Math.round(v.total / 3), 0)
-    const names = smallRecurring.map(([name]) => name).join(', ')
+    const totalSmall = smallRecurring.reduce((s, r) => s + r.monthlyAmount, 0)
+    const names = smallRecurring.map(r => r.description).join(', ')
     suggestions.push({
       type: 'cut',
       title: 'Small recurring expenses',

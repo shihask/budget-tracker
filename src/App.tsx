@@ -58,7 +58,14 @@ import { InsightCard } from '@/components/InsightCard'
 import { getAppNotifications, getSnoozeMap, snoozeNotification, isSnoozed, type SnoozeDuration } from '@/lib/notification-engine'
 import type { NotificationTarget } from '@/types'
 import { WealthSummaryCard } from '@/components/WealthSummaryCard'
-import { DailyChallengeCard } from '@/components/DailyChallengeCard'
+import { DashboardChallengeCard } from '@/components/DashboardChallengeCard'
+import { GrowPage } from '@/components/GrowPage'
+import { useDailyChallenge } from '@/hooks/useDailyChallenge'
+import { AchievementsPage } from '@/components/AchievementsPage'
+import { AchievementUnlockToast } from '@/components/AchievementUnlockToast'
+import { useAchievements } from '@/hooks/useAchievements'
+import { HabitsPage } from '@/components/HabitsPage'
+import { useHabitEvaluation } from '@/hooks/useHabitEvaluation'
 import { PlantPage } from '@/components/PlantPage'
 import { BudgetStrategyCard } from '@/components/BudgetStrategyCard'
 import { CategoryBucketMapper } from '@/components/CategoryBucketMapper'
@@ -73,7 +80,6 @@ import { useSyncPromotion } from '@/features/aa-sync/hooks/useSyncPromotion'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
 import { GuidedTour } from '@/components/GuidedTour'
-import { computeChallenge } from '@/lib/challenge'
 import { Analytics as VercelAnalytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { ProjectsDashboardCard } from '@/features/shared-projects/components/ProjectsDashboardCard'
@@ -172,6 +178,7 @@ function AppContent({ session }: { session: Session }) {
   const [sheetDefaultCategoryId, setSheetDefaultCategoryId] = useState<string | null | undefined>()
   const [postIncomeAmount, setPostIncomeAmount] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
+  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
   const [aiProcessing, setAiProcessing] = useState(false)
   const [showOnboardingFlow, setShowOnboardingFlow] = useState(() => {
     try { return localStorage.getItem('mp_onboarded_' + user.id) === null } catch (_) { return false }
@@ -225,6 +232,9 @@ function AppContent({ session }: { session: Session }) {
   const [receiptRetry, setReceiptRetry] = useState<{ transaction: Transaction; receipt: PickedReceipt; message: string } | null>(null)
   const [retryingReceipt, setRetryingReceipt] = useState(false)
   const [plantSheetOpen, setPlantSheetOpen] = useState(false)
+  const [growOpen, setGrowOpen] = useState(false)
+  const [achievementsOpen, setAchievementsOpen] = useState(false)
+  const [habitsOpen, setHabitsOpen] = useState(false)
   const [reflectionOpen, setReflectionOpen] = useState(false)
   const [reflectionMode, setReflectionMode] = useState<'today' | 'yesterday'>('today')
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
@@ -242,7 +252,7 @@ function AppContent({ session }: { session: Session }) {
   const [tourOpen, setTourOpen] = useState(false)
   const [tourTarget, setTourTarget] = useState<string | null>(null)
 
-  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, addTransaction, deleteTransaction, updateTransaction, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, addTransaction, deleteTransaction, updateTransaction, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
 
   // Stages pending sync_events for review — every transaction event lands
   // in needs_review (DedupReviewSheet decides insert/merge/ignore from
@@ -340,10 +350,20 @@ function AppContent({ session }: { session: Session }) {
     return merged
   }, [state.settings.dashboard_sections])
 
-  const safeDailyLimit = useMemo(() => {
-    if (!(state.settings.challenge_enabled)) return 0
-    return computeChallenge(state, state.settings.challenge_difficulty ?? 'medium', d.realFreeMoney, d.financialCycle).safeDailyLimit
-  }, [state.accounts, state.commitments, state.settings, d.financialCycle]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Single source of truth for Daily Challenge — called once here, passed down as
+  // props to both the compact dashboard card and the Grow page (see useDailyChallenge.ts
+  // for why this must not be called independently from each of those components).
+  const challenge = useDailyChallenge(
+    state, d, session.user.id, updateChallengeResult,
+    (amount) => { setChallengeWin({ amount }); setChallengeWinInput(String(Math.round(amount))) }
+  )
+  const safeDailyLimit = challenge.calc?.safeDailyLimit ?? 0
+
+  const { newlyUnlocked: newlyUnlockedAchievements, dismiss: dismissAchievementToast } = useAchievements(state, unlockAchievement)
+
+  // Lazy catch-up pass for habits — called once here, same "call once" lesson as
+  // useDailyChallenge/useAchievements above.
+  useHabitEvaluation(state.habits, applyHabitCatchUp, fetchHabitCompletions)
 
   const todayStr = iso(TODAY)
   const yesterdayStr = iso(new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - 1))
@@ -497,7 +517,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || catsOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || catsOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
             <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)}
@@ -508,6 +528,7 @@ function AppContent({ session }: { session: Session }) {
               onSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }}
               onBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }}
               onProjects={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }}
+              onGrow={() => setGrowOpen(true)}
               onPlant={() => setPlantSheetOpen(true)}
               trackSavings={state.settings.track_savings ?? false}
               trackBorrowings={state.settings.track_borrowings ?? true}
@@ -537,7 +558,7 @@ function AppContent({ session }: { session: Session }) {
                   borderRadius: 14, padding: '11px 14px',
                   cursor: 'pointer',
                 }}
-                  onClick={() => { setReflectionMode('today'); setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
+                  onClick={() => { setReflectionMode('today'); setReflectionOpen(true); recordReflection(todayStr) }}
                 >
                   <div style={{ width: 32, height: 32, borderRadius: 9, background: '#16C98A18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16C98A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -552,7 +573,7 @@ function AppContent({ session }: { session: Session }) {
                     <polyline points="9 18 15 12 9 6"/>
                   </svg>
                   <button
-                    onClick={e => { e.stopPropagation(); updateSettings({ last_reflection_date: todayStr }) }}
+                    onClick={e => { e.stopPropagation(); recordReflection(todayStr) }}
                     style={{ width: 26, height: 26, borderRadius: 999, background: c.surface2, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                     aria-label="Dismiss"
                   >
@@ -586,7 +607,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <><AffordabilityChecker state={state} d={d} settings={state.settings} transactions={state.transactions} onUpdateSettings={updateSettings} onSaveGoal={data => setPrefillGoal(data)} onAddPlannedExpense={addPlannedExpense} /><SavingsSuggestions state={state} d={d} autopilotEnabled={state.settings.autopilot_enabled ?? false} /></>
                       break
                     case 'daily_challenge':
-                      el = <DailyChallengeCard state={state} d={d} userId={session.user.id} onUpdateSettings={updateSettings} updateChallengeResult={updateChallengeResult} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onSuccessDay={(amount) => { setChallengeWin({ amount }); setChallengeWinInput(String(Math.round(amount))) }} />
+                      el = <DashboardChallengeCard calc={challenge.calc} enabled={challenge.enabled} streak={challenge.streak} remaining={challenge.remaining} progressPct={challenge.progressPct} onUpdateSettings={updateSettings} onOpenGrow={() => setGrowOpen(true)} />
                       break
                     case 'metrics':
                       el = <div>
@@ -751,7 +772,7 @@ function AppContent({ session }: { session: Session }) {
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
             {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} windowWidth={windowW} busy={aiProcessing} tourHighlight={tourTarget === 'ai-fab'} />}
-            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} />
+            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} initialMessage={pendingChatMessage} onInitialMessageConsumed={() => setPendingChatMessage(null)} />
           </>)}
 
           {showOnboardingFlow && (
@@ -818,8 +839,8 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 0.4 * (1 - swipePct) : 0})`,
-            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'auto' : 'none',
+            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen) ? 'auto' : 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
 
@@ -916,7 +937,7 @@ function AppContent({ session }: { session: Session }) {
           onDecline={projectsSummary.declineInvite}
           onViewProject={() => { setNotificationsOpen(false); setProjectsOpen(true) }}
           showReflection={showReflectionBanner}
-          onReflection={() => { setReflectionMode('today'); setReflectionOpen(true); updateSettings({ last_reflection_date: todayStr }) }}
+          onReflection={() => { setReflectionMode('today'); setReflectionOpen(true); recordReflection(todayStr) }}
           showYesterdayRecap={showYesterdayRecap}
           onYesterdayRecap={() => { setReflectionMode('yesterday'); setReflectionOpen(true); snoozeNotif(yesterdayRecapAlertId, 'permanent') }}
           onDismissBanner={id => snoozeNotif(id, 'permanent')}
@@ -1048,6 +1069,19 @@ function AppContent({ session }: { session: Session }) {
         />
 
         {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} d={d} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
+
+        {growOpen && <GrowPage open={growOpen} onClose={() => setGrowOpen(false)} state={state} d={d} challenge={challenge} userId={user.id} onUpdateSettings={updateSettings} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onOpenAchievements={() => setAchievementsOpen(true)} onOpenHabits={() => setHabitsOpen(true)} onGoalContribution={async (goalId, amount) => { await addGoalSavings(goalId, amount, 'daily_challenge') }} onRecordReflection={recordReflection} onRecordHabitCompletion={recordHabitCompletion} fetchHabitConsistency={fetchHabitConsistency} onOpenChat={msg => { setPendingChatMessage(msg); setChatOpen(true) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
+
+        {achievementsOpen && <AchievementsPage open={achievementsOpen} onClose={() => setAchievementsOpen(false)} state={state} onSwipeProgress={setSwipePct} />}
+
+        {habitsOpen && <HabitsPage open={habitsOpen} onClose={() => setHabitsOpen(false)} state={state} onAddHabit={async (form) => { await addHabit(form) }} onSetHabitStatus={setHabitStatus} onSwipeProgress={setSwipePct} />}
+
+        {newlyUnlockedAchievements.length > 0 && (
+          <AchievementUnlockToast
+            achievement={newlyUnlockedAchievements[0]}
+            onDismiss={() => dismissAchievementToast(newlyUnlockedAchievements[0].id)}
+          />
+        )}
 
         {/* Daily Challenge → Goal Contribution modal */}
         <BottomSheet open={!!challengeWin} onClose={() => setChallengeWin(null)} zIndex={500}>

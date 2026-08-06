@@ -349,6 +349,39 @@ export async function goalProgressInsightWithAI(
   }
 }
 
+// Same one-shot mode:'chat', once:true shape as affordabilityInsightWithAI /
+// analyticsInsightWithAI / goalPlanAdviceWithAI / goalProgressInsightWithAI above —
+// message/context are fully pre-built by mint-coach-prompt.ts, this is just the fetch.
+// Deliberately returns null (not a "limit reached" string) on 429: Coach generates
+// automatically/silently, unlike those four which respond to an explicit user tap, so a
+// quota miss should just mean no Coach card this load rather than an apology text where
+// a coaching paragraph was expected.
+export async function mintCoachWithAI(
+  message: string,
+  context: string,
+  onUsed?: (n: number) => void
+): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
+    })
+
+    if (res.status === 429) return null
+    if (!res.ok) return null
+
+    const data = await res.json()
+    if (data.used != null) onUsed?.(data.used)
+    return data.reply ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function categorizeWithAI(
   description: string,
   categoryNames: string[],

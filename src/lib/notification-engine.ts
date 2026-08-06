@@ -71,6 +71,46 @@ function catName(state: AppState, id: string | null): string {
   return state.categories.find(c => c.id === id)?.name ?? 'Uncategorized'
 }
 
+export interface CategorySpike {
+  category: string
+  pct: number
+  amount: number
+}
+
+// Extracted from generateBudgetNotifications so Mint Suggestions (src/lib/mint-suggestions.ts)
+// can reuse the same detection with structured numbers instead of parsing rendered copy.
+export function detectCategorySpike(state: AppState): CategorySpike | null {
+  const now = new Date()
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthSameDay = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
+
+  const expenses = state.transactions.filter(t => t.transaction_type === 'expense')
+  const thisMonth = expenses.filter(t => new Date(t.transaction_date) >= thisMonthStart)
+  const lastToSameDay = expenses.filter(t => {
+    const dt = new Date(t.transaction_date)
+    return dt >= lastMonthStart && dt <= lastMonthSameDay
+  })
+  const lastMonthSpend = lastToSameDay.reduce((s, t) => s + t.amount, 0)
+  if (lastMonthSpend <= 0) return null
+
+  const catThis: Record<string, number> = {}
+  const catLast: Record<string, number> = {}
+  thisMonth.forEach(t => { const n = catName(state, t.category_id); catThis[n] = (catThis[n] ?? 0) + t.amount })
+  lastToSameDay.forEach(t => { const n = catName(state, t.category_id); catLast[n] = (catLast[n] ?? 0) + t.amount })
+
+  let topSpike: CategorySpike | null = null
+  for (const [cat, amount] of Object.entries(catThis)) {
+    if (cat === 'Uncategorized' || cat === 'Transfer') continue
+    const last = catLast[cat] ?? 0
+    if (last > 200 && amount > 300) {
+      const pct = ((amount - last) / last) * 100
+      if (pct > 30 && (!topSpike || pct > topSpike.pct)) topSpike = { category: cat, pct, amount }
+    }
+  }
+  return topSpike
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Domain: budget — owns weekly/period spending pace, category spikes,
 // overall spend-vs-last-month comparison. Never emits salary/forecast/goal/bill content.
@@ -195,36 +235,21 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
   }
 
   // 2. Category spike vs last month same point
-  if (lastMonthSpend > 0) {
-    const catThis: Record<string, number> = {}
-    const catLast: Record<string, number> = {}
-    thisMonth.forEach(t => { const n = catName(state, t.category_id); catThis[n] = (catThis[n] ?? 0) + t.amount })
-    lastToSameDay.forEach(t => { const n = catName(state, t.category_id); catLast[n] = (catLast[n] ?? 0) + t.amount })
-
-    let topSpike: { cat: string; pct: number; amount: number } | null = null
-    for (const [cat, amount] of Object.entries(catThis)) {
-      if (cat === 'Uncategorized' || cat === 'Transfer') continue
-      const last = catLast[cat] ?? 0
-      if (last > 200 && amount > 300) {
-        const pct = ((amount - last) / last) * 100
-        if (pct > 30 && (!topSpike || pct > topSpike.pct)) topSpike = { cat, pct, amount }
-      }
-    }
-    if (topSpike) {
-      warningFired = true
-      const slug = topSpike.cat.toLowerCase().replace(/[^a-z0-9]+/g, '_')
-      notifications.push({
-        id: `budget_spike_${slug}_${monthKey}`,
-        domain: 'budget',
-        priority: 'medium',
-        tone: 'warning',
-        title: `${topSpike.cat} spend jumped`,
-        message: `${topSpike.cat} is up ${Math.round(topSpike.pct)}% vs last month — ₹${Math.round(topSpike.amount).toLocaleString('en-IN')} so far.`,
-        recommendation: buildRecommendation('review_category', { category: topSpike.cat }),
-        createdAt: nowIso,
-        dismissible: true,
-      })
-    }
+  const topSpike = detectCategorySpike(state)
+  if (topSpike) {
+    warningFired = true
+    const slug = topSpike.category.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+    notifications.push({
+      id: `budget_spike_${slug}_${monthKey}`,
+      domain: 'budget',
+      priority: 'medium',
+      tone: 'warning',
+      title: `${topSpike.category} spend jumped`,
+      message: `${topSpike.category} is up ${Math.round(topSpike.pct)}% vs last month — ₹${Math.round(topSpike.amount).toLocaleString('en-IN')} so far.`,
+      recommendation: buildRecommendation('review_category', { category: topSpike.category }),
+      createdAt: nowIso,
+      dismissible: true,
+    })
   }
 
   if (!warningFired) {

@@ -1213,9 +1213,11 @@ interface AIChatSheetProps {
   onEditTransaction?: (t: Transaction) => void
   showReceiptTip?: boolean
   onDismissReceiptTip?: () => void
+  initialMessage?: string | null
+  onInitialMessageConsumed?: () => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip, initialMessage, onInitialMessageConsumed }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -1248,6 +1250,11 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
 
   const onBusyChangeRef = useRef(onBusyChange)
   useEffect(() => { onBusyChangeRef.current = onBusyChange }, [onBusyChange])
+
+  // Guards the initialMessage auto-send below against React StrictMode's double-effect-fire
+  // in dev (which would otherwise send the same message twice) and against re-firing on
+  // unrelated re-renders while the sheet stays open.
+  const initialMessageFiredRef = useRef(false)
 
   useEffect(() => {
     return () => { if (revealTimerRef.current != null) window.clearInterval(revealTimerRef.current) }
@@ -1291,17 +1298,23 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
   useEffect(() => {
     if (open) {
       if (messages.length === 0) {
-        const weeklyBudget = d.weeklyBudget
-        const weeklySpent = d.weeklySpent
-        const pct = weeklyBudget > 0 ? Math.round((weeklySpent / weeklyBudget) * 100) : 0
+        if (initialMessage && !initialMessageFiredRef.current) {
+          initialMessageFiredRef.current = true
+          send(initialMessage)
+          onInitialMessageConsumed?.()
+        } else {
+          const weeklyBudget = d.weeklyBudget
+          const weeklySpent = d.weeklySpent
+          const pct = weeklyBudget > 0 ? Math.round((weeklySpent / weeklyBudget) * 100) : 0
 
-        let greeting = "Hey! I'm Mint, your finance coach. Ask me anything — or tap a suggestion below to get started."
-        if (pct >= 100) {
-          greeting = `You've used ${pct}% of your weekly budget this week. That happens — let's look at what drove it and find a way forward. Try "help me recover my budget" or ask me anything.`
-        } else if (pct >= 80) {
-          greeting = `You've used ${pct}% of your weekly budget. You're still in control — ask me where you can ease up, or anything else about your finances.`
+          let greeting = "Hey! I'm Mint, your finance coach. Ask me anything — or tap a suggestion below to get started."
+          if (pct >= 100) {
+            greeting = `You've used ${pct}% of your weekly budget this week. That happens — let's look at what drove it and find a way forward. Try "help me recover my budget" or ask me anything.`
+          } else if (pct >= 80) {
+            greeting = `You've used ${pct}% of your weekly budget. You're still in control — ask me where you can ease up, or anything else about your finances.`
+          }
+          setMessages([{ role: 'ai', text: greeting }])
         }
-        setMessages([{ role: 'ai', text: greeting }])
       }
       setTimeout(() => inputRef.current?.focus(), 300)
       // iOS-safe scroll lock: pinning the body with position:fixed actually stops
@@ -1326,6 +1339,10 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
         body.style.width = prev.width
         body.style.overflow = prev.overflow
         window.scrollTo(0, scrollY)
+        // Sheet stays mounted across opens (only `open` toggles), so this ref needs an
+        // explicit reset on close — otherwise a second "Continue Conversation" tap later
+        // would silently no-op instead of auto-sending again.
+        initialMessageFiredRef.current = false
       }
     }
   }, [open])
