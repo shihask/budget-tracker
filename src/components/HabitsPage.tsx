@@ -158,7 +158,7 @@ export function HabitsPage({ open, onClose, state, onAddHabit, onSetHabitStatus,
     <div
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}
       style={{
-        position: 'fixed', inset: 0, background: c.bg, zIndex: 100,
+        position: 'fixed', inset: 0, background: c.bg, zIndex: 200,
         overflowY: dragX > 0 ? 'hidden' : 'auto',
         overscrollBehavior: 'contain',
         fontFamily: 'Plus Jakarta Sans, sans-serif',

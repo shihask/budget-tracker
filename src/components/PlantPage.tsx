@@ -232,7 +232,7 @@ export function PlantPage({ open, onClose, state, d, dark, onToggleTheme, userNa
     <div
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}
       style={{
-        position: 'fixed', inset: 0, background: c.bg, zIndex: 100,
+        position: 'fixed', inset: 0, background: c.bg, zIndex: 200,
         overflowY: dragX > 0 ? 'hidden' : 'auto',
         overscrollBehavior: 'contain',
         fontFamily: 'Plus Jakarta Sans, sans-serif',
@@ -548,7 +548,7 @@ export function PlantPage({ open, onClose, state, d, dark, onToggleTheme, userNa
         celebrateStage === 6 ? (
           /* ── Blooming: full-screen special celebration ── */
           <div style={{
-            position: 'fixed', inset: 0, zIndex: 200,
+            position: 'fixed', inset: 0, zIndex: 210,
             background: `linear-gradient(160deg, #0f2414 0%, #1a3d20 50%, #2d5a1b 100%)`,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             padding: '40px 24px', overflow: 'hidden',
@@ -592,7 +592,7 @@ export function PlantPage({ open, onClose, state, d, dark, onToggleTheme, userNa
         ) : (
           /* ── Regular stage unlock: bottom sheet ── */
           <div
-            style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 16px 32px' }}
+            style={{ position: 'fixed', inset: 0, zIndex: 210, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 16px 32px' }}
             onClick={() => setCelebrateStage(null)}
           >
             <div
