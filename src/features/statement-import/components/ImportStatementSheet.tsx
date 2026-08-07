@@ -13,6 +13,7 @@ import {
 import { sortForReview } from '../lib/pure'
 import type { ImportBatch, StatementReviewContext } from '../types'
 import type { AppState, Transaction } from '@/types'
+import { round2 } from '@/lib/utils'
 
 interface SyncEventRow {
   id: string
@@ -237,7 +238,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
       await onUpdateTransaction(existing, {
         transaction_date: draft?.date ?? existing.transaction_date,
         description: draft?.description ?? existing.description,
-        amount: draft ? Number(draft.amount) : existing.amount,
+        amount: draft ? round2(Number(draft.amount)) : existing.amount,
         transaction_type: existing.transaction_type,
         category_id: draft?.category_id ?? existing.category_id,
         from_account_id: draft?.from_account_id ?? existing.from_account_id,
@@ -257,7 +258,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
     const draft = newDrafts[row.id]
     const categoryId = draft?.category_id ?? ctx.suggested_category_id ?? null
     const accId = draft?.account_id ?? ctx.account_id
-    const amount = draft ? Number(draft.amount) : ctx.amount
+    const amount = draft ? round2(Number(draft.amount)) : ctx.amount
     setBusyId(row.id); setRowError(null)
     try {
       const { error } = await supabase.rpc('mp_finalize_sync_event', {

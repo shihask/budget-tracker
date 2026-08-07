@@ -6,6 +6,7 @@ import type { ColorTokens } from '@/lib/tokens'
 import { parseExpenseWithAI, extractReceiptWithAI, type AIReceiptExtraction } from '@/lib/gemini'
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
+import { round2 } from '@/lib/utils'
 import { MintAnimation } from './MintAnimation'
 import { CategorySelect } from './CategorySelect'
 import {
@@ -2108,7 +2109,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
                           type="number"
                           inputMode="decimal"
                           value={rp.amount}
-                          onChange={e => updateReceiptPrompt(i, { amount: Math.max(0, Number(e.target.value) || 0) })}
+                          onChange={e => updateReceiptPrompt(i, { amount: round2(Math.max(0, Number(e.target.value) || 0)) })}
                           style={{ ...editableStyle, width: 90 }}
                         />
                       </div>
