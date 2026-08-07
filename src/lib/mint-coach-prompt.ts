@@ -38,6 +38,11 @@ function buildContextString(ctx: MintCoachContext): string {
     parts.push(`Forecast: ${ctx.forecastEvent.title} ${fmt(ctx.forecastEvent.amount)} due tomorrow`)
   }
 
+  const visibleTopics = ctx.allDetectedTopics.filter(t => t.visible).map(t => t.title)
+  const hiddenTopics = ctx.allDetectedTopics.filter(t => !t.visible).map(t => t.title)
+  if (visibleTopics.length > 0) parts.push(`BriefingVisible: ${visibleTopics.join('; ')}`)
+  if (hiddenTopics.length > 0) parts.push(`BriefingDetectedNotShown: ${hiddenTopics.join('; ')}`)
+
   if (ctx.timingHint) {
     parts.push(`Timing: ${TIMING_LABEL[ctx.timingHint]}`)
   }
@@ -59,6 +64,7 @@ const INSTRUCTIONS = [
   'If recovery is active, encourage without shaming.',
   'If habits were completed today, mention the momentum.',
   "A concrete action item is shown separately below this message — you don't need to repeat it verbatim, just set up why it matters if relevant.",
+  "A ranked Today's Briefing card is shown separately above this message, listing BriefingVisible items verbatim — don't restate them, synthesize what they mean or why they matter together instead. You may call out a BriefingDetectedNotShown item if it's genuinely the most important thing today even though the card didn't have room for it.",
   'Maximum 80 words.',
 ].join(' ')
 

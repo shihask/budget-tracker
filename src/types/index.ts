@@ -380,6 +380,10 @@ export interface AppNotification {
   domain: NotificationDomain
   priority: NotificationPriority
   tone: NotificationTone
+  // Static slug identifying which generator/rule produced this notification — e.g.
+  // 'budget_pace', 'cash_shortfall'. Mirrors MintSuggestion.detector so both sources
+  // can be explained through the same UI (see src/lib/briefing.ts, detector-labels.ts).
+  detector: string
   title: string
   message: string
   recommendation?: string

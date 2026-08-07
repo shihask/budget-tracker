@@ -66,6 +66,7 @@ import { AchievementUnlockToast } from '@/components/AchievementUnlockToast'
 import { useAchievements } from '@/hooks/useAchievements'
 import { HabitsPage } from '@/components/HabitsPage'
 import { useHabitEvaluation } from '@/hooks/useHabitEvaluation'
+import { useGrowInsights } from '@/hooks/useGrowInsights'
 import { PlantPage } from '@/components/PlantPage'
 import { BudgetStrategyCard } from '@/components/BudgetStrategyCard'
 import { CategoryBucketMapper } from '@/components/CategoryBucketMapper'
@@ -386,6 +387,16 @@ function AppContent({ session }: { session: Session }) {
     () => getAppNotifications(state, d, alertReminders, snoozeMap),
     [state, d, alertReminders, snoozeMap],
   )
+
+  // Single orchestration layer for Grow's Today's Briefing / Explain Everything /
+  // Financial Health Score — called once here (same "call once" reasoning as
+  // useDailyChallenge/useAchievements above) and passed down as one prop, so GrowPage
+  // stays presentational. `open: growOpen` gates the AI-costing Coach fetch and the
+  // habit-consistency network call, not the pure Briefing/Health Score computation.
+  const growInsights = useGrowInsights({
+    open: growOpen, state, d, challenge, notifications,
+    userId: session.user.id, userName, onUpdateSettings: updateSettings, fetchHabitConsistency,
+  })
 
   const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount
     + notifications.filter(n => n.priority !== 'positive').length
@@ -1070,7 +1081,7 @@ function AppContent({ session }: { session: Session }) {
 
         {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} d={d} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
 
-        {growOpen && <GrowPage open={growOpen} onClose={() => setGrowOpen(false)} state={state} d={d} challenge={challenge} userId={user.id} onUpdateSettings={updateSettings} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onOpenAchievements={() => setAchievementsOpen(true)} onOpenHabits={() => setHabitsOpen(true)} onGoalContribution={async (goalId, amount) => { await addGoalSavings(goalId, amount, 'daily_challenge') }} onRecordReflection={recordReflection} onRecordHabitCompletion={recordHabitCompletion} fetchHabitConsistency={fetchHabitConsistency} onOpenChat={msg => { setPendingChatMessage(msg); setChatOpen(true) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
+        {growOpen && <GrowPage open={growOpen} onClose={() => setGrowOpen(false)} state={state} d={d} challenge={challenge} insights={growInsights} onUpdateSettings={updateSettings} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onOpenAchievements={() => setAchievementsOpen(true)} onOpenHabits={() => setHabitsOpen(true)} onGoalContribution={async (goalId, amount) => { await addGoalSavings(goalId, amount, 'daily_challenge') }} onRecordReflection={recordReflection} onRecordHabitCompletion={recordHabitCompletion} onOpenChat={msg => { setPendingChatMessage(msg); setChatOpen(true) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
 
         {achievementsOpen && <AchievementsPage open={achievementsOpen} onClose={() => setAchievementsOpen(false)} state={state} onSwipeProgress={setSwipePct} />}
 

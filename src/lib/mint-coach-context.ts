@@ -19,6 +19,11 @@ export interface MintCoachContext {
   forecastEvent: { title: string; amount: number } | null   // tomorrow's known expense, same lookup Mint rule #6 uses
   timingHint: 'salary_tomorrow' | 'weekend_approaching' | 'month_start' | null   // first match wins
   previousCoachSummary: string | null   // yesterday's (or last-known) coach text, trimmed by the caller
+  // Every item useGrowInsights detected via buildDailyBriefing (src/lib/briefing.ts),
+  // before AND after the display cap — `visible` marks whether it made the Today's
+  // Briefing card. Lets Coach synthesize instead of repeating what's already on the
+  // card, while still knowing about things the card didn't have room to show.
+  allDetectedTopics: { title: string; visible: boolean }[]
 }
 
 function habitScheduleOf(h: AppState['habits'][number]): HabitSchedule {
@@ -53,6 +58,7 @@ export function buildMintCoachContext(
   streak: number,
   userName: string,
   previousCoachSummary: string | null,
+  allDetectedTopics: MintCoachContext['allDetectedTopics'] = [],
 ): MintCoachContext {
   const todayStr = iso(TODAY)
   const calc = challenge.enabled ? challenge.calc : null
@@ -93,6 +99,7 @@ export function buildMintCoachContext(
     forecastEvent,
     timingHint: computeTimingHint(calc),
     previousCoachSummary,
+    allDetectedTopics,
   }
 }
 
@@ -102,5 +109,6 @@ export function buildMintCoachContext(
 export function buildMintCoachFingerprint(ctx: MintCoachContext): string {
   const missionStatus = ctx.mission?.calc.status ?? 'disabled'
   const achievementId = ctx.achievement?.unlockedToday ? ctx.achievement.title : ''
-  return `${missionStatus}|${ctx.reflection.done}|${ctx.habits.completedToday}|${achievementId}`
+  const topicsKey = ctx.allDetectedTopics.map(t => `${t.title}:${t.visible}`).join(',')
+  return `${missionStatus}|${ctx.reflection.done}|${ctx.habits.completedToday}|${achievementId}|${topicsKey}`
 }

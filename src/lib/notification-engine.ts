@@ -35,7 +35,10 @@ import { getWeekStart, localIso } from '@/lib/utils'
  * testable with a plain AppState fixture.
  */
 
-const PRIORITY_WEIGHT: Record<NotificationPriority, number> = {
+// Exported so other rankers over the same 5-tier scale (e.g. src/lib/briefing.ts, which
+// ranks a mix of AppNotification- and MintSuggestion-derived items) reuse this exact
+// ordering instead of maintaining a second table that can drift out of sync.
+export const PRIORITY_WEIGHT: Record<NotificationPriority, number> = {
   critical: 100, high: 80, medium: 60, info: 40, positive: 20,
 }
 
@@ -156,6 +159,7 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
           domain: 'budget',
           priority: 'critical',
           tone: 'critical',
+          detector: 'budget_period_alert',
           title: 'Budget exceeded!',
           message: `You've spent ₹${Math.round(d.weeklySpent).toLocaleString('en-IN')} of your ₹${Math.round(budget).toLocaleString('en-IN')} budget (${Math.round(pct)}%).`,
           createdAt: nowIso,
@@ -167,6 +171,7 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
           domain: 'budget',
           priority: 'high',
           tone: 'warning',
+          detector: 'budget_period_alert',
           title: 'Budget almost spent',
           message: `You've spent ₹${Math.round(d.weeklySpent).toLocaleString('en-IN')} of your ₹${Math.round(budget).toLocaleString('en-IN')} budget (${Math.round(pct)}%).`,
           createdAt: nowIso,
@@ -213,6 +218,7 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
         domain: 'budget',
         priority: 'high',
         tone: 'warning',
+        detector: 'budget_pace',
         title: 'Slow down this week',
         message: `You're spending ${pctFaster}% faster than planned. At your current pace you'll exceed your weekly budget by ₹${overshoot.toLocaleString('en-IN')}.`,
         recommendation: buildRecommendation('reduce_daily_spend', { amount: safeDaily }),
@@ -244,6 +250,7 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
       domain: 'budget',
       priority: 'medium',
       tone: 'warning',
+      detector: 'budget_spike',
       title: `${topSpike.category} spend jumped`,
       message: `${topSpike.category} is up ${Math.round(topSpike.pct)}% vs last month — ₹${Math.round(topSpike.amount).toLocaleString('en-IN')} so far.`,
       recommendation: buildRecommendation('review_category', { category: topSpike.category }),
@@ -261,6 +268,7 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
         domain: 'budget',
         priority: 'positive',
         tone: 'positive',
+        detector: 'budget_progress',
         title: 'Ahead of last month',
         message: `You're spending ₹${saved.toLocaleString('en-IN')} less than this time last month. Nice work!`,
         createdAt: nowIso,
@@ -278,6 +286,7 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
           domain: 'budget',
           priority: 'positive',
           tone: 'positive',
+          detector: 'budget_discipline',
           title: isEndOfMonth ? 'Strong month!' : 'Great tracking discipline',
           message: isEndOfMonth
             ? `You logged ${txCount} transactions across ${daysTracked} days. That kind of consistency is how you stay in control.`
@@ -300,6 +309,7 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
             domain: 'budget',
             priority: 'info',
             tone: 'info',
+            detector: 'budget_top_category',
             title: 'Biggest spend this month',
             message: `${topCat[0]} is your biggest spend this month — ₹${Math.round(topCat[1]).toLocaleString('en-IN')}.`,
             createdAt: nowIso,
@@ -334,6 +344,7 @@ export function generateCashHealthNotifications(state: AppState, d: DerivedMetri
       domain: 'cash_health',
       priority: 'critical',
       tone: 'critical',
+      detector: 'cash_shortfall',
       title: d.cashHealth.message,
       message: d.cashHealth.description,
       recommendation: buildRecommendation('delay_discretionary'),
@@ -350,6 +361,7 @@ export function generateCashHealthNotifications(state: AppState, d: DerivedMetri
       domain: 'cash_health',
       priority: 'high',
       tone: 'warning',
+      detector: 'cash_forecast_negative',
       title: 'Balance may go negative',
       message: `If spending continues, your balance could become negative on ${dateLabel}.`,
       recommendation: buildRecommendation('delay_discretionary'),
@@ -364,6 +376,7 @@ export function generateCashHealthNotifications(state: AppState, d: DerivedMetri
     domain: 'cash_health',
     priority: 'positive',
     tone: 'positive',
+    detector: 'cash_sufficient',
     title: "You're covered",
     message: 'Your current balance is sufficient to cover all upcoming commitments this cycle.',
     createdAt: nowIso,
@@ -399,6 +412,7 @@ export function generateBillNotifications(_state: AppState, _d: DerivedMetrics, 
       domain: 'bills',
       priority,
       tone,
+      detector: 'bill_due',
       title: r.title,
       message: `${r.subtitle} — due ${dueLabel}.`,
       recommendation: buildRecommendation('pay_bill', { name: r.commitment?.name ?? r.title }),
@@ -429,6 +443,7 @@ export function generateIncomeNotifications(state: AppState, d: DerivedMetrics):
       domain: 'income',
       priority: 'info',
       tone: 'info',
+      detector: 'income_salary_received',
       title: 'Salary received',
       message: `₹${Math.round(receivedToday.amount).toLocaleString('en-IN')} credited today.`,
       createdAt: nowIso,
@@ -446,6 +461,7 @@ export function generateIncomeNotifications(state: AppState, d: DerivedMetrics):
         domain: 'income',
         priority: 'medium',
         tone: 'info',
+        detector: 'income_salary_expected',
         title: 'Salary expected soon',
         message: daysUntil === 0 ? 'Salary expected today.' : `Next salary arrives in ${daysUntil} day${daysUntil === 1 ? '' : 's'}.`,
         confidence: next.confidence,
@@ -483,6 +499,7 @@ export function generateGoalNotifications(state: AppState, _d: DerivedMetrics): 
         domain: 'goals',
         priority: 'positive',
         tone: 'positive',
+        detector: 'goal_reached',
         title: 'Goal reached!',
         message: `Your ${goal.name} goal hit 100% — ₹${Math.round(goal.current_saved).toLocaleString('en-IN')} saved.`,
         createdAt: nowIso,
@@ -499,6 +516,7 @@ export function generateGoalNotifications(state: AppState, _d: DerivedMetrics): 
         domain: 'goals',
         priority: 'positive',
         tone: 'positive',
+        detector: 'goal_milestone',
         title: `${crossed}% there`,
         message: `${goal.name} is ${crossed}% complete.`,
         createdAt: nowIso,
@@ -514,6 +532,7 @@ export function generateGoalNotifications(state: AppState, _d: DerivedMetrics): 
         domain: 'goals',
         priority: 'medium',
         tone: 'warning',
+        detector: 'goal_behind_pace',
         title: 'Behind pace',
         message: forecast.requiredPace != null
           ? `${goal.name} needs ₹${forecast.requiredPace.toLocaleString('en-IN')}/month to hit its date — you're currently averaging ₹${forecast.currentPace.toLocaleString('en-IN')}.`
@@ -552,6 +571,7 @@ export function generateSavingsNotifications(state: AppState, _d: DerivedMetrics
         domain: 'savings',
         priority: 'positive',
         tone: 'positive',
+        detector: 'savings_target_reached',
         title: 'Target reached',
         message: `Your ${sv.name} scheme reached its ₹${Math.round(sv.total_target!).toLocaleString('en-IN')} target.`,
         createdAt: nowIso,
@@ -573,6 +593,7 @@ export function generateSavingsNotifications(state: AppState, _d: DerivedMetrics
         domain: 'savings',
         priority: 'medium',
         tone: 'warning',
+        detector: 'savings_due',
         title: daysUntil === 0 ? `${sv.name} due today` : `${sv.name} due in ${daysUntil} day${daysUntil === 1 ? '' : 's'}`,
         message: `₹${Math.round(sv.amount).toLocaleString('en-IN')} ${sv.name} contribution due ${daysUntil === 0 ? 'today' : nextDue.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}.`,
         createdAt: nowIso,
@@ -608,6 +629,7 @@ export function generateChallengeNotifications(state: AppState, d: DerivedMetric
       domain: 'challenge',
       priority: 'positive',
       tone: 'positive',
+      detector: 'challenge_streak_milestone',
       title: `${streak}-day streak!`,
       message: `You've hit your daily challenge target ${streak} days running.`,
       createdAt: nowIso,
@@ -622,6 +644,7 @@ export function generateChallengeNotifications(state: AppState, d: DerivedMetric
       domain: 'challenge',
       priority: 'positive',
       tone: 'positive',
+      detector: 'challenge_under_budget',
       title: 'Stayed under budget',
       message: `You're ₹${Math.round(challenge.remaining).toLocaleString('en-IN')} under today's challenge target so far.`,
       createdAt: nowIso,

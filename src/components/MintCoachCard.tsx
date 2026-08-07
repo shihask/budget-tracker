@@ -7,8 +7,10 @@ interface Props {
   onContinueConversation: () => void
 }
 
-// Renders above (never instead of) MintSuggestionCard — Coach narrates the day
-// (emotional/contextual), the suggestion card names one concrete action. Different jobs.
+// Renders above (never instead of) TodaysBriefingCard — Coach synthesizes what
+// matters most (emotional/contextual), Briefing enumerates the ranked facts behind
+// it. Different jobs, deliberately never merged — Coach is told not to restate
+// Briefing's visible items verbatim (see mint-coach-prompt.ts).
 export function MintCoachCard({ text, fresh, onContinueConversation }: Props) {
   const c = useTheme()
 

@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { Glyph } from './Glyph'
-import { fmt, iso, addDays, TODAY } from '@/lib/utils'
+import { fmt, iso, TODAY } from '@/lib/utils'
 import { GrowChallengeCard } from './GrowChallengeCard'
 import { DailyReflectionSheet } from './DailyReflectionSheet'
 import { MoneyPlantWatermark } from './MoneyPlantWatermark'
-import { MintSuggestionCard } from './MintSuggestionCard'
 import { MintCoachCard } from './MintCoachCard'
+import { TodaysBriefingCard } from './TodaysBriefingCard'
+import { HealthScoreCard } from './HealthScoreCard'
 import { TodayHabitRow } from './TodayHabitRow'
-import { generateMintSuggestions } from '@/lib/mint-suggestions'
 import { ACHIEVEMENTS } from '@/lib/achievement-definitions'
 import { isHabitDueToday, type HabitSchedule } from '@/lib/habit-engine'
-import { buildMintCoachContext, buildMintCoachFingerprint } from '@/lib/mint-coach-context'
-import { buildMintCoachPrompt } from '@/lib/mint-coach-prompt'
-import { loadCachedCoach, loadPreviousDaySummary, saveCachedCoach } from '@/lib/mint-coach-cache'
-import { mintCoachWithAI } from '@/lib/gemini'
 import type { AppState, DerivedMetrics, HabitCompletionStatus } from '@/types'
 import type { ChallengeCalc } from '@/lib/challenge'
 import type { DailyChallengeState } from '@/hooks/useDailyChallenge'
+import type { GrowInsights } from '@/hooks/useGrowInsights'
 
 interface Props {
   open: boolean
@@ -25,7 +22,7 @@ interface Props {
   state: AppState
   d: DerivedMetrics
   challenge: DailyChallengeState
-  userId: string
+  insights: GrowInsights
   onUpdateSettings: (patch: Partial<AppState['settings']>) => Promise<void>
   onOpenSalaryDateEdit: () => void
   onOpenPlant: () => void
@@ -34,7 +31,6 @@ interface Props {
   onGoalContribution: (goalId: string, amount: number) => Promise<void>
   onRecordReflection: (todayStr: string) => Promise<void>
   onRecordHabitCompletion: (habitId: string, status: HabitCompletionStatus) => Promise<void>
-  fetchHabitConsistency: (sinceDate: string) => Promise<{ completed: number; total: number }>
   onOpenChat: (initialMessage: string) => void
   dark: boolean
   onToggleTheme: () => void
@@ -95,52 +91,14 @@ function SectionLabel({ children, c }: { children: React.ReactNode; c: ReturnTyp
 }
 
 export function GrowPage({
-  open, onClose, state, d, challenge, userId, onUpdateSettings, onOpenSalaryDateEdit, onOpenPlant, onOpenAchievements, onOpenHabits,
-  onGoalContribution, onRecordReflection, onRecordHabitCompletion, fetchHabitConsistency, onOpenChat,
+  open, onClose, state, d, challenge, insights, onUpdateSettings, onOpenSalaryDateEdit, onOpenPlant, onOpenAchievements, onOpenHabits,
+  onGoalContribution, onRecordReflection, onRecordHabitCompletion, onOpenChat,
   dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSwipeProgress,
 }: Props) {
   const c = useTheme()
   const settings = state.settings
   const { calc, enabled, difficulty, streak, remaining, progressPct, isOverTarget } = challenge
-  const [consistency, setConsistency] = useState<{ completed: number; total: number } | null>(null)
-
-  // ── Mint Coach — narrates today's Grow state via one-shot AI call, cached per
-  // (day, state-fingerprint) so it only regenerates when something Coach-relevant
-  // actually changed, not on every render. See mint-coach-*.ts for the pure pieces. ──
-  const autopilotEnabled = state.settings.autopilot_enabled ?? false
-  const coachFingerprint = (autopilotEnabled && calc)
-    ? buildMintCoachFingerprint(buildMintCoachContext(state, d, challenge, streak, userName, null))
-    : null
-  const [coachText, setCoachText] = useState<string | null>(null)
-  const [coachFresh, setCoachFresh] = useState(false)
-  const coachFetchingRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!open || !coachFingerprint) { setCoachText(null); return }
-    const todayStr = iso(TODAY)
-
-    const cached = loadCachedCoach(userId, todayStr, coachFingerprint)
-    if (cached) { setCoachText(cached); setCoachFresh(false); return }
-
-    if (coachFetchingRef.current === coachFingerprint) return
-    coachFetchingRef.current = coachFingerprint
-
-    const rawPrevious = loadPreviousDaySummary(userId, todayStr)
-    const previousCoachSummary = rawPrevious ? rawPrevious.split(/\s+/).slice(0, 50).join(' ') : null
-    const ctx = buildMintCoachContext(state, d, challenge, streak, userName, previousCoachSummary)
-    const { message, context } = buildMintCoachPrompt(ctx)
-
-    mintCoachWithAI(message, context, n => onUpdateSettings({ ai_requests_used: n })).then(reply => {
-      if (coachFetchingRef.current !== coachFingerprint) return   // stale — fingerprint moved on while this was in flight
-      coachFetchingRef.current = null
-      if (reply) {
-        saveCachedCoach(userId, todayStr, coachFingerprint, reply)
-        setCoachText(reply)
-        setCoachFresh(true)
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, coachFingerprint, userId])
+  const { coachText, coachFresh, briefing, healthScore, habitConsistencyPct } = insights
 
   // ── Swipe-back gesture — mirrors PlantPage.tsx exactly ──────────────────────
   const [dragX, setDragX] = useState(0)
@@ -180,12 +138,6 @@ export function GrowPage({
     document.documentElement.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev; document.documentElement.style.overflow = prevHtml }
   }, [open])
-
-  useEffect(() => {
-    if (!open || state.habits.length === 0) return
-    const sinceDate = iso(addDays(TODAY, -30))
-    fetchHabitConsistency(sinceDate).then(setConsistency)
-  }, [open, state.habits.length, fetchHabitConsistency])
 
   const triggerClose = () => {
     setClosing(true); onSwipeProgress?.(1)
@@ -272,10 +224,6 @@ export function GrowPage({
   const recoveryPill = !hasRecovery
     ? <StatusPill label="Not Needed" color={c.muted} bg={c.surface2} />
     : missionPill
-
-  const mintSuggestions = calc ? generateMintSuggestions(state, d, calc) : []
-  const topMintSuggestion = mintSuggestions[0]
-  const yesterdaySucceeded = !!calc && calc.yesterdayOverspend === 0 && calc.yesterdaySpent > 0
 
   const mostRecentUnlock = [...state.user_achievements].sort((a, b) => b.unlocked_at.localeCompare(a.unlocked_at))[0]
   const mostRecentAchievement = mostRecentUnlock ? ACHIEVEMENTS.find(def => def.id === mostRecentUnlock.achievement_id) : undefined
@@ -420,6 +368,24 @@ export function GrowPage({
             </div>
           </div>
 
+          {/* ── Mint Coach + Today's Briefing — the first thing read after the greeting,
+                 the answer to "what should I know today." Coach (when available)
+                 synthesizes what matters; Briefing enumerates the ranked facts behind it.
+                 Different jobs — Coach never repeats Briefing's items verbatim (see
+                 mint-coach-prompt.ts), and the two are deliberately never merged. ── */}
+          {(coachText || briefing.length > 0) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 20px 0' }}>
+              {coachText && (
+                <MintCoachCard
+                  text={coachText}
+                  fresh={coachFresh}
+                  onContinueConversation={() => onOpenChat(CONTINUE_CONVERSATION_PROMPT)}
+                />
+              )}
+              <TodaysBriefingCard items={briefing} />
+            </div>
+          )}
+
           {/* ── Today's Growth ───────────────────────────────────────────────── */}
           <SectionLabel c={c}>Today's Growth</SectionLabel>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 20px' }}>
@@ -490,28 +456,6 @@ export function GrowPage({
               </button>
             )}
           </div>
-
-          {/* ── Mint Coach + Suggestion — coaching, not a fourth tracked opportunity.
-                 Coach (when available) narrates the day; the suggestion card names one
-                 concrete action. Different jobs — Coach never replaces the suggestion. ── */}
-          {(coachText || topMintSuggestion) && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 20px 0' }}>
-              {coachText && (
-                <MintCoachCard
-                  text={coachText}
-                  fresh={coachFresh}
-                  onContinueConversation={() => onOpenChat(CONTINUE_CONVERSATION_PROMPT)}
-                />
-              )}
-              {topMintSuggestion && (
-                <MintSuggestionCard
-                  suggestion={topMintSuggestion}
-                  yesterdaySucceeded={yesterdaySucceeded}
-                  streak={streak}
-                />
-              )}
-            </div>
-          )}
 
           {/* ── Growth ────────────────────────────────────────────────────────── */}
           <SectionLabel c={c}>Growth</SectionLabel>
@@ -614,8 +558,8 @@ export function GrowPage({
                   </p>
                   <p style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, margin: '4px 0 0' }}>
                     Longest streak {Math.max(0, ...activeHabits.map(h => h.current_streak))}d
-                    {consistency && consistency.total > 0 && (
-                      <> · {Math.round((consistency.completed / consistency.total) * 100)}% consistency — last 30 days</>
+                    {habitConsistencyPct != null && (
+                      <> · {habitConsistencyPct}% consistency — last 30 days</>
                     )}
                   </p>
                 </>
@@ -625,6 +569,8 @@ export function GrowPage({
                 </p>
               )}
             </div>
+
+            <HealthScoreCard result={healthScore} />
           </div>
         </>
       )}

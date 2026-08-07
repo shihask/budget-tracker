@@ -43,6 +43,7 @@ function makeContext(overrides: Partial<MintCoachContext> = {}): MintCoachContex
     forecastEvent: null,
     timingHint: null,
     previousCoachSummary: null,
+    allDetectedTopics: [],
     ...overrides,
   }
 }

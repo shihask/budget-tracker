@@ -268,7 +268,7 @@ describe('isSnoozed', () => {
 
 function makeNotif(overrides: Partial<AppNotification> & Pick<AppNotification, 'id' | 'priority'>): AppNotification {
   return {
-    domain: 'budget', tone: 'warning', title: 't', message: 'm',
+    domain: 'budget', tone: 'warning', detector: 'budget_pace', title: 't', message: 'm',
     createdAt: '2026-01-01', dismissible: true,
     ...overrides,
   }
