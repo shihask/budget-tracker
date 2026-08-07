@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, round2, openDatePicker } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { CategorySelect } from './CategorySelect'
@@ -940,14 +940,14 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 onBlur={e => {
                   setAmountFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
-                  if (r !== null) set('amount', String(round2(r)))
+                  set('amount', r === null ? '' : String(round2(r)))
                 }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
-                  if (r !== null) set('amount', String(round2(r)))
+                  set('amount', r === null ? '' : String(round2(r)))
                 }}
-                value={form.amount} onChange={e => set('amount', e.target.value)}
+                value={form.amount} onChange={e => set('amount', sanitizeAmountInput(e.target.value))}
                 placeholder={cfg.placeholder.replace('₹ ', '')}
                 style={{ ...inp, paddingLeft: 28 }}
               />
@@ -1032,15 +1032,15 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 onBlur={e => {
                   setTotalTargetFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
-                  if (r !== null) set('total_target', String(round2(r)))
+                  set('total_target', r === null ? '' : String(round2(r)))
                 }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
-                  if (r !== null) set('total_target', String(round2(r)))
+                  set('total_target', r === null ? '' : String(round2(r)))
                 }}
                 value={form.total_target}
-                onChange={e => set('total_target', e.target.value)} placeholder="e.g. 60,000"
+                onChange={e => set('total_target', sanitizeAmountInput(e.target.value))} placeholder="e.g. 60,000"
                 style={{ ...inp, paddingLeft: 28 }} />
             </div>
             {totalTargetFocused && <AmountOperatorRow inputRef={totalTargetRef} onChange={v => set('total_target', v)} />}
@@ -1119,15 +1119,15 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                     onBlur={e => {
                       setCurrentValueFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
-                      if (r !== null) set('current_value', String(round2(r)))
+                      set('current_value', r === null ? '' : String(round2(r)))
                     }}
                     onKeyDown={e => {
                       if (e.key !== 'Enter') return
                       const r = evaluateAmountExpression(e.currentTarget.value)
-                      if (r !== null) set('current_value', String(round2(r)))
+                      set('current_value', r === null ? '' : String(round2(r)))
                     }}
                     value={form.current_value === '0' ? '' : form.current_value}
-                    onChange={e => set('current_value', e.target.value || '0')} placeholder="e.g. 43,000"
+                    onChange={e => set('current_value', sanitizeAmountInput(e.target.value) || '0')} placeholder="e.g. 43,000"
                     style={{ ...inp, paddingLeft: 28 }} />
                   {currentValueFocused && <AmountOperatorRow inputRef={currentValueRef} onChange={v => set('current_value', v || '0')} />}
                 </div>
@@ -1149,15 +1149,15 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   onBlur={e => {
                     setCurrentValueFocused(false)
                     const r = evaluateAmountExpression(e.target.value)
-                    if (r !== null) set('current_value', String(round2(r)))
+                    set('current_value', r === null ? '' : String(round2(r)))
                   }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)
-                    if (r !== null) set('current_value', String(round2(r)))
+                    set('current_value', r === null ? '' : String(round2(r)))
                   }}
                   value={form.current_value === '0' ? '' : form.current_value}
-                  onChange={e => set('current_value', e.target.value || '0')} placeholder="As per latest NAV"
+                  onChange={e => set('current_value', sanitizeAmountInput(e.target.value) || '0')} placeholder="As per latest NAV"
                   style={{ ...inp, paddingLeft: 28 }} />
                 {currentValueFocused && <AmountOperatorRow inputRef={currentValueRef} onChange={v => set('current_value', v || '0')} />}
               </div>
@@ -1271,17 +1271,17 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   ref={payoutAmountRef}
                   type="text" inputMode="decimal"
                   value={payoutAmount}
-                  onChange={e => setPayoutAmount(e.target.value)}
+                  onChange={e => setPayoutAmount(sanitizeAmountInput(e.target.value))}
                   onFocus={e => { e.target.select(); setPayoutAmountFocused(true) }}
                   onBlur={e => {
                     setPayoutAmountFocused(false)
                     const r = evaluateAmountExpression(e.target.value)
-                    if (r !== null) setPayoutAmount(String(round2(r)))
+                    setPayoutAmount(r === null ? '' : String(round2(r)))
                   }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)
-                    if (r !== null) setPayoutAmount(String(round2(r)))
+                    setPayoutAmount(r === null ? '' : String(round2(r)))
                   }}
                   placeholder="Amount received"
                   autoFocus
@@ -1383,17 +1383,17 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <input
                 ref={newValueRef}
                 type="text" inputMode="decimal" value={newValueInput}
-                onChange={e => setNewValueInput(e.target.value)}
+                onChange={e => setNewValueInput(sanitizeAmountInput(e.target.value))}
                 onFocus={e => { e.target.select(); setNewValueFocused(true) }}
                 onBlur={e => {
                   setNewValueFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
-                  if (r !== null) setNewValueInput(String(round2(r)))
+                  setNewValueInput(r === null ? '' : String(round2(r)))
                 }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
-                  if (r !== null) setNewValueInput(String(round2(r)))
+                  setNewValueInput(r === null ? '' : String(round2(r)))
                 }}
                 placeholder="Current portfolio value"
                 autoFocus

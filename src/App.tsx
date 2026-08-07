@@ -12,7 +12,7 @@ import type { PickedReceipt } from '@/lib/imageCompress'
 import type { Transaction } from '@/types'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getIncomePattern } from '@/lib/income-pattern'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { exportAllData } from '@/lib/exportData'
 import type { Layout, DashboardSectionId } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
@@ -1122,17 +1122,17 @@ function AppContent({ session }: { session: Session }) {
                       ref={challengeWinRef}
                       type="text" inputMode="decimal"
                       value={challengeWinInput}
-                      onChange={e => setChallengeWinInput(e.target.value)}
+                      onChange={e => setChallengeWinInput(sanitizeAmountInput(e.target.value))}
                       onFocus={e => { e.target.select(); setChallengeWinFocused(true) }}
                       onBlur={e => {
                         setChallengeWinFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r !== null) setChallengeWinInput(String(Math.round(r)))
+                        setChallengeWinInput(r === null ? '' : String(Math.round(r)))
                       }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r !== null) setChallengeWinInput(String(Math.round(r)))
+                        setChallengeWinInput(r === null ? '' : String(Math.round(r)))
                       }}
                       style={{
                         width: '100%', boxSizing: 'border-box',
@@ -1202,12 +1202,12 @@ function AppContent({ session }: { session: Session }) {
                   ref={emergencyAmountRef}
                   type="text" inputMode="decimal" autoFocus
                   value={emergencyInput}
-                  onChange={e => setEmergencyInput(e.target.value)}
+                  onChange={e => setEmergencyInput(sanitizeAmountInput(e.target.value))}
                   onFocus={e => { e.target.select(); setEmergencyAmountFocused(true) }}
                   onBlur={e => {
                     setEmergencyAmountFocused(false)
                     const r = evaluateAmountExpression(e.target.value)
-                    if (r !== null) setEmergencyInput(String(round2(r)))
+                    setEmergencyInput(r === null ? '' : String(round2(r)))
                   }}
                   onKeyDown={async e => {
                     if (e.key === 'Enter') {

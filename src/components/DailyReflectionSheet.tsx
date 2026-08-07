@@ -4,7 +4,7 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { computeChallenge } from '@/lib/challenge'
 import type { AppState, DerivedMetrics } from '@/types'
 
@@ -135,18 +135,18 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
             <input
               ref={amountRef}
               value={effAmount}
-              onChange={e => setAmount(e.target.value.replace(/[^0-9.+\-*x×X/÷\s]/g, ''))}
+              onChange={e => setAmount(sanitizeAmountInput(e.target.value))}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 const r = evaluateAmountExpression(e.currentTarget.value)
-                if (r !== null) setAmount(String(Math.round(r)))
+                setAmount(r === null ? '' : String(Math.round(r)))
               }}
               inputMode="decimal"
               onFocus={e => { e.target.select(); setAmountFocused(true) }}
               onBlur={e => {
                 setAmountFocused(false)
                 const r = evaluateAmountExpression(e.target.value)
-                if (r !== null) setAmount(String(Math.round(r)))
+                setAmount(r === null ? '' : String(Math.round(r)))
               }}
               placeholder="0"
               style={{

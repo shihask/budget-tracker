@@ -4,6 +4,32 @@
 
 const MAX_LENGTH = 100
 
+// Live-typing mask for amount/expression inputs: rejects a keystroke the
+// moment it makes the field impossible to ever complete into a valid
+// expression (e.g. a 2nd '.' in one number, or a 3rd decimal digit), while
+// still allowing in-progress states a finished expression passes through
+// (trailing operator, lone '.', empty string) so typing isn't blocked
+// mid-entry. Pair with evaluateAmountExpression() on blur/submit for the
+// final numeric value.
+export function isValidPartialAmountInput(input: string): boolean {
+  if (input.length > MAX_LENGTH) return false
+  const stripped = input.replace(/[₹,]/g, '')
+  if (!/^[\d.+\-*x×X/÷\s()]*$/.test(stripped)) return false
+  const normalized = stripped.replace(/[×xX]/g, '*').replace(/÷/g, '/')
+  const tokens = normalized.split(/[+\-*/()\s]+/).filter(Boolean)
+  return tokens.every(t => /^\d*(\.\d{0,2})?$/.test(t))
+}
+
+// Trims trailing characters until what's left passes isValidPartialAmountInput
+// — the actual keystroke mask. Wrap an amount input's onChange with this so a
+// disallowed character (or a 2nd '.'/3rd decimal digit) can never land in the
+// field, instead of silently accepting garbage that only fails later on blur.
+export function sanitizeAmountInput(raw: string): string {
+  let v = raw
+  while (v.length > 0 && !isValidPartialAmountInput(v)) v = v.slice(0, -1)
+  return v
+}
+
 export function evaluateAmountExpression(input: string): number | null {
   const trimmed = input.trim()
   if (!trimmed || trimmed.length > MAX_LENGTH) return null

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import type { ProjectBudget } from '../types'
@@ -126,17 +126,17 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
                   ref={el => { rowRefs.current[idx] = el }}
                   type="text"
                   value={row.budget_amount}
-                  onChange={e => updateRow(idx, 'budget_amount', e.target.value)}
+                  onChange={e => updateRow(idx, 'budget_amount', sanitizeAmountInput(e.target.value))}
                   onFocus={() => setFocusedRowIndex(idx)}
                   onBlur={e => {
                     setFocusedRowIndex(null)
                     const r = evaluateAmountExpression(e.target.value)
-                    if (r !== null) updateRow(idx, 'budget_amount', String(round2(r)))
+                    updateRow(idx, 'budget_amount', r === null ? '' : String(round2(r)))
                   }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)
-                    if (r !== null) updateRow(idx, 'budget_amount', String(round2(r)))
+                    updateRow(idx, 'budget_amount', r === null ? '' : String(round2(r)))
                   }}
                   placeholder="Amount"
                   inputMode="decimal"

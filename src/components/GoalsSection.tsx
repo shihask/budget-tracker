@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, AlertTriangle, Flame } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { goalProgressInsightWithAI } from '@/lib/gemini'
@@ -357,17 +357,17 @@ export function GoalsSection({
             ref={goalAmountRef}
             type="text" inputMode="decimal"
             value={form.goalAmount}
-            onChange={e => setForm(f => ({ ...f, goalAmount: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, goalAmount: sanitizeAmountInput(e.target.value) }))}
             onFocus={e => { e.target.select(); setGoalAmountFocused(true) }}
             onBlur={e => {
               setGoalAmountFocused(false)
               const r = evaluateAmountExpression(e.target.value)
-              if (r !== null) setForm(f => ({ ...f, goalAmount: String(round2(r)) }))
+              setForm(f => ({ ...f, goalAmount: r === null ? '' : String(round2(r)) }))
             }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
-              if (r !== null) setForm(f => ({ ...f, goalAmount: String(round2(r)) }))
+              setForm(f => ({ ...f, goalAmount: r === null ? '' : String(round2(r)) }))
             }}
             placeholder="0"
             style={inp}
@@ -383,17 +383,17 @@ export function GoalsSection({
             ref={currentSavedRef}
             type="text" inputMode="decimal"
             value={form.currentSaved}
-            onChange={e => setForm(f => ({ ...f, currentSaved: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, currentSaved: sanitizeAmountInput(e.target.value) }))}
             onFocus={e => { e.target.select(); setCurrentSavedFocused(true) }}
             onBlur={e => {
               setCurrentSavedFocused(false)
               const r = evaluateAmountExpression(e.target.value)
-              if (r !== null) setForm(f => ({ ...f, currentSaved: String(round2(r)) }))
+              setForm(f => ({ ...f, currentSaved: r === null ? '' : String(round2(r)) }))
             }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
-              if (r !== null) setForm(f => ({ ...f, currentSaved: String(round2(r)) }))
+              setForm(f => ({ ...f, currentSaved: r === null ? '' : String(round2(r)) }))
             }}
             placeholder="0"
             style={inp}
@@ -431,17 +431,17 @@ export function GoalsSection({
             ref={monthlyTargetRef}
             type="text" inputMode="decimal"
             value={form.monthlyTarget}
-            onChange={e => setForm(f => ({ ...f, monthlyTarget: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, monthlyTarget: sanitizeAmountInput(e.target.value) }))}
             onFocus={e => { e.target.select(); setMonthlyTargetFocused(true) }}
             onBlur={e => {
               setMonthlyTargetFocused(false)
               const r = evaluateAmountExpression(e.target.value)
-              if (r !== null) setForm(f => ({ ...f, monthlyTarget: String(round2(r)) }))
+              setForm(f => ({ ...f, monthlyTarget: r === null ? '' : String(round2(r)) }))
             }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
-              if (r !== null) setForm(f => ({ ...f, monthlyTarget: String(round2(r)) }))
+              setForm(f => ({ ...f, monthlyTarget: r === null ? '' : String(round2(r)) }))
             }}
             placeholder={String(suggestedMonthly)}
             style={inp}
@@ -824,17 +824,17 @@ export function GoalsSection({
                           ref={savingsInputRef}
                           type="text" inputMode="decimal"
                           value={savingsInput}
-                          onChange={e => setSavingsInput(e.target.value)}
+                          onChange={e => setSavingsInput(sanitizeAmountInput(e.target.value))}
                           onFocus={e => { e.target.select(); setSavingsInputFocused(true) }}
                           onBlur={e => {
                             setSavingsInputFocused(false)
                             const r = evaluateAmountExpression(e.target.value)
-                            if (r !== null) setSavingsInput(String(round2(r)))
+                            setSavingsInput(r === null ? '' : String(round2(r)))
                           }}
                           onKeyDown={e => {
                             if (e.key !== 'Enter') return
                             const r = evaluateAmountExpression(e.currentTarget.value)
-                            if (r !== null) setSavingsInput(String(round2(r)))
+                            setSavingsInput(r === null ? '' : String(round2(r)))
                           }}
                           placeholder="Amount"
                           style={{ ...inp, paddingLeft: 24 }}

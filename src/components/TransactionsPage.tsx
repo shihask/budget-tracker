@@ -5,7 +5,7 @@ import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
@@ -674,18 +674,17 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     type="text"
                     inputMode="decimal"
                     value={editForm.amount}
-                    onChange={e => setEditForm(f => f ? { ...f, amount: e.target.value } : f)}
+                    onChange={e => setEditForm(f => f ? { ...f, amount: sanitizeAmountInput(e.target.value) } : f)}
                     onFocus={e => { e.target.select(); setEditAmountFocused(true) }}
                     onBlur={e => {
                       setEditAmountFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
-                      if (r !== null) setEditForm(f => f ? { ...f, amount: String(round2(r)) } : f)
+                      setEditForm(f => f ? { ...f, amount: r === null ? '' : String(round2(r)) } : f)
                     }}
                     onKeyDown={e => {
                       if (e.key !== 'Enter') return
                       const r = evaluateAmountExpression(e.currentTarget.value)
-                      if (r === null) return
-                      setEditForm(f => f ? { ...f, amount: String(round2(r)) } : f)
+                      setEditForm(f => f ? { ...f, amount: r === null ? '' : String(round2(r)) } : f)
                     }}
                     style={inp}
                     placeholder="0"

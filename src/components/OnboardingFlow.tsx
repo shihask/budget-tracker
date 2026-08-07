@@ -4,7 +4,7 @@ import { FeatureOnboarding } from './FeatureOnboarding'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import type { IncomePattern, Settings } from '@/types'
 import { INCOME_PATTERN_OPTIONS, suggestBudgetByIncomePattern } from '@/lib/income-pattern'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { round2 } from '@/lib/utils'
 
 type AccountType = 'bank' | 'cash' | 'wallet'
@@ -395,19 +395,19 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                     <input
                       ref={el => { balanceRefs.current[i] = el }}
                       value={acc.balance}
-                      onChange={e => updateAccount(i, { balance: e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, '') })}
+                      onChange={e => updateAccount(i, { balance: sanitizeAmountInput(e.target.value) })}
                       placeholder="0"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setFocusedBalanceIndex(i) }}
                       onBlur={e => {
                         setFocusedBalanceIndex(null)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r !== null) updateAccount(i, { balance: String(Math.round(r)) })
+                        updateAccount(i, { balance: r === null ? '' : String(Math.round(r)) })
                       }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r !== null) updateAccount(i, { balance: String(Math.round(r)) })
+                        updateAccount(i, { balance: r === null ? '' : String(Math.round(r)) })
                       }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
@@ -495,19 +495,19 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                     <input
                       ref={monthlyIncomeRef}
                       value={monthlyIncome}
-                      onChange={e => setMonthlyIncome(e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, ''))}
+                      onChange={e => setMonthlyIncome(sanitizeAmountInput(e.target.value))}
                       placeholder="50,000"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setMonthlyIncomeFocused(true) }}
                       onBlur={e => {
                         setMonthlyIncomeFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r !== null) setMonthlyIncome(String(Math.round(r)))
+                        setMonthlyIncome(r === null ? '' : String(Math.round(r)))
                       }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r !== null) setMonthlyIncome(String(Math.round(r)))
+                        setMonthlyIncome(r === null ? '' : String(Math.round(r)))
                       }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
@@ -547,19 +547,19 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                     <input
                       ref={weeklyIncomeRef}
                       value={weeklyIncome}
-                      onChange={e => setWeeklyIncome(e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, ''))}
+                      onChange={e => setWeeklyIncome(sanitizeAmountInput(e.target.value))}
                       placeholder="12,000"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setWeeklyIncomeFocused(true) }}
                       onBlur={e => {
                         setWeeklyIncomeFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r !== null) setWeeklyIncome(String(Math.round(r)))
+                        setWeeklyIncome(r === null ? '' : String(Math.round(r)))
                       }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r !== null) setWeeklyIncome(String(Math.round(r)))
+                        setWeeklyIncome(r === null ? '' : String(Math.round(r)))
                       }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
@@ -627,19 +627,19 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                     <input
                       ref={avgDailyIncomeRef}
                       value={avgDailyIncome}
-                      onChange={e => setAvgDailyIncome(e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, ''))}
+                      onChange={e => setAvgDailyIncome(sanitizeAmountInput(e.target.value))}
                       placeholder="900"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setAvgDailyIncomeFocused(true) }}
                       onBlur={e => {
                         setAvgDailyIncomeFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r !== null) setAvgDailyIncome(String(Math.round(r)))
+                        setAvgDailyIncome(r === null ? '' : String(Math.round(r)))
                       }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r !== null) setAvgDailyIncome(String(Math.round(r)))
+                        setAvgDailyIncome(r === null ? '' : String(Math.round(r)))
                       }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />
@@ -702,19 +702,19 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                     <input
                       ref={businessDrawingsRef}
                       value={businessDrawings}
-                      onChange={e => setBusinessDrawings(e.target.value.replace(/[^\d+\-*x×X/÷\s]/g, ''))}
+                      onChange={e => setBusinessDrawings(sanitizeAmountInput(e.target.value))}
                       placeholder="30,000"
                       inputMode="decimal"
                       onFocus={e => { e.target.select(); setBusinessDrawingsFocused(true) }}
                       onBlur={e => {
                         setBusinessDrawingsFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r !== null) setBusinessDrawings(String(Math.round(r)))
+                        setBusinessDrawings(r === null ? '' : String(Math.round(r)))
                       }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r !== null) setBusinessDrawings(String(Math.round(r)))
+                        setBusinessDrawings(r === null ? '' : String(Math.round(r)))
                       }}
                       style={{ ...inp, paddingLeft: 30 }}
                     />

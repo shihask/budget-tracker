@@ -4,7 +4,7 @@ import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, round2 } from '@/lib/utils'
 import { ACCOUNT_PALETTE } from '@/lib/tokens'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { Card } from './Card'
 import { Glyph } from './Glyph'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -381,12 +381,12 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input ref={editBalanceRef} type="text" inputMode="decimal" value={editForm.current_balance}
-                    onChange={e => setEditForm(f => ({ ...f, current_balance: e.target.value }))}
+                    onChange={e => setEditForm(f => ({ ...f, current_balance: sanitizeAmountInput(e.target.value) }))}
                     onFocus={() => setEditBalanceFocused(true)}
                     onBlur={e => {
                       setEditBalanceFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
-                      if (r !== null) setEditForm(f => ({ ...f, current_balance: String(round2(r)) }))
+                      setEditForm(f => ({ ...f, current_balance: r === null ? '' : String(round2(r)) }))
                     }}
                     onKeyDown={e => e.key === 'Enter' && handleEditSave()}
                     placeholder="0"
@@ -457,17 +457,17 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                       ref={adjustInputRef}
                       type="text" inputMode="decimal"
                       value={adjustInput}
-                      onChange={e => setAdjustInput(e.target.value)}
+                      onChange={e => setAdjustInput(sanitizeAmountInput(e.target.value))}
                       onFocus={() => setAdjustInputFocused(true)}
                       onBlur={e => {
                         setAdjustInputFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r !== null) setAdjustInput(String(round2(r)))
+                        setAdjustInput(r === null ? '' : String(round2(r)))
                       }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r !== null) setAdjustInput(String(round2(r)))
+                        setAdjustInput(r === null ? '' : String(round2(r)))
                       }}
                       style={{
                         background: c.surface, border: `1.5px solid ${c.faint}`,
@@ -572,12 +572,12 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                 <HelpText>Current balance in this account right now.</HelpText>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
-                  <input ref={addBalanceRef} type="text" inputMode="decimal" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))}
+                  <input ref={addBalanceRef} type="text" inputMode="decimal" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: sanitizeAmountInput(e.target.value) }))}
                     onFocus={() => setAddBalanceFocused(true)}
                     onBlur={e => {
                       setAddBalanceFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
-                      if (r !== null) setForm(f => ({ ...f, current_balance: String(round2(r)) }))
+                      setForm(f => ({ ...f, current_balance: r === null ? '' : String(round2(r)) }))
                     }}
                     onKeyDown={e => e.key === 'Enter' && handleAdd()}
                     placeholder="0"

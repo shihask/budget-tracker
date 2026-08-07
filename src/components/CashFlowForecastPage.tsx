@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
 import { forecastHealth, getHealthMessage } from '@/components/CashFlowForecastCard'
@@ -738,17 +738,17 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                       <input
                         ref={peAmountRef}
                         value={peAmount}
-                        onChange={e => setPeAmount(e.target.value.replace(/[^0-9.+\-*x×X/÷\s]/g, ''))}
+                        onChange={e => setPeAmount(sanitizeAmountInput(e.target.value))}
                         onFocus={() => setPeAmountFocused(true)}
                         onBlur={e => {
                           setPeAmountFocused(false)
                           const r = evaluateAmountExpression(e.target.value)
-                          if (r !== null) setPeAmount(String(round2(r)))
+                          setPeAmount(r === null ? '' : String(round2(r)))
                         }}
                         onKeyDown={e => {
                           if (e.key !== 'Enter') return
                           const r = evaluateAmountExpression(e.currentTarget.value)
-                          if (r !== null) setPeAmount(String(round2(r)))
+                          setPeAmount(r === null ? '' : String(round2(r)))
                         }}
                         inputMode="decimal" placeholder="Amount" style={{ flex: 1, boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none' }} />
                       <input type="date" value={peDate} onChange={e => setPeDate(e.target.value)} style={{ flex: 1, boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none' }} />

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { iso, TODAY, round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import type { ProjectMember, ProjectTransaction, ProjectBudget } from '../types'
@@ -140,17 +140,17 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
               ref={amountRef}
               type="text"
               value={amount}
-              onChange={e => setAmount(e.target.value)}
+              onChange={e => setAmount(sanitizeAmountInput(e.target.value))}
               onFocus={() => setAmountFocused(true)}
               onBlur={e => {
                 setAmountFocused(false)
                 const r = evaluateAmountExpression(e.target.value)
-                if (r !== null) setAmount(String(round2(r)))
+                setAmount(r === null ? '' : String(round2(r)))
               }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 const r = evaluateAmountExpression(e.currentTarget.value)
-                if (r !== null) setAmount(String(round2(r)))
+                setAmount(r === null ? '' : String(round2(r)))
               }}
               placeholder="0"
               style={inputStyle}

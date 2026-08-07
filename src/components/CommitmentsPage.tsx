@@ -3,7 +3,7 @@ import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CAT_COLORS } from '@/lib/tokens'
 import { catById as buildCatById } from '@/lib/data'
 import { CategorySelect } from './CategorySelect'
@@ -631,14 +631,14 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                         onBlur={e => {
                           setAmountOwedFocused(false)
                           const r = evaluateAmountExpression(e.target.value)
-                          if (r !== null) set('amount', String(round2(r)))
+                          set('amount', r === null ? '' : String(round2(r)))
                         }}
                         onKeyDown={e => {
                           if (e.key !== 'Enter') return
                           const r = evaluateAmountExpression(e.currentTarget.value)
-                          if (r !== null) set('amount', String(round2(r)))
+                          set('amount', r === null ? '' : String(round2(r)))
                         }}
-                        value={form.amount} onChange={e => set('amount', e.target.value)}
+                        value={form.amount} onChange={e => set('amount', sanitizeAmountInput(e.target.value))}
                         placeholder="₹" style={inp} />
                       {amountOwedFocused && <AmountOperatorRow inputRef={amountOwedRef} onChange={v => set('amount', v)} />}
                     </div>
@@ -650,14 +650,14 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                         onBlur={e => {
                           setPaidAmountFocused(false)
                           const r = evaluateAmountExpression(e.target.value)
-                          if (r !== null) set('paid_amount', String(round2(r)))
+                          set('paid_amount', r === null ? '' : String(round2(r)))
                         }}
                         onKeyDown={e => {
                           if (e.key !== 'Enter') return
                           const r = evaluateAmountExpression(e.currentTarget.value)
-                          if (r !== null) set('paid_amount', String(round2(r)))
+                          set('paid_amount', r === null ? '' : String(round2(r)))
                         }}
-                        value={form.paid_amount} onChange={e => set('paid_amount', e.target.value)}
+                        value={form.paid_amount} onChange={e => set('paid_amount', sanitizeAmountInput(e.target.value))}
                         placeholder="0" style={inp} />
                       {paidAmountFocused && <AmountOperatorRow inputRef={paidAmountRef} onChange={v => set('paid_amount', v)} />}
                     </div>
@@ -689,14 +689,14 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                         onBlur={e => {
                           setMonthlyAmountFocused(false)
                           const r = evaluateAmountExpression(e.target.value)
-                          if (r !== null) handleAmountChange(String(round2(r)))
+                          handleAmountChange(r === null ? '' : String(round2(r)))
                         }}
                         onKeyDown={e => {
                           if (e.key !== 'Enter') return
                           const r = evaluateAmountExpression(e.currentTarget.value)
-                          if (r !== null) handleAmountChange(String(round2(r)))
+                          handleAmountChange(r === null ? '' : String(round2(r)))
                         }}
-                        value={form.amount} onChange={e => handleAmountChange(e.target.value)}
+                        value={form.amount} onChange={e => handleAmountChange(sanitizeAmountInput(e.target.value))}
                         placeholder="₹" style={inp} />
                       {monthlyAmountFocused && <AmountOperatorRow inputRef={monthlyAmountRef} onChange={handleAmountChange} />}
                     </div>

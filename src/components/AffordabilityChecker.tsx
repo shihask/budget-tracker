@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
@@ -625,17 +625,17 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
               </div>
               <div>
                 <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Amount (₹)</label>
-                <input ref={amountRef} type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)}
+                <input ref={amountRef} type="text" inputMode="decimal" value={amount} onChange={e => setAmount(sanitizeAmountInput(e.target.value))}
                   onFocus={e => { e.target.select(); setAmountFocused(true) }}
                   onBlur={e => {
                     setAmountFocused(false)
                     const r = evaluateAmountExpression(e.target.value)
-                    if (r !== null) setAmount(String(round2(r)))
+                    setAmount(r === null ? '' : String(round2(r)))
                   }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)
-                    if (r !== null) setAmount(String(round2(r)))
+                    setAmount(r === null ? '' : String(round2(r)))
                   }}
                   placeholder="0" style={inp} />
                 {amountFocused && <AmountOperatorRow inputRef={amountRef} onChange={setAmount} />}

@@ -4,7 +4,7 @@ import { ACCENT_OPTIONS } from '@/lib/tokens'
 import type { IncomePattern, Layout } from '@/types'
 import { requestAndSubscribe, unsubscribeFromPush, getPermissionState, isPushSupported } from '@/lib/notifications'
 import { INCOME_PATTERN_OPTIONS } from '@/lib/income-pattern'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
 
 interface SettingsPanelProps {
@@ -269,12 +269,12 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             type="text"
             inputMode="decimal"
             value={salaryAmountInput}
-            onChange={e => setSalaryAmountInput(e.target.value)}
+            onChange={e => setSalaryAmountInput(sanitizeAmountInput(e.target.value))}
             onFocus={() => setSalaryAmountFocused(true)}
             onBlur={e => {
               setSalaryAmountFocused(false)
               const r = evaluateAmountExpression(e.target.value)
-              if (r !== null) setSalaryAmountInput(String(Math.round(r)))
+              setSalaryAmountInput(r === null ? '' : String(Math.round(r)))
             }}
             onKeyDown={e => e.key === 'Enter' && handleSalarySave()}
             placeholder="e.g. 50000"
@@ -308,17 +308,17 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             type="text"
             inputMode="decimal"
             value={weeklyIncomeInput}
-            onChange={e => setWeeklyIncomeInput(e.target.value)}
+            onChange={e => setWeeklyIncomeInput(sanitizeAmountInput(e.target.value))}
             onFocus={() => setWeeklyIncomeFocused(true)}
             onBlur={e => {
               setWeeklyIncomeFocused(false)
               const r = evaluateAmountExpression(e.target.value)
-              if (r !== null) setWeeklyIncomeInput(String(Math.round(r)))
+              setWeeklyIncomeInput(r === null ? '' : String(Math.round(r)))
             }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
-              if (r !== null) setWeeklyIncomeInput(String(Math.round(r)))
+              setWeeklyIncomeInput(r === null ? '' : String(Math.round(r)))
             }}
             placeholder="e.g. 12000"
             style={{
@@ -372,17 +372,17 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             type="text"
             inputMode="decimal"
             value={avgDailyInput}
-            onChange={e => setAvgDailyInput(e.target.value)}
+            onChange={e => setAvgDailyInput(sanitizeAmountInput(e.target.value))}
             onFocus={() => setAvgDailyFocused(true)}
             onBlur={e => {
               setAvgDailyFocused(false)
               const r = evaluateAmountExpression(e.target.value)
-              if (r !== null) setAvgDailyInput(String(Math.round(r)))
+              setAvgDailyInput(r === null ? '' : String(Math.round(r)))
             }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
-              if (r !== null) setAvgDailyInput(String(Math.round(r)))
+              setAvgDailyInput(r === null ? '' : String(Math.round(r)))
             }}
             placeholder="e.g. 900"
             style={{
@@ -450,17 +450,17 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             type="text"
             inputMode="decimal"
             value={businessDrawingsInput}
-            onChange={e => setBusinessDrawingsInput(e.target.value)}
+            onChange={e => setBusinessDrawingsInput(sanitizeAmountInput(e.target.value))}
             onFocus={() => setBusinessDrawingsFocused(true)}
             onBlur={e => {
               setBusinessDrawingsFocused(false)
               const r = evaluateAmountExpression(e.target.value)
-              if (r !== null) setBusinessDrawingsInput(String(Math.round(r)))
+              setBusinessDrawingsInput(r === null ? '' : String(Math.round(r)))
             }}
             onKeyDown={e => {
               if (e.key !== 'Enter') return
               const r = evaluateAmountExpression(e.currentTarget.value)
-              if (r !== null) setBusinessDrawingsInput(String(Math.round(r)))
+              setBusinessDrawingsInput(r === null ? '' : String(Math.round(r)))
             }}
             placeholder="e.g. 30000"
             style={{

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { Card } from './Card'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText, HelpToggle } from './BottomSheet'
@@ -447,14 +447,14 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     onBlur={e => {
                       setCreditLimitFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
-                      if (r !== null) setForm(f => ({ ...f, credit_limit: String(round2(r)) }))
+                      setForm(f => ({ ...f, credit_limit: r === null ? '' : String(round2(r)) }))
                     }}
                     onKeyDown={e => {
                       if (e.key !== 'Enter') return
                       const r = evaluateAmountExpression(e.currentTarget.value)
-                      if (r !== null) setForm(f => ({ ...f, credit_limit: String(round2(r)) }))
+                      setForm(f => ({ ...f, credit_limit: r === null ? '' : String(round2(r)) }))
                     }}
-                    value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))} placeholder="100000" style={inp} />
+                    value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: sanitizeAmountInput(e.target.value) }))} placeholder="100000" style={inp} />
                   {creditLimitFocused && <AmountOperatorRow inputRef={creditLimitRef} onChange={v => setForm(f => ({ ...f, credit_limit: v }))} />}
                 </div>
               </div>
@@ -496,14 +496,14 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     onBlur={e => {
                       setCurrentBalanceFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
-                      if (r !== null) setForm(f => ({ ...f, current_balance: String(round2(r)) }))
+                      setForm(f => ({ ...f, current_balance: r === null ? '' : String(round2(r)) }))
                     }}
                     onKeyDown={e => {
                       if (e.key !== 'Enter') return
                       const r = evaluateAmountExpression(e.currentTarget.value)
-                      if (r !== null) setForm(f => ({ ...f, current_balance: String(round2(r)) }))
+                      setForm(f => ({ ...f, current_balance: r === null ? '' : String(round2(r)) }))
                     }}
-                    value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))} placeholder="0" style={inp} />
+                    value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: sanitizeAmountInput(e.target.value) }))} placeholder="0" style={inp} />
                   {currentBalanceFocused && <AmountOperatorRow inputRef={currentBalanceRef} onChange={v => setForm(f => ({ ...f, current_balance: v }))} />}
                 </div>
               ) : (
@@ -541,14 +541,14 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   onBlur={e => {
                     setPayAmountFocused(false)
                     const r = evaluateAmountExpression(e.target.value)
-                    if (r !== null) setPayAmount(String(round2(r)))
+                    setPayAmount(r === null ? '' : String(round2(r)))
                   }}
                   onKeyDown={e => {
                     if (e.key !== 'Enter') return
                     const r = evaluateAmountExpression(e.currentTarget.value)
-                    if (r !== null) setPayAmount(String(round2(r)))
+                    setPayAmount(r === null ? '' : String(round2(r)))
                   }}
-                  value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" style={inp} />
+                  value={payAmount} onChange={e => setPayAmount(sanitizeAmountInput(e.target.value))} placeholder="0" style={inp} />
                 {payAmountFocused && <AmountOperatorRow inputRef={payAmountRef} onChange={setPayAmount} />}
               </div>
               <div>
@@ -589,14 +589,14 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                       onBlur={e => {
                         setAdjustAmountFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r !== null) setAdjustAmount(String(round2(r)))
+                        setAdjustAmount(r === null ? '' : String(round2(r)))
                       }}
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r !== null) setAdjustAmount(String(round2(r)))
+                        setAdjustAmount(r === null ? '' : String(round2(r)))
                       }}
-                      value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} placeholder="0" style={inp} />
+                      value={adjustAmount} onChange={e => setAdjustAmount(sanitizeAmountInput(e.target.value))} placeholder="0" style={inp} />
                     {adjustAmountFocused && <AmountOperatorRow inputRef={adjustAmountRef} onChange={setAdjustAmount} />}
                   </div>
                   <div>
@@ -606,7 +606,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                       onBlur={e => {
                         setAdjustBilledFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
-                        if (r === null) return
+                        if (r === null) { setAdjustBilled(''); return }
                         const total = adjustAmountVal ?? 0
                         if (r > total) return
                         setAdjustBilled(String(round2(r)))
@@ -614,13 +614,13 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                       onKeyDown={e => {
                         if (e.key !== 'Enter') return
                         const r = evaluateAmountExpression(e.currentTarget.value)
-                        if (r === null) return
+                        if (r === null) { setAdjustBilled(''); return }
                         const total = adjustAmountVal ?? 0
                         if (r > total) return
                         setAdjustBilled(String(round2(r)))
                       }}
                       value={adjustBilled} onChange={e => {
-                      const val = e.target.value
+                      const val = sanitizeAmountInput(e.target.value)
                       const total = adjustAmountVal ?? 0
                       const parsedVal = evaluateAmountExpression(val)
                       if (val !== '' && parsedVal !== null && parsedVal > total) return

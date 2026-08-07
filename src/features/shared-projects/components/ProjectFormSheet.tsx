@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import type { Project, ProjectStatus } from '../types'
@@ -108,17 +108,17 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
               ref={targetRef}
               type="text"
               value={target}
-              onChange={e => setTarget(e.target.value)}
+              onChange={e => setTarget(sanitizeAmountInput(e.target.value))}
               onFocus={() => setTargetFocused(true)}
               onBlur={e => {
                 setTargetFocused(false)
                 const r = evaluateAmountExpression(e.target.value)
-                if (r !== null) setTarget(String(round2(r)))
+                setTarget(r === null ? '' : String(round2(r)))
               }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 const r = evaluateAmountExpression(e.currentTarget.value)
-                if (r !== null) setTarget(String(round2(r)))
+                setTarget(r === null ? '' : String(round2(r)))
               }}
               placeholder="0"
               style={inputStyle}

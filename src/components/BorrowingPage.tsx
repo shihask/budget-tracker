@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, fmtDate, round2 } from '@/lib/utils'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import type { AppState, Borrowing } from '@/types'
@@ -550,14 +550,14 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
                 onFocus={() => setTotalAmountFocused(true)} onBlur={e => {
                   setTotalAmountFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
-                  if (r !== null) setForm(f => ({ ...f, total_amount: String(round2(r)) }))
+                  setForm(f => ({ ...f, total_amount: r === null ? '' : String(round2(r)) }))
                 }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
-                  if (r !== null) setForm(f => ({ ...f, total_amount: String(round2(r)) }))
+                  setForm(f => ({ ...f, total_amount: r === null ? '' : String(round2(r)) }))
                 }}
-                value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="0" style={inp} />
+                value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: sanitizeAmountInput(e.target.value) }))} placeholder="0" style={inp} />
               {totalAmountFocused && <AmountOperatorRow inputRef={totalAmountRef} onChange={v => setForm(f => ({ ...f, total_amount: v }))} />}
             </div>
             <div style={{ flex: 1 }}>
@@ -567,14 +567,14 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
                 onFocus={() => setPaidAmountFocused(true)} onBlur={e => {
                   setPaidAmountFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
-                  if (r !== null) setForm(f => ({ ...f, paid_amount: String(round2(r)) }))
+                  setForm(f => ({ ...f, paid_amount: r === null ? '' : String(round2(r)) }))
                 }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
-                  if (r !== null) setForm(f => ({ ...f, paid_amount: String(round2(r)) }))
+                  setForm(f => ({ ...f, paid_amount: r === null ? '' : String(round2(r)) }))
                 }}
-                value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: e.target.value }))} placeholder="0" style={inp} />
+                value={form.paid_amount} onChange={e => setForm(f => ({ ...f, paid_amount: sanitizeAmountInput(e.target.value) }))} placeholder="0" style={inp} />
               {paidAmountFocused && <AmountOperatorRow inputRef={paidAmountRef} onChange={v => setForm(f => ({ ...f, paid_amount: v }))} />}
             </div>
           </div>
@@ -627,14 +627,14 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               onFocus={() => setPayAmountFocused(true)} onBlur={e => {
                 setPayAmountFocused(false)
                 const r = evaluateAmountExpression(e.target.value)
-                if (r !== null) setPayForm(f => ({ ...f, amount: String(round2(r)) }))
+                setPayForm(f => ({ ...f, amount: r === null ? '' : String(round2(r)) }))
               }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 const r = evaluateAmountExpression(e.currentTarget.value)
-                if (r !== null) setPayForm(f => ({ ...f, amount: String(round2(r)) }))
+                setPayForm(f => ({ ...f, amount: r === null ? '' : String(round2(r)) }))
               }}
-              value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" style={inp} />
+              value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: sanitizeAmountInput(e.target.value) }))} placeholder="0" style={inp} />
             {payAmountFocused && <AmountOperatorRow inputRef={payAmountRef} onChange={v => setPayForm(f => ({ ...f, amount: v }))} />}
           </div>
           <div>

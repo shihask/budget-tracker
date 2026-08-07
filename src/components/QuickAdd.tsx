@@ -12,7 +12,7 @@ import { Camera, Sparkles } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import type { AppState, Transaction, TransactionType, Category } from '@/types'
 import { parseExpenseWithAI, type AIReceiptExtraction } from '@/lib/gemini'
-import { evaluateAmountExpression } from '@/lib/amountExpression'
+import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
 import { findCategoryMatches, guessCategory, findHistoricalCategory } from '@/lib/categorize'
 
@@ -230,6 +230,17 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       amount: 0,
       category_id: '',
       from_account_id: '',
+    },
+  })
+
+  const amountField = register('amount', {
+    setValueAs: v => {
+      // RHF also invokes this on programmatic setValue('amount', <number>, ...)
+      // calls (AI/smart-input parsing, chip taps) — those already carry a
+      // resolved number, not user-typed text, so pass them through untouched.
+      if (typeof v === 'number') return Number.isFinite(v) ? round2(v) : NaN
+      const r = evaluateAmountExpression(v)
+      return r === null ? NaN : round2(r)
     },
   })
 
@@ -793,7 +804,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                               ref={quickAmountRef}
                               type="text"
                               value={quickAmount}
-                              onChange={e => setQuickAmount(e.target.value)}
+                              onChange={e => setQuickAmount(sanitizeAmountInput(e.target.value))}
                               onKeyDown={e => e.key === 'Enter' && handleQuickSave()}
                               placeholder="0"
                               inputMode="decimal"
@@ -801,7 +812,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                               onBlur={e => {
                                 setQuickAmountFocused(false)
                                 const r = evaluateAmountExpression(e.target.value)
-                                if (r !== null) setQuickAmount(String(round2(r)))
+                                setQuickAmount(r === null ? '' : String(round2(r)))
                               }}
                               style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 10px', font: '700 18px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
                             />
@@ -844,34 +855,28 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
               {isTransfer ? '⇄₹' : isExpense ? '−₹' : '+₹'}
             </span>
             <input
-              {...register('amount', {
-                setValueAs: v => {
-                  // RHF also invokes this on programmatic setValue('amount', <number>, ...)
-                  // calls (AI/smart-input parsing, chip taps) — those already carry a
-                  // resolved number, not user-typed text, so pass them through untouched.
-                  if (typeof v === 'number') return Number.isFinite(v) ? round2(v) : NaN
-                  const r = evaluateAmountExpression(v)
-                  return r === null ? NaN : round2(r)
-                },
-              })}
-              ref={e => { register('amount').ref(e); amountRef.current = e }}
+              {...amountField}
+              ref={e => { amountField.ref(e); amountRef.current = e }}
               type="text"
               inputMode="decimal"
               placeholder="0"
               onFocus={e => { e.target.select(); setAmountFocused(true) }}
+              onChange={e => {
+                const v = sanitizeAmountInput(e.target.value)
+                if (v !== e.target.value) e.target.value = v
+                amountField.onChange(e)
+              }}
               onBlur={e => {
                 setAmountFocused(false)
                 const r = evaluateAmountExpression(e.target.value)
-                if (r === null) return
-                e.target.value = String(round2(r))
+                e.target.value = r === null ? '' : String(round2(r))
                 e.target.dispatchEvent(new Event('input', { bubbles: true }))
               }}
               onKeyDown={e => {
                 if (e.key !== 'Enter') return
                 e.preventDefault()
                 const r = evaluateAmountExpression(e.currentTarget.value)
-                if (r === null) return
-                e.currentTarget.value = String(round2(r))
+                e.currentTarget.value = r === null ? '' : String(round2(r))
                 e.currentTarget.dispatchEvent(new Event('input', { bubbles: true }))
               }}
               style={{ border: 'none', background: 'transparent', outline: 'none', width: 160, textAlign: 'center', font: '800 44px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em' }}
