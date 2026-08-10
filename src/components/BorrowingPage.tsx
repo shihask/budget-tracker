@@ -547,7 +547,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <Label>Total amount</Label>
               <HelpText>The full amount lent or borrowed.</HelpText>
               <input ref={totalAmountRef} type="text" inputMode="decimal"
-                onFocus={() => setTotalAmountFocused(true)} onBlur={e => {
+                onFocus={e => { e.target.select(); setTotalAmountFocused(true) }} onBlur={e => {
                   setTotalAmountFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
                   setForm(f => ({ ...f, total_amount: r === null ? '' : String(round2(r)) }))
@@ -564,7 +564,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <Label>{form.direction === 'lent' ? 'Repaid by them' : 'Repaid by you'}</Label>
               <HelpText>How much has already been paid back. Set to 0 if nothing has been repaid yet.</HelpText>
               <input ref={paidAmountRef} type="text" inputMode="decimal"
-                onFocus={() => setPaidAmountFocused(true)} onBlur={e => {
+                onFocus={e => { e.target.select(); setPaidAmountFocused(true) }} onBlur={e => {
                   setPaidAmountFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
                   setForm(f => ({ ...f, paid_amount: r === null ? '' : String(round2(r)) }))
@@ -624,7 +624,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           <div>
             <Label>Payment amount</Label>
             <input ref={payAmountRef} type="text" inputMode="decimal"
-              onFocus={() => setPayAmountFocused(true)} onBlur={e => {
+              onFocus={e => { e.target.select(); setPayAmountFocused(true) }} onBlur={e => {
                 setPayAmountFocused(false)
                 const r = evaluateAmountExpression(e.target.value)
                 setPayForm(f => ({ ...f, amount: r === null ? '' : String(round2(r)) }))

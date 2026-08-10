@@ -141,7 +141,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
               type="text"
               value={amount}
               onChange={e => setAmount(sanitizeAmountInput(e.target.value))}
-              onFocus={() => setAmountFocused(true)}
+              onFocus={e => { e.target.select(); setAmountFocused(true) }}
               onBlur={e => {
                 setAmountFocused(false)
                 const r = evaluateAmountExpression(e.target.value)

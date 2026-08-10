@@ -109,7 +109,7 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
               type="text"
               value={target}
               onChange={e => setTarget(sanitizeAmountInput(e.target.value))}
-              onFocus={() => setTargetFocused(true)}
+              onFocus={e => { e.target.select(); setTargetFocused(true) }}
               onBlur={e => {
                 setTargetFocused(false)
                 const r = evaluateAmountExpression(e.target.value)

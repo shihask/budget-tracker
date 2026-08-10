@@ -270,7 +270,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             inputMode="decimal"
             value={salaryAmountInput}
             onChange={e => setSalaryAmountInput(sanitizeAmountInput(e.target.value))}
-            onFocus={() => setSalaryAmountFocused(true)}
+            onFocus={e => { e.target.select(); setSalaryAmountFocused(true) }}
             onBlur={e => {
               setSalaryAmountFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -309,7 +309,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             inputMode="decimal"
             value={weeklyIncomeInput}
             onChange={e => setWeeklyIncomeInput(sanitizeAmountInput(e.target.value))}
-            onFocus={() => setWeeklyIncomeFocused(true)}
+            onFocus={e => { e.target.select(); setWeeklyIncomeFocused(true) }}
             onBlur={e => {
               setWeeklyIncomeFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -373,7 +373,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             inputMode="decimal"
             value={avgDailyInput}
             onChange={e => setAvgDailyInput(sanitizeAmountInput(e.target.value))}
-            onFocus={() => setAvgDailyFocused(true)}
+            onFocus={e => { e.target.select(); setAvgDailyFocused(true) }}
             onBlur={e => {
               setAvgDailyFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -451,7 +451,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             inputMode="decimal"
             value={businessDrawingsInput}
             onChange={e => setBusinessDrawingsInput(sanitizeAmountInput(e.target.value))}
-            onFocus={() => setBusinessDrawingsFocused(true)}
+            onFocus={e => { e.target.select(); setBusinessDrawingsFocused(true) }}
             onBlur={e => {
               setBusinessDrawingsFocused(false)
               const r = evaluateAmountExpression(e.target.value)

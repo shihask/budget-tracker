@@ -1358,7 +1358,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input ref={budgetInputRef} type="text" inputMode="decimal" value={budgetInput} onChange={e => setBudgetInput(sanitizeAmountInput(e.target.value))}
-                    onFocus={() => setBudgetInputFocused(true)} onBlur={e => {
+                    onFocus={e => { e.target.select(); setBudgetInputFocused(true) }} onBlur={e => {
                       setBudgetInputFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
                       setBudgetInput(r === null ? '' : String(round2(r)))

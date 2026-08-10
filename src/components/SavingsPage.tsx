@@ -1028,7 +1028,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <input
                 ref={totalTargetRef}
                 type="text" inputMode="decimal"
-                onFocus={() => setTotalTargetFocused(true)}
+                onFocus={e => { e.target.select(); setTotalTargetFocused(true) }}
                 onBlur={e => {
                   setTotalTargetFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
@@ -1115,7 +1115,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   <input
                     ref={currentValueRef}
                     type="text" inputMode="decimal"
-                    onFocus={() => setCurrentValueFocused(true)}
+                    onFocus={e => { e.target.select(); setCurrentValueFocused(true) }}
                     onBlur={e => {
                       setCurrentValueFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
@@ -1145,7 +1145,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 <input
                   ref={currentValueRef}
                   type="text" inputMode="decimal"
-                  onFocus={() => setCurrentValueFocused(true)}
+                  onFocus={e => { e.target.select(); setCurrentValueFocused(true) }}
                   onBlur={e => {
                     setCurrentValueFocused(false)
                     const r = evaluateAmountExpression(e.target.value)

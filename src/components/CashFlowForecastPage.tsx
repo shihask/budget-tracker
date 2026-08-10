@@ -739,7 +739,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                         ref={peAmountRef}
                         value={peAmount}
                         onChange={e => setPeAmount(sanitizeAmountInput(e.target.value))}
-                        onFocus={() => setPeAmountFocused(true)}
+                        onFocus={e => { e.target.select(); setPeAmountFocused(true) }}
                         onBlur={e => {
                           setPeAmountFocused(false)
                           const r = evaluateAmountExpression(e.target.value)

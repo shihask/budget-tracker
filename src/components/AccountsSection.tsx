@@ -382,7 +382,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input ref={editBalanceRef} type="text" inputMode="decimal" value={editForm.current_balance}
                     onChange={e => setEditForm(f => ({ ...f, current_balance: sanitizeAmountInput(e.target.value) }))}
-                    onFocus={() => setEditBalanceFocused(true)}
+                    onFocus={e => { e.target.select(); setEditBalanceFocused(true) }}
                     onBlur={e => {
                       setEditBalanceFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
@@ -458,7 +458,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                       type="text" inputMode="decimal"
                       value={adjustInput}
                       onChange={e => setAdjustInput(sanitizeAmountInput(e.target.value))}
-                      onFocus={() => setAdjustInputFocused(true)}
+                      onFocus={e => { e.target.select(); setAdjustInputFocused(true) }}
                       onBlur={e => {
                         setAdjustInputFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
@@ -573,7 +573,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input ref={addBalanceRef} type="text" inputMode="decimal" value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: sanitizeAmountInput(e.target.value) }))}
-                    onFocus={() => setAddBalanceFocused(true)}
+                    onFocus={e => { e.target.select(); setAddBalanceFocused(true) }}
                     onBlur={e => {
                       setAddBalanceFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
