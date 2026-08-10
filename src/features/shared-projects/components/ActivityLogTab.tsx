@@ -1,5 +1,6 @@
 import { Sprout, User, Coins, Trash2, Mail, Link, Paperclip, Circle } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
+import { timeAgo } from '@/lib/utils'
 import type { ProjectActivityLog } from '../types'
 
 const ACTION_ICONS: Record<string, { icon: React.ComponentType<{ size?: number }>; color: string }> = {
@@ -13,18 +14,6 @@ const ACTION_ICONS: Record<string, { icon: React.ComponentType<{ size?: number }
   share_enabled: { icon: Link, color: '#10B981' },
   share_revoked: { icon: Link, color: '#EF4444' },
   attachment_added: { icon: Paperclip, color: '#6366F1' },
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  if (days < 7) return `${days}d ago`
-  return new Date(dateStr).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
 }
 
 interface Props {

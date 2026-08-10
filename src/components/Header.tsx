@@ -15,6 +15,7 @@ interface HeaderProps {
   notificationCount?: number
   onNotifications?: () => void
   onTour?: () => void
+  onAdmin?: () => void
   onTransactions: () => void
   onAnalytics: () => void
   onCashflow: () => void
@@ -30,7 +31,7 @@ interface HeaderProps {
 }
 
 export function Header({
-  dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications, onTour,
+  dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications, onTour, onAdmin,
   onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onGrow, onPlant,
   trackSavings, trackBorrowings, trackProjects,
 }: HeaderProps) {
@@ -230,6 +231,19 @@ export function Header({
                 </svg>
                 Settings
               </button>
+
+              {/* Admin — only rendered when the server has confirmed this account has the admin role */}
+              {onAdmin && (
+                <button
+                  onClick={() => { setMenuOpen(false); onAdmin() }}
+                  style={menuItemStyle}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z"/>
+                  </svg>
+                  Admin
+                </button>
+              )}
 
               <div style={{ height: 1, background: c.faint, margin: '4px 0' }} />
 
