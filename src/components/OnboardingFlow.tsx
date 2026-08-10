@@ -5,7 +5,7 @@ import { AmountOperatorRow } from './AmountOperatorRow'
 import type { IncomePattern, Settings } from '@/types'
 import { INCOME_PATTERN_OPTIONS, suggestBudgetByIncomePattern } from '@/lib/income-pattern'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
-import { round2 } from '@/lib/utils'
+import { round2, selectOnFocus } from '@/lib/utils'
 
 type AccountType = 'bank' | 'cash' | 'wallet'
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
@@ -398,7 +398,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       onChange={e => updateAccount(i, { balance: sanitizeAmountInput(e.target.value) })}
                       placeholder="0"
                       inputMode="decimal"
-                      onFocus={e => { e.target.select(); setFocusedBalanceIndex(i) }}
+                      onFocus={e => { selectOnFocus(e.target); setFocusedBalanceIndex(i) }}
                       onBlur={e => {
                         setFocusedBalanceIndex(null)
                         const r = evaluateAmountExpression(e.target.value)
@@ -498,7 +498,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       onChange={e => setMonthlyIncome(sanitizeAmountInput(e.target.value))}
                       placeholder="50,000"
                       inputMode="decimal"
-                      onFocus={e => { e.target.select(); setMonthlyIncomeFocused(true) }}
+                      onFocus={e => { selectOnFocus(e.target); setMonthlyIncomeFocused(true) }}
                       onBlur={e => {
                         setMonthlyIncomeFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
@@ -550,7 +550,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       onChange={e => setWeeklyIncome(sanitizeAmountInput(e.target.value))}
                       placeholder="12,000"
                       inputMode="decimal"
-                      onFocus={e => { e.target.select(); setWeeklyIncomeFocused(true) }}
+                      onFocus={e => { selectOnFocus(e.target); setWeeklyIncomeFocused(true) }}
                       onBlur={e => {
                         setWeeklyIncomeFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
@@ -630,7 +630,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       onChange={e => setAvgDailyIncome(sanitizeAmountInput(e.target.value))}
                       placeholder="900"
                       inputMode="decimal"
-                      onFocus={e => { e.target.select(); setAvgDailyIncomeFocused(true) }}
+                      onFocus={e => { selectOnFocus(e.target); setAvgDailyIncomeFocused(true) }}
                       onBlur={e => {
                         setAvgDailyIncomeFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
@@ -705,7 +705,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
                       onChange={e => setBusinessDrawings(sanitizeAmountInput(e.target.value))}
                       placeholder="30,000"
                       inputMode="decimal"
-                      onFocus={e => { e.target.select(); setBusinessDrawingsFocused(true) }}
+                      onFocus={e => { selectOnFocus(e.target); setBusinessDrawingsFocused(true) }}
                       onBlur={e => {
                         setBusinessDrawingsFocused(false)
                         const r = evaluateAmountExpression(e.target.value)

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt, round2 } from '@/lib/utils'
+import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CAT_COLORS } from '@/lib/tokens'
 import { catById as buildCatById } from '@/lib/data'
@@ -627,7 +627,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <label style={lbl}>Amount Owed</label>
                       <HelpText>Total amount you owe for this obligation.</HelpText>
                       <input ref={amountOwedRef} type="text" inputMode="decimal"
-                        onFocus={e => { e.target.select(); setAmountOwedFocused(true) }}
+                        onFocus={e => { selectOnFocus(e.target); setAmountOwedFocused(true) }}
                         onBlur={e => {
                           setAmountOwedFocused(false)
                           const r = evaluateAmountExpression(e.target.value)
@@ -646,7 +646,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <label style={lbl}>Paid Amount</label>
                       <HelpText>How much you have already paid towards this.</HelpText>
                       <input ref={paidAmountRef} type="text" inputMode="decimal"
-                        onFocus={e => { e.target.select(); setPaidAmountFocused(true) }}
+                        onFocus={e => { selectOnFocus(e.target); setPaidAmountFocused(true) }}
                         onBlur={e => {
                           setPaidAmountFocused(false)
                           const r = evaluateAmountExpression(e.target.value)
@@ -685,7 +685,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <label style={lbl}>Monthly Amount</label>
                       <HelpText>Amount you pay each installment.</HelpText>
                       <input ref={monthlyAmountRef} type="text" inputMode="decimal"
-                        onFocus={e => { e.target.select(); setMonthlyAmountFocused(true) }}
+                        onFocus={e => { selectOnFocus(e.target); setMonthlyAmountFocused(true) }}
                         onBlur={e => {
                           setMonthlyAmountFocused(false)
                           const r = evaluateAmountExpression(e.target.value)

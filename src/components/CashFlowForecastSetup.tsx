@@ -2,7 +2,7 @@ import { useMemo, useState, useRef } from 'react'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { estimateForecastSalary, SALARY_SOURCE_LABEL } from '@/lib/cashflow'
 import { getIncomePattern } from '@/lib/income-pattern'
@@ -178,7 +178,7 @@ export function CashFlowForecastSetup({ open, onClose, state, onUpdateSettings, 
               onChange={e => setCustomAmt(sanitizeAmountInput(e.target.value))}
               inputMode="decimal"
               placeholder={pattern === 'monthly' ? 'Enter your expected salary' : pattern === 'weekly' ? 'Enter your expected weekly income' : pattern === 'variable' ? 'Enter your expected daily income' : 'Enter your expected monthly drawings'}
-              onFocus={e => { e.target.select(); setCustomAmtFocused(true) }}
+              onFocus={e => { selectOnFocus(e.target); setCustomAmtFocused(true) }}
               onBlur={e => {
                 setCustomAmtFocused(false)
                 const r = evaluateAmountExpression(e.target.value)

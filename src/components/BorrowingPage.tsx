@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, fmtDate, round2 } from '@/lib/utils'
+import { fmt, fmtDate, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
@@ -547,7 +547,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <Label>Total amount</Label>
               <HelpText>The full amount lent or borrowed.</HelpText>
               <input ref={totalAmountRef} type="text" inputMode="decimal"
-                onFocus={e => { e.target.select(); setTotalAmountFocused(true) }} onBlur={e => {
+                onFocus={e => { selectOnFocus(e.target); setTotalAmountFocused(true) }} onBlur={e => {
                   setTotalAmountFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
                   setForm(f => ({ ...f, total_amount: r === null ? '' : String(round2(r)) }))
@@ -564,7 +564,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <Label>{form.direction === 'lent' ? 'Repaid by them' : 'Repaid by you'}</Label>
               <HelpText>How much has already been paid back. Set to 0 if nothing has been repaid yet.</HelpText>
               <input ref={paidAmountRef} type="text" inputMode="decimal"
-                onFocus={e => { e.target.select(); setPaidAmountFocused(true) }} onBlur={e => {
+                onFocus={e => { selectOnFocus(e.target); setPaidAmountFocused(true) }} onBlur={e => {
                   setPaidAmountFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
                   setForm(f => ({ ...f, paid_amount: r === null ? '' : String(round2(r)) }))
@@ -624,7 +624,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           <div>
             <Label>Payment amount</Label>
             <input ref={payAmountRef} type="text" inputMode="decimal"
-              onFocus={e => { e.target.select(); setPayAmountFocused(true) }} onBlur={e => {
+              onFocus={e => { selectOnFocus(e.target); setPayAmountFocused(true) }} onBlur={e => {
                 setPayAmountFocused(false)
                 const r = evaluateAmountExpression(e.target.value)
                 setPayForm(f => ({ ...f, amount: r === null ? '' : String(round2(r)) }))

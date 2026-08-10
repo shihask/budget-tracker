@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
-import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker } from '@/lib/utils'
+import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker, selectOnFocus } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
@@ -675,7 +675,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     inputMode="decimal"
                     value={editForm.amount}
                     onChange={e => setEditForm(f => f ? { ...f, amount: sanitizeAmountInput(e.target.value) } : f)}
-                    onFocus={e => { e.target.select(); setEditAmountFocused(true) }}
+                    onFocus={e => { selectOnFocus(e.target); setEditAmountFocused(true) }}
                     onBlur={e => {
                       setEditAmountFocused(false)
                       const r = evaluateAmountExpression(e.target.value)

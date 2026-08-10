@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, round2 } from '@/lib/utils'
+import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
@@ -127,7 +127,7 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
                   type="text"
                   value={row.budget_amount}
                   onChange={e => updateRow(idx, 'budget_amount', sanitizeAmountInput(e.target.value))}
-                  onFocus={e => { e.target.select(); setFocusedRowIndex(idx) }}
+                  onFocus={e => { selectOnFocus(e.target); setFocusedRowIndex(idx) }}
                   onBlur={e => {
                     setFocusedRowIndex(null)
                     const r = evaluateAmountExpression(e.target.value)

@@ -26,6 +26,16 @@ export function openDatePicker(el: HTMLInputElement | null) {
   }, 150)
 }
 
+// Selects the current text of an input on focus. Calling select() straight
+// off the focus event races the on-screen keyboard opening on some mobile
+// browsers (notably Android) and the selection gets silently dropped once
+// the keyboard animates in — same class of timing issue as openDatePicker()
+// above. Deferring a beat lets the keyboard settle first so it sticks.
+export function selectOnFocus(el: HTMLInputElement | null) {
+  if (!el) return
+  setTimeout(() => el.select(), 0)
+}
+
 // Races `promise` against a timer that rejects with a TimeoutError after `ms`.
 // Does NOT abort the underlying request — it only stops waiting for it, so
 // `promise` may still resolve in the background. Fine here since every

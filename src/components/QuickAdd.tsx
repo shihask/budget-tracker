@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, TODAY, iso, round2 } from '@/lib/utils'
+import { fmt, TODAY, iso, round2, selectOnFocus } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -809,7 +809,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                               onKeyDown={e => e.key === 'Enter' && handleQuickSave()}
                               placeholder="0"
                               inputMode="decimal"
-                              onFocus={e => { e.target.select(); setQuickAmountFocused(true) }}
+                              onFocus={e => { selectOnFocus(e.target); setQuickAmountFocused(true) }}
                               onBlur={e => {
                                 setQuickAmountFocused(false)
                                 const r = evaluateAmountExpression(e.target.value)
@@ -861,7 +861,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
               type="text"
               inputMode="decimal"
               placeholder="0"
-              onFocus={e => { e.target.select(); setAmountFocused(true) }}
+              onFocus={e => { selectOnFocus(e.target); setAmountFocused(true) }}
               onChange={e => {
                 const v = sanitizeAmountInput(e.target.value)
                 if (v !== e.target.value) e.target.value = v

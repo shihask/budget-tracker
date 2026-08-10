@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt, round2, openDatePicker } from '@/lib/utils'
+import { fmt, round2, openDatePicker, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -936,7 +936,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <input
                 ref={amountRef}
                 type="text" inputMode="decimal"
-                onFocus={e => { e.target.select(); setAmountFocused(true) }}
+                onFocus={e => { selectOnFocus(e.target); setAmountFocused(true) }}
                 onBlur={e => {
                   setAmountFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
@@ -1028,7 +1028,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <input
                 ref={totalTargetRef}
                 type="text" inputMode="decimal"
-                onFocus={e => { e.target.select(); setTotalTargetFocused(true) }}
+                onFocus={e => { selectOnFocus(e.target); setTotalTargetFocused(true) }}
                 onBlur={e => {
                   setTotalTargetFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
@@ -1115,7 +1115,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   <input
                     ref={currentValueRef}
                     type="text" inputMode="decimal"
-                    onFocus={e => { e.target.select(); setCurrentValueFocused(true) }}
+                    onFocus={e => { selectOnFocus(e.target); setCurrentValueFocused(true) }}
                     onBlur={e => {
                       setCurrentValueFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
@@ -1145,7 +1145,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 <input
                   ref={currentValueRef}
                   type="text" inputMode="decimal"
-                  onFocus={e => { e.target.select(); setCurrentValueFocused(true) }}
+                  onFocus={e => { selectOnFocus(e.target); setCurrentValueFocused(true) }}
                   onBlur={e => {
                     setCurrentValueFocused(false)
                     const r = evaluateAmountExpression(e.target.value)
@@ -1272,7 +1272,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   type="text" inputMode="decimal"
                   value={payoutAmount}
                   onChange={e => setPayoutAmount(sanitizeAmountInput(e.target.value))}
-                  onFocus={e => { e.target.select(); setPayoutAmountFocused(true) }}
+                  onFocus={e => { selectOnFocus(e.target); setPayoutAmountFocused(true) }}
                   onBlur={e => {
                     setPayoutAmountFocused(false)
                     const r = evaluateAmountExpression(e.target.value)
@@ -1384,7 +1384,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 ref={newValueRef}
                 type="text" inputMode="decimal" value={newValueInput}
                 onChange={e => setNewValueInput(sanitizeAmountInput(e.target.value))}
-                onFocus={e => { e.target.select(); setNewValueFocused(true) }}
+                onFocus={e => { selectOnFocus(e.target); setNewValueFocused(true) }}
                 onBlur={e => {
                   setNewValueFocused(false)
                   const r = evaluateAmountExpression(e.target.value)

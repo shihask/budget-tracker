@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt, round2 } from '@/lib/utils'
+import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { Card } from './Card'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -443,7 +443,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   </label>
                   <HelpText>Your total approved credit limit on this card.</HelpText>
                   <input ref={creditLimitRef} type="text" inputMode="decimal"
-                    onFocus={e => { e.target.select(); setCreditLimitFocused(true) }}
+                    onFocus={e => { selectOnFocus(e.target); setCreditLimitFocused(true) }}
                     onBlur={e => {
                       setCreditLimitFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
@@ -492,7 +492,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   </label>
                   <HelpText>How much you currently owe on this card. Check your card app or last statement.</HelpText>
                   <input ref={currentBalanceRef} type="text" inputMode="decimal"
-                    onFocus={e => { e.target.select(); setCurrentBalanceFocused(true) }}
+                    onFocus={e => { selectOnFocus(e.target); setCurrentBalanceFocused(true) }}
                     onBlur={e => {
                       setCurrentBalanceFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
@@ -537,7 +537,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
               <div>
                 <label style={lbl}>Payment Amount</label>
                 <input ref={payAmountRef} type="text" inputMode="decimal"
-                  onFocus={e => { e.target.select(); setPayAmountFocused(true) }}
+                  onFocus={e => { selectOnFocus(e.target); setPayAmountFocused(true) }}
                   onBlur={e => {
                     setPayAmountFocused(false)
                     const r = evaluateAmountExpression(e.target.value)
@@ -585,7 +585,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   <div>
                     <label style={lbl}>Total Outstanding</label>
                     <input ref={adjustAmountRef} type="text" inputMode="decimal"
-                      onFocus={e => { e.target.select(); setAdjustAmountFocused(true) }}
+                      onFocus={e => { selectOnFocus(e.target); setAdjustAmountFocused(true) }}
                       onBlur={e => {
                         setAdjustAmountFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
@@ -602,7 +602,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                   <div>
                     <label style={lbl}>Billed Amount</label>
                     <input ref={adjustBilledRef} type="text" inputMode="decimal"
-                      onFocus={e => { e.target.select(); setAdjustBilledFocused(true) }}
+                      onFocus={e => { selectOnFocus(e.target); setAdjustBilledFocused(true) }}
                       onBlur={e => {
                         setAdjustBilledFocused(false)
                         const r = evaluateAmountExpression(e.target.value)

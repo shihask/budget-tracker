@@ -5,6 +5,7 @@ import type { IncomePattern, Layout } from '@/types'
 import { requestAndSubscribe, unsubscribeFromPush, getPermissionState, isPushSupported } from '@/lib/notifications'
 import { INCOME_PATTERN_OPTIONS } from '@/lib/income-pattern'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
+import { selectOnFocus } from '@/lib/utils'
 import { AmountOperatorRow } from './AmountOperatorRow'
 
 interface SettingsPanelProps {
@@ -270,7 +271,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             inputMode="decimal"
             value={salaryAmountInput}
             onChange={e => setSalaryAmountInput(sanitizeAmountInput(e.target.value))}
-            onFocus={e => { e.target.select(); setSalaryAmountFocused(true) }}
+            onFocus={e => { selectOnFocus(e.target); setSalaryAmountFocused(true) }}
             onBlur={e => {
               setSalaryAmountFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -309,7 +310,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             inputMode="decimal"
             value={weeklyIncomeInput}
             onChange={e => setWeeklyIncomeInput(sanitizeAmountInput(e.target.value))}
-            onFocus={e => { e.target.select(); setWeeklyIncomeFocused(true) }}
+            onFocus={e => { selectOnFocus(e.target); setWeeklyIncomeFocused(true) }}
             onBlur={e => {
               setWeeklyIncomeFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -373,7 +374,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             inputMode="decimal"
             value={avgDailyInput}
             onChange={e => setAvgDailyInput(sanitizeAmountInput(e.target.value))}
-            onFocus={e => { e.target.select(); setAvgDailyFocused(true) }}
+            onFocus={e => { selectOnFocus(e.target); setAvgDailyFocused(true) }}
             onBlur={e => {
               setAvgDailyFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -451,7 +452,7 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             inputMode="decimal"
             value={businessDrawingsInput}
             onChange={e => setBusinessDrawingsInput(sanitizeAmountInput(e.target.value))}
-            onFocus={e => { e.target.select(); setBusinessDrawingsFocused(true) }}
+            onFocus={e => { selectOnFocus(e.target); setBusinessDrawingsFocused(true) }}
             onBlur={e => {
               setBusinessDrawingsFocused(false)
               const r = evaluateAmountExpression(e.target.value)

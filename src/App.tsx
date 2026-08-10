@@ -7,7 +7,7 @@ import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import { fmt, iso, TODAY, localIso, round2, TimeoutError } from '@/lib/utils'
+import { fmt, iso, TODAY, localIso, round2, TimeoutError, selectOnFocus } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import type { Transaction } from '@/types'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
@@ -1136,7 +1136,7 @@ function AppContent({ session }: { session: Session }) {
                       type="text" inputMode="decimal"
                       value={challengeWinInput}
                       onChange={e => setChallengeWinInput(sanitizeAmountInput(e.target.value))}
-                      onFocus={e => { e.target.select(); setChallengeWinFocused(true) }}
+                      onFocus={e => { selectOnFocus(e.target); setChallengeWinFocused(true) }}
                       onBlur={e => {
                         setChallengeWinFocused(false)
                         const r = evaluateAmountExpression(e.target.value)
@@ -1216,7 +1216,7 @@ function AppContent({ session }: { session: Session }) {
                   type="text" inputMode="decimal" autoFocus
                   value={emergencyInput}
                   onChange={e => setEmergencyInput(sanitizeAmountInput(e.target.value))}
-                  onFocus={e => { e.target.select(); setEmergencyAmountFocused(true) }}
+                  onFocus={e => { selectOnFocus(e.target); setEmergencyAmountFocused(true) }}
                   onBlur={e => {
                     setEmergencyAmountFocused(false)
                     const r = evaluateAmountExpression(e.target.value)

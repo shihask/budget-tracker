@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, round2 } from '@/lib/utils'
+import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
@@ -739,7 +739,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                         ref={peAmountRef}
                         value={peAmount}
                         onChange={e => setPeAmount(sanitizeAmountInput(e.target.value))}
-                        onFocus={e => { e.target.select(); setPeAmountFocused(true) }}
+                        onFocus={e => { selectOnFocus(e.target); setPeAmountFocused(true) }}
                         onBlur={e => {
                           setPeAmountFocused(false)
                           const r = evaluateAmountExpression(e.target.value)

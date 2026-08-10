@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { iso, TODAY, round2 } from '@/lib/utils'
+import { iso, TODAY, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
@@ -141,7 +141,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
               type="text"
               value={amount}
               onChange={e => setAmount(sanitizeAmountInput(e.target.value))}
-              onFocus={e => { e.target.select(); setAmountFocused(true) }}
+              onFocus={e => { selectOnFocus(e.target); setAmountFocused(true) }}
               onBlur={e => {
                 setAmountFocused(false)
                 const r = evaluateAmountExpression(e.target.value)

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { X, BarChart3 } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, iso, localIso, TODAY, addDays, getWeekStart, getMonthStart, round2 } from '@/lib/utils'
+import { fmt, iso, localIso, TODAY, addDays, getWeekStart, getMonthStart, round2, selectOnFocus } from '@/lib/utils'
 import { ProgressRing } from './ProgressRing'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -1358,7 +1358,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                   <input ref={budgetInputRef} type="text" inputMode="decimal" value={budgetInput} onChange={e => setBudgetInput(sanitizeAmountInput(e.target.value))}
-                    onFocus={e => { e.target.select(); setBudgetInputFocused(true) }} onBlur={e => {
+                    onFocus={e => { selectOnFocus(e.target); setBudgetInputFocused(true) }} onBlur={e => {
                       setBudgetInputFocused(false)
                       const r = evaluateAmountExpression(e.target.value)
                       setBudgetInput(r === null ? '' : String(round2(r)))

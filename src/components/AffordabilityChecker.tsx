@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, round2 } from '@/lib/utils'
+import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -626,7 +626,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
               <div>
                 <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>Amount (₹)</label>
                 <input ref={amountRef} type="text" inputMode="decimal" value={amount} onChange={e => setAmount(sanitizeAmountInput(e.target.value))}
-                  onFocus={e => { e.target.select(); setAmountFocused(true) }}
+                  onFocus={e => { selectOnFocus(e.target); setAmountFocused(true) }}
                   onBlur={e => {
                     setAmountFocused(false)
                     const r = evaluateAmountExpression(e.target.value)

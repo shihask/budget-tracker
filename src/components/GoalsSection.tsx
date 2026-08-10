@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, AlertTriangle, Flame } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, round2 } from '@/lib/utils'
+import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -358,7 +358,7 @@ export function GoalsSection({
             type="text" inputMode="decimal"
             value={form.goalAmount}
             onChange={e => setForm(f => ({ ...f, goalAmount: sanitizeAmountInput(e.target.value) }))}
-            onFocus={e => { e.target.select(); setGoalAmountFocused(true) }}
+            onFocus={e => { selectOnFocus(e.target); setGoalAmountFocused(true) }}
             onBlur={e => {
               setGoalAmountFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -384,7 +384,7 @@ export function GoalsSection({
             type="text" inputMode="decimal"
             value={form.currentSaved}
             onChange={e => setForm(f => ({ ...f, currentSaved: sanitizeAmountInput(e.target.value) }))}
-            onFocus={e => { e.target.select(); setCurrentSavedFocused(true) }}
+            onFocus={e => { selectOnFocus(e.target); setCurrentSavedFocused(true) }}
             onBlur={e => {
               setCurrentSavedFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -432,7 +432,7 @@ export function GoalsSection({
             type="text" inputMode="decimal"
             value={form.monthlyTarget}
             onChange={e => setForm(f => ({ ...f, monthlyTarget: sanitizeAmountInput(e.target.value) }))}
-            onFocus={e => { e.target.select(); setMonthlyTargetFocused(true) }}
+            onFocus={e => { selectOnFocus(e.target); setMonthlyTargetFocused(true) }}
             onBlur={e => {
               setMonthlyTargetFocused(false)
               const r = evaluateAmountExpression(e.target.value)
@@ -825,7 +825,7 @@ export function GoalsSection({
                           type="text" inputMode="decimal"
                           value={savingsInput}
                           onChange={e => setSavingsInput(sanitizeAmountInput(e.target.value))}
-                          onFocus={e => { e.target.select(); setSavingsInputFocused(true) }}
+                          onFocus={e => { selectOnFocus(e.target); setSavingsInputFocused(true) }}
                           onBlur={e => {
                             setSavingsInputFocused(false)
                             const r = evaluateAmountExpression(e.target.value)
