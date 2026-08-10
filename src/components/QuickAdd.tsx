@@ -483,12 +483,13 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       const guessed = guessCategory(label, cats)
       if (guessed) setValue('category_id', guessed, { shouldValidate: true })
     }
-    // Clear amount and focus it
-    setValue('amount', 0, { shouldValidate: false })
-    setTimeout(() => {
-      amountRef.current?.focus()
-      amountRef.current?.select()
-    }, 50)
+    // Only steal focus to the amount field if the user hasn't already entered one
+    if (!amountVal) {
+      setTimeout(() => {
+        amountRef.current?.focus()
+        amountRef.current?.select()
+      }, 50)
+    }
   }
 
   const onSubmit = (data: FormValues) => {
