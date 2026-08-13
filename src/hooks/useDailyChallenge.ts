@@ -25,6 +25,7 @@ export function useDailyChallenge(
   d: DerivedMetrics,
   userId: string,
   updateChallengeResult: (result: 'success' | 'miss', savedAmount: number, target: number, date: string) => Promise<void>,
+  updateSettings: (patch: Partial<AppState['settings']>) => Promise<void>,
   onSuccessDay?: (savedAmount: number) => void,
 ): DailyChallengeState {
   const settings = state.settings
@@ -79,7 +80,17 @@ export function useDailyChallenge(
       const todayStr = iso(TODAY)
       const yesterdayStr = iso(addDays(TODAY, -1))
 
-      if (!lastDate || lastDate === todayStr) {
+      if (!lastDate) {
+        // First run ever (feature just enabled, or an existing account whose
+        // challenge_last_date was never seeded) — anchor from today rather than
+        // silently doing nothing. challenge_last_date is only ever written below, so
+        // without this the loop can never bootstrap itself: nothing before today
+        // existed as a scored mission, so there's nothing meaningful to evaluate yet.
+        await updateSettings({ challenge_last_date: todayStr })
+        evaluatingRef.current = false
+        return
+      }
+      if (lastDate === todayStr) {
         evaluatingRef.current = false
         return
       }

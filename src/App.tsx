@@ -366,7 +366,7 @@ function AppContent({ session }: { session: Session }) {
   // props to both the compact dashboard card and the Grow page (see useDailyChallenge.ts
   // for why this must not be called independently from each of those components).
   const challenge = useDailyChallenge(
-    state, d, session.user.id, updateChallengeResult,
+    state, d, session.user.id, updateChallengeResult, updateSettings,
     (amount) => { setChallengeWin({ amount }); setChallengeWinInput(String(Math.round(amount))) }
   )
   const safeDailyLimit = challenge.calc?.safeDailyLimit ?? 0
