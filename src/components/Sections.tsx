@@ -6,6 +6,7 @@ import { fmt, fmtDate } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
 import { MONTH_START, catById as buildCatById } from '@/lib/data'
+import { groupSplitTransactions, type TransactionGroup } from '@/lib/splitGroups'
 import type { AppState, DashboardSection, Transaction } from '@/types'
 
 // ── Custom Group Section ───────────────────────────────────────────────────────
@@ -157,9 +158,10 @@ interface RecentTxnsProps {
   onSeeAll?: () => void
   onEdit?: (t: Transaction) => void
   onDelete?: (t: Transaction) => void
+  onDeleteSplitGroup?: (splitGroupId: string) => Promise<void>
 }
 
-export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: RecentTxnsProps) {
+export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete, onDeleteSplitGroup }: RecentTxnsProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -167,15 +169,25 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
     ...state.accounts.map(a => [a.id, a]),
     ...(state.credit_cards ?? []).map(cc => [cc.id, { ...cc, name: cc.name }]),
   ])
-  const txns = state.transactions.slice(0, limit)
+  // Group BEFORE slicing. Slicing first would cut a split whose legs straddle the
+  // limit, leaving one orphaned leg on the dashboard; the limit counts activity
+  // entries, not underlying rows.
+  const entries = groupSplitTransactions(state.transactions, state.transactions, { collapse: true })
+    .slice(0, limit)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
 
-  const handleDelete = async (e: React.MouseEvent, t: Transaction) => {
+  const handleDelete = async (e: React.MouseEvent, g: TransactionGroup) => {
     e.stopPropagation()
-    if (!await confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
-    setDeleting(t.id)
-    await onDelete?.(t)
+    const groupId = g.primary.split_group_id
+    if (!await confirm(
+      g.isSplit
+        ? `Delete "${g.primary.description}" — all ${g.groupSize} payments (${fmt(g.groupTotal)})?`
+        : `Delete "${g.primary.description}" (${fmt(g.total)})?`
+    )) return
+    setDeleting(g.key)
+    if (g.isSplit && groupId && onDeleteSplitGroup) await onDeleteSplitGroup(groupId)
+    else await onDelete?.(g.primary)
     setDeleting(null)
   }
 
@@ -200,26 +212,31 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
         </div>
         <span onClick={onSeeAll} style={{ font: '600 13px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>See all</span>
       </div>
-      {txns.length === 0 ? (
+      {entries.length === 0 ? (
         <div style={{ padding: '24px 16px', textAlign: 'center' }}>
           <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>No transactions yet</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>Tap the <strong style={{ color: c.accent }}>+</strong> button to log your first expense or income.</div>
         </div>
-      ) : txns.map((t) => {
+      ) : entries.map((g) => {
+        // A split shows as one ordinary-looking row — no breakdown line, no expand,
+        // no dedicated card. The dashboard is where clutter costs most.
+        const t = g.primary
         const cat = catMap[t.category_id!]
         const col = (cat && CAT_COLORS[cat.name]) || c.muted
         const acc = acctById[t.from_account_id!] ?? (t.credit_card_id ? acctById[t.credit_card_id] : undefined) ?? (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'opening_balance' || t.transaction_type === 'cc_opening_balance' || t.transaction_type === 'cc_balance_adjustment' ? acctById[t.to_account_id!] : undefined)
         const toAcc = t.transaction_type === 'transfer' && t.to_account_id ? acctById[t.to_account_id] : null
-        const isDeleting = deleting === t.id
+        const isDeleting = deleting === g.key
         const typeLabel = (t.transaction_type === 'balance_adjustment' || t.transaction_type === 'cc_balance_adjustment') ? 'Balance Adjustment'
           : (t.transaction_type === 'opening_balance' || t.transaction_type === 'cc_opening_balance') ? 'Opening Balance'
           : cat ? cat.name : 'Other'
         const subLabel = toAcc
           ? `${acc?.name || '?'} → ${toAcc.name}`
-          : `${typeLabel} · ${acc?.name || ''}`
+          : g.isSplit
+            ? `${typeLabel} · Split`
+            : `${typeLabel} · ${acc?.name || ''}`
         return (
           <div
-            key={t.id}
+            key={g.key}
             onClick={() => !isDeleting && onEdit?.(t)}
             style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', borderTop: `1px solid ${c.faint}`, cursor: onEdit ? 'pointer' : 'default', opacity: isDeleting ? 0.5 : 1 }}
           >
@@ -255,13 +272,13 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete }: Rec
                    t.transaction_type === 'transfer' ? '⇄' :
                    (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
                      ? (t.is_credit ? '+' : '−')
-                     : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                     : '−'}{fmt(g.total, { decimals: g.total % 1 ? 2 : 0 })}
                 </div>
                 <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted }}>{fmtDate(t.transaction_date)}</div>
               </div>
               {onDelete && (
                 <button
-                  onClick={e => handleDelete(e, t)}
+                  onClick={e => handleDelete(e, g)}
                   disabled={isDeleting}
                   style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                 >

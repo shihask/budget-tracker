@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency } from '@/types'
+import type { AppState, Account, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, SplitLegInput, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency } from '@/types'
 import { evaluateEvent } from '@/lib/achievement-engine'
 import { computeChallengeResultUpdate } from '@/lib/challenge'
 import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
@@ -20,6 +20,15 @@ export const delta = (type: TransactionType, amount: number) => {
       return -amount   // debits the account (expense, commitment, balance_adjustment-debit, etc.)
   }
 }
+
+/** Resolves a leg's mixed account/card id into the right column, mirroring the
+ *  `isCreditCard` branch in addTransaction. Amount signs stay server-side. */
+const toSplitLegPayload = (leg: SplitLegInput, creditCardIds: Set<string>) => ({
+  id:             leg.id ?? null,
+  account_id:     creditCardIds.has(leg.accountId) ? null : leg.accountId,
+  credit_card_id: creditCardIds.has(leg.accountId) ? leg.accountId : null,
+  amount:         leg.amount,
+})
 
 const EMPTY_STATE: AppState = {
   accounts: [],
@@ -510,6 +519,155 @@ export function useSupabaseData(userId: string) {
       }))
     } catch (err) { console.error('Failed to delete transaction:', err); throw err }
   }, [])
+
+  // ── Split payments ────────────────────────────────────────────────────────
+  // One expense funded by several accounts. Each leg is stored as an ordinary
+  // single-account expense row, so nothing downstream (balances, budget,
+  // forecast, analytics) needs to know splits exist — see splitGroups.ts for the
+  // presentation-layer grouping.
+  //
+  // Unlike addTransaction, these do NOT pre-compute deltas: for update/delete the
+  // rows already exist, so the server derives the reversal from them rather than
+  // trusting the client to say how much to reverse.
+
+  /** Read through stateRef so the split callbacks don't re-create on every card edit. */
+  const splitCardIds = useCallback(() => new Set(stateRef.current.credit_cards.map(c => c.id)), [])
+
+  /** Rebuilds local state from the rows an RPC returned, rather than from what we
+   *  sent — the server may adjust things we'd otherwise miss (clearing a
+   *  split_group_id when a group drops to one leg, moving a rescued receipt). */
+  const applySplitRows = useCallback((removedIds: string[], rows: Transaction[]) => {
+    setState(s => {
+      const returned = new Map(rows.map(r => [r.id, r]))
+      const removed = new Set(removedIds)
+      const kept = s.transactions
+        .filter(t => !removed.has(t.id))
+        .map(t => {
+          const fresh = returned.get(t.id)
+          return fresh ? { ...fresh, category: s.categories.find(c => c.id === fresh.category_id) } : t
+        })
+      const known = new Set(kept.map(t => t.id))
+      const added = rows
+        .filter(r => !known.has(r.id))
+        .map(r => ({ ...r, category: s.categories.find(c => c.id === r.category_id) }))
+      return {
+        ...s,
+        transactions: [...added, ...kept].sort((a, b) =>
+          a.transaction_date !== b.transaction_date
+            ? (a.transaction_date < b.transaction_date ? 1 : -1)
+            : (a.created_at < b.created_at ? 1 : -1)
+        ),
+      }
+    })
+  }, [])
+
+  /** Balances are recomputed server-side across several rows, so rather than
+   *  replicating that arithmetic here we re-read the accounts the RPC touched. */
+  const refreshBalancesAfterSplit = useCallback(async () => {
+    const [{ data: accounts }, { data: cards }] = await Promise.all([
+      supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
+      supabase.from('credit_cards').select('*').eq('user_id', userId).eq('is_active', true).order('name'),
+    ])
+    setState(s => ({
+      ...s,
+      accounts: (accounts as Account[]) ?? s.accounts,
+      credit_cards: (cards as CreditCard[]) ?? s.credit_cards,
+    }))
+  }, [userId])
+
+  const addSplitTransaction = useCallback(async (
+    form: { transaction_date: string; description: string; amount: number; category_id: string | null; notes?: string },
+    legs: SplitLegInput[],
+  ): Promise<Transaction[]> => {
+    try {
+      const { data, error } = await supabase.rpc('mp_execute_split_transaction', {
+        p_transaction_date: form.transaction_date,
+        p_description:      form.description,
+        p_amount:           form.amount,
+        p_category_id:      form.category_id ?? null,
+        p_notes:            form.notes ?? '',
+        p_legs:             legs.map(l => toSplitLegPayload(l, splitCardIds())),
+      })
+      if (error) throw error
+      const rows = (data as Transaction[]) ?? []
+      applySplitRows([], rows)
+      await refreshBalancesAfterSplit()
+      return rows
+    } catch (err) { console.error('Failed to save split transaction:', err); throw err }
+  }, [applySplitRows, refreshBalancesAfterSplit, splitCardIds])
+
+  const updateSplitGroup = useCallback(async (
+    splitGroupId: string,
+    form: { transaction_date: string; description: string; amount: number; category_id: string | null; notes?: string },
+    legs: SplitLegInput[],
+    previousLegIds: string[],
+  ): Promise<Transaction[]> => {
+    try {
+      const { data, error } = await supabase.rpc('mp_update_split_group', {
+        p_split_group_id:   splitGroupId,
+        p_transaction_date: form.transaction_date,
+        p_description:      form.description,
+        p_amount:           form.amount,
+        p_category_id:      form.category_id ?? null,
+        p_notes:            form.notes ?? '',
+        p_legs:             legs.map(l => toSplitLegPayload(l, splitCardIds())),
+      })
+      if (error) throw error
+      const rows = (data as Transaction[]) ?? []
+      const survivingIds = new Set(rows.map(r => r.id))
+      applySplitRows(previousLegIds.filter(id => !survivingIds.has(id)), rows)
+      await refreshBalancesAfterSplit()
+      return rows
+    } catch (err) { console.error('Failed to update split transaction:', err); throw err }
+  }, [applySplitRows, refreshBalancesAfterSplit, splitCardIds])
+
+  const deleteSplitGroup = useCallback(async (splitGroupId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('mp_delete_split_group', {
+        p_split_group_id: splitGroupId,
+      })
+      if (error) throw error
+      const removed = (data as Transaction[]) ?? []
+
+      for (const t of removed.filter(r => r.receipt_path)) {
+        try {
+          await withTimeout(
+            supabase.storage.from('transaction-receipts').remove([t.receipt_path!]),
+            RECEIPT_NETWORK_TIMEOUT_MS, 'Receipt cleanup timed out'
+          )
+        }
+        catch (err) { console.error('Failed to delete receipt file:', err) }
+      }
+
+      applySplitRows(removed.map(t => t.id), [])
+      await refreshBalancesAfterSplit()
+    } catch (err) { console.error('Failed to delete split transaction:', err); throw err }
+  }, [applySplitRows, refreshBalancesAfterSplit])
+
+  const deleteSplitLeg = useCallback(async (leg: Transaction) => {
+    try {
+      const { data, error } = await supabase.rpc('mp_delete_split_leg', {
+        p_transaction_id: leg.id,
+      })
+      if (error) throw error
+      const survivors = (data as Transaction[]) ?? []
+
+      // Only clean up the file if the server did NOT hand this receipt to a survivor.
+      const rescued = survivors.some(t => t.receipt_path && t.receipt_path === leg.receipt_path)
+      if (leg.receipt_path && !rescued) {
+        try {
+          await withTimeout(
+            supabase.storage.from('transaction-receipts').remove([leg.receipt_path]),
+            RECEIPT_NETWORK_TIMEOUT_MS, 'Receipt cleanup timed out'
+          )
+        }
+        catch (err) { console.error('Failed to delete receipt file:', err) }
+      }
+
+      applySplitRows([leg.id], survivors)
+      await refreshBalancesAfterSplit()
+    } catch (err) { console.error('Failed to delete split payment:', err); throw err }
+  }, [applySplitRows, refreshBalancesAfterSplit])
 
   const uploadReceipt = useCallback(async (transactionId: string, receipt: PickedReceipt) => {
     const path = `${userId}/receipts/${transactionId}`
@@ -1835,6 +1993,7 @@ export function useSupabaseData(userId: string) {
     state, setState, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions,
     refetchAccountsAndRecentTransactions,
     addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings,
+    addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg,
     uploadReceipt, removeReceipt, getReceiptUrl,
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,

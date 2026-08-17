@@ -28,7 +28,9 @@ const TXN_TYPE_LABELS: Record<TransactionType, string> = {
 
 const EXPORT_COLUMNS = [
   'Date', 'Description', 'Amount', 'Transaction Type', 'Category', 'Group',
-  'Account', 'To Account', 'Notes',
+  // Split payments stay one row per leg; rows sharing a Split Group are one expense.
+  // A dedicated column keeps that machine-readable instead of mangling Description.
+  'Account', 'To Account', 'Split Group', 'Notes',
 ]
 
 function nameById<T extends { id: string; name: string }>(items: T[]): Record<string, string> {
@@ -67,6 +69,7 @@ export async function exportTransactionsCsv(
       'Group': cat?.group_name ?? '',
       'Account': accountNames[t.from_account_id ?? ''] ?? creditCardNames[t.credit_card_id ?? ''] ?? '',
       'To Account': t.to_account_id ? (accountNames[t.to_account_id] ?? '') : '',
+      'Split Group': t.split_group_id ?? '',
       'Notes': t.notes ?? '',
     }
   })

@@ -67,9 +67,22 @@ export interface Transaction {
   // Receipt photo (expenses only) — storage path is `${userId}/receipts/${id}`, no extension
   receipt_path?: string | null
   receipt_uploaded_at?: string | null
+  // Split payment: siblings funding one expense share a group id. Each leg is still an
+  // ordinary single-account expense, so the group total is always derived (sum of legs),
+  // never stored. null = an ordinary transaction.
+  split_group_id?: string | null
   // joined
   category?: Category
   from_account?: Account
+}
+
+/** One funding source in a split payment, as the UI holds it. `accountId` may be an
+ *  account id or a credit card id — the same mixed dropdown the single-account field
+ *  uses — and is resolved into the right column when the leg is saved. */
+export interface SplitLegInput {
+  id?: string | null   // the existing row this leg edits; null/absent = a new leg
+  accountId: string
+  amount: number
 }
 
 export interface CreditCard {

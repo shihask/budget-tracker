@@ -10,7 +10,9 @@ import { AmountOperatorRow } from './AmountOperatorRow'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
 import { Camera, Sparkles } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
-import type { AppState, Transaction, TransactionType, Category } from '@/types'
+import { SplitLegsEditor } from './SplitLegsEditor'
+import { isSplitValid, splitHint } from '@/lib/splitGroups'
+import type { AppState, Transaction, TransactionType, Category, SplitLegInput } from '@/types'
 import { parseExpenseWithAI, type AIReceiptExtraction } from '@/lib/gemini'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
@@ -89,6 +91,11 @@ interface QuickAddSheetProps {
   open: boolean
   onClose: () => void
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => Promise<Transaction | undefined>
+  /** Saves one expense funded by several accounts. Absent = split mode unavailable. */
+  onSaveSplit?: (
+    form: { transaction_date: string; description: string; amount: number; category_id: string | null },
+    legs: SplitLegInput[],
+  ) => Promise<Transaction[]>
   state: AppState
   onAddCategory: (name: string, group_name: string) => Promise<string>
   autopilotEnabled?: boolean
@@ -103,10 +110,13 @@ interface QuickAddSheetProps {
   onDismissSmartInputTip?: () => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
+  // null = split mode off, which is the default and what essentially everyone sees.
+  // Every piece of split UI is gated behind this being non-null.
+  const [splitLegs, setSplitLegs] = useState<SplitLegInput[] | null>(null)
   const [pendingReceipt, setPendingReceipt] = useState<PickedReceipt | null>(null)
   const amountRef = useRef<HTMLInputElement | null>(null)
   const [amountFocused, setAmountFocused] = useState(false)
@@ -261,6 +271,7 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
       initialDateRef.current = iso(TODAY)
       setTxType(initType)
       setTransferToAccountId(secondAccount)
+      setSplitLegs(null)
       setSmartInput('')
       setSmartParsed(null)
       setAiSuggestion(null)
@@ -504,6 +515,22 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
         from_account_id: data.from_account_id,
         to_account_id: transferToAccountId || null,
       })
+    } else if (splitLegs && onSaveSplit) {
+      // Split validation lives here rather than in the zod schema, so the ordinary
+      // single-account path keeps running exactly the validation it always has.
+      if (!isSplitValid(splitLegs, data.amount)) return
+      onSaveSplit({
+        transaction_date: data.date,
+        description: data.description,
+        amount: data.amount,
+        category_id: data.category_id || null,
+      }, splitLegs).then(rows => {
+        // One receipt per expense is the V1 model, so it rides on the first leg.
+        const first = rows[0]
+        if (receiptToUpload && first) {
+          onUploadReceipt?.(first.id, receiptToUpload)?.catch(err => onReceiptFailed?.(first, receiptToUpload, err))
+        }
+      })
     } else {
       onSave({
         transaction_date: data.date,
@@ -531,13 +558,44 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
   const labelStyle: React.CSSProperties = {
     font: '700 12px Plus Jakarta Sans', color: c.muted, marginBottom: 6, display: 'block',
   }
+  // Category and Account sit side by side, and Account's label shares its row with the
+  // Split payment action. Both headers use this fixed height so the two fields line up
+  // on the same baseline regardless of what the row contains.
+  const fieldHeaderStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: 8, height: 16, marginBottom: 6,
+  }
 
   const isExpense = txType === 'expense'
   const isTransfer = txType === 'transfer'
   const fromAccountId = watch('from_account_id')
   const typeColor = isTransfer ? c.accent : isExpense ? c.bad : c.good
   const transferValid = isTransfer && accs.length >= 2 && amountVal > 0 && !!fromAccountId && !!transferToAccountId && transferToAccountId !== fromAccountId
-  const valid = isTransfer ? transferValid : (isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal))
+  const baseValid = isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal)
+  const valid = isTransfer
+    ? transferValid
+    : splitLegs
+      // `isValid` covers the shared fields; from_account_id is unused in split mode,
+      // so the legs balancing to the total is the extra condition.
+      ? amountVal > 0 && !!descriptionVal.trim() && !!categoryVal && isSplitValid(splitLegs, amountVal)
+      : baseValid
+
+  // Split payment is a rare workflow: the affordance exists only on the Expense tab,
+  // and only when there's more than one place the money could have come from.
+  const splitSources = [...accs, ...(state.credit_cards || [])]
+  const canSplit = isExpense && !!onSaveSplit && splitSources.length >= 2
+
+  const enableSplit = () => {
+    const first = fromAccountId || splitSources[0]?.id || ''
+    const second = splitSources.find(s => s.id !== first)?.id || ''
+    setSplitLegs([{ accountId: first, amount: amountVal || 0 }, { accountId: second, amount: 0 }])
+  }
+
+  const disableSplit = () => {
+    const [first] = splitLegs ?? []
+    if (first?.accountId) setValue('from_account_id', first.accountId, { shouldValidate: true })
+    setSplitLegs(null)
+  }
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, pointerEvents: open ? 'auto' : 'none', touchAction: open ? 'none' : 'auto' }}>
@@ -576,6 +634,8 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
             return (
               <button key={t} type="button" onClick={() => {
                 setTxType(t)
+                // Split payment is an expense-only idea — leaving the tab leaves the mode.
+                if (t !== 'expense') setSplitLegs(null)
                 if (t === 'transfer') {
                   setValue('description', 'Transfer', { shouldValidate: true })
                 } else {
@@ -935,12 +995,16 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: 12 }}>
+              // Split mode needs the full width for its leg rows, so the two columns
+              // stack. Same block, same position — it just gets wider.
+              <div style={{ display: 'flex', gap: 12, flexDirection: splitLegs ? 'column' : 'row' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    Category
-                    {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}
-                  </label>
+                  <div style={fieldHeaderStyle}>
+                    <label style={{ ...labelStyle, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      Category
+                      {txType === 'income' && <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span>}
+                    </label>
+                  </div>
                   <CategorySelect
                     value={categoryVal}
                     onChange={v => setValue('category_id', v, { shouldValidate: true })}
@@ -998,17 +1062,40 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                   )}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Account</label>
-                  <select {...register('from_account_id')} style={inputStyle}>
-                    <optgroup label="Bank / Cash">
-                      {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </optgroup>
-                    {isExpense && (state.credit_cards || []).length > 0 && (
-                      <optgroup label="Credit Cards">
-                        {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
-                      </optgroup>
+                  <div style={fieldHeaderStyle}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>Account</label>
+                    {canSplit && (
+                      <button
+                        type="button"
+                        onClick={() => splitLegs ? disableSplit() : enableSplit()}
+                        // `font` is a shorthand and resets line-height, so it must come
+                        // before lineHeight or the reset wins.
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, font: '600 11px Plus Jakarta Sans', lineHeight: 1, color: splitLegs ? c.muted : c.accent }}
+                      >
+                        {splitLegs ? '✕ Split payment' : '+ Split payment'}
+                      </button>
                     )}
-                  </select>
+                  </div>
+                  {splitLegs ? (
+                    <SplitLegsEditor
+                      legs={splitLegs}
+                      onChange={setSplitLegs}
+                      total={amountVal}
+                      accounts={accs}
+                      creditCards={state.credit_cards || []}
+                    />
+                  ) : (
+                    <select {...register('from_account_id')} style={inputStyle}>
+                      <optgroup label="Bank / Cash">
+                        {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </optgroup>
+                      {isExpense && (state.credit_cards || []).length > 0 && (
+                        <optgroup label="Credit Cards">
+                          {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                        </optgroup>
+                      )}
+                    </select>
+                  )}
                 </div>
               </div>
             )}
@@ -1066,7 +1153,11 @@ export function QuickAddSheet({ open, onClose, onSave, state, onAddCategory, aut
                 : `${isExpense ? 'Save Expense' : 'Add Income'}  ·  ${fmt(amountVal)}`
               : isTransfer
                 ? 'Enter amount & select accounts'
-                : 'Enter amount & description'}
+                // Same hint the leg editor shows, so the button states the actual reason
+                // rather than a generic one that can contradict it.
+                : splitLegs && splitHint(splitLegs, amountVal).text
+                  ? splitHint(splitLegs, amountVal).text
+                  : 'Enter amount & description'}
           </button>
         </form>
       </div>

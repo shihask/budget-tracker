@@ -13,7 +13,9 @@ import { ReceiptField } from './ReceiptField'
 import { ExportTransactionsSheet } from './ExportTransactionsSheet'
 import { Receipt } from 'lucide-react'
 import { filterAndSortTransactions, type TxnSortKey } from '@/lib/transactionFilters'
-import type { AppState, Transaction, TransactionType } from '@/types'
+import { groupSplitTransactions, splitGroupLegs, isSplitValid, type TransactionGroup } from '@/lib/splitGroups'
+import { SplitLegsEditor } from './SplitLegsEditor'
+import type { AppState, Transaction, TransactionType, SplitLegInput } from '@/types'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
 type EditForm = {
@@ -63,9 +65,28 @@ interface TransactionsPageProps {
   onRemoveReceipt?: (t: Transaction) => Promise<void>
   getReceiptUrl?: (path: string) => Promise<string | null>
   userId: string
+  /** Split payments are edited and deleted as a group — never one leg at a time. */
+  onUpdateSplitGroup?: (
+    splitGroupId: string,
+    form: { transaction_date: string; description: string; amount: number; category_id: string | null },
+    legs: SplitLegInput[],
+    previousLegIds: string[],
+  ) => Promise<Transaction[]>
+  onDeleteSplitGroup?: (splitGroupId: string) => Promise<void>
+  onDeleteSplitLeg?: (leg: Transaction) => Promise<void>
 }
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId }: TransactionsPageProps) {
+type SplitEditState = {
+  groupId: string
+  description: string
+  amount: string
+  transaction_date: string
+  category_id: string
+  legs: SplitLegInput[]
+  originalLegIds: string[]
+}
+
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -186,10 +207,22 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     sortKey,
   ), [state.transactions, state.categories, search, filterAccount, filterCategory, filterGroup, filterDateFrom, filterDateTo, sortKey, showSystemTxns])
 
+  // Sums the raw legs, not the group entries — correct as-is because it runs
+  // before grouping, where a split is still N ordinary rows.
   const totalFiltered = filtered.reduce((s, t) => s + t.amount, 0)
+
+  // Collapsing under an account filter would show a ₹30,000 card while filtered to an
+  // account that only funded ₹10,000 of it, so the legs stay separate there instead.
+  const collapseSplits = filterAccount === 'all'
+  const txnGroups = useMemo(
+    () => groupSplitTransactions(filtered, state.transactions, { collapse: collapseSplits }),
+    [filtered, state.transactions, collapseSplits],
+  )
 
   const [borrowingDeleteTarget, setBorrowingDeleteTarget] = useState<Transaction | null>(null)
   const [savingsDeleteTarget, setSavingsDeleteTarget] = useState<Transaction | null>(null)
+  const [splitEdit, setSplitEdit] = useState<SplitEditState | null>(null)
+  const [splitLegDeleteTarget, setSplitLegDeleteTarget] = useState<{ leg: Transaction; groupSize: number; groupTotal: number } | null>(null)
 
   const handleDelete = async (t: Transaction) => {
     if (!await confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
@@ -234,7 +267,66 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     setDeleting(null)
   }
 
+  // A split leg must never reach the single-row edit sheet: editing one leg's amount
+  // in isolation would leave the legs no longer summing to the expense, with nothing
+  // downstream able to catch it. Splits are always edited as a group.
+  const openSplitEdit = (t: Transaction) => {
+    const legs = splitGroupLegs(t, state.transactions)
+    setSplitEdit({
+      groupId: t.split_group_id!,
+      description: t.description,
+      amount: String(round2(legs.reduce((s, l) => s + l.amount, 0))),
+      transaction_date: t.transaction_date,
+      category_id: t.category_id || '',
+      legs: legs.map(l => ({ id: l.id, accountId: l.from_account_id || l.credit_card_id || '', amount: l.amount })),
+      originalLegIds: legs.map(l => l.id),
+    })
+  }
+
+  const handleSplitSave = async () => {
+    if (!splitEdit || !onUpdateSplitGroup) return
+    const raw = evaluateAmountExpression(splitEdit.amount)
+    const amount = raw === null ? NaN : round2(raw)
+    if (!splitEdit.description.trim() || isNaN(amount) || !isSplitValid(splitEdit.legs, amount)) return
+    setSaving(true)
+    try {
+      await onUpdateSplitGroup(
+        splitEdit.groupId,
+        {
+          transaction_date: splitEdit.transaction_date,
+          description: splitEdit.description.trim(),
+          amount,
+          category_id: splitEdit.category_id || null,
+        },
+        splitEdit.legs,
+        splitEdit.originalLegIds,
+      )
+      setSplitEdit(null)
+    } catch (_) {}
+    setSaving(false)
+  }
+
+  const handleDeleteGroup = async (group: TransactionGroup) => {
+    const groupId = group.primary.split_group_id
+    if (!groupId || !onDeleteSplitGroup) return
+    if (!await confirm(`Delete all ${group.groupSize} payments (${fmt(group.groupTotal)})?`)) return
+    setDeleting(group.key)
+    try { await onDeleteSplitGroup(groupId) } catch (_) {}
+    setDeleting(null)
+  }
+
+  const doDeleteSplitLeg = async (leg: Transaction, wholeSplit: boolean) => {
+    setSplitLegDeleteTarget(null)
+    setDeleting(leg.id)
+    try {
+      if (wholeSplit && leg.split_group_id) await onDeleteSplitGroup?.(leg.split_group_id)
+      else await onDeleteSplitLeg?.(leg)
+    } catch (_) {}
+    setDeleting(null)
+  }
+
   const openEdit = (t: Transaction) => {
+    if (t.split_group_id && onUpdateSplitGroup) { openSplitEdit(t); return }
     setEditingTx(t)
     setEditForm({
       description: t.description,
@@ -530,24 +622,43 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
           <div style={{ textAlign: 'center', padding: '60px 0', font: '600 14px Plus Jakarta Sans', color: c.muted }}>No transactions found</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 8 }}>
-            {filtered.map((t, i) => {
+            {txnGroups.map((g, i) => {
+              // An ordinary transaction is a one-leg group, so everything below is
+              // exactly the code path it has always taken.
+              const t = g.primary
+              const collapsedSplit = g.isSplit && g.legs.length > 1
               const cat = catMap[t.category_id!]
               const col = (cat && CAT_COLORS[cat.name]) || c.muted
               const acc = state.accounts.find(a => a.id === t.from_account_id)
               const creditCard = !acc ? (state.credit_cards || []).find(cc => cc.id === t.from_account_id || cc.id === (t as any).credit_card_id) : null
               const toAcc = (t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal') && t.to_account_id ? state.accounts.find(a => a.id === t.to_account_id) : null
               const displayAcc = t.transaction_type === 'savings_withdrawal' ? toAcc : acc
-              const accLabel = t.transaction_type === 'transfer' && toAcc
+              const accLabel = collapsedSplit ? '' : (t.transaction_type === 'transfer' && toAcc
                 ? `${acc?.name || '?'} → ${toAcc.name}`
-                : displayAcc ? displayAcc.name : acc ? acc.name : creditCard ? creditCard.name : ''
+                : displayAcc ? displayAcc.name : acc ? acc.name : creditCard ? creditCard.name : '')
               const accIdx = acc ? state.accounts.findIndex(a => a.id === acc.id) : -1
               const accColor = acc ? ACCOUNT_PALETTE[Math.max(0, accIdx) % ACCOUNT_PALETTE.length] : creditCard ? '#6366F1' : c.muted
-              const isDeleting = deleting === t.id
-              const prevDate = i > 0 ? filtered[i - 1].transaction_date : null
+              const isDeleting = deleting === g.key
+              const prevDate = i > 0 ? txnGroups[i - 1].primary.transaction_date : null
               const showDateHeader = t.transaction_date !== prevDate
 
+              // "Axis ₹20,000 · Cash ₹10,000" — only rendered for a collapsed split.
+              const legBreakdown = collapsedSplit
+                ? g.legs.map(l => {
+                    const a = state.accounts.find(x => x.id === l.from_account_id)
+                    const cc = !a ? (state.credit_cards || []).find(x => x.id === l.credit_card_id) : null
+                    return `${a?.name || cc?.name || '?'} ${fmt(l.amount, { decimals: l.amount % 1 ? 2 : 0 })}`
+                  }).join(' · ')
+                : ''
+
+              const onDeleteClick = () => {
+                if (collapsedSplit) return handleDeleteGroup(g)
+                if (g.isSplit) return setSplitLegDeleteTarget({ leg: t, groupSize: g.groupSize, groupTotal: g.groupTotal })
+                return handleDelete(t)
+              }
+
               return (
-                <div key={t.id}>
+                <div key={g.key}>
                   {showDateHeader && (
                     <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', padding: '14px 0 6px' }}>
                       {fmtDate(t.transaction_date)}
@@ -590,10 +701,20 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                           )
                         }
                         {accLabel && <span style={{ font: '600 10px Plus Jakarta Sans', color: accColor, background: accColor + '18', borderRadius: 999, padding: '2px 7px' }}>{accLabel}</span>}
+                        {g.isSplit && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>
+                            {collapsedSplit ? `Split · ${g.groupSize}` : 'Split'}
+                          </span>
+                        )}
                         {(state.settings.challenge_excluded_txn_ids ?? []).includes(t.id) && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px', border: `1px dashed ${c.faint}` }}>excl. challenge</span>
                         )}
                       </div>
+                      {legBreakdown && (
+                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {legBreakdown}
+                        </div>
+                      )}
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
@@ -614,12 +735,12 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                            t.transaction_type === 'transfer' ? '⇄' :
                            (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
                              ? (t.is_credit ? '+' : '−')
-                             : '−'}{fmt(t.amount, { decimals: t.amount % 1 ? 2 : 0 })}
+                             : '−'}{fmt(g.total, { decimals: g.total % 1 ? 2 : 0 })}
                         </div>
                         <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{fmtTime(t.created_at)}</div>
                       </div>
                       <button
-                        onClick={e => { e.stopPropagation(); handleDelete(t) }}
+                        onClick={e => { e.stopPropagation(); onDeleteClick() }}
                         disabled={isDeleting}
                         style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                       >
@@ -846,6 +967,113 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
             </>}
       </BottomSheet>
 
+      {/* Split edit sheet — a split is always edited as one transaction, so there is
+          no path here that changes a single leg's amount on its own. */}
+      <BottomSheet open={!!splitEdit} onClose={() => setSplitEdit(null)} maxHeight="88svh" zIndex={300}>
+        <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>Edit Split Payment</div>
+
+        {splitEdit && (() => {
+          const parsed = evaluateAmountExpression(splitEdit.amount)
+          const total = parsed === null ? NaN : round2(parsed)
+          const canSave = !!splitEdit.description.trim() && !isNaN(total) && isSplitValid(splitEdit.legs, total)
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <Label>Description</Label>
+                <HelpText>Shared by every payment in this split.</HelpText>
+                <input
+                  value={splitEdit.description}
+                  onChange={e => setSplitEdit(f => f ? { ...f, description: e.target.value } : f)}
+                  style={inp}
+                  placeholder="Description"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <Label>Amount</Label>
+                  <HelpText>The payments below must add up to this.</HelpText>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={splitEdit.amount}
+                    onChange={e => setSplitEdit(f => f ? { ...f, amount: sanitizeAmountInput(e.target.value) } : f)}
+                    onFocus={e => selectOnFocus(e.target)}
+                    onBlur={e => {
+                      const r = evaluateAmountExpression(e.target.value)
+                      setSplitEdit(f => f ? { ...f, amount: r === null ? '' : String(round2(r)) } : f)
+                    }}
+                    style={inp}
+                    placeholder="0"
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Label>Date</Label>
+                  <HelpText>When this expense occurred.</HelpText>
+                  <input
+                    type="date"
+                    value={splitEdit.transaction_date}
+                    onChange={e => setSplitEdit(f => f ? { ...f, transaction_date: e.target.value } : f)}
+                    style={inp}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Category</Label>
+                <HelpText>Used for spending analytics and reports.</HelpText>
+                <CategorySelect
+                  value={splitEdit.category_id}
+                  onChange={v => setSplitEdit(f => f ? { ...f, category_id: v } : f)}
+                  state={state}
+                  onAddCategory={onAddCategory}
+                  style={inp}
+                />
+              </div>
+
+              <div>
+                <Label>Payments</Label>
+                <HelpText>Which accounts this expense was paid from.</HelpText>
+                <SplitLegsEditor
+                  legs={splitEdit.legs}
+                  onChange={legs => setSplitEdit(f => f ? { ...f, legs } : f)}
+                  total={isNaN(total) ? 0 : total}
+                  accounts={state.accounts.filter(a => a.is_active)}
+                  creditCards={state.credit_cards || []}
+                />
+              </div>
+
+              <button
+                onClick={handleSplitSave}
+                disabled={!canSave || saving}
+                style={{
+                  width: '100%', marginTop: 4, border: 'none', borderRadius: 12, padding: '13px',
+                  font: '700 14px Plus Jakarta Sans', cursor: canSave && !saving ? 'pointer' : 'not-allowed',
+                  background: canSave && !saving ? c.accent : c.faint, color: canSave && !saving ? '#fff' : c.muted,
+                }}
+              >
+                {saving ? 'Saving...' : canSave ? 'Save Changes' : 'Payments must add up to the total'}
+              </button>
+
+              <button
+                onClick={async () => {
+                  const groupId = splitEdit.groupId
+                  if (!await confirm(`Delete all ${splitEdit.legs.length} payments (${fmt(isNaN(total) ? 0 : total)})?`)) return
+                  setSplitEdit(null)
+                  setDeleting(groupId)
+                  try { await onDeleteSplitGroup?.(groupId) } catch (_) {}
+                  setDeleting(null)
+                }}
+                style={{ width: '100%', background: 'none', color: c.bad, border: 'none', padding: '8px', font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Delete this split
+              </button>
+            </div>
+          )
+        })()}
+      </BottomSheet>
+
       {/* Quick categorize sheet */}
       <BottomSheet open={!!quickCatTx} onClose={() => setQuickCatTx(null)} zIndex={350} showHelpButton={false}>
         <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Set Category</div>
@@ -938,6 +1166,43 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </button>
               <button
                 onClick={() => setSavingsDeleteTarget(null)}
+                style={{ width: '100%', background: 'none', color: c.muted, border: 'none', borderRadius: 12, padding: '8px', font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Deleting one leg of a split, reached from the account-filtered view where the
+          legs are shown separately. Both outcomes act, so this is a choice sheet
+          rather than a confirm dialog. */}
+      {splitLegDeleteTarget && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setSplitLegDeleteTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: c.bg, borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Part of a split payment</div>
+            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              <strong style={{ color: c.ink }}>{splitLegDeleteTarget.leg.description}</strong> was paid
+              from {splitLegDeleteTarget.groupSize} accounts, {fmt(splitLegDeleteTarget.groupTotal)} in total.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={() => doDeleteSplitLeg(splitLegDeleteTarget.leg, false)}
+                style={{ width: '100%', background: c.surface2, color: c.ink, border: `1.5px solid ${c.faint}`, borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Delete just this {fmt(splitLegDeleteTarget.leg.amount)} payment
+              </button>
+              <button
+                onClick={() => doDeleteSplitLeg(splitLegDeleteTarget.leg, true)}
+                style={{ width: '100%', background: '#EF4444', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Delete the whole {fmt(splitLegDeleteTarget.groupTotal)} split
+              </button>
+              <button
+                onClick={() => setSplitLegDeleteTarget(null)}
                 style={{ width: '100%', background: 'none', color: c.muted, border: 'none', borderRadius: 12, padding: '8px', font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
               >
                 Cancel
