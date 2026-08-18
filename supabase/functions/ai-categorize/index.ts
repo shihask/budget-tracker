@@ -13,6 +13,34 @@ const cors = {
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
+// ── Groq models ──────────────────────────────────────────────────────────────
+// Named, not inlined, because Groq has now decommissioned a model under this
+// app three times (llama-4-scout 2026-07-17, then llama-3.3-70b-versatile and
+// llama-3.1-8b-instant together on 2026-08-16, which took chat, autopilot
+// categorisation and the text-statement path down at once). The next one
+// should be a one-line change here, not a hunt through six call sites.
+//
+// llama-3.1-8b-instant and llama-3.3-70b-versatile are GONE — do not
+// reintroduce them. Groq's only production-tier text models are the gpt-oss
+// pair below.
+const MODEL_TEXT_LARGE = 'openai/gpt-oss-120b'  // chat: needs tool calling + longer reasoning
+const MODEL_TEXT_SMALL = 'openai/gpt-oss-20b'   // categorise/parse/statement-text: short, cheap, 2x faster
+
+// The ONLY vision-capable model Groq offers, and it sits in their Preview tier
+// ("not for production, may be discontinued at short notice"). Receipt scanning
+// and the scanned-statement path depend on it, so a Groq preview pull breaks
+// them with no in-provider fallback. Flagged deliberately: if receipts must be
+// reliable, they belong on a provider with a stable multimodal tier.
+const MODEL_VISION = 'qwen/qwen3.6-27b'
+
+// gpt-oss are REASONING models. Left at default effort they spend the token
+// budget thinking before emitting anything, so a tight max_tokens yields an
+// empty string rather than an error — autopilot would silently stop suggesting
+// instead of failing loudly. Same failure qwen3.6 exhibited (see the
+// receipt-extract notes below), so the same mitigation: minimise reasoning and
+// leave headroom on the completion cap.
+const LOW_REASONING = { reasoning_effort: 'low' }
+
 // ── Tool definitions ──
 const CHAT_TOOLS = [
   {
@@ -420,17 +448,31 @@ ${context ?? ''}`
       ]
 
       const groqHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` }
-      // 70b and 8b-instant each have their own 6k TPM budget on Groq free tier.
-      // With the trimmed prompt, each call is ~2.3k tokens → both calls per message fit in 70b's budget alone.
-      // Fallback: if 70b is saturated, 8b-instant's budget is usually still fresh.
-      // Last resort: sleep until the TPM window resets (~12s covers the worst case).
+      // Each model has its own TPM budget on Groq, so falling back to the
+      // smaller one buys a fresh allowance when the larger is saturated.
+      //
+      // The fallback triggers on ANY non-OK status, not just 429. It used to
+      // check `if (r.status !== 429) return r`, which meant a decommissioned
+      // model — a 404, not a 429 — returned immediately and the fallback never
+      // ran. That is exactly how the 2026-08-16 shutdown took chat down
+      // completely instead of degrading to the smaller model. Availability
+      // failures and rate limits both deserve the second attempt; only the
+      // sleep-and-retry step is 429-specific, since sleeping does nothing for
+      // a model that no longer exists.
       const groqFetch = async (payload: Record<string, unknown>): Promise<Response> => {
-        let r = await fetch(GROQ_URL, { method: 'POST', headers: groqHeaders, body: JSON.stringify({ model: 'llama-3.3-70b-versatile', ...payload }) })
-        if (r.status !== 429) return r
-        r = await fetch(GROQ_URL, { method: 'POST', headers: groqHeaders, body: JSON.stringify({ model: 'llama-3.1-8b-instant', ...payload }) })
-        if (r.status !== 429) return r
+        const call = (model: string) =>
+          fetch(GROQ_URL, { method: 'POST', headers: groqHeaders, body: JSON.stringify({ model, ...LOW_REASONING, ...payload }) })
+
+        const primary = await call(MODEL_TEXT_LARGE)
+        if (primary.ok) return primary
+        console.error(`[chat] ${MODEL_TEXT_LARGE} returned ${primary.status}, falling back to ${MODEL_TEXT_SMALL}`)
+
+        const secondary = await call(MODEL_TEXT_SMALL)
+        if (secondary.ok || secondary.status !== 429) return secondary
+
+        // Only a rate limit is worth waiting out (~12s covers Groq's window).
         await new Promise<void>(res => setTimeout(res, 12000))
-        return fetch(GROQ_URL, { method: 'POST', headers: groqHeaders, body: JSON.stringify({ model: 'llama-3.1-8b-instant', ...payload }) })
+        return call(MODEL_TEXT_SMALL)
       }
       const encoder = new TextEncoder()
       const streamHeaders = {
@@ -587,9 +629,13 @@ Rules:
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: MODEL_TEXT_SMALL,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 100,
+          ...LOW_REASONING,
+          // Was 100 under llama-3.1-8b-instant. Raised because gpt-oss spends
+          // part of the budget reasoning even at low effort, and a truncated
+          // completion here returns empty rather than erroring.
+          max_tokens: 300,
           temperature: 0,
         }),
       })
@@ -658,8 +704,9 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
         body: JSON.stringify({
           // meta-llama/llama-4-scout-17b-16e-instruct was deprecated/removed by Groq
-          // (shutdown 2026-07-17) — qwen3.6-27b is the current vision-capable model.
-          model: 'qwen/qwen3.6-27b',
+          // (shutdown 2026-07-17) — see MODEL_VISION for the current one and why
+          // it is a standing risk.
+          model: MODEL_VISION,
           messages: [{
             role: 'user',
             content: [
@@ -796,7 +843,7 @@ Groups (for NEW only): ${(groupNames ?? []).filter((g: string) => g !== 'Income'
 
 If there are no transaction rows at all, return an empty "transactions" array rather than guessing.`
 
-      const stmtModel = stmtIsImages ? 'qwen/qwen3.6-27b' : 'llama-3.1-8b-instant'
+      const stmtModel = stmtIsImages ? MODEL_VISION : MODEL_TEXT_SMALL
       const stmtMessages = stmtIsImages
         ? [{
             role: 'user',
@@ -817,10 +864,14 @@ If there are no transaction rows at all, return an empty "transactions" array ra
           body: JSON.stringify({
             model: stmtModel,
             messages: stmtMessages,
-            // Same reasoning-suppression note as receipt-extract: qwen3.6 emits a
-            // <think>...</think> trace otherwise, and no response_format here for
-            // the same "Groq's JSON validator rejects it combined with image input" reason.
-            ...(stmtIsImages ? { reasoning_effort: 'none' } : {}),
+            // Reasoning suppression on BOTH paths now, for the same underlying
+            // reason but two different models: qwen3.6 emits a <think>...</think>
+            // trace inline (see receipt-extract), and gpt-oss reasons before
+            // emitting. Either way an unsuppressed reasoning pass eats the token
+            // budget before the JSON is written. No response_format on the image
+            // path for the "Groq's JSON validator rejects it combined with image
+            // input" reason documented in receipt-extract.
+            ...(stmtIsImages ? { reasoning_effort: 'none' } : LOW_REASONING),
             max_tokens: 3000,
             temperature: 0,
           }),
@@ -977,9 +1028,14 @@ ${groupLines}
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: MODEL_TEXT_SMALL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 30,
+        ...LOW_REASONING,
+        // Was 30 under llama-3.1-8b-instant, which was ample for a one-line
+        // answer. A reasoning model would burn all 30 before writing anything
+        // and return an empty string — autopilot would quietly stop suggesting
+        // rather than surface an error. 200 leaves room for the reasoning pass.
+        max_tokens: 200,
         temperature: 0,
       }),
     })
