@@ -67,7 +67,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
 
   const openAdjust = (a: AppState['accounts'][0]) => {
     setAdjustAccount(a)
-    setAdjustInput(String(a.current_balance))
+    setAdjustInput(String(round2(a.current_balance)))
     setAdjustDone(false)
     setAdjustSheetOpen(true)
   }
@@ -87,7 +87,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
 
   const openEditSheet = (a: { id: string; name: string; type: AccountType; current_balance: number }) => {
     setEditingId(a.id)
-    setEditForm({ name: a.name, type: a.type, current_balance: String(a.current_balance) })
+    setEditForm({ name: a.name, type: a.type, current_balance: String(round2(a.current_balance)) })
     setEditSheetOpen(true)
   }
   const closeEditSheet = () => { setEditSheetOpen(false); setEditingId(null) }
@@ -409,10 +409,8 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
         {adjustAccount && (() => {
           const rawActual = evaluateAmountExpression(adjustInput)
           const actual = rawActual === null ? NaN : round2(rawActual)
-          const diff = isNaN(actual) ? null : actual - adjustAccount.current_balance
-          const diffFmt = diff === null ? null
-            : diff === 0 ? 'No change'
-            : (diff > 0 ? '+' : '−') + '₹' + Math.abs(diff).toLocaleString('en-IN')
+          const diff = isNaN(actual) ? null : round2(actual - round2(adjustAccount.current_balance))
+          const diffFmt = diff === null ? null : diff === 0 ? 'No change' : fmt(diff, { sign: true })
           const diffColor = diff === null || diff === 0 ? c.muted : diff > 0 ? c.good : c.bad
 
           return adjustDone ? (
@@ -424,7 +422,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
               <div style={{ background: c.surface2, borderRadius: 14, padding: '14px 16px', marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>New balance</span>
-                  <span style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>₹{actual.toLocaleString('en-IN')}</span>
+                  <span style={{ font: '800 15px Plus Jakarta Sans', color: c.ink }}>{fmt(actual)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Adjustment</span>
@@ -447,7 +445,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
               <div style={{ background: c.surface2, borderRadius: 14, padding: '14px 16px', marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${c.faint}` }}>
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>MoneyPlant balance</span>
-                  <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>₹{adjustAccount.current_balance.toLocaleString('en-IN')}</span>
+                  <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(adjustAccount.current_balance)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: diff !== null && diff !== 0 ? 10 : 0 }}>
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Actual balance</span>

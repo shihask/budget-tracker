@@ -6,7 +6,7 @@ import { computeChallengeResultUpdate } from '@/lib/challenge'
 import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
-import { withTimeout, iso, TODAY } from '@/lib/utils'
+import { withTimeout, iso, TODAY, fmt, round2 } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
 const RECEIPT_NETWORK_TIMEOUT_MS = 20_000
@@ -864,7 +864,7 @@ export function useSupabaseData(userId: string) {
   const adjustBalance = useCallback(async (accountId: string, actualBalance: number) => {
     const account = stateRef.current.accounts.find(a => a.id === accountId)
     if (!account) return
-    const difference = actualBalance - account.current_balance
+    const difference = round2(actualBalance - round2(account.current_balance))
     if (difference === 0) return
 
     const today = new Date().toISOString().slice(0, 10)
@@ -883,7 +883,7 @@ export function useSupabaseData(userId: string) {
       category_id: null,
       from_account_id: isCredit ? null : accountId,
       to_account_id:   isCredit ? accountId : null,
-      notes: `Adjusted: ₹${account.current_balance.toLocaleString('en-IN')} → ₹${actualBalance.toLocaleString('en-IN')}`,
+      notes: `Adjusted: ${fmt(account.current_balance)} → ${fmt(actualBalance)}`,
       user_id: userId,
     }).select('*, category:categories(*)').single()
 

@@ -103,7 +103,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
       cycle_start_day: String(card.cycle_start_day),
       bill_day: String(card.bill_day),
       due_day: String(card.due_day),
-      current_balance: String(card.current_balance),
+      current_balance: String(round2(card.current_balance)),
     })
     setSheetOpen(true)
   }
@@ -254,7 +254,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <button
-                        onClick={e => { e.stopPropagation(); setPayTarget(card); setPayAmount(String(billing.billedAmount || card.current_balance)); setPayAccountId(accounts[0]?.id || '') }}
+                        onClick={e => { e.stopPropagation(); setPayTarget(card); setPayAmount(String(round2(billing.billedAmount || card.current_balance))); setPayAccountId(accounts[0]?.id || '') }}
                         style={{ background: col, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', font: '700 11px Plus Jakarta Sans', cursor: 'pointer' }}
                       >
                         Pay Bill
@@ -334,7 +334,7 @@ export function CreditCardsSection({ state, onAdd, onUpdate, onDelete, onPayBill
                       </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
                         <button
-                          onClick={() => { setAdjustTarget(card); setAdjustAmount(String(card.current_balance)); setAdjustBilled(String(billing.billedAmount)) }}
+                          onClick={() => { setAdjustTarget(card); setAdjustAmount(String(round2(card.current_balance))); setAdjustBilled(String(round2(billing.billedAmount))) }}
                           style={{ flex: 1, background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 10, padding: '8px 0', font: '700 11px Plus Jakarta Sans', color: c.ink, cursor: 'pointer' }}
                         >
                           Adjust Balance
