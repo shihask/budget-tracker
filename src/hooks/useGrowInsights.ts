@@ -9,7 +9,7 @@ import { loadPreviousScore, saveTodayScore, scoreTrend } from '@/lib/health-scor
 import { buildMintCoachContext, buildMintCoachFingerprint, type MintCoachContext } from '@/lib/mint-coach-context'
 import { buildMintCoachPrompt } from '@/lib/mint-coach-prompt'
 import { loadCachedCoach, loadPreviousDaySummary, saveCachedCoach } from '@/lib/mint-coach-cache'
-import { mintCoachWithAI } from '@/lib/gemini'
+import { mintCoachWithAI, aiUsagePatch } from '@/lib/gemini'
 import { iso, addDays, TODAY } from '@/lib/utils'
 
 // This hook is the only orchestration layer for Grow. New intelligence added to Grow
@@ -114,7 +114,7 @@ export function useGrowInsights({
     const ctx = buildMintCoachContext(state, d, challenge, streak, userName, previousCoachSummary, allDetectedTopics)
     const { message, context } = buildMintCoachPrompt(ctx)
 
-    mintCoachWithAI(message, context, n => onUpdateSettings({ ai_requests_used: n })).then(reply => {
+    mintCoachWithAI(message, context, n => onUpdateSettings(aiUsagePatch(n))).then(reply => {
       if (coachFetchingRef.current !== coachFingerprint) return   // stale — fingerprint moved on while this was in flight
       coachFetchingRef.current = null
       if (reply) {

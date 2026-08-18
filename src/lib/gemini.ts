@@ -3,6 +3,24 @@ import { withTimeout } from '@/lib/utils'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
+// `ai_requests_used` and `ai_requests_reset_at` are a PAIR and must be written
+// together. The edge function increments the counter on every call but only
+// rewrites the reset timestamp on the first call of a new UTC day, and it does
+// so straight to the database — the client never sees that write.
+//
+// SettingsPanel's quota card derives its number as
+// `isToday(reset_at) ? used : 0`. So a client that mirrors only `used` leaves
+// its local `reset_at` on yesterday's date, and the card renders 0/100 for the
+// rest of the day no matter how many requests are made — fixed only by a page
+// reload that refetches settings. That was the "x/100 never updates" bug.
+//
+// Any `used` value returned by the edge function is by definition the server's
+// count FOR TODAY, so stamping the timestamp alongside it is always correct.
+// Use this rather than writing `{ ai_requests_used: n }` by hand.
+export function aiUsagePatch(used: number): { ai_requests_used: number; ai_requests_reset_at: string } {
+  return { ai_requests_used: used, ai_requests_reset_at: new Date().toISOString() }
+}
+
 export type AIParsedExpense = {
   description: string | null
   amount: number | null

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import type { ColorTokens } from '@/lib/tokens'
-import { parseExpenseWithAI, extractReceiptWithAI, type AIReceiptExtraction } from '@/lib/gemini'
+import { parseExpenseWithAI, extractReceiptWithAI, aiUsagePatch, type AIReceiptExtraction } from '@/lib/gemini'
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
 import { round2 } from '@/lib/utils'
@@ -22,7 +22,7 @@ import type { MintAction } from '@/lib/mintActions'
 import { exportTransactionsCsv } from '@/lib/exportTransactionsCsv'
 import { ActionCard } from '@/components/mint-actions/ActionCard'
 import { parseBankSms } from '@/lib/bankSms'
-import type { AppState, DerivedMetrics, Transaction, Category } from '@/types'
+import type { AppState, DerivedMetrics, Transaction, Category, Settings } from '@/types'
 import { INCOME_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
@@ -1206,7 +1206,7 @@ interface AIChatSheetProps {
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<Transaction | undefined>
   onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<void>
   onDelete: (t: Transaction) => Promise<void>
-  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
+  onUpdateSettings?: (patch: Partial<Settings>) => void
   onBusyChange?: (busy: boolean) => void
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
@@ -1430,7 +1430,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     const groupNames = state.groups.map(g => g.name)
 
     const result: AIReceiptExtraction | null = await extractReceiptWithAI(
-      receipt.blob, catNames, groupNames, n => onUpdateSettings?.({ ai_requests_used: n })
+      receipt.blob, catNames, groupNames, n => onUpdateSettings?.(aiUsagePatch(n))
     )
 
     if (!result) {
@@ -1546,7 +1546,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
       : state.categories.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)
 
     const parsed = intent === 'transaction'
-      ? await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.({ ai_requests_used: n }))
+      ? await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.(aiUsagePatch(n)))
       : null
 
     if (parsed && parsed.amount && parsed.amount > 0) {
@@ -1739,7 +1739,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
             }
           : (token: string) => { pendingRef.current += token },
       )
-      if (used != null) onUpdateSettings?.({ ai_requests_used: used })
+      if (used != null) onUpdateSettings?.(aiUsagePatch(used))
 
       const chartType = shouldShowChart(text)
       if (chartType) {

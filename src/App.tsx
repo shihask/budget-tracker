@@ -1082,6 +1082,7 @@ function AppContent({ session }: { session: Session }) {
           onAddCategory={addCategory}
           onUpdateTransaction={updateTransaction}
           onResolved={refetchAccountsAndRecentTransactions}
+          onUpdateSettings={updateSettings}
         />
 
         <BudgetStrategySheet

@@ -49,7 +49,10 @@ export class AiDailyLimitReachedError extends Error {
   }
 }
 
-async function callStatementExtract(body: Record<string, unknown>): Promise<StatementExtractResult | null> {
+async function callStatementExtract(
+  body: Record<string, unknown>,
+  onUsed?: (n: number) => void,
+): Promise<StatementExtractResult | null> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return null
 
@@ -63,6 +66,12 @@ async function callStatementExtract(body: Record<string, unknown>): Promise<Stat
   if (!res.ok) return null
 
   const data = await res.json()
+  // Every other AI caller mirrors the server's count back into settings (see
+  // aiUsagePatch in gemini.ts). This one used to drop `data.used` on the floor,
+  // so a statement import burned quota invisibly and the Settings card stayed
+  // stale until a reload — worst on exactly the screen where a user meets the
+  // AI limit head-on and would go to Settings to check it.
+  if (data.used != null) onUsed?.(data.used)
   return {
     statement: data.statement ?? { bank: null, period_from: null, period_to: null },
     unparsed_count: data.unparsed_count ?? 0,
@@ -73,10 +82,11 @@ async function callStatementExtract(body: Record<string, unknown>): Promise<Stat
 export async function extractStatementFromImages(
   images: { base64: string; mimeType: string }[],
   categoryNames: string[],
-  groupNames: string[]
+  groupNames: string[],
+  onUsed?: (n: number) => void
 ): Promise<StatementExtractResult | null> {
   try {
-    return await callStatementExtract({ images, categoryNames, groupNames })
+    return await callStatementExtract({ images, categoryNames, groupNames }, onUsed)
   } catch (e) {
     if (e instanceof AiDailyLimitReachedError) throw e
     console.error('[AI] statement image extraction failed:', e)
@@ -87,11 +97,12 @@ export async function extractStatementFromImages(
 export async function extractStatementFromText(
   text: string,
   categoryNames: string[],
-  groupNames: string[]
+  groupNames: string[],
+  onUsed?: (n: number) => void
 ): Promise<StatementExtractResult | null> {
   if (!text.trim()) return null
   try {
-    return await callStatementExtract({ text, categoryNames, groupNames })
+    return await callStatementExtract({ text, categoryNames, groupNames }, onUsed)
   } catch (e) {
     if (e instanceof AiDailyLimitReachedError) throw e
     console.error('[AI] statement text extraction failed:', e)

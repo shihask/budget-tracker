@@ -188,6 +188,11 @@ interface RunExtractionOptions {
   sourceFiles?: File[] // skip re-downloading from Storage right after upload; omit to resume from storage
   isCancelled?: () => boolean
   onProgress?: (chunksProcessed: number, totalChunks: number) => void
+  // Mirrors the server's AI quota count back into settings, same contract as
+  // every other AI caller (see aiUsagePatch in gemini.ts). Without it a
+  // statement import spends quota the Settings card never learns about until
+  // the next page load.
+  onAiUsed?: (n: number) => void
 }
 
 function categoryPoolFor(direction: 'income' | 'expense', categories: Category[]): Category[] {
@@ -217,7 +222,8 @@ async function downloadStoredBlob(storagePath: string, key: string): Promise<Blo
 // handful of consecutive ones, so this per-chunk simplification is fine in
 // practice without per-page branching complexity.
 async function extractPdfChunk(
-  doc: PDFDocumentProxy, pageStart: number, pageEnd: number, categoryNames: string[], groupNames: string[]
+  doc: PDFDocumentProxy, pageStart: number, pageEnd: number, categoryNames: string[], groupNames: string[],
+  onAiUsed?: (n: number) => void
 ): Promise<{ rows: ParsedStatementRow[]; unparsedCount: number } | null> {
   const { getPdfPageText, renderPdfPageToImage } = await loadPdfModule()
   const firstPageText = await getPdfPageText(doc, pageStart)
@@ -226,7 +232,7 @@ async function extractPdfChunk(
     const pageTexts = [firstPageText]
     for (let p = pageStart + 1; p <= pageEnd; p++) pageTexts.push(await getPdfPageText(doc, p))
     const combined = pageTexts.map((t, i) => `--- Page ${pageStart + i} ---\n${t}`).join('\n\n')
-    const result = await extractStatementFromText(combined, categoryNames, groupNames)
+    const result = await extractStatementFromText(combined, categoryNames, groupNames, onAiUsed)
     if (!result) return null
     return { rows: result.transactions, unparsedCount: result.unparsed_count }
   }
@@ -236,16 +242,17 @@ async function extractPdfChunk(
     const blob = await renderPdfPageToImage(doc, p)
     images.push({ base64: await blobToBase64(blob), mimeType: 'image/jpeg' })
   }
-  const result = await extractStatementFromImages(images, categoryNames, groupNames)
+  const result = await extractStatementFromImages(images, categoryNames, groupNames, onAiUsed)
   if (!result) return null
   return { rows: result.transactions, unparsedCount: result.unparsed_count }
 }
 
 async function extractImageChunk(
-  blobs: Blob[], categoryNames: string[], groupNames: string[]
+  blobs: Blob[], categoryNames: string[], groupNames: string[],
+  onAiUsed?: (n: number) => void
 ): Promise<{ rows: ParsedStatementRow[]; unparsedCount: number } | null> {
   const images = await Promise.all(blobs.map(async b => ({ base64: await blobToBase64(b), mimeType: b.type || 'image/jpeg' })))
-  const result = await extractStatementFromImages(images, categoryNames, groupNames)
+  const result = await extractStatementFromImages(images, categoryNames, groupNames, onAiUsed)
   if (!result) return null
   return { rows: result.transactions, unparsedCount: result.unparsed_count }
 }
@@ -366,8 +373,8 @@ export async function runExtraction(batchId: string, opts: RunExtractionOptions)
     const rangeEnd = Math.min((chunkIndex + 1) * perChunkUnit, totalUnits) - 1
 
     const extracted = pdfDoc
-      ? await extractPdfChunk(pdfDoc, rangeStart + 1, rangeEnd + 1, opts.categoryNames, opts.groupNames)
-      : await extractImageChunk(imageBlobs!.slice(rangeStart, rangeEnd + 1), opts.categoryNames, opts.groupNames)
+      ? await extractPdfChunk(pdfDoc, rangeStart + 1, rangeEnd + 1, opts.categoryNames, opts.groupNames, opts.onAiUsed)
+      : await extractImageChunk(imageBlobs!.slice(rangeStart, rangeEnd + 1), opts.categoryNames, opts.groupNames, opts.onAiUsed)
 
     if (!extracted) throw new Error(`Chunk ${chunkIndex + 1} of ${totalChunks} failed to extract`)
 

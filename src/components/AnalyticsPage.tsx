@@ -6,8 +6,8 @@ import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { weeklyTrend, weeklyBars, categorySplit, monthTimeline, journeyData, monthLabelForOffset } from '@/lib/data'
 import { AreaTrend } from './Charts'
-import { analyticsInsightWithAI } from '@/lib/gemini'
-import type { AppState, DerivedMetrics, JourneyMilestone, Transaction } from '@/types'
+import { analyticsInsightWithAI, aiUsagePatch } from '@/lib/gemini'
+import type { AppState, DerivedMetrics, JourneyMilestone, Transaction, Settings } from '@/types'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell as PieCell,
@@ -95,7 +95,7 @@ interface Props {
   state: AppState
   d: DerivedMetrics
   onClose: () => void
-  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
+  onUpdateSettings?: (patch: Partial<Settings>) => void
 }
 
 
@@ -298,7 +298,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         totalThisMonth: catTotal,
         weeklyBudget: d.weeklyBudget,
         weeklySpent: d.weeklySpent,
-      }, (n) => onUpdateSettings?.({ ai_requests_used: n }))
+      }, (n) => onUpdateSettings?.(aiUsagePatch(n)))
       if (result) setInsight(result)
       else setInsightError('Could not generate insight. Try again.')
     } catch {

@@ -12,8 +12,8 @@ import { Camera, Sparkles } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { SplitLegsEditor } from './SplitLegsEditor'
 import { isSplitValid, splitHint } from '@/lib/splitGroups'
-import type { AppState, Transaction, TransactionType, Category, SplitLegInput } from '@/types'
-import { parseExpenseWithAI, type AIReceiptExtraction } from '@/lib/gemini'
+import type { AppState, Transaction, TransactionType, Category, SplitLegInput, Settings } from '@/types'
+import { parseExpenseWithAI, aiUsagePatch, type AIReceiptExtraction } from '@/lib/gemini'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
 import { findCategoryMatches, guessCategory, findHistoricalCategory } from '@/lib/categorize'
@@ -100,7 +100,7 @@ interface QuickAddSheetProps {
   onAddCategory: (name: string, group_name: string) => Promise<string>
   autopilotEnabled?: boolean
   trackBorrowings?: boolean
-  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
+  onUpdateSettings?: (patch: Partial<Settings>) => void
   onBusyChange?: (busy: boolean) => void
   defaultTxType?: 'expense' | 'income' | 'transfer'
   defaultCategoryId?: string | null
@@ -381,7 +381,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       setAiParsing(true); onBusyChange?.(true)
       const catNames = catsRef.current.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)
       const accNames = allAccs.map(a => a.name)
-      const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.({ ai_requests_used: n }))
+      const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.(aiUsagePatch(n)))
       setAiParsing(false); onBusyChange?.(false)
       if (!result) return
 
@@ -1115,7 +1115,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 autopilotEnabled={autopilotEnabled}
                 categoryNames={catsRef.current.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)}
                 groupNames={state.groups.map(g => g.name)}
-                onAiUsed={n => onUpdateSettings?.({ ai_requests_used: n })}
+                onAiUsed={n => onUpdateSettings?.(aiUsagePatch(n))}
                 onExtracted={handleReceiptExtracted}
               />
             )}

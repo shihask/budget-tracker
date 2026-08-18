@@ -11,9 +11,10 @@ import {
   createPdfImportBatch, createImageImportBatch, runExtraction, discardImportBatch, completeImportBatch,
 } from '../lib/extract'
 import { AiDailyLimitReachedError } from '@/lib/statementExtract'
+import { aiUsagePatch } from '@/lib/gemini'
 import { sortForReview } from '../lib/pure'
 import type { ImportBatch, StatementReviewContext } from '../types'
-import type { AppState, Transaction } from '@/types'
+import type { AppState, Transaction, Settings } from '@/types'
 import { round2 } from '@/lib/utils'
 
 interface SyncEventRow {
@@ -31,6 +32,7 @@ interface Props {
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onUpdateTransaction: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => Promise<void>
   onResolved: () => void
+  onUpdateSettings?: (patch: Partial<Settings>) => void
 }
 
 const inp: React.CSSProperties = {
@@ -40,7 +42,7 @@ const inp: React.CSSProperties = {
   font: '600 14px Plus Jakarta Sans', outline: 'none',
 }
 
-export function ImportStatementSheet({ open, onClose, userId, state, onAddCategory, onUpdateTransaction, onResolved }: Props) {
+export function ImportStatementSheet({ open, onClose, userId, state, onAddCategory, onUpdateTransaction, onResolved, onUpdateSettings }: Props) {
   const c = useTheme()
   const [phase, setPhase] = useState<Phase>('upload')
   const [accountId, setAccountId] = useState('')
@@ -128,6 +130,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
         sourceFiles,
         isCancelled: () => cancelRequestedRef.current,
         onProgress: (processed, total) => setProgress({ processed, total }),
+        onAiUsed: n => onUpdateSettings?.(aiUsagePatch(n)),
       })
     } catch (e) {
       // A quota stop is not a broken batch: every chunk already committed is

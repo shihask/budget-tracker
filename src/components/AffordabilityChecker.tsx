@@ -5,7 +5,7 @@ import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
-import { affordabilityInsightWithAI, goalPlanAdviceWithAI } from '@/lib/gemini'
+import { affordabilityInsightWithAI, goalPlanAdviceWithAI, aiUsagePatch } from '@/lib/gemini'
 import { forecastReady, getForecastDrivers, estimateForecastSalary, daysUntil as forecastDaysUntil } from '@/lib/cashflow'
 import { buildLifestyleForecast, simulateLifestylePurchase, type DailySpendEstimate } from '@/features/forecast/lib/lifestyleForecast'
 import { LOW_CUSHION } from './CashFlowForecastCard'
@@ -271,7 +271,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
       monthsNeeded: plan.monthsNeeded,
       targetDate: plan.targetLabel,
       reductions: plan.reductions,
-    }, (n) => onUpdateSettings?.({ ai_requests_used: n }))
+    }, (n) => onUpdateSettings?.(aiUsagePatch(n)))
     setGoalPlanAI(advice ?? "Mint couldn't respond right now. Try again.")
     setGoalPlanAILoading(false)
   }
@@ -301,7 +301,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
       forecastLowestDate: simResult?.lowestBalanceDate,
       forecastRecoveryDate: simResult?.recoveryDate,
       forecastDrivers: simDrivers.length > 0 ? simDrivers : undefined,
-    }, (n) => onUpdateSettings?.({ ai_requests_used: n }))
+    }, (n) => onUpdateSettings?.(aiUsagePatch(n)))
     setAiInsight(insight ?? "Mint couldn't respond right now. Try again.")
     setAiLoading(false)
   }

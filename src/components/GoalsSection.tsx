@@ -5,7 +5,7 @@ import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
-import { goalProgressInsightWithAI } from '@/lib/gemini'
+import { goalProgressInsightWithAI, aiUsagePatch } from '@/lib/gemini'
 import { calcGoalStatus, calcGoalForecast, calcGoalMomentum, calcTargetInfo, MS_MONTH } from '@/lib/goals'
 import type { Goal, GoalType, GoalContribution, DerivedMetrics, Settings, Transaction } from '@/types'
 
@@ -28,7 +28,7 @@ interface Props {
   onUpdateGoal: (id: string, patch: Partial<Goal>) => Promise<void>
   onDeleteGoal: (id: string) => Promise<void>
   onAddSavings: (id: string, amount: number, source?: 'manual' | 'daily_challenge') => Promise<void>
-  onUpdateSettings?: (patch: { ai_requests_used: number }) => void
+  onUpdateSettings?: (patch: Partial<Settings>) => void
   prefillGoal?: PrefillData | null
   onPrefillConsumed?: () => void
 }
@@ -207,7 +207,7 @@ export function GoalsSection({
       daysAhead: status.daysAhead,
       daysBehind: status.daysBehind,
       extraNeeded: status.extraNeeded,
-    }, (n) => onUpdateSettings?.({ ai_requests_used: n }))
+    }, (n) => onUpdateSettings?.(aiUsagePatch(n)))
     if (insight) setGoalAI(prev => ({ ...prev, [goal.id]: insight }))
     setGoalAILoading(null)
   }
