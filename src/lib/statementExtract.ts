@@ -37,6 +37,18 @@ export interface StatementExtractResult {
   transactions: ParsedStatementRow[]
 }
 
+// Every other extraction failure collapses to `null` and reaches the user as
+// "Chunk 3 of 5 failed to extract", which is both wrong and unactionable when
+// the real cause is the shared 100/day AI budget. This one is neither a parse
+// failure nor retryable right now, and the user CAN act on it (wait for the
+// reset), so it gets its own type and is rethrown past the catch-alls below.
+export class AiDailyLimitReachedError extends Error {
+  constructor() {
+    super("Mint has used up today's 100 AI scans. This import is paused — resume it after the limit resets at midnight UTC.")
+    this.name = 'AiDailyLimitReachedError'
+  }
+}
+
 async function callStatementExtract(body: Record<string, unknown>): Promise<StatementExtractResult | null> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return null
@@ -47,7 +59,7 @@ async function callStatementExtract(body: Record<string, unknown>): Promise<Stat
     body: JSON.stringify({ mode: 'statement-extract', ...body }),
   }), STATEMENT_EXTRACT_TIMEOUT_MS, 'Statement scan timed out')
 
-  if (res.status === 429) { console.warn('Mint daily limit reached (100/day)'); return null }
+  if (res.status === 429) throw new AiDailyLimitReachedError()
   if (!res.ok) return null
 
   const data = await res.json()
@@ -66,6 +78,7 @@ export async function extractStatementFromImages(
   try {
     return await callStatementExtract({ images, categoryNames, groupNames })
   } catch (e) {
+    if (e instanceof AiDailyLimitReachedError) throw e
     console.error('[AI] statement image extraction failed:', e)
     return null
   }
@@ -80,6 +93,7 @@ export async function extractStatementFromText(
   try {
     return await callStatementExtract({ text, categoryNames, groupNames })
   } catch (e) {
+    if (e instanceof AiDailyLimitReachedError) throw e
     console.error('[AI] statement text extraction failed:', e)
     return null
   }

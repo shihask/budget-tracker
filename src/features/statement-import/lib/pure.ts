@@ -32,6 +32,27 @@ export function dedupeParsedRows<T extends DedupableRow>(rows: T[]): T[] {
   return result
 }
 
+// Raised by the trg_import_batches_daily_limit trigger. PostgREST maps a
+// PTxyz sqlstate to HTTP xyz and echoes the code verbatim in the JSON body.
+export const DAILY_IMPORT_LIMIT_ERRCODE = 'PT429'
+
+// supabase-js hands PostgREST failures back as a PLAIN object
+// ({ code, details, hint, message }) — a PostgrestError instance is only
+// constructed under .throwOnError(). So this takes `unknown` and duck-types
+// rather than narrowing on a class.
+//
+// Matches on the code, never on message text: the message is user-facing copy
+// living in 20260818000001_import_batches_daily_limit.sql and will get
+// reworded, and PT429 is the only thing in the schema that raises it.
+export function isDailyImportLimitError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === DAILY_IMPORT_LIMIT_ERRCODE
+  )
+}
+
 export interface StatementFieldConfidence {
   description: FieldConfidence
   amount: FieldConfidence

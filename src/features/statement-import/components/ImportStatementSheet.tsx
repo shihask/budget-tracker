@@ -8,8 +8,9 @@ import { CategorySelect } from '@/components/CategorySelect'
 import { compressImage } from '@/lib/imageCompress'
 import { INCOME_GROUP, TRANSFER_GROUP } from '@/lib/constants'
 import {
-  createPdfImportBatch, createImageImportBatch, runExtraction, discardImportBatch,
+  createPdfImportBatch, createImageImportBatch, runExtraction, discardImportBatch, completeImportBatch,
 } from '../lib/extract'
+import { AiDailyLimitReachedError } from '@/lib/statementExtract'
 import { sortForReview } from '../lib/pure'
 import type { ImportBatch, StatementReviewContext } from '../types'
 import type { AppState, Transaction } from '@/types'
@@ -129,11 +130,26 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
         onProgress: (processed, total) => setProgress({ processed, total }),
       })
     } catch (e) {
-      Sentry.captureException(e, { extra: { where: 'statement-import.runExtraction', batchId: forBatch.id, provider: forBatch.provider, chunksProcessed: forBatch.chunks_processed, totalChunks: forBatch.total_chunks } })
-      await supabase.from('import_batches').update({ status: 'error', error_message: e instanceof Error ? e.message : String(e) }).eq('id', forBatch.id)
+      // A quota stop is not a broken batch: every chunk already committed is
+      // good and chunks_processed says exactly where to pick up. 'error' is
+      // NOT in the resume query's status list, so flagging it that way would
+      // strand the batch and its uploaded source files in the bucket until the
+      // 7-day sweep — the precise thing this work exists to stop. 'cancelled'
+      // IS in the list, and renders the Resume/Discard screen the user needs.
+      //
+      // It is also an expected condition, not an application fault, so it does
+      // not go to Sentry.
+      const quotaHit = e instanceof AiDailyLimitReachedError
+      if (!quotaHit) Sentry.captureException(e, { extra: { where: 'statement-import.runExtraction', batchId: forBatch.id, provider: forBatch.provider, chunksProcessed: forBatch.chunks_processed, totalChunks: forBatch.total_chunks } })
+      await supabase.from('import_batches')
+        .update(quotaHit
+          ? { status: 'cancelled' }
+          : { status: 'error', error_message: e instanceof Error ? e.message : String(e) })
+        .eq('id', forBatch.id)
       setUploadError(e instanceof Error ? e.message : 'Extraction failed')
       const { data } = await supabase.from('import_batches').select('*').eq('id', forBatch.id).single()
       setBatch(data as ImportBatch)
+      if (quotaHit) setPhase('cancelled')
       return
     }
 
@@ -313,7 +329,17 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
       setRowError(e instanceof Error ? e.message : 'Could not finish cleaning up skipped transactions — try Done again')
       return
     }
-    if (batch) await supabase.from('import_batches').update({ status: 'completed' }).eq('id', batch.id)
+    if (batch) {
+      // Neither half of this should block the user: their import is done. A
+      // failed flip self-heals (the batch is still 'review', so reopening the
+      // sheet finds zero needs_review rows, lands on summary, and Done
+      // retries); a failed purge leaves objects for the 7-day sweep.
+      try {
+        await completeImportBatch(batch)
+      } catch (e) {
+        Sentry.captureException(e, { extra: { where: 'statement-import.completeImportBatch', batchId: batch.id, storagePath: batch.storage_path } })
+      }
+    }
     setBatch(null)
     setRows([])
     setStats({ added: 0, usedExisting: 0, updated: 0, skipped: 0 })
@@ -542,6 +568,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
             <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, marginBottom: 16 }}>
               Import paused — {batch?.chunks_processed ?? 0} of {batch?.total_chunks ?? 0} part(s) read so far.
             </div>
+            {uploadError && <div style={{ font: '600 13px Plus Jakarta Sans', color: c.bad, marginBottom: 12 }}>{uploadError}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               <button onClick={handleResumeCancelled} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
                 Resume extraction

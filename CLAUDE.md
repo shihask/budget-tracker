@@ -106,8 +106,25 @@ Uses `catsRef` (not `cats` state) inside the effect to avoid re-triggering when 
 ## AI Edge Function
 - File: `supabase/functions/ai-categorize/index.ts`
 - Model: `llama-3.1-8b-instant` via Groq, `max_tokens: 30`, `temperature: 0`
-- Quota: 100 calls/user/month tracked in `settings.ai_requests_used` + `ai_requests_reset_at`
+- Quota: 100 calls/user/day (UTC calendar day, lazy reset) tracked in `settings.ai_requests_used` + `ai_requests_reset_at`
 - Response format: exact category name **or** `NEW: <name> | <group>`
+
+## Statement import — storage protection
+Five independent controls; none replaces another. The AI quota bounds **compute**, the rest bound **bytes**.
+
+| Control | Bounds | Where |
+|---|---|---|
+| 100 AI calls/user/day | Groq spend | `settings.ai_requests_used` (pre-existing) |
+| 8 import batches/user/UTC day | Batch creation rate | `trg_import_batches_daily_limit`, advisory-locked per user; raises `PT429` |
+| 10 MB per object + PDF/WebP/JPEG allowlist | Individual upload size | `storage.buckets` on `statement-imports` |
+| Purge on completion | Normal storage lifecycle | `completeImportBatch` — status flip **first**, then purge |
+| 7-day inactivity sweep | Abandoned imports | `import-cleanup` Edge Function + pg_cron; claims via `status='purging'` |
+
+Gotchas worth knowing before touching this:
+- The daily cap is keyed on `created_at`; the stale sweep is keyed on `updated_at` (activity), maintained by `trg_import_batches_touch_updated_at`. Do not swap them — `created_at` never changes, so an actively-resumed batch would look abandoned.
+- `'purging'` is absent from the resume query's status list, which is *how* the sweep avoids deleting files under an active resume. Any new reader of `import_batches` must keep excluding it.
+- `allowed_mime_types` is checked against the client's declared `Content-Type`. It is a contract control, not a security boundary — `file_size_limit` is the real bound.
+- The sweep must never touch a `completed` batch, at any age.
 
 ## Git conventions
 - Commit directly to `main` — no feature branches

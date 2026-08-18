@@ -14,7 +14,7 @@ async function loadPdfModule() {
   return import('@/lib/pdfExtract')
 }
 import { extractStatementFromImages, extractStatementFromText, blobToBase64, type ParsedStatementRow } from '@/lib/statementExtract'
-import { dedupeParsedRows } from './pure'
+import { dedupeParsedRows, isDailyImportLimitError, DAILY_IMPORT_LIMIT_ERRCODE } from './pure'
 import { resolveImportedAccountHint } from './accountHint'
 import type { ImportBatch, StatementReviewContext } from '../types'
 
@@ -37,18 +37,63 @@ async function updateBatch(batchId: string, patch: Partial<ImportBatch>): Promis
   if (error) throw error
 }
 
+// Both create* functions used to `throw insertError`, which throws a plain
+// object — supabase-js only constructs a PostgrestError under .throwOnError().
+// The sheet's catch does `e instanceof Error ? e.message : <fallback>`, so the
+// DB's message was always discarded in favour of "Could not read this PDF".
+// Wrap it into a real Error so the copy survives.
+//
+// Only the daily-cap message is passed through: it is written to be read by a
+// user. Every other PostgREST message ("new row violates row-level security
+// policy...") is worse than the generic fallback, so it stays internal.
+function importInsertError(insertError: unknown): Error {
+  if (isDailyImportLimitError(insertError)) {
+    const message = (insertError as { message?: string }).message
+      || 'You have hit your daily statement import limit. Try again after midnight UTC.'
+    return Object.assign(new Error(message), { code: DAILY_IMPORT_LIMIT_ERRCODE })
+  }
+  return new Error('Could not start import')
+}
+
+// The row is inserted before the upload, so a failed upload leaves a row stuck
+// at status 'uploading' with an empty storage_path — invisible to the resume
+// query forever, and permanently burning one of the day's slots. Take it back
+// out; the user is about to retry.
+//
+// Objects are removed BEFORE the row, and that order is not cosmetic: the
+// 7-day import-cleanup sweep finds storage objects by walking import_batches
+// rows, so anything already uploaded (the image path can fail on file 3 of 5)
+// becomes permanently unreachable the moment its row is gone. Nothing would
+// ever collect it.
+//
+// Best-effort, but never silent: a failed compensating delete leaves real
+// quota and storage residue, so both halves are logged. The original upload
+// error is what the caller rethrows — this must not mask it.
+async function deleteBatchAfterFailedUpload(batchId: string, storagePath: string): Promise<void> {
+  try {
+    await removeBatchSourceFiles(storagePath)
+  } catch (e) {
+    console.error('[import] could not remove partial uploads after failed upload', { batchId, storagePath, error: e })
+  }
+  const { error } = await supabase.from('import_batches').delete().eq('id', batchId)
+  if (error) console.error('[import] could not remove batch row after failed upload', { batchId, error })
+}
+
 export async function createPdfImportBatch(userId: string, accountId: string, file: File): Promise<string> {
   const { data: inserted, error: insertError } = await supabase
     .from('import_batches')
     .insert({ user_id: userId, account_id: accountId, provider: 'pdf', file_name: file.name, storage_path: '', extractor_version: EXTRACTOR_VERSION })
     .select('id')
     .single()
-  if (insertError || !inserted) throw insertError ?? new Error('Could not start import')
+  if (insertError || !inserted) throw importInsertError(insertError)
   const batchId = inserted.id as string
 
   const storagePath = `${userId}/${batchId}`
   const { error: uploadError } = await supabase.storage.from(STATEMENT_IMPORTS_BUCKET).upload(`${storagePath}/0`, file, { contentType: file.type || 'application/pdf', upsert: true })
-  if (uploadError) throw uploadError
+  if (uploadError) {
+    await deleteBatchAfterFailedUpload(batchId, storagePath)
+    throw uploadError
+  }
 
   const { loadPdf } = await loadPdfModule()
   const doc = await loadPdf(file)
@@ -68,7 +113,7 @@ export async function createImageImportBatch(userId: string, accountId: string, 
     })
     .select('id')
     .single()
-  if (insertError || !inserted) throw insertError ?? new Error('Could not start import')
+  if (insertError || !inserted) throw importInsertError(insertError)
   const batchId = inserted.id as string
 
   const storagePath = `${userId}/${batchId}`
@@ -76,7 +121,10 @@ export async function createImageImportBatch(userId: string, accountId: string, 
     const { error: uploadError } = await supabase.storage
       .from(STATEMENT_IMPORTS_BUCKET)
       .upload(`${storagePath}/${i}`, files[i], { contentType: files[i].type || 'image/jpeg', upsert: true })
-    if (uploadError) throw uploadError
+    if (uploadError) {
+      await deleteBatchAfterFailedUpload(batchId, storagePath)
+      throw uploadError
+    }
   }
 
   const totalChunks = Math.ceil(files.length / IMAGES_PER_CHUNK)
@@ -84,13 +132,52 @@ export async function createImageImportBatch(userId: string, accountId: string, 
   return batchId
 }
 
+// Idempotent: a batch whose files are already gone, or that never got as far
+// as uploading (storage_path ''), is a no-op — so callers can retry, and the
+// discard, completion and failed-upload paths can share this without any of
+// them having to know what the others already did.
+export async function removeBatchSourceFiles(storagePath: string): Promise<void> {
+  if (!storagePath) return
+  const { data: files } = await supabase.storage.from(STATEMENT_IMPORTS_BUCKET).list(storagePath)
+  if (!files?.length) return
+  const { error } = await supabase.storage
+    .from(STATEMENT_IMPORTS_BUCKET)
+    .remove(files.map(f => `${storagePath}/${f.name}`))
+  if (error) throw error
+}
+
 export async function discardImportBatch(batch: ImportBatch): Promise<void> {
   await supabase.from('sync_events').delete().eq('user_id', batch.user_id).eq('provider_connection_id', batch.id)
-  const { data: files } = await supabase.storage.from(STATEMENT_IMPORTS_BUCKET).list(batch.storage_path)
-  if (files?.length) {
-    await supabase.storage.from(STATEMENT_IMPORTS_BUCKET).remove(files.map(f => `${batch.storage_path}/${f.name}`))
+  // Unchanged behaviour: a failed remove must not stop the row from going —
+  // the user asked for this import to be gone. Orphaned objects are the lesser
+  // evil and are recoverable by a bucket sweep.
+  try {
+    await removeBatchSourceFiles(batch.storage_path)
+  } catch (e) {
+    console.warn('[import] discard: could not remove source files', e)
   }
   await supabase.from('import_batches').delete().eq('id', batch.id)
+}
+
+// Ends a batch: flip to 'completed' FIRST, then drop the source files.
+//
+// The order is the whole point. 'completed' is the one status the sheet's
+// resume query never picks up, so once the flip lands the batch can never be
+// reopened against files that are no longer there. Purging first and then
+// failing the flip would leave a resumable batch pointing at an empty folder,
+// and runExtraction would download nothing and throw.
+//
+// updateBatch throws on failure, so the purge is unreachable if the flip
+// didn't happen — that ordering is enforced by the await, not by this comment.
+//
+// The reverse failure (flip lands, purge doesn't) is deliberately NOT treated
+// as recoverable-by-resume: the import really is complete, and pretending
+// otherwise would re-offer finished work. The orphaned objects are left for
+// the 7-day import-cleanup sweep. Completion state and storage cleanup are
+// separate failure domains.
+export async function completeImportBatch(batch: ImportBatch): Promise<void> {
+  await updateBatch(batch.id, { status: 'completed' })
+  await removeBatchSourceFiles(batch.storage_path)
 }
 
 interface RunExtractionOptions {
