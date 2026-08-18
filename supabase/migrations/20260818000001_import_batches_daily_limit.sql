@@ -173,14 +173,24 @@ CREATE TRIGGER trg_import_batches_daily_limit
 -- Deliberately NOT image/png: the input is accept="image/*" so a user can pick
 -- a PNG, but it is re-encoded before upload and never reaches storage as PNG.
 --
--- Strength of each half is NOT equal, and callers should not assume otherwise:
---   file_size_limit    enforced against the actual bytes received. A real bound.
+-- Strength of each half is NOT equal, and callers should not assume otherwise.
+-- Both halves were tested against the live Storage API on 2026-08-18, results
+-- recorded here so nobody has to re-derive them from the docs:
+--   file_size_limit    enforced against the actual bytes received. A real
+--                      bound. An 11 MB upload declaring application/pdf was
+--                      REJECTED (HTTP 400 -- note: not 413, so do not branch
+--                      on the status anywhere).
 --   allowed_mime_types checked against the Content-Type the CLIENT sends, and
---                      extract.ts sets it from file.type. A modified client can
---                      declare application/pdf and upload anything under 10 MB.
---                      Treat it as a contract control that keeps this bucket
---                      from drifting into general-purpose storage, NOT as a
---                      security boundary or content validation.
+--                      extract.ts sets it from file.type. A zip declaring
+--                      application/zip was rejected (HTTP 400), but the SAME
+--                      zip bytes declaring application/pdf were ACCEPTED.
+--                      Confirmed, not theorised: this is a contract control
+--                      that keeps the bucket from drifting into
+--                      general-purpose storage, NOT a security boundary and
+--                      NOT content validation. The byte cap is what holds.
+-- Happy path re-verified at the same time: pdf, webp and jpeg all accepted.
+-- webp matters most -- imageCompress.ts emits it on every current browser, so
+-- dropping it from this list would break image imports outright.
 UPDATE storage.buckets
 SET file_size_limit    = 10485760,  -- 10 MB
     allowed_mime_types = ARRAY['application/pdf','image/webp','image/jpeg']
