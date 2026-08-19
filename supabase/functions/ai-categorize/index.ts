@@ -414,16 +414,25 @@ Deno.serve(async (req) => {
     // the log insert are not one transaction: if the bump lands and the insert
     // fails we under-count, which is the safe direction, and calibration reads
     // the log so it stays accurate either way.
+    // MUST be idempotent: several paths can reach it (an error return after a
+    // partial tool loop, then the stream's finally, then cancel()), and it both
+    // bumps a counter and inserts rows. Draining the buffers first means a
+    // second call is a no-op instead of double-counting tokens and writing
+    // duplicate log rows — which would corrupt the very data the budget is
+    // meant to be calibrated from.
     async function flushUsage() {
-      if (tokensThisRequest > 0) {
+      const tokens = tokensThisRequest
+      const rows = callLog.splice(0, callLog.length)
+      tokensThisRequest = 0
+      if (tokens > 0) {
         const { error } = await db.rpc('mp_bump_ai_usage', {
-          p_user_id: user.id, p_usage_date: usageDate, p_requests: 0, p_tokens: tokensThisRequest,
+          p_user_id: user.id, p_usage_date: usageDate, p_requests: 0, p_tokens: tokens,
         })
         if (error) console.error('[usage] mp_bump_ai_usage failed', error)
       }
-      if (callLog.length > 0) {
+      if (rows.length > 0) {
         const { error } = await db.from('ai_call_log').insert(
-          callLog.map(c => ({
+          rows.map(c => ({
             user_id: user.id, mode: mode ?? 'categorize', feature: loggedFeature,
             model: c.model, prompt_tokens: c.prompt, completion_tokens: c.completion,
           }))
