@@ -27,7 +27,7 @@ const DEFAULT_FIELD_VALUES: Record<ToggleableField, boolean> = {
   challenge_enabled: false,
 }
 
-type SettingsRow = Record<string, unknown> & { user_id: string; ai_requests_used?: number; ai_tokens_used?: number; ai_requests_reset_at?: string | null }
+type SettingsRow = Record<string, unknown> & { user_id: string; ai_requests_used?: number; ai_tokens_used?: number; ai_token_budget_override?: number | null; ai_requests_reset_at?: string | null }
 
 // The daily counters are only meaningful for the UTC day they belong to: a
 // stale count from a user who has not called the AI today would over-report.
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         { data: accountOwnerRows },
         { count: totalTransactions },
       ] = await Promise.all([
-        db.from('settings').select('user_id, ai_requests_used, ai_tokens_used, ai_requests_reset_at, ' + TOGGLEABLE_FIELDS.join(', ')).in('user_id', ids),
+        db.from('settings').select('user_id, ai_requests_used, ai_tokens_used, ai_token_budget_override, ai_requests_reset_at, ' + TOGGLEABLE_FIELDS.join(', ')).in('user_id', ids),
         db.from('budget_strategy_settings').select('user_id, budget_strategy').in('user_id', ids),
         db.from('user_roles').select('user_id').eq('role', 'admin'),
         db.from('accounts').select('user_id').in('user_id', ids),
@@ -124,6 +124,8 @@ Deno.serve(async (req) => {
           budgetStrategy: budgetByUser.get(u.id) ?? 'none',
           aiUsed: effectiveAiUsed(s),
           aiTokens: effectiveAiTokens(s),
+          // null means "following the global default" — the UI shows which.
+          aiTokenBudgetOverride: (s?.ai_token_budget_override ?? null) as number | null,
         }
       })
 
@@ -257,6 +259,40 @@ Deno.serve(async (req) => {
         field,
         old_value: { [field]: oldValue },
         new_value: { [field]: value },
+      })
+      if (auditError) console.error('[admin-api] audit log insert failed:', auditError)
+
+      return json({ ok: true })
+    }
+
+    // Per-user daily AI token budget. null clears the override so the user
+    // follows the global default again — important, because when the global
+    // budget is recalibrated everyone on the default should move with it, and
+    // only deliberate overrides should stay put.
+    if (action === 'set-token-budget') {
+      const { user_id, value } = body
+      const clearing = value === null
+      const valid = clearing
+        || (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 1000000)
+      if (!user_id || !valid) return json({ error: 'invalid_request' }, 400)
+
+      const { data: current } = await db
+        .from('settings').select('ai_token_budget_override').eq('user_id', user_id).maybeSingle()
+      const oldValue = (current as { ai_token_budget_override?: number | null } | null)?.ai_token_budget_override ?? null
+
+      const { error: updateError } = await db
+        .from('settings').update({ ai_token_budget_override: clearing ? null : value }).eq('user_id', user_id)
+      if (updateError) return json({ error: 'update_failed' }, 500)
+
+      // Always audited: this is one person changing another person's allowance,
+      // and a budget of 0 cuts their AI off entirely once enforcement is on.
+      const { error: auditError } = await db.from('admin_audit_logs').insert({
+        admin_user_id: caller.id,
+        target_user_id: user_id,
+        action: 'set_token_budget',
+        field: 'ai_token_budget_override',
+        old_value: { ai_token_budget_override: oldValue },
+        new_value: { ai_token_budget_override: clearing ? null : value },
       })
       if (auditError) console.error('[admin-api] audit log insert failed:', auditError)
 

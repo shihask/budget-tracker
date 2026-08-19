@@ -56,6 +56,8 @@ export type AdminUserSummary = {
   budgetStrategy: string
   aiUsed: number
   aiTokens: number
+  /** null = following the global default budget. */
+  aiTokenBudgetOverride: number | null
 }
 
 export type AdminDashboardSummary = {
@@ -84,6 +86,15 @@ export type AdminUserDetail = {
 
 export async function fetchAdminUserDetail(userId: string): Promise<AdminUserDetail> {
   return callAdminApi<AdminUserDetail>({ action: 'detail', user_id: userId })
+}
+
+/**
+ * Per-user daily AI token budget. Pass null to clear the override so the user
+ * follows the global default again — which matters when the global budget is
+ * recalibrated: everyone on the default moves with it, overrides stay put.
+ */
+export async function setAdminUserTokenBudget(userId: string, value: number | null): Promise<void> {
+  await callAdminApi<{ ok: true }>({ action: 'set-token-budget', user_id: userId, value })
 }
 
 export async function toggleAdminUserFeature(userId: string, field: ToggleableFeatureField, value: boolean): Promise<void> {

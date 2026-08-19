@@ -4,7 +4,7 @@ import type { ColorTokens } from '@/lib/tokens'
 import { timeAgo } from '@/lib/utils'
 import { ACHIEVEMENTS } from '@/lib/achievement-definitions'
 import {
-  fetchAdminUserList, fetchAdminUserDetail, toggleAdminUserFeature,
+  fetchAdminUserList, fetchAdminUserDetail, toggleAdminUserFeature, setAdminUserTokenBudget,
   fetchAdminAuditLog, fetchAdminUserActivity,
   type AdminUserSummary, type AdminUserDetail, type ToggleableFeatureField,
   type AdminDashboardSummary, type AdminAuditLogEntry, type AdminActivityEntry,
@@ -227,6 +227,10 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
   const [detailError, setDetailError] = useState<string | null>(null)
   const [userActivity, setUserActivity] = useState<AdminActivityEntry[] | null>(null)
   const [pendingField, setPendingField] = useState<ToggleableFeatureField | null>(null)
+  // Held as a string so the field can be blank, which is what clears the
+  // override — distinct from typing 0, which pins the user to no allowance.
+  const [budgetInput, setBudgetInput] = useState('')
+  const [budgetSaving, setBudgetSaving] = useState(false)
 
   const [search, setSearch] = useState('')
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set())
@@ -241,6 +245,13 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
   useEffect(() => {
     if (!open) { setClosing(false); setDragX(0); setEntryPlayed(false); setSelectedUserId(null); setSearch(''); setActiveFilters(new Set()) }
   }, [open])
+
+  // Re-seed the budget field whenever a different account is opened, so the
+  // input always reflects the account on screen rather than the last one edited.
+  useEffect(() => {
+    const u = users?.find(x => x.id === selectedUserId)
+    setBudgetInput(u?.aiTokenBudgetOverride != null ? String(u.aiTokenBudgetOverride) : '')
+  }, [selectedUserId, users])
 
   useEffect(() => {
     if (!open) return
@@ -358,6 +369,31 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
       setDetailError(e instanceof Error ? e.message : 'toggle_failed')
     } finally {
       setPendingField(null)
+    }
+  }
+
+  // Per-user daily AI token budget. An empty input clears the override, which
+  // is not the same as setting it to the current default: cleared users follow
+  // the global budget when it is recalibrated, pinned ones do not.
+  const handleSaveTokenBudget = async () => {
+    if (!selectedUserId) return
+    const raw = budgetInput.trim()
+    const next = raw === '' ? null : Number(raw)
+    if (next !== null && (!Number.isInteger(next) || next < 0 || next > 1000000)) {
+      setDetailError('Budget must be a whole number between 0 and 1,000,000 (or blank to use the default)')
+      return
+    }
+    setBudgetSaving(true)
+    setDetailError(null)
+    const previous = selectedUser?.aiTokenBudgetOverride ?? null
+    setUsers(list => list?.map(u => u.id === selectedUserId ? { ...u, aiTokenBudgetOverride: next } : u) ?? list)
+    try {
+      await setAdminUserTokenBudget(selectedUserId, next)
+    } catch (e) {
+      setUsers(list => list?.map(u => u.id === selectedUserId ? { ...u, aiTokenBudgetOverride: previous } : u) ?? list)
+      setDetailError(e instanceof Error ? e.message : 'budget_update_failed')
+    } finally {
+      setBudgetSaving(false)
     }
   }
 
@@ -572,7 +608,43 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
             <Row label="Last active" value={formatDate(selectedUser.lastSignInAt)} c={c} />
             <Row label="Budget strategy" value={selectedUser.budgetStrategy} c={c} />
             <Row label="AI requests used today" value={String(selectedUser.aiUsed)} c={c} />
-                  <Row label="AI tokens used today" value={selectedUser.aiTokens.toLocaleString()} c={c} />
+            <Row label="AI tokens used today" value={selectedUser.aiTokens.toLocaleString()} c={c} />
+            <Row
+              label="Daily token budget"
+              value={selectedUser.aiTokenBudgetOverride != null
+                ? `${selectedUser.aiTokenBudgetOverride.toLocaleString()} (custom)`
+                : 'Default'}
+              c={c}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 2 }}>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={budgetInput}
+                onChange={e => setBudgetInput(e.target.value)}
+                placeholder="Blank = default"
+                style={{
+                  flex: 1, minWidth: 0, boxSizing: 'border-box', background: 'transparent',
+                  border: `1.5px solid ${c.faint}`, borderRadius: 9, padding: '7px 9px',
+                  font: '600 12px Plus Jakarta Sans', color: c.ink, outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleSaveTokenBudget}
+                disabled={budgetSaving}
+                style={{
+                  padding: '7px 12px', borderRadius: 9, border: 'none', background: c.accent, color: '#fff',
+                  font: '700 12px Plus Jakarta Sans', cursor: budgetSaving ? 'default' : 'pointer',
+                  opacity: budgetSaving ? 0.6 : 1, whiteSpace: 'nowrap',
+                }}
+              >
+                {budgetSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: -2 }}>
+              Leave blank to follow the global default, so this account moves with it when the
+              default is recalibrated. 0 removes their AI allowance entirely.
+            </div>
             {detail && (
               <>
                 <Row label="Transactions" value={String(detail.counts.transactions)} c={c} />
