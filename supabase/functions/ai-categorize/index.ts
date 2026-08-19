@@ -3,7 +3,27 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY')!
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const DAILY_LIMIT = 100
+// Enforcement switch ONLY. The user-facing percentage is always token-derived
+// (mp_ai_usage_today), in both phases — flipping this changes what blocks, never
+// what is displayed. Stays false until the ai_call_log calibration query says
+// what a real day of usage costs; blocking on an untested number means learning
+// its value from complaints instead of data.
+//
+// The limits themselves live in SQL (mp_daily_ai_request_limit,
+// mp_daily_ai_token_budget) so the percentage has exactly one definition and
+// the client never receives the budget.
+const ENFORCE_TOKEN_LIMIT = false
+
+// Only these reach ai_call_log.feature; anything else is stored as NULL.
+// SIX features send mode='chat' (real chat plus the affordability / analytics /
+// goal-plan / goal-progress / coach one-shots), so `mode` alone collapses
+// exactly the distinctions calibration depends on — hence a separate label.
+// Allowlisted rather than trusted, so a malformed or hostile client cannot
+// invent categories and pollute the data the budget is set from.
+const KNOWN_FEATURES = new Set([
+  'chat', 'affordability', 'analytics', 'goal-plan', 'goal-progress', 'coach',
+  'categorize', 'parse', 'receipt-extract', 'statement-extract',
+])
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -327,29 +347,97 @@ Deno.serve(async (req) => {
 
     const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    const { data: settings } = await db
-      .from('settings')
-      .select('id, ai_requests_used, ai_requests_reset_at')
-      .eq('user_id', user.id)
-      .single()
+    // Stamped ONCE, here, and reused for every usage write belonging to this
+    // request — including a streaming flush that lands after midnight.
+    // Recomputing it at flush time is the bug documented in
+    // mp_bump_ai_usage: the flush would take the "new day" branch carrying
+    // 0 requests and open the day with zero requests but N tokens banked.
+    const usageDate = new Date().toISOString().slice(0, 10)  // UTC, matches the SQL
 
-    const now = new Date()
-    const resetAt = settings?.ai_requests_reset_at ? new Date(settings.ai_requests_reset_at) : null
-    const needsReset = !resetAt
-      || now.getFullYear() !== resetAt.getFullYear()
-      || now.getMonth() !== resetAt.getMonth()
-      || now.getDate() !== resetAt.getDate()
-    const used = needsReset ? 0 : (settings?.ai_requests_used ?? 0)
+    // Reserve the request atomically: reset-if-stale, check the cap and
+    // increment all happen under one row lock. The previous read-then-check-
+    // then-increment was raceable — two requests arriving at 99 both read 99,
+    // both passed, and the user landed on 101.
+    const { data: startRows, error: startError } = await db
+      .rpc('mp_try_start_ai_request', { p_user_id: user.id, p_usage_date: usageDate })
+    if (startError) {
+      console.error('[usage] mp_try_start_ai_request failed', startError)
+      return new Response(JSON.stringify({ error: 'ai_error' }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+    }
+    const start = (startRows as { allowed: boolean; requests: number; tokens: number; usage_pct: number }[])?.[0]
 
-    if (used >= DAILY_LIMIT) {
+    if (!start?.allowed) {
       return new Response(
-        JSON.stringify({ error: 'quota_exceeded', used, limit: DAILY_LIMIT }),
+        JSON.stringify({
+          error: 'quota_exceeded',
+          usage_pct: start?.usage_pct ?? 100,
+          enforcing: ENFORCE_TOKEN_LIMIT,
+        }),
         { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
+    if (ENFORCE_TOKEN_LIMIT && start.usage_pct >= 100) {
+      return new Response(
+        JSON.stringify({ error: 'quota_exceeded', usage_pct: start.usage_pct, enforcing: true }),
+        { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // `used` is the reserved count for this request, still surfaced as X-Used
+    // and `used` for backward compatibility with existing clients.
+    const used = start.requests - 1
+
     const body = await req.json()
-    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType, images } = body
+    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType, images, feature } = body
+
+    // ── Token accounting for this request ──────────────────────────────────
+    // One HTTP request can make up to TEN upstream Groq calls: the chat tool
+    // loop runs up to 3 rounds, groqFetch retries up to 3 models per round,
+    // plus a final answer call. So this has to accumulate, not read once.
+    const loggedFeature = typeof feature === 'string' && KNOWN_FEATURES.has(feature) ? feature : null
+    let tokensThisRequest = 0
+    const callLog: { model: string; prompt: number | null; completion: number | null }[] = []
+
+    // Records one upstream call. `usage` absent (streaming disconnect, malformed
+    // response) is logged as NULL, never 0 — a fake zero would quietly drag the
+    // calibration average down and make the budget look cheaper than it is.
+    function recordUsage(model: string, usage: unknown) {
+      const u = usage as { prompt_tokens?: number; completion_tokens?: number } | null | undefined
+      const prompt = typeof u?.prompt_tokens === 'number' ? u.prompt_tokens : null
+      const completion = typeof u?.completion_tokens === 'number' ? u.completion_tokens : null
+      tokensThisRequest += (prompt ?? 0) + (completion ?? 0)
+      callLog.push({ model, prompt, completion })
+    }
+
+    // Writes the measured tokens and the per-call rows. The counter bump and
+    // the log insert are not one transaction: if the bump lands and the insert
+    // fails we under-count, which is the safe direction, and calibration reads
+    // the log so it stays accurate either way.
+    async function flushUsage() {
+      if (tokensThisRequest > 0) {
+        const { error } = await db.rpc('mp_bump_ai_usage', {
+          p_user_id: user.id, p_usage_date: usageDate, p_requests: 0, p_tokens: tokensThisRequest,
+        })
+        if (error) console.error('[usage] mp_bump_ai_usage failed', error)
+      }
+      if (callLog.length > 0) {
+        const { error } = await db.from('ai_call_log').insert(
+          callLog.map(c => ({
+            user_id: user.id, mode: mode ?? 'categorize', feature: loggedFeature,
+            model: c.model, prompt_tokens: c.prompt, completion_tokens: c.completion,
+          }))
+        )
+        if (error) console.error('[usage] ai_call_log insert failed', error)
+      }
+    }
+
+    // Authoritative post-call usage for the response body. Never computed
+    // client-side, and never derived from the request count.
+    async function currentUsagePct(): Promise<number> {
+      const { data } = await db.rpc('mp_ai_usage_today', { p_user_id: user.id })
+      return (data as { usage_pct: number }[] | null)?.[0]?.usage_pct ?? 0
+    }
 
     // ── Chat mode: conversational finance assistant with tool calling ──
     if (mode === 'chat') {
@@ -459,20 +547,25 @@ ${context ?? ''}`
       // failures and rate limits both deserve the second attempt; only the
       // sleep-and-retry step is 429-specific, since sleeping does nothing for
       // a model that no longer exists.
-      const groqFetch = async (payload: Record<string, unknown>): Promise<Response> => {
+      // Returns the model alongside the response: the fallback means the model
+      // that actually produced the tokens varies per call, and gpt-oss-120b and
+      // gpt-oss-20b are priced 2x apart. Attributing every call to the primary
+      // would make the calibration data wrong in exactly the direction that
+      // matters (under load, when the cheap model answers most often).
+      const groqFetch = async (payload: Record<string, unknown>): Promise<{ res: Response; model: string }> => {
         const call = (model: string) =>
           fetch(GROQ_URL, { method: 'POST', headers: groqHeaders, body: JSON.stringify({ model, ...LOW_REASONING, ...payload }) })
 
         const primary = await call(MODEL_TEXT_LARGE)
-        if (primary.ok) return primary
+        if (primary.ok) return { res: primary, model: MODEL_TEXT_LARGE }
         console.error(`[chat] ${MODEL_TEXT_LARGE} returned ${primary.status}, falling back to ${MODEL_TEXT_SMALL}`)
 
         const secondary = await call(MODEL_TEXT_SMALL)
-        if (secondary.ok || secondary.status !== 429) return secondary
+        if (secondary.ok || secondary.status !== 429) return { res: secondary, model: MODEL_TEXT_SMALL }
 
         // Only a rate limit is worth waiting out (~12s covers Groq's window).
         await new Promise<void>(res => setTimeout(res, 12000))
-        return call(MODEL_TEXT_SMALL)
+        return { res: await call(MODEL_TEXT_SMALL), model: MODEL_TEXT_SMALL }
       }
       const encoder = new TextEncoder()
       const streamHeaders = {
@@ -488,7 +581,7 @@ ${context ?? ''}`
       let directAnswer: string | null = null
 
       for (let round = 0; round < 3; round++) {
-        const callR = await groqFetch({
+        const { res: callR, model: callModel } = await groqFetch({
           messages: loopMessages,
           tools: CHAT_TOOLS,
           tool_choice: 'auto',
@@ -498,9 +591,11 @@ ${context ?? ''}`
         if (!callR.ok) {
           const errBody = await callR.text()
           console.error(`[chat] Groq tool-call round ${round} failed: ${callR.status} ${errBody}`)
+          await flushUsage()  // earlier rounds may already have cost tokens
           return new Response(JSON.stringify({ error: 'ai_error', groq_status: callR.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
         }
         const callRData = await callR.json()
+        recordUsage(callModel, callRData?.usage)
         const roundChoice = callRData.choices?.[0]
 
         if (roundChoice?.finish_reason !== 'tool_calls') {
@@ -523,44 +618,114 @@ ${context ?? ''}`
         loopMessages = [...loopMessages, roundChoice.message, ...toolResults]
       }
 
-      // Increment quota (once per request regardless of tool rounds)
-      await db.from('settings').update({
-        ai_requests_used: used + 1,
-        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
-      }).eq('user_id', user.id)
+      // The request itself was already reserved atomically at the top of the
+      // handler; tokens are flushed once the Groq calls have returned.
 
       // Helper: produce final answer from a messages array (streaming or JSON)
       const streamFinal = async (msgs: object[]): Promise<Response> => {
         if (once) {
-          const r = await groqFetch({ messages: msgs, max_tokens: 600, temperature: 0.4 })
+          const { res: r, model: finalModel } = await groqFetch({ messages: msgs, max_tokens: 600, temperature: 0.4 })
           if (!r.ok) {
             const errBody = await r.text()
             console.error(`[chat] Groq final (once) failed: ${r.status} ${errBody}`)
+            await flushUsage()
             return new Response(JSON.stringify({ error: 'ai_error', groq_status: r.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
           }
           const d = await r.json()
+          recordUsage(finalModel, d?.usage)
           const reply = d.choices?.[0]?.message?.content?.trim() ?? ''
-          return new Response(JSON.stringify({ reply, used: used + 1 }), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } })
+          await flushUsage()
+          return new Response(
+            JSON.stringify({ reply, used: used + 1, usage_pct: await currentUsagePct(), enforcing: ENFORCE_TOKEN_LIMIT }),
+            { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } }
+          )
         }
-        const r = await groqFetch({ messages: msgs, max_tokens: 600, temperature: 0.4, stream: true })
+        // include_usage makes Groq emit a final `{"choices":[],"usage":{…}}`
+        // chunk just before [DONE]. That is the only way to learn the token
+        // cost of a streamed answer.
+        const { res: r, model: finalModel } = await groqFetch({
+          messages: msgs, max_tokens: 600, temperature: 0.4,
+          stream: true, stream_options: { include_usage: true },
+        })
         if (!r.ok) {
           const errBody = await r.text()
           console.error(`[chat] Groq stream failed: ${r.status} ${errBody}`)
+          await flushUsage()
           return new Response(JSON.stringify({ error: 'ai_error', groq_status: r.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
         }
+
+        // Tokens are known only when the stream ends, which is AFTER the
+        // response headers have already been flushed — so they cannot ride on
+        // X-Used. They are written to the database here and announced to the
+        // client as one extra SSE event instead.
+        //
+        // Idempotent and called from BOTH start()'s finally and cancel():
+        // cancel() bypasses start() entirely, so a user pressing stop would
+        // otherwise lose the write for tokens Groq has already charged us for.
+        let flushed = false
+        let sawUsage = false
+        const flushStreamUsage = async () => {
+          if (flushed) return
+          flushed = true
+          // No usage chunk means the stream was cut short. Log the call with
+          // NULL tokens rather than 0: the cost is unknown, not zero.
+          if (!sawUsage) recordUsage(finalModel, null)
+          await flushUsage()
+        }
+
         const stream = new ReadableStream({
           async start(controller) {
             const reader = r.body!.getReader()
             const decoder = new TextDecoder()
+            let buffer = ''
+            let doneSeen = false
+
+            // Forwards one complete SSE line, holding back [DONE] so the usage
+            // event can be emitted before it — the client's reader returns as
+            // soon as it sees [DONE] and never reads past it.
+            const forward = (line: string) => {
+              const trimmed = line.trim()
+              if (trimmed === 'data: [DONE]') { doneSeen = true; return }
+              if (trimmed.startsWith('data: ')) {
+                try {
+                  const parsed = JSON.parse(trimmed.slice(6))
+                  if (parsed?.usage) { sawUsage = true; recordUsage(finalModel, parsed.usage) }
+                } catch { /* not JSON — a comment or keep-alive, forward as-is */ }
+              }
+              controller.enqueue(encoder.encode(line + '\n'))
+            }
+
             try {
               while (true) {
+                // { stream: true } is required: without it a multi-byte
+                // character split across a TCP chunk decodes to U+FFFD, and the
+                // chat prompt mandates a rupee sign on every amount.
                 const { done, value } = await reader.read()
                 if (done) break
-                controller.enqueue(encoder.encode(decoder.decode(value)))
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() ?? ''  // keep the trailing partial line
+                for (const line of lines) forward(line)
               }
-            } catch { /* client disconnected */ } finally { controller.close() }
+              if (buffer.trim()) forward(buffer)
+            } catch {
+              /* client disconnected mid-stream */
+            } finally {
+              try {
+                await flushStreamUsage()
+                const pct = await currentUsagePct()
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ mp_usage_pct: pct, enforcing: ENFORCE_TOKEN_LIMIT })}\n\n`))
+                if (doneSeen) controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+              } catch { /* client gone; the DB write above still happened */ }
+              controller.close()
+            }
           },
-          cancel() { r.body?.cancel() },
+          cancel() {
+            r.body?.cancel()
+            // Fire-and-forget: cancel() cannot await, but the isolate stays
+            // alive long enough for this to land.
+            flushStreamUsage().catch(e => console.error('[usage] cancel flush failed', e))
+          },
         })
         return new Response(stream, { headers: streamHeaders })
       }
@@ -591,7 +756,7 @@ ${context ?? ''}`
 
       // Truly no tool needed
       if (once) {
-        return new Response(JSON.stringify({ reply: text, used: used + 1 }), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } })
+        return new Response(JSON.stringify({ reply: text, used: used + 1, usage_pct: await currentUsagePct(), enforcing: ENFORCE_TOKEN_LIMIT }), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } })
       }
       const ssePayload = `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`
       return new Response(encoder.encode(ssePayload), { headers: streamHeaders })
@@ -645,6 +810,7 @@ Rules:
       }
 
       const groqData = await groqRes.json()
+      recordUsage(MODEL_TEXT_SMALL, groqData?.usage)
       const raw = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
 
       let parsed: { description?: string; amount?: number | null; account?: string | null; category?: string | null } = {}
@@ -658,10 +824,7 @@ Rules:
       const validAccount = (accountNames ?? []).find((a: string) => a.toLowerCase() === (parsed.account ?? '').toLowerCase()) ?? null
       const validCategory = (categoryNames ?? []).find((c: string) => c.toLowerCase() === (parsed.category ?? '').toLowerCase()) ?? null
 
-      await db.from('settings').update({
-        ai_requests_used: used + 1,
-        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
-      }).eq('user_id', user.id)
+      await flushUsage()
 
       return new Response(
         JSON.stringify({
@@ -670,7 +833,8 @@ Rules:
           account: validAccount,
           category: validCategory,
           used: used + 1,
-          limit: DAILY_LIMIT,
+          usage_pct: await currentUsagePct(),
+          enforcing: ENFORCE_TOKEN_LIMIT,
         }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
       )
@@ -736,6 +900,7 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
       }
 
       const extractData = await extractRes.json()
+      recordUsage(MODEL_VISION, extractData?.usage)
       const extractRaw: string = extractData?.choices?.[0]?.message?.content?.trim() ?? ''
       console.log('[receipt-extract] raw model output:', extractRaw)
 
@@ -791,10 +956,7 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
 
       const validConfidence = extractParsed.confidence === 'high' ? 'high' : 'low'
 
-      await db.from('settings').update({
-        ai_requests_used: used + 1,
-        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
-      }).eq('user_id', user.id)
+      await flushUsage()
 
       return new Response(
         JSON.stringify({
@@ -806,7 +968,8 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
           confidence: validConfidence,
           suggestion: extractSuggestion,
           used: used + 1,
-          limit: DAILY_LIMIT,
+          usage_pct: await currentUsagePct(),
+          enforcing: ENFORCE_TOKEN_LIMIT,
         }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
       )
@@ -882,7 +1045,18 @@ If there are no transaction rows at all, return an empty "transactions" array ra
       // blip) before surfacing an error — a chunk covering a dozen-plus rows is
       // too expensive to force the user to re-run over a one-off glitch.
       let stmtRes = await fetchStmtGroq()
-      if (!stmtRes.ok) stmtRes = await fetchStmtGroq()
+      if (!stmtRes.ok) {
+        // The first attempt still cost whatever Groq charged for it. It used to
+        // be dropped un-parsed, which under-reported the true cost of every
+        // retried chunk — precisely the calls calibration most needs to see.
+        // A failed response usually carries no usage body, so this is
+        // best-effort and records NULL rather than 0 when there is none.
+        try {
+          const failedBody = await stmtRes.clone().json()
+          if (failedBody?.usage) recordUsage(stmtModel, failedBody.usage)
+        } catch { /* error body was not JSON; nothing recoverable */ }
+        stmtRes = await fetchStmtGroq()
+      }
 
       if (!stmtRes.ok) {
         const errBody = await stmtRes.text()
@@ -891,6 +1065,7 @@ If there are no transaction rows at all, return an empty "transactions" array ra
       }
 
       const stmtData = await stmtRes.json()
+      recordUsage(stmtModel, stmtData?.usage)
       const stmtRaw: string = stmtData?.choices?.[0]?.message?.content?.trim() ?? ''
       console.log('[statement-extract] raw model output:', stmtRaw)
 
@@ -975,10 +1150,7 @@ If there are no transaction rows at all, return an empty "transactions" array ra
         ? Math.floor(stmtParsed.unparsed_count)
         : 0
 
-      await db.from('settings').update({
-        ai_requests_used: used + 1,
-        ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
-      }).eq('user_id', user.id)
+      await flushUsage()
 
       return new Response(
         JSON.stringify({
@@ -986,7 +1158,8 @@ If there are no transaction rows at all, return an empty "transactions" array ra
           unparsed_count: stmtUnparsedCount,
           transactions: stmtTransactions,
           used: used + 1,
-          limit: DAILY_LIMIT,
+          usage_pct: await currentUsagePct(),
+          enforcing: ENFORCE_TOKEN_LIMIT,
         }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
       )
@@ -1045,6 +1218,7 @@ ${groupLines}
     }
 
     const groqData = await groqRes.json()
+    recordUsage(MODEL_TEXT_SMALL, groqData?.usage)
     const raw: string = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
 
     // Parse response
@@ -1073,14 +1247,10 @@ ${groupLines}
       }
     }
 
-    // Increment usage
-    await db.from('settings').update({
-      ai_requests_used: used + 1,
-      ...(needsReset ? { ai_requests_reset_at: now.toISOString() } : {}),
-    }).eq('user_id', user.id)
+    await flushUsage()
 
     return new Response(
-      JSON.stringify({ result, suggestion, used: used + 1, limit: DAILY_LIMIT }),
+      JSON.stringify({ result, suggestion, used: used + 1, usage_pct: await currentUsagePct(), enforcing: ENFORCE_TOKEN_LIMIT }),
       { headers: { ...cors, 'Content-Type': 'application/json' } }
     )
   } catch (e) {

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { usageTone } from '@/lib/aiUsage'
 import { ACCENT_OPTIONS } from '@/lib/tokens'
 import type { IncomePattern, Layout } from '@/types'
 import { requestAndSubscribe, unsubscribeFromPush, getPermissionState, isPushSupported } from '@/lib/notifications'
@@ -29,7 +30,8 @@ interface SettingsPanelProps {
   budgetStrategyEnabled: boolean
   challengeEnabled: boolean
   autopilotEnabled: boolean
-  aiRequestsUsed: number
+  aiUsagePct: number
+  aiUsageEnforcing: boolean
   aiRequestsResetAt: string | null
   notificationsEnabled: boolean
   notifyDailyReminder: boolean
@@ -64,7 +66,7 @@ interface SettingsPanelProps {
   tourHighlight?: boolean
 }
 
-export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiRequestsUsed, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, tourHighlight }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiUsagePct, aiUsageEnforcing, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, tourHighlight }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
@@ -642,10 +644,16 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
           resetAt.getFullYear() === now.getFullYear() &&
           resetAt.getMonth() === now.getMonth() &&
           resetAt.getDate() === now.getDate()
-        const used = isToday ? (aiRequestsUsed ?? 0) : 0
-        const LIMIT = 100
-        const pct = Math.min(100, (used / LIMIT) * 100)
-        const barColor = pct >= 85 ? '#EF4444' : pct >= 60 ? '#F59E0B' : c.accent
+        // The percentage is computed server-side from tokens
+        // (mp_ai_usage_today) and mirrored into settings. The client does no
+        // quota arithmetic and is never told the budget.
+        //
+        // The isToday guard still matters: ai_usage_pct is a display cache, so
+        // a user at 87% at 23:59 who opens Settings at 00:01 without making a
+        // call would otherwise still read 87%. Stale means zero.
+        const pct = isToday ? (aiUsagePct ?? 0) : 0
+        const { tone, message } = usageTone(pct, aiUsageEnforcing)
+        const barColor = tone === 'full' ? '#EF4444' : tone === 'warn' ? '#F59E0B' : c.accent
         return (
           <div style={{ background: `linear-gradient(145deg, ${c.surface} 55%, rgba(22,201,138,0.06))`, borderRadius: 18, padding: '14px 16px', marginBottom: 16, border: `1px solid rgba(22,201,138,0.18)`, position: 'relative', overflow: 'hidden' }}>
             {/* Watermark: Mint leaf — echo */}
@@ -698,20 +706,24 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
             {/* Divider */}
             <div style={{ height: 1, background: c.faint, marginBottom: 12 }} />
 
-            {/* Quota */}
+            {/* Usage — a percentage only. Never surface tokens, requests or
+                the word "quota": the user does not need to understand the
+                underlying economics to read this. */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <span style={{ font: '600 11px Plus Jakarta Sans', color: c.ink }}>
-                <span style={{ font: '700 13px Plus Jakarta Sans' }}>{used}</span>
-                <span style={{ color: c.muted }}> / {LIMIT} today</span>
+                <span style={{ font: '700 13px Plus Jakarta Sans' }}>{pct}%</span>
+                <span style={{ color: c.muted }}> used today</span>
               </span>
               <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted }}>Resets tomorrow</span>
             </div>
             <div style={{ height: 5, borderRadius: 999, background: c.surface, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${pct}%`, borderRadius: 999, background: barColor, transition: 'width 0.5s ease' }} />
             </div>
-            <div style={{ font: '600 10px Plus Jakarta Sans', color: pct >= 85 ? barColor : c.muted, marginTop: 5 }}>
-              {pct >= 100 ? 'Daily limit reached. Try again tomorrow.' : `${LIMIT - used} requests remaining`}
-            </div>
+            {message && (
+              <div style={{ font: '600 10px Plus Jakarta Sans', color: barColor, marginTop: 5 }}>
+                {message}
+              </div>
+            )}
           </div>
         )
       })()}

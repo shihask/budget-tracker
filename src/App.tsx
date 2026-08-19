@@ -1016,7 +1016,12 @@ function AppContent({ session }: { session: Session }) {
               budgetStrategyEnabled={state.budget_strategy_settings.budget_strategy !== 'none'}
               challengeEnabled={state.settings.challenge_enabled ?? false}
               autopilotEnabled={state.settings.autopilot_enabled ?? false}
-              aiRequestsUsed={state.settings.ai_requests_used ?? 0}
+              aiUsagePct={state.settings.ai_usage_pct ?? 0}
+              // Whether the token budget currently blocks. Mirrored from the
+              // server's `enforcing` flag on the last AI response — the client
+              // must not infer it, and while measuring, reaching 100% must not
+              // claim Mint has stopped.
+              aiUsageEnforcing={state.settings.ai_usage_enforcing ?? false}
               aiRequestsResetAt={state.settings.ai_requests_reset_at ?? null}
               notificationsEnabled={state.settings.notifications_enabled ?? false}
               notifyDailyReminder={state.settings.notify_daily_reminder ?? true}

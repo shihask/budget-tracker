@@ -457,7 +457,7 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
                 <AdoptionBar label="Budget Strategy" pct={summary.budgetStrategyAdoption.pct} count={summary.budgetStrategyAdoption.count} total={summary.totalUsers} c={c} />
               </div>
               <div style={{ marginTop: 8, font: '600 11px Plus Jakarta Sans', color: c.sub }}>
-                🤖 {summary.aiUsageToday.totalRequests} AI request{summary.aiUsageToday.totalRequests === 1 ? '' : 's'} today across all accounts
+                🤖 {summary.aiUsageToday.totalRequests} AI request{summary.aiUsageToday.totalRequests === 1 ? '' : 's'} · {summary.aiUsageToday.totalTokens.toLocaleString()} tokens today across all accounts
               </div>
             </>
           )}
@@ -572,6 +572,7 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
             <Row label="Last active" value={formatDate(selectedUser.lastSignInAt)} c={c} />
             <Row label="Budget strategy" value={selectedUser.budgetStrategy} c={c} />
             <Row label="AI requests used today" value={String(selectedUser.aiUsed)} c={c} />
+                  <Row label="AI tokens used today" value={selectedUser.aiTokens.toLocaleString()} c={c} />
             {detail && (
               <>
                 <Row label="Transactions" value={String(detail.counts.transactions)} c={c} />

@@ -13,7 +13,7 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `src/components/SettingsPanel.tsx` | Slide-in settings drawer |
 | `src/components/QuickAdd.tsx` | FAB + sheet for adding transactions; auto-categorize logic lives here |
 | `src/components/CategorySelect.tsx` | Category dropdown, supports `filterGroup` prop |
-| `src/lib/gemini.ts` | Client-side AI helper (`categorizeWithAI`) |
+| `src/lib/gemini.ts` | Client-side AI helpers + `aiUsagePatch` usage mirroring |
 | `supabase/functions/ai-categorize/index.ts` | Deno Edge Function — Groq proxy, usage counter |
 
 ## How to add a new Settings field — checklist
@@ -99,22 +99,35 @@ When filtering `forecast.projections` for itemized UI (timeline lists, driver su
 0. **History match** (`findHistoricalCategory`) — same description used before (exact, case-insensitive) → same category as the most recent matching transaction
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  
 2. **Keyword fallback** (`guessCategory`) — hardcoded `KEYWORD_CATS` table  
-3. **AI** (`categorizeWithAI`) — Groq via Edge Function, min 4 chars + 1200 ms debounce, only when `autopilotEnabled === true`
+3. **AI** (`parseExpenseWithAI`) — Groq via Edge Function, min 4 chars + 1200 ms debounce, only when `autopilotEnabled === true`. (`categorizeWithAI` is dead code — see AI usage metering below.)
 
 Uses `catsRef` (not `cats` state) inside the effect to avoid re-triggering when a new category is added.
 
 ## AI Edge Function
 - File: `supabase/functions/ai-categorize/index.ts`
-- Model: `llama-3.1-8b-instant` via Groq, `max_tokens: 30`, `temperature: 0`
-- Quota: 100 calls/user/day (UTC calendar day, lazy reset) tracked in `settings.ai_requests_used` + `ai_requests_reset_at`
+- Models: `MODEL_TEXT_LARGE` (`openai/gpt-oss-120b`, chat), `MODEL_TEXT_SMALL` (`openai/gpt-oss-20b`), `MODEL_VISION` (`qwen/qwen3.6-27b`, Preview tier). All reasoning models — `reasoning_effort: 'low'` and generous `max_tokens`, or they spend the budget thinking and return an empty string.
 - Response format: exact category name **or** `NEW: <name> | <group>`
+
+### AI usage metering
+Two limits, neither shown to the user — the card says only `Mint AI · 23% used today`.
+
+| Limit | Purpose | Where |
+|---|---|---|
+| `mp_daily_ai_request_limit()` = 100/day | Abuse cap, **always enforced** | reserved atomically by `mp_try_start_ai_request` |
+| `mp_daily_ai_token_budget()` = 10,000/day | Cost budget, **measured only in v1** | `ENFORCE_TOKEN_LIMIT = false` until calibrated |
+
+- **The displayed percentage is always token-derived**, in both phases. Never derive it from request count.
+- `mp_ai_usage_today()` is authoritative. `settings.ai_usage_pct` / `ai_usage_enforcing` are display caches that go stale across midnight — apply the `isToday` guard before reading.
+- `usageDate` is stamped once per request and reused for every write, so a stream crossing midnight can't corrupt the new day (`mp_bump_ai_usage` drops late flushes).
+- `ai_call_log` records every upstream call with `feature` (allowlisted) and the model that *actually* answered — six features share `mode: 'chat'`, so `feature` is what makes calibration possible. 30-day retention via pg_cron.
+- `categorizeWithAI` in `src/lib/gemini.ts` is **dead code** — exported, never imported. QuickAdd's autopilot uses `parseExpenseWithAI`.
 
 ## Statement import — storage protection
 Five independent controls; none replaces another. The AI quota bounds **compute**, the rest bound **bytes**.
 
 | Control | Bounds | Where |
 |---|---|---|
-| 100 AI calls/user/day | Groq spend | `settings.ai_requests_used` (pre-existing) |
+| AI usage metering | Groq spend | tokens vs `mp_daily_ai_token_budget()`; 100 req/day abuse cap |
 | 8 import batches/user/UTC day | Batch creation rate | `trg_import_batches_daily_limit`, advisory-locked per user; raises `PT429` |
 | 10 MB per object + PDF/WebP/JPEG allowlist | Individual upload size | `storage.buckets` on `statement-imports` |
 | Purge on completion | Normal storage lifecycle | `completeImportBatch` — status flip **first**, then purge |

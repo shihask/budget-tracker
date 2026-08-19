@@ -381,7 +381,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       setAiParsing(true); onBusyChange?.(true)
       const catNames = catsRef.current.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)
       const accNames = allAccs.map(a => a.name)
-      const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.(aiUsagePatch(n)))
+      const result = await parseExpenseWithAI(text, catNames, accNames, state.groups.map(g => g.name), (n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf)))
       setAiParsing(false); onBusyChange?.(false)
       if (!result) return
 
@@ -1115,7 +1115,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 autopilotEnabled={autopilotEnabled}
                 categoryNames={catsRef.current.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)}
                 groupNames={state.groups.map(g => g.name)}
-                onAiUsed={n => onUpdateSettings?.(aiUsagePatch(n))}
+                onAiUsed={(n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf))}
                 onExtracted={handleReceiptExtracted}
               />
             )}

@@ -2,7 +2,7 @@ import { useEffect, useImperativeHandle, useRef, useState, forwardRef } from 're
 import { Camera, Image as ImageIcon, Receipt as ReceiptIcon, X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
-import { extractReceiptWithAI, type AIReceiptExtraction } from '@/lib/gemini'
+import { extractReceiptWithAI, type AIReceiptExtraction, type OnAiUsed } from '@/lib/gemini'
 import { MintAnimation } from './MintAnimation'
 
 interface ReceiptFieldProps {
@@ -16,7 +16,7 @@ interface ReceiptFieldProps {
   categoryNames?: string[]
   groupNames?: string[]
   onExtracted?: (result: AIReceiptExtraction) => void
-  onAiUsed?: (n: number) => void
+  onAiUsed?: OnAiUsed
 }
 
 export interface ReceiptFieldHandle {

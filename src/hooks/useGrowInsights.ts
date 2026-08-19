@@ -114,7 +114,7 @@ export function useGrowInsights({
     const ctx = buildMintCoachContext(state, d, challenge, streak, userName, previousCoachSummary, allDetectedTopics)
     const { message, context } = buildMintCoachPrompt(ctx)
 
-    mintCoachWithAI(message, context, n => onUpdateSettings(aiUsagePatch(n))).then(reply => {
+    mintCoachWithAI(message, context, (n, pct, enf) => onUpdateSettings(aiUsagePatch(n, pct, enf))).then(reply => {
       if (coachFetchingRef.current !== coachFingerprint) return   // stale — fingerprint moved on while this was in flight
       coachFetchingRef.current = null
       if (reply) {

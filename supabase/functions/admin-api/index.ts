@@ -27,19 +27,29 @@ const DEFAULT_FIELD_VALUES: Record<ToggleableField, boolean> = {
   challenge_enabled: false,
 }
 
-type SettingsRow = Record<string, unknown> & { user_id: string; ai_requests_used?: number; ai_requests_reset_at?: string | null }
+type SettingsRow = Record<string, unknown> & { user_id: string; ai_requests_used?: number; ai_tokens_used?: number; ai_requests_reset_at?: string | null }
 
-// Same day-rollover check ai-categorize/index.ts uses before trusting
-// ai_requests_used — without it, a stale count from a prior day (not yet
-// reset because that user hasn't called the AI today) would over-report.
-function effectiveAiUsed(s: SettingsRow | undefined, now: Date): number {
-  if (!s) return 0
-  const resetAt = s.ai_requests_reset_at ? new Date(s.ai_requests_reset_at) : null
-  const needsReset = !resetAt
-    || now.getFullYear() !== resetAt.getFullYear()
-    || now.getMonth() !== resetAt.getMonth()
-    || now.getDate() !== resetAt.getDate()
-  return needsReset ? 0 : (s.ai_requests_used ?? 0)
+// The daily counters are only meaningful for the UTC day they belong to: a
+// stale count from a user who has not called the AI today would over-report.
+// This mirrors mp_ai_usage_is_stale() in SQL — the third copy of this
+// comparison, now the only one left client-side, and it exists solely because
+// the admin list reads settings in bulk rather than per-user.
+function isStaleUsageDay(resetAt: string | null | undefined): boolean {
+  if (!resetAt) return true
+  const stored = new Date(resetAt)
+  const now = new Date()
+  return stored.toISOString().slice(0, 10) < now.toISOString().slice(0, 10)
+}
+
+function effectiveAiUsed(s: SettingsRow | undefined): number {
+  if (!s || isStaleUsageDay(s.ai_requests_reset_at)) return 0
+  return s.ai_requests_used ?? 0
+}
+
+// Admin is allowed to see the technical numbers the product hides from users.
+function effectiveAiTokens(s: SettingsRow | undefined): number {
+  if (!s || isStaleUsageDay(s.ai_requests_reset_at)) return 0
+  return s.ai_tokens_used ?? 0
 }
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -86,7 +96,7 @@ Deno.serve(async (req) => {
         { data: accountOwnerRows },
         { count: totalTransactions },
       ] = await Promise.all([
-        db.from('settings').select('user_id, ai_requests_used, ai_requests_reset_at, ' + TOGGLEABLE_FIELDS.join(', ')).in('user_id', ids),
+        db.from('settings').select('user_id, ai_requests_used, ai_tokens_used, ai_requests_reset_at, ' + TOGGLEABLE_FIELDS.join(', ')).in('user_id', ids),
         db.from('budget_strategy_settings').select('user_id, budget_strategy').in('user_id', ids),
         db.from('user_roles').select('user_id').eq('role', 'admin'),
         db.from('accounts').select('user_id').in('user_id', ids),
@@ -112,7 +122,8 @@ Deno.serve(async (req) => {
           isAdmin: adminIds.has(u.id),
           features,
           budgetStrategy: budgetByUser.get(u.id) ?? 'none',
-          aiUsed: effectiveAiUsed(s, now),
+          aiUsed: effectiveAiUsed(s),
+          aiTokens: effectiveAiTokens(s),
         }
       })
 
@@ -123,6 +134,7 @@ Deno.serve(async (req) => {
       const newUsersThisMonth = users.filter(u => isSameMonth(new Date(u.createdAt), now)).length
       const onboardedCount = users.filter(u => u.onboarded).length
       const aiTotalToday = users.reduce((sum, u) => sum + u.aiUsed, 0)
+      const aiTokensToday = users.reduce((sum, u) => sum + u.aiTokens, 0)
       const aiEnabledCount = users.filter(u => u.features.autopilot_enabled).length
       const budgetStrategyAdoptedCount = users.filter(u => u.budgetStrategy !== 'none').length
 
@@ -143,7 +155,7 @@ Deno.serve(async (req) => {
         avgTransactionsPerUser: totalUsers > 0 ? Math.round(((totalTransactions ?? 0) / totalUsers) * 10) / 10 : 0,
         featureAdoption,
         budgetStrategyAdoption: { count: budgetStrategyAdoptedCount, pct: pct(budgetStrategyAdoptedCount) },
-        aiUsageToday: { totalRequests: aiTotalToday, enabledPct: pct(aiEnabledCount) },
+        aiUsageToday: { totalRequests: aiTotalToday, totalTokens: aiTokensToday, enabledPct: pct(aiEnabledCount) },
       }
 
       return json({ users, summary })

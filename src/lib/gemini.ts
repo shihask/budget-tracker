@@ -17,9 +17,24 @@ const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categoriz
 // Any `used` value returned by the edge function is by definition the server's
 // count FOR TODAY, so stamping the timestamp alongside it is always correct.
 // Use this rather than writing `{ ai_requests_used: n }` by hand.
-export function aiUsagePatch(used: number): { ai_requests_used: number; ai_requests_reset_at: string } {
-  return { ai_requests_used: used, ai_requests_reset_at: new Date().toISOString() }
+export function aiUsagePatch(
+  used: number,
+  usagePct?: number,
+  enforcing?: boolean,
+): { ai_requests_used: number; ai_requests_reset_at: string; ai_usage_pct?: number; ai_usage_enforcing?: boolean } {
+  return {
+    ai_requests_used: used,
+    ai_requests_reset_at: new Date().toISOString(),
+    ...(usagePct != null ? { ai_usage_pct: usagePct } : {}),
+    ...(enforcing != null ? { ai_usage_enforcing: enforcing } : {}),
+  }
 }
+
+// Every AI helper reports usage through this callback. `pct` is the server's
+// token-derived percentage (mp_ai_usage_today) — never computed here, and never
+// derived from the request count. Optional second arg so existing one-argument
+// callbacks keep type-checking.
+export type OnAiUsed = (used: number, pct?: number, enforcing?: boolean) => void
 
 export type AIParsedExpense = {
   description: string | null
@@ -33,7 +48,7 @@ export async function parseExpenseWithAI(
   categoryNames: string[],
   accountNames: string[],
   groupNames: string[],
-  onUsed?: (n: number) => void
+  onUsed?: OnAiUsed
 ): Promise<AIParsedExpense | null> {
   if (!text.trim()) return null
   try {
@@ -46,14 +61,14 @@ export async function parseExpenseWithAI(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ mode: 'parse', text, categoryNames, accountNames, groupNames }),
+      body: JSON.stringify({ mode: 'parse', feature: 'parse', text, categoryNames, accountNames, groupNames }),
     })
 
-    if (res.status === 429) { console.warn('Mint daily limit reached (100/day)'); return null }
+    if (res.status === 429) { console.warn('Mint AI usage limit reached'); return null }
     if (!res.ok) return null
 
     const data = await res.json()
-    if (data.used != null) onUsed?.(data.used)
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
     return {
       description: data.description ?? null,
       amount: data.amount ?? null,
@@ -82,7 +97,7 @@ export async function extractReceiptWithAI(
   blob: Blob,
   categoryNames: string[],
   groupNames: string[],
-  onUsed?: (n: number) => void
+  onUsed?: OnAiUsed
 ): Promise<AIReceiptExtraction | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -94,15 +109,15 @@ export async function extractReceiptWithAI(
     const res = await withTimeout(fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mode: 'receipt-extract', imageBase64: base64, mimeType, categoryNames, groupNames }),
+      body: JSON.stringify({ mode: 'receipt-extract', feature: 'receipt-extract', imageBase64: base64, mimeType, categoryNames, groupNames }),
     }), RECEIPT_EXTRACT_TIMEOUT_MS, 'Receipt scan timed out')
 
-    if (res.status === 429) { console.warn('Mint daily limit reached (100/day)'); return null }
+    if (res.status === 429) { console.warn('Mint AI usage limit reached'); return null }
     if (!res.ok) return null
 
     const data = await res.json()
     console.debug('[AI][receipt-extract]', data)
-    if (data.used != null) onUsed?.(data.used)
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
     return {
       description: data.description ?? null,
       merchant: data.merchant ?? null,
@@ -155,7 +170,7 @@ export async function affordabilityInsightWithAI(
   item: string,
   amount: number,
   ctx: AffordabilityContext,
-  onUsed?: (n: number) => void
+  onUsed?: OnAiUsed
 ): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -193,14 +208,14 @@ export async function affordabilityInsightWithAI(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, feature: 'affordability', message, context, history: [] }),
     })
 
     if (res.status === 429) return 'Mint daily limit reached (100/day). Try again next month.'
     if (!res.ok) return null
 
     const data = await res.json()
-    if (data.used != null) onUsed?.(data.used)
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
     return data.reply ?? null
   } catch (e) {
     console.error('[AI] affordability insight failed:', e)
@@ -218,7 +233,7 @@ export interface AnalyticsInsightContext {
   weeklySpent: number
 }
 
-export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext, onUsed?: (n: number) => void): Promise<string | null> {
+export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext, onUsed?: OnAiUsed): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return null
@@ -245,14 +260,14 @@ export async function analyticsInsightWithAI(ctx: AnalyticsInsightContext, onUse
     const res = await fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, feature: 'analytics', message, context, history: [] }),
     })
 
     if (res.status === 429) return 'Mint daily limit reached (100/day). Try again next month.'
     if (!res.ok) return null
 
     const data = await res.json()
-    if (data.used != null) onUsed?.(data.used)
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
     return data.reply ?? null
   } catch {
     return null
@@ -272,7 +287,7 @@ export interface GoalPlanContext {
 
 export async function goalPlanAdviceWithAI(
   ctx: GoalPlanContext,
-  onUsed?: (n: number) => void
+  onUsed?: OnAiUsed
 ): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -297,14 +312,14 @@ export async function goalPlanAdviceWithAI(
     const res = await fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, feature: 'goal-plan', message, context, history: [] }),
     })
 
     if (res.status === 429) return 'Mint daily limit reached (100/day). Try again tomorrow.'
     if (!res.ok) return null
 
     const data = await res.json()
-    if (data.used != null) onUsed?.(data.used)
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
     return data.reply ?? null
   } catch {
     return null
@@ -326,7 +341,7 @@ export interface GoalProgressContext {
 
 export async function goalProgressInsightWithAI(
   ctx: GoalProgressContext,
-  onUsed?: (n: number) => void
+  onUsed?: OnAiUsed
 ): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -353,14 +368,14 @@ export async function goalProgressInsightWithAI(
     const res = await fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, feature: 'goal-progress', message, context, history: [] }),
     })
 
     if (res.status === 429) return 'Mint daily limit reached. Try again next month.'
     if (!res.ok) return null
 
     const data = await res.json()
-    if (data.used != null) onUsed?.(data.used)
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
     return data.reply ?? null
   } catch {
     return null
@@ -377,7 +392,7 @@ export async function goalProgressInsightWithAI(
 export async function mintCoachWithAI(
   message: string,
   context: string,
-  onUsed?: (n: number) => void
+  onUsed?: OnAiUsed
 ): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -386,24 +401,29 @@ export async function mintCoachWithAI(
     const res = await fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ mode: 'chat', once: true, message, context, history: [] }),
+      body: JSON.stringify({ mode: 'chat', once: true, feature: 'coach', message, context, history: [] }),
     })
 
     if (res.status === 429) return null
     if (!res.ok) return null
 
     const data = await res.json()
-    if (data.used != null) onUsed?.(data.used)
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
     return data.reply ?? null
   } catch {
     return null
   }
 }
 
+// The autopilot path — fired from QuickAdd on every debounced keystroke of 4+
+// chars, so the highest-frequency AI caller in the app. It was the only helper
+// with no onUsed, which meant the usage card silently under-reported by exactly
+// the traffic that matters most.
 export async function categorizeWithAI(
   description: string,
   categoryNames: string[],
-  groupNames: string[]
+  groupNames: string[],
+  onUsed?: OnAiUsed
 ): Promise<AICategorizationResult | null> {
   if (!description.trim()) return null
   try {
@@ -416,10 +436,10 @@ export async function categorizeWithAI(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ description, categoryNames, groupNames }),
+      body: JSON.stringify({ description, categoryNames, groupNames, feature: 'categorize' }),
     })
 
-    if (res.status === 429) { console.warn('Mint daily limit reached (100/day)'); return null }
+    if (res.status === 429) { console.warn('Mint AI usage limit reached'); return null }
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
       console.error('[AI] edge function error', res.status, errText)
@@ -428,6 +448,7 @@ export async function categorizeWithAI(
 
     const data = await res.json()
     console.log('[AI] raw response:', data)
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
 
     if (data.suggestion?.name) {
       return { type: 'suggestion', name: data.suggestion.name, group: data.suggestion.group }

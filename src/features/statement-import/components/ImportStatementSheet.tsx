@@ -130,7 +130,7 @@ export function ImportStatementSheet({ open, onClose, userId, state, onAddCatego
         sourceFiles,
         isCancelled: () => cancelRequestedRef.current,
         onProgress: (processed, total) => setProgress({ processed, total }),
-        onAiUsed: n => onUpdateSettings?.(aiUsagePatch(n)),
+        onAiUsed: (n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf)),
       })
     } catch (e) {
       // A quota stop is not a broken batch: every chunk already committed is

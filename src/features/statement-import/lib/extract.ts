@@ -14,6 +14,7 @@ async function loadPdfModule() {
   return import('@/lib/pdfExtract')
 }
 import { extractStatementFromImages, extractStatementFromText, blobToBase64, type ParsedStatementRow } from '@/lib/statementExtract'
+import type { OnAiUsed } from '@/lib/gemini'
 import { dedupeParsedRows, isDailyImportLimitError, DAILY_IMPORT_LIMIT_ERRCODE } from './pure'
 import { resolveImportedAccountHint } from './accountHint'
 import type { ImportBatch, StatementReviewContext } from '../types'
@@ -192,7 +193,7 @@ interface RunExtractionOptions {
   // every other AI caller (see aiUsagePatch in gemini.ts). Without it a
   // statement import spends quota the Settings card never learns about until
   // the next page load.
-  onAiUsed?: (n: number) => void
+  onAiUsed?: OnAiUsed
 }
 
 function categoryPoolFor(direction: 'income' | 'expense', categories: Category[]): Category[] {
@@ -223,7 +224,7 @@ async function downloadStoredBlob(storagePath: string, key: string): Promise<Blo
 // practice without per-page branching complexity.
 async function extractPdfChunk(
   doc: PDFDocumentProxy, pageStart: number, pageEnd: number, categoryNames: string[], groupNames: string[],
-  onAiUsed?: (n: number) => void
+  onAiUsed?: OnAiUsed
 ): Promise<{ rows: ParsedStatementRow[]; unparsedCount: number } | null> {
   const { getPdfPageText, renderPdfPageToImage } = await loadPdfModule()
   const firstPageText = await getPdfPageText(doc, pageStart)
@@ -249,7 +250,7 @@ async function extractPdfChunk(
 
 async function extractImageChunk(
   blobs: Blob[], categoryNames: string[], groupNames: string[],
-  onAiUsed?: (n: number) => void
+  onAiUsed?: OnAiUsed
 ): Promise<{ rows: ParsedStatementRow[]; unparsedCount: number } | null> {
   const images = await Promise.all(blobs.map(async b => ({ base64: await blobToBase64(b), mimeType: b.type || 'image/jpeg' })))
   const result = await extractStatementFromImages(images, categoryNames, groupNames, onAiUsed)

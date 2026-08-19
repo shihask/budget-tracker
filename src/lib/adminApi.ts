@@ -55,6 +55,7 @@ export type AdminUserSummary = {
   features: AdminFeatureFlags
   budgetStrategy: string
   aiUsed: number
+  aiTokens: number
 }
 
 export type AdminDashboardSummary = {
@@ -68,7 +69,7 @@ export type AdminDashboardSummary = {
   avgTransactionsPerUser: number
   featureAdoption: Record<ToggleableFeatureField, { count: number; pct: number }>
   budgetStrategyAdoption: { count: number; pct: number }
-  aiUsageToday: { totalRequests: number; enabledPct: number }
+  aiUsageToday: { totalRequests: number; totalTokens: number; enabledPct: number }
 }
 
 export async function fetchAdminUserList(): Promise<{ users: AdminUserSummary[]; summary: AdminDashboardSummary }> {

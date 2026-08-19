@@ -298,7 +298,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
         totalThisMonth: catTotal,
         weeklyBudget: d.weeklyBudget,
         weeklySpent: d.weeklySpent,
-      }, (n) => onUpdateSettings?.(aiUsagePatch(n)))
+      }, (n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf)))
       if (result) setInsight(result)
       else setInsightError('Could not generate insight. Try again.')
     } catch {

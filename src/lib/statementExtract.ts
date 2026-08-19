@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { withTimeout } from '@/lib/utils'
+import type { OnAiUsed } from '@/lib/gemini'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -37,21 +38,24 @@ export interface StatementExtractResult {
   transactions: ParsedStatementRow[]
 }
 
-// Every other extraction failure collapses to `null` and reaches the user as
+// Every other extraction failure collapses to  and reaches the user as
 // "Chunk 3 of 5 failed to extract", which is both wrong and unactionable when
-// the real cause is the shared 100/day AI budget. This one is neither a parse
+// the real cause is the shared AI usage budget. This one is neither a parse
 // failure nor retryable right now, and the user CAN act on it (wait for the
 // reset), so it gets its own type and is rethrown past the catch-alls below.
+//
+// Deliberately limit-agnostic: the budget is server-owned and token-based, so
+// naming a number here would go stale the moment it is recalibrated.
 export class AiDailyLimitReachedError extends Error {
   constructor() {
-    super("Mint has used up today's 100 AI scans. This import is paused — resume it after the limit resets at midnight UTC.")
+    super('Mint has reached its daily AI usage limit. This import is paused — resume it tomorrow.')
     this.name = 'AiDailyLimitReachedError'
   }
 }
 
 async function callStatementExtract(
   body: Record<string, unknown>,
-  onUsed?: (n: number) => void,
+  onUsed?: OnAiUsed,
 ): Promise<StatementExtractResult | null> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return null
@@ -59,7 +63,7 @@ async function callStatementExtract(
   const res = await withTimeout(fetch(EDGE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-    body: JSON.stringify({ mode: 'statement-extract', ...body }),
+    body: JSON.stringify({ mode: 'statement-extract', feature: 'statement-extract', ...body }),
   }), STATEMENT_EXTRACT_TIMEOUT_MS, 'Statement scan timed out')
 
   if (res.status === 429) throw new AiDailyLimitReachedError()
@@ -71,7 +75,7 @@ async function callStatementExtract(
   // so a statement import burned quota invisibly and the Settings card stayed
   // stale until a reload — worst on exactly the screen where a user meets the
   // AI limit head-on and would go to Settings to check it.
-  if (data.used != null) onUsed?.(data.used)
+  if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
   return {
     statement: data.statement ?? { bank: null, period_from: null, period_to: null },
     unparsed_count: data.unparsed_count ?? 0,
@@ -83,7 +87,7 @@ export async function extractStatementFromImages(
   images: { base64: string; mimeType: string }[],
   categoryNames: string[],
   groupNames: string[],
-  onUsed?: (n: number) => void
+  onUsed?: OnAiUsed
 ): Promise<StatementExtractResult | null> {
   try {
     return await callStatementExtract({ images, categoryNames, groupNames }, onUsed)
@@ -98,7 +102,7 @@ export async function extractStatementFromText(
   text: string,
   categoryNames: string[],
   groupNames: string[],
-  onUsed?: (n: number) => void
+  onUsed?: OnAiUsed
 ): Promise<StatementExtractResult | null> {
   if (!text.trim()) return null
   try {

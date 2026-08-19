@@ -207,7 +207,7 @@ export function GoalsSection({
       daysAhead: status.daysAhead,
       daysBehind: status.daysBehind,
       extraNeeded: status.extraNeeded,
-    }, (n) => onUpdateSettings?.(aiUsagePatch(n)))
+    }, (n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf)))
     if (insight) setGoalAI(prev => ({ ...prev, [goal.id]: insight }))
     setGoalAILoading(null)
   }

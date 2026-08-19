@@ -1150,14 +1150,14 @@ async function streamChat(
   context: string,
   signal: AbortSignal,
   onToken: (token: string) => void,
-): Promise<{ used: number | null }> {
+): Promise<{ used: number | null; usagePct: number | null; enforcing: boolean | null }> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('unauthenticated')
 
   const res = await fetch(EDGE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-    body: JSON.stringify({ mode: 'chat', message, history, context }),
+    body: JSON.stringify({ mode: 'chat', feature: 'chat', message, history, context }),
     signal,
   })
 
@@ -1165,6 +1165,13 @@ async function streamChat(
   if (!res.ok) throw new Error('ai_error')
 
   const used = res.headers.get('X-Used')
+  // X-Used is a PREDICTED request count, flushed with the headers before the
+  // stream starts. The true token percentage is only known once Groq sends its
+  // usage chunk, so the server emits it as one extra SSE event just before
+  // [DONE]. Holding the old value until then is more honest than showing an
+  // estimate as though it were final.
+  let usagePct: number | null = null
+  let enforcing: boolean | null = null
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -1174,7 +1181,9 @@ async function streamChat(
     const data = line.slice(6).trim()
     if (data === '[DONE]') return true
     try {
-      const token = JSON.parse(data).choices?.[0]?.delta?.content ?? ''
+      const parsed = JSON.parse(data)
+      if (typeof parsed?.mp_usage_pct === 'number') { usagePct = parsed.mp_usage_pct; enforcing = parsed.enforcing ?? null; return false }
+      const token = parsed.choices?.[0]?.delta?.content ?? ''
       if (token) onToken(token)
     } catch { /* malformed line, skip */ }
     return false
@@ -1187,14 +1196,14 @@ async function streamChat(
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? '' // keep the last, possibly-incomplete line for the next read
     for (const line of lines) {
-      if (handleLine(line)) return { used: used ? Number(used) : null }
+      if (handleLine(line)) return { used: used ? Number(used) : null, usagePct, enforcing }
     }
   }
   // flush any trailing complete line that had no newline
   for (const line of buffer.split('\n')) {
     if (handleLine(line)) break
   }
-  return { used: used ? Number(used) : null }
+  return { used: used ? Number(used) : null, usagePct, enforcing }
 }
 
 interface AIChatSheetProps {
@@ -1430,7 +1439,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     const groupNames = state.groups.map(g => g.name)
 
     const result: AIReceiptExtraction | null = await extractReceiptWithAI(
-      receipt.blob, catNames, groupNames, n => onUpdateSettings?.(aiUsagePatch(n))
+      receipt.blob, catNames, groupNames, (n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf))
     )
 
     if (!result) {
@@ -1546,7 +1555,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
       : state.categories.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)
 
     const parsed = intent === 'transaction'
-      ? await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name), (n) => onUpdateSettings?.(aiUsagePatch(n)))
+      ? await parseExpenseWithAI(text, catNames, allAccNames, state.groups.map(g => g.name), (n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf)))
       : null
 
     if (parsed && parsed.amount && parsed.amount > 0) {
@@ -1723,7 +1732,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     }
 
     try {
-      const { used } = await streamChat(
+      const { used, usagePct, enforcing } = await streamChat(
         text,
         next.slice(-6),
         context,
@@ -1739,7 +1748,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
             }
           : (token: string) => { pendingRef.current += token },
       )
-      if (used != null) onUpdateSettings?.(aiUsagePatch(used))
+      if (used != null) onUpdateSettings?.(aiUsagePatch(used, usagePct ?? undefined, enforcing ?? undefined))
 
       const chartType = shouldShowChart(text)
       if (chartType) {

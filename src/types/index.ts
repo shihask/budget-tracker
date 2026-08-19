@@ -127,6 +127,12 @@ export interface Settings {
   weekly_budget_scope?: WeeklyBudgetScope | null
   ai_requests_used?: number
   ai_requests_reset_at?: string | null
+  ai_tokens_used?: number
+  // Display cache only — mp_ai_usage_today() is authoritative. Goes stale
+  // across midnight by design; readers must apply the same isToday guard as
+  // ai_requests_used.
+  ai_usage_pct?: number
+  ai_usage_enforcing?: boolean
   budget_period?: 'daily' | 'weekly' | 'monthly'
   weekly_start_day?: number     // 0=Sun 1=Mon … 6=Sat, default 1
   monthly_start_date?: number   // 1–31, default 1

@@ -271,7 +271,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
       monthsNeeded: plan.monthsNeeded,
       targetDate: plan.targetLabel,
       reductions: plan.reductions,
-    }, (n) => onUpdateSettings?.(aiUsagePatch(n)))
+    }, (n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf)))
     setGoalPlanAI(advice ?? "Mint couldn't respond right now. Try again.")
     setGoalPlanAILoading(false)
   }
@@ -301,7 +301,7 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
       forecastLowestDate: simResult?.lowestBalanceDate,
       forecastRecoveryDate: simResult?.recoveryDate,
       forecastDrivers: simDrivers.length > 0 ? simDrivers : undefined,
-    }, (n) => onUpdateSettings?.(aiUsagePatch(n)))
+    }, (n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf)))
     setAiInsight(insight ?? "Mint couldn't respond right now. Try again.")
     setAiLoading(false)
   }

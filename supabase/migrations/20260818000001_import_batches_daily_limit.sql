@@ -14,14 +14,18 @@
 --   floor(DAILY_LIMIT 100 / 12) = 8
 -- Page count is NOT capped anywhere: extract.ts derives totalChunks straight
 -- from doc.numPages. A 200-page PDF is 25 chunks on its own, so eight imports
--- do NOT necessarily fit inside the 100/day AI budget. These are two
--- independent limits: this one bounds bytes, settings.ai_requests_used bounds
--- compute. If you ever want the stronger property, cap pages at import time.
+-- do NOT necessarily fit inside the AI budget. These are independent limits:
+-- this one bounds bytes.
 --
--- Calendar day, not rolling 24h, deliberately: the AI cap already resets on
--- the UTC calendar day (ai-categorize/index.ts compares Y/M/D on
--- settings.ai_requests_reset_at). Two quotas expiring at different instants
--- is a worse user experience than one shared burst window.
+-- UPDATED 2026-08-19: AI compute is now measured in TOKENS
+-- (settings.ai_tokens_used against mp_daily_ai_token_budget), not request
+-- count; settings.ai_requests_used remains only as an abuse/safety cap. The
+-- "floor(100 / 12)" arithmetic above still describes how 8 was chosen, but the
+-- 100 in it is the abuse cap, not the compute budget.
+--
+-- Calendar day, not rolling 24h, deliberately: the AI counters reset on the
+-- UTC calendar day too (see mp_ai_usage_is_stale). Two quotas expiring at
+-- different instants is a worse user experience than one shared burst window.
 --
 -- Accepted hole: discardImportBatch DELETEs the row, so discard-and-retry
 -- resets the count. Not worth closing -- discard removes the storage objects
