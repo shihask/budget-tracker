@@ -284,6 +284,19 @@ Deno.serve(async (req) => {
         .from('settings').update({ ai_token_budget_override: clearing ? null : value }).eq('user_id', user_id)
       if (updateError) return json({ error: 'update_failed' }, 500)
 
+      // settings.ai_usage_pct is a display cache refreshed only when an AI call
+      // returns, so changing the budget silently invalidates it: raising a
+      // maxed-out user to 100,000 left the card reading 100% until their next
+      // request. Recompute it here, since this is the one place that knows the
+      // divisor just changed. mp_ai_usage_today stays authoritative — this only
+      // keeps the mirror honest.
+      const { data: usageRows } = await db.rpc('mp_ai_usage_today', { p_user_id: user_id })
+      const freshPct = (usageRows as { usage_pct: number }[] | null)?.[0]?.usage_pct
+      if (freshPct != null) {
+        const { error: pctError } = await db.from('settings').update({ ai_usage_pct: freshPct }).eq('user_id', user_id)
+        if (pctError) console.error('[admin-api] usage_pct refresh failed:', pctError)
+      }
+
       // Always audited: this is one person changing another person's allowance,
       // and a budget of 0 cuts their AI off entirely once enforcement is on.
       const { error: auditError } = await db.from('admin_audit_logs').insert({
