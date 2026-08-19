@@ -353,6 +353,10 @@ Deno.serve(async (req) => {
     // mp_bump_ai_usage: the flush would take the "new day" branch carrying
     // 0 requests and open the day with zero requests but N tokens banked.
     const usageDate = new Date().toISOString().slice(0, 10)  // UTC, matches the SQL
+    // Correlates every upstream call this ONE question makes, so per-question
+    // cost is computable. A chat can fan out to four Groq calls; without this
+    // they are indistinguishable from four separate questions.
+    const requestId = crypto.randomUUID()
 
     // Reserve the request atomically: reset-if-stale, check the cap and
     // increment all happen under one row lock. The previous read-then-check-
@@ -397,17 +401,17 @@ Deno.serve(async (req) => {
     // plus a final answer call. So this has to accumulate, not read once.
     const loggedFeature = typeof feature === 'string' && KNOWN_FEATURES.has(feature) ? feature : null
     let tokensThisRequest = 0
-    const callLog: { model: string; prompt: number | null; completion: number | null }[] = []
+    const callLog: { stage: string; model: string; prompt: number | null; completion: number | null }[] = []
 
     // Records one upstream call. `usage` absent (streaming disconnect, malformed
     // response) is logged as NULL, never 0 — a fake zero would quietly drag the
     // calibration average down and make the budget look cheaper than it is.
-    function recordUsage(model: string, usage: unknown) {
+    function recordUsage(stage: string, model: string, usage: unknown) {
       const u = usage as { prompt_tokens?: number; completion_tokens?: number } | null | undefined
       const prompt = typeof u?.prompt_tokens === 'number' ? u.prompt_tokens : null
       const completion = typeof u?.completion_tokens === 'number' ? u.completion_tokens : null
       tokensThisRequest += (prompt ?? 0) + (completion ?? 0)
-      callLog.push({ model, prompt, completion })
+      callLog.push({ stage, model, prompt, completion })
     }
 
     // Writes the measured tokens and the per-call rows. The counter bump and
@@ -433,8 +437,8 @@ Deno.serve(async (req) => {
       if (rows.length > 0) {
         const { error } = await db.from('ai_call_log').insert(
           rows.map(c => ({
-            user_id: user.id, mode: mode ?? 'categorize', feature: loggedFeature,
-            model: c.model, prompt_tokens: c.prompt, completion_tokens: c.completion,
+            user_id: user.id, request_id: requestId, mode: mode ?? 'categorize', feature: loggedFeature,
+            stage: c.stage, model: c.model, prompt_tokens: c.prompt, completion_tokens: c.completion,
           }))
         )
         if (error) console.error('[usage] ai_call_log insert failed', error)
@@ -604,7 +608,7 @@ ${context ?? ''}`
           return new Response(JSON.stringify({ error: 'ai_error', groq_status: callR.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
         }
         const callRData = await callR.json()
-        recordUsage(callModel, callRData?.usage)
+        recordUsage('tool-round', callModel, callRData?.usage)
         const roundChoice = callRData.choices?.[0]
 
         if (roundChoice?.finish_reason !== 'tool_calls') {
@@ -641,7 +645,7 @@ ${context ?? ''}`
             return new Response(JSON.stringify({ error: 'ai_error', groq_status: r.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
           }
           const d = await r.json()
-          recordUsage(finalModel, d?.usage)
+          recordUsage('final', finalModel, d?.usage)
           const reply = d.choices?.[0]?.message?.content?.trim() ?? ''
           await flushUsage()
           return new Response(
@@ -678,7 +682,7 @@ ${context ?? ''}`
           flushed = true
           // No usage chunk means the stream was cut short. Log the call with
           // NULL tokens rather than 0: the cost is unknown, not zero.
-          if (!sawUsage) recordUsage(finalModel, null)
+          if (!sawUsage) recordUsage('stream-nousage', finalModel, null)
           await flushUsage()
         }
 
@@ -698,7 +702,12 @@ ${context ?? ''}`
               if (trimmed.startsWith('data: ')) {
                 try {
                   const parsed = JSON.parse(trimmed.slice(6))
-                  if (parsed?.usage) { sawUsage = true; recordUsage(finalModel, parsed.usage) }
+                  // Groq reports the SAME usage twice: once on the
+                  // finish_reason:"stop" chunk and again on the dedicated
+                  // include_usage chunk (choices:[]), with identical numbers.
+                  // Recording both double-counted every streamed chat, so take
+                  // the first and ignore the repeat.
+                  if (parsed?.usage && !sawUsage) { sawUsage = true; recordUsage('stream-usage', finalModel, parsed.usage) }
                 } catch { /* not JSON — a comment or keep-alive, forward as-is */ }
               }
               controller.enqueue(encoder.encode(line + '\n'))
@@ -830,7 +839,7 @@ Rules:
       }
 
       const groqData = await groqRes.json()
-      recordUsage(MODEL_TEXT_SMALL, groqData?.usage)
+      recordUsage(mode === 'parse' ? 'parse' : 'categorize', MODEL_TEXT_SMALL, groqData?.usage)
       const raw = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
 
       let parsed: { description?: string; amount?: number | null; account?: string | null; category?: string | null } = {}
@@ -920,7 +929,7 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
       }
 
       const extractData = await extractRes.json()
-      recordUsage(MODEL_VISION, extractData?.usage)
+      recordUsage('receipt', MODEL_VISION, extractData?.usage)
       const extractRaw: string = extractData?.choices?.[0]?.message?.content?.trim() ?? ''
       console.log('[receipt-extract] raw model output:', extractRaw)
 
@@ -1073,7 +1082,7 @@ If there are no transaction rows at all, return an empty "transactions" array ra
         // best-effort and records NULL rather than 0 when there is none.
         try {
           const failedBody = await stmtRes.clone().json()
-          if (failedBody?.usage) recordUsage(stmtModel, failedBody.usage)
+          if (failedBody?.usage) recordUsage('statement-retry', stmtModel, failedBody.usage)
         } catch { /* error body was not JSON; nothing recoverable */ }
         stmtRes = await fetchStmtGroq()
       }
@@ -1085,7 +1094,7 @@ If there are no transaction rows at all, return an empty "transactions" array ra
       }
 
       const stmtData = await stmtRes.json()
-      recordUsage(stmtModel, stmtData?.usage)
+      recordUsage('statement', stmtModel, stmtData?.usage)
       const stmtRaw: string = stmtData?.choices?.[0]?.message?.content?.trim() ?? ''
       console.log('[statement-extract] raw model output:', stmtRaw)
 
@@ -1238,7 +1247,7 @@ ${groupLines}
     }
 
     const groqData = await groqRes.json()
-    recordUsage(MODEL_TEXT_SMALL, groqData?.usage)
+    recordUsage(mode === 'parse' ? 'parse' : 'categorize', MODEL_TEXT_SMALL, groqData?.usage)
     const raw: string = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
 
     // Parse response
