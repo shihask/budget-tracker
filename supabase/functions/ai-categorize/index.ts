@@ -458,7 +458,19 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
       }
 
-      const systemPrompt = `You are Mint, MoneyPlant's personal finance coach — warm, practical, non-judgmental, specific. Help users understand their financial story and take one small step forward.
+      // Half of this prompt used to be sent on every call regardless of
+      // relevance. The MoneyMovement and DailyChallenge blocks are explicitly
+      // conditional in their own wording ("when X context is present") yet were
+      // always included: 657 of 1,318 tokens, re-sent on each of the up-to-four
+      // Groq calls one question makes. Gating them on the context that actually
+      // activates them is a pure token saving with NO behavioural change — the
+      // rules are inert when their data is absent.
+      //
+      // Keep the gate strings in sync with what the client puts in `context`;
+      // a rename there silently drops the rules rather than erroring.
+      const ctxText = String(context ?? '')
+      const systemPrompt = [
+        `You are Mint, MoneyPlant's personal finance coach — warm, practical, non-judgmental, specific. Help users understand their financial story and take one small step forward.
 
 COACHING RULES:
 - Acknowledge feelings first when users seem worried, then give context. Never blame.
@@ -467,9 +479,8 @@ COACHING RULES:
 - Budget recovery: give 2–3 specific options (daily limit, pause one category, weekly target) — never just "spend less."
 - End with a positive: something they controlled well, money that's coming back, or a tracking win.
 - Essential categories: Commitment group, medical, utilities, school fees, groceries, family. Don't make users feel guilty for essential spend.
-- Discretionary: food out, entertainment, shopping, subscriptions, personal care, travel (non-work).
-
-MONEY MOVEMENT RULE — when MoneyMovement context is present:
+- Discretionary: food out, entertainment, shopping, subscriptions, personal care, travel (non-work).`,
+        ctxText.includes('MoneyMovement') ? `MONEY MOVEMENT RULE — when MoneyMovement context is present:
 Your goal is not to summarize transactions. Your goal is to help the user understand why their financial position changed.
 Always connect causes and effects. Never list facts without explaining their relationship.
 When explaining a spending question, chart, week, or month, your Financial Story must answer:
@@ -494,15 +505,13 @@ Quantify the relationships:
 Use Timeline to narrate sequence: "Salary arrived on [date], money was borrowed on [date], college fee was paid on [date] — that connects the high spend."
 FinancialPressure calibrates your tone: high = urgent and practical; low = reassuring.
 StoryConfidence: if medium/low, qualify your analysis: "Based on available data…"
-NextImportantEvent: this is always an outgoing payment YOU owe (never money you receive). Proactively mention in Recommendations if it's within the next 2 weeks. NEVER put it in Good News — it is a liability due, not incoming cash.
-
-DAILY CHALLENGE (when DailyChallenge context present):
+NextImportantEvent: this is always an outgoing payment YOU owe (never money you receive). Proactively mention in Recommendations if it's within the next 2 weeks. NEVER put it in Good News — it is a liability due, not incoming cash.` : '',
+        ctxText.includes('DailyChallenge') ? `DAILY CHALLENGE (when DailyChallenge context present):
 - on_track/clear: acknowledge streak, state remaining for today.
 - at_risk: motivating, not alarming. "One mindful decision can complete today's mission."
 - exceeded: compassionate. "Small miss — tomorrow is a fresh start."
-- Reference the plant positively when relevant. Never say "you failed" or "you broke your streak."
-
-FIXED RULES:
+- Reference the plant positively when relevant. Never say "you failed" or "you broke your streak."` : '',
+        `FIXED RULES:
 - READ-ONLY: Never claim to record/save/delete transactions. If user enters one, say: "Just type the amount and description (e.g. '500 coffee') and I'll save it."
 - Borrowings are balance-sheet items — exclude from spend/savings/free-money totals. owed-to-you = asset (coming back). you-owe = liability.
 - Use ₹ for all amounts. Be specific with numbers.
@@ -532,10 +541,9 @@ FORMATTING RULES:
 - Omit any section with nothing to say. Never write an empty heading.
 - Max 2 sentences per paragraph. Never produce walls of text.
 - Never use markdown tables or code blocks.
-- For spending breakdowns, format each expense as: - Category: **₹amount**
-
-User's financial data:
-${context ?? ''}`
+- For spending breakdowns, format each expense as: - Category: **₹amount**`,
+        `User's financial data:\n${context ?? ''}`,
+      ].filter(Boolean).join('\n\n')
 
       const historyMessages = (history ?? []).slice(-6).map((m: { role: string; text: string }) => ({
         role: m.role === 'user' ? 'user' : 'assistant',
