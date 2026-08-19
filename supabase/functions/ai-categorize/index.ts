@@ -754,11 +754,22 @@ ${context ?? ''}`
         ])
       }
 
-      // Truly no tool needed
+      // Truly no tool needed — the tool-loop round that produced this answer
+      // still cost tokens, and this is the MOST COMMON chat path (a question
+      // that needs no tool call). Both returns below must flush, or the bulk of
+      // chat spend is captured into the accumulator and then thrown away.
+      await flushUsage()
+      const noToolPct = await currentUsagePct()
       if (once) {
-        return new Response(JSON.stringify({ reply: text, used: used + 1, usage_pct: await currentUsagePct(), enforcing: ENFORCE_TOKEN_LIMIT }), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } })
+        return new Response(JSON.stringify({ reply: text, used: used + 1, usage_pct: noToolPct, enforcing: ENFORCE_TOKEN_LIMIT }), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Used': String(used + 1) } })
       }
-      const ssePayload = `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`
+      // Synthetic single-chunk stream. Carries the usage event before [DONE],
+      // matching the real streaming path's contract so the client updates its
+      // percentage the same way either way.
+      const ssePayload =
+        `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n` +
+        `data: ${JSON.stringify({ mp_usage_pct: noToolPct, enforcing: ENFORCE_TOKEN_LIMIT })}\n\n` +
+        `data: [DONE]\n\n`
       return new Response(encoder.encode(ssePayload), { headers: streamHeaders })
     }
 
