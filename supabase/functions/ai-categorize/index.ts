@@ -445,6 +445,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Groq failures are not all the same, and the client can only tell them
+    // apart if we say so. A 429 (TPM rate limit) or a 5xx is transient — the
+    // user should be told to try again in a moment, not shown the generic
+    // "Something went wrong" that also covers real bugs. Returning 503 keeps
+    // it distinct from OUR 429, which means the daily allowance is spent.
+    function groqFailure(status: number, errBody: string): Response {
+      const transient = status === 429 || status >= 500
+      return new Response(
+        JSON.stringify({ error: transient ? 'ai_busy' : 'ai_error', groq_status: status, groq_body: errBody }),
+        { status: transient ? 503 : 500, headers: { ...cors, 'Content-Type': 'application/json' } },
+      )
+    }
+
     // Authoritative post-call usage for the response body. Never computed
     // client-side, and never derived from the request count.
     async function currentUsagePct(): Promise<number> {
@@ -613,7 +626,7 @@ FORMATTING RULES:
           const errBody = await callR.text()
           console.error(`[chat] Groq tool-call round ${round} failed: ${callR.status} ${errBody}`)
           await flushUsage()  // earlier rounds may already have cost tokens
-          return new Response(JSON.stringify({ error: 'ai_error', groq_status: callR.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+          return groqFailure(callR.status, errBody)
         }
         const callRData = await callR.json()
         recordUsage('tool-round', callModel, callRData?.usage)
@@ -650,7 +663,7 @@ FORMATTING RULES:
             const errBody = await r.text()
             console.error(`[chat] Groq final (once) failed: ${r.status} ${errBody}`)
             await flushUsage()
-            return new Response(JSON.stringify({ error: 'ai_error', groq_status: r.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+            return groqFailure(r.status, errBody)
           }
           const d = await r.json()
           recordUsage('final', finalModel, d?.usage)
@@ -672,7 +685,7 @@ FORMATTING RULES:
           const errBody = await r.text()
           console.error(`[chat] Groq stream failed: ${r.status} ${errBody}`)
           await flushUsage()
-          return new Response(JSON.stringify({ error: 'ai_error', groq_status: r.status, groq_body: errBody }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } })
+          return groqFailure(r.status, errBody)
         }
 
         // Tokens are known only when the stream ends, which is AFTER the

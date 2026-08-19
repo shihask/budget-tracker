@@ -1161,7 +1161,11 @@ async function streamChat(
     signal,
   })
 
+  // 429 = OUR daily allowance is spent (retrying today will not help).
+  // 503 = Groq is rate-limiting or down (retrying in a moment usually does).
+  // Collapsing both into one message told users to give up on a transient blip.
   if (res.status === 429) throw new Error('quota_exceeded')
+  if (res.status === 503) throw new Error('ai_busy')
   if (!res.ok) throw new Error('ai_error')
 
   const used = res.headers.get('X-Used')
@@ -1764,8 +1768,10 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === 'AbortError'
       if (!isAbort) {
-        const msg = err instanceof Error && err.message === 'quota_exceeded'
-          ? 'Mint has reached its daily limit (100 requests/day). Please try again tomorrow.'
+        const code = err instanceof Error ? err.message : ''
+        const msg =
+          code === 'quota_exceeded' ? 'Mint has reached its daily AI usage limit. Your usage resets tomorrow.'
+          : code === 'ai_busy'      ? 'Mint is busy right now — please try that again in a moment.'
           : 'Something went wrong. Please try again.'
         pendingRef.current = msg
         revealedLenRef.current = msg.length
