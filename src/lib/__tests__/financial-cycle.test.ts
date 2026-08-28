@@ -241,6 +241,47 @@ describe('getCurrentFinancialCycle', () => {
       expect(cycle.cycleStart.getDate()).toBe(27)
       expect(cycle.cycleStart.getMonth()).toBe(5) // June
     })
+
+    it('does not ask for salary again once the payday it arrived early for passes', () => {
+      mockToday('2026-06-30') // two days past salary_date 28
+      const state = makeState({
+        transactions: [
+          makeTx({ transaction_date: '2026-05-28' }),
+          makeTx({ transaction_date: '2026-06-26' }), // arrived 2 days early
+        ],
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.isWaitingForIncome).toBe(false)
+      expect(cycle.status).toBe('active')
+      expect(cycle.cycleStart.getDate()).toBe(26)
+      expect(cycle.cycleStart.getMonth()).toBe(5) // June
+    })
+
+    it('applies the same early tolerance to weekly income', () => {
+      mockToday('2026-06-27') // Saturday; income_day defaults to Friday (5)
+      const state = makeState({
+        settings: { ...makeState().settings, income_pattern: 'weekly', salary_date: null },
+        transactions: [
+          makeTx({ transaction_date: '2026-06-24' }), // Wednesday — 2 days early
+        ],
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.isWaitingForIncome).toBe(false)
+      expect(cycle.status).toBe('active')
+    })
+
+    it('still reports waiting when income predates the tolerance window', () => {
+      mockToday('2026-06-30')
+      const state = makeState({
+        transactions: [
+          makeTx({ transaction_date: '2026-05-28' }),
+          makeTx({ transaction_date: '2026-06-21' }), // 7 days early — beyond tolerance
+        ],
+      })
+      const cycle = getCurrentFinancialCycle(state)
+      expect(cycle.isWaitingForIncome).toBe(true)
+      expect(cycle.status).toBe('waiting')
+    })
   })
 
   describe('deleted salary transaction', () => {

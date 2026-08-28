@@ -411,7 +411,10 @@ export function getCurrentFinancialCycle(state: AppState): FinancialCycle {
   let isWaitingForIncome = false
   if (expectedIncomeDate) {
     const expectedMid = midnight(expectedIncomeDate)
-    if (today.getTime() >= expectedMid.getTime() && mostRecentIncomeDate < expectedMid.getTime()) {
+    // Symmetric with isEligibleCycleAnchor: income arriving slightly early IS this
+    // cycle's payday, so it must not simultaneously read as "payday missed".
+    const earlyPaydayCutoff = expectedMid.getTime() - getEarlyPaydayTolerance(pattern) * MS_DAY
+    if (today.getTime() >= expectedMid.getTime() && mostRecentIncomeDate < earlyPaydayCutoff) {
       isWaitingForIncome = true
     }
   }
