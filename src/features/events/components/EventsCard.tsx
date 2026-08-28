@@ -8,6 +8,8 @@ import { QuickAmountSheet } from '@/components/QuickAmountSheet'
 import { eventSpent } from '@/lib/events'
 import { EventIcon } from '../lib/eventIcons'
 import { guessCategory } from '@/lib/categorize'
+import { CategorySelect } from '@/components/CategorySelect'
+import { INCOME_GROUP, TRANSFER_GROUP } from '@/lib/constants'
 import type { AppState, LifeEvent, Transaction } from '@/types'
 
 const EVENT_COLOR = '#E0568A'
@@ -17,20 +19,32 @@ interface Props {
   onAdd: () => void
   onOpenEvent: (e: LifeEvent) => void
   onSave: (form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<unknown>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
 }
 
-export function EventsCard({ state, onAdd, onOpenEvent, onSave }: Props) {
+export function EventsCard({ state, onAdd, onOpenEvent, onSave, onAddCategory }: Props) {
   const c = useTheme()
   const [quickFor, setQuickFor] = useState<LifeEvent | null>(null)
   const [amount, setAmount] = useState('')
   const [accountId, setAccountId] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const [saving, setSaving] = useState(false)
 
   const active = state.events.filter(e => e.status === 'active')
 
+  // Matches the amount/account inputs inside QuickAmountBody.
+  const selectStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box', background: c.surface2,
+    border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 10px',
+    font: '600 13px Plus Jakarta Sans', color: c.ink, outline: 'none',
+  }
+
   const openQuick = (e: LifeEvent) => {
     const fallback = state.accounts.find(a => a.is_active)
     setAccountId(e.default_account_id || fallback?.id || '')
+    // Prefilled from the event, but editable — a wedding spans Food, Clothing
+    // and Decoration, so one fixed category would be wrong more often than right.
+    setCategoryId(e.default_category_id || guessCategory(e.name, state.categories) || '')
     setAmount('')
     setQuickFor(e)
   }
@@ -45,9 +59,7 @@ export function EventsCard({ state, onAdd, onOpenEvent, onSave }: Props) {
         description: quickFor.name,
         amount: round2(amt),
         transaction_type: 'expense',
-        // Falls back to a keyword guess so the row is never left uncategorised
-        // just because the event has no default set.
-        category_id: quickFor.default_category_id || guessCategory(quickFor.name, state.categories) || null,
+        category_id: categoryId || null,
         from_account_id: accountId,
         event_id: quickFor.id,
       })
@@ -123,6 +135,18 @@ export function EventsCard({ state, onAdd, onOpenEvent, onSave }: Props) {
         onSave={handleSave}
         onCancel={() => setQuickFor(null)}
         saving={saving}
+        categoryNode={
+          <CategorySelect
+            value={categoryId}
+            onChange={setCategoryId}
+            state={state}
+            onAddCategory={onAddCategory}
+            includeEmpty
+            emptyLabel="No category"
+            excludeGroups={[INCOME_GROUP, TRANSFER_GROUP]}
+            style={selectStyle}
+          />
+        }
       />
     </Card>
   )

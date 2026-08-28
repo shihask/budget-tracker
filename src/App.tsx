@@ -695,6 +695,7 @@ function AppContent({ session }: { session: Session }) {
                         state={state}
                         onAdd={() => { setEventEditing(null); setEventFormOpen(true) }}
                         onOpenEvent={e => setEventDetailId(e.id)}
+                        onAddCategory={addCategory}
                         onSave={handleSave}
                       /> : null
                       break

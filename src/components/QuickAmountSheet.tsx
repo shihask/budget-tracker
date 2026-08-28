@@ -22,11 +22,15 @@ interface BodyProps {
   onCancel: () => void
   saving?: boolean
   autoFocus?: boolean
+  /** Optional category picker, supplied by the host so this stays free of any
+   *  dependency on CategorySelect/AppState. The chip popup omits it — its
+   *  category comes from the tapped chip's history. */
+  categoryNode?: React.ReactNode
 }
 
 export function QuickAmountBody({
   title, accounts, creditCards, accountId, onAccountChange,
-  amount, onAmountChange, onSave, onCancel, saving = false, autoFocus = false,
+  amount, onAmountChange, onSave, onCancel, saving = false, autoFocus = false, categoryNode,
 }: BodyProps) {
   const c = useTheme()
   const amountRef = useRef<HTMLInputElement>(null)
@@ -77,6 +81,12 @@ export function QuickAmountBody({
           </select>
         </div>
       </div>
+      {categoryNode && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Category</div>
+          {categoryNode}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={onCancel}
           style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
