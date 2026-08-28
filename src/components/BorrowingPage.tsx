@@ -410,12 +410,20 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               const col = colorFor(b.person_name)
               const isDeleting = deleting === b.id
               const direction = b.direction || 'lent'
+              // Tile is tinted by direction: green = they owe you, red = you owe them.
+              const tone = direction === 'lent' ? c.good : c.bad
 
               return (
                 <div
                   key={b.id}
                   onClick={() => !isDeleting && openEdit(b)}
-                  style={{ background: c.surface, borderRadius: 16, padding: '14px', border: `1px solid ${c.faint}`, opacity: isDeleting ? 0.5 : 1, cursor: 'pointer', transition: 'opacity 0.15s' }}
+                  style={{
+                    background: `linear-gradient(${tone}${done ? '08' : '12'}, ${tone}${done ? '05' : '0A'}), ${c.surface}`,
+                    borderRadius: 16, padding: '14px 14px 14px 12px',
+                    border: `1px solid ${tone}${done ? '20' : '33'}`,
+                    borderLeft: `3px solid ${done ? c.muted : tone}`,
+                    opacity: isDeleting ? 0.5 : 1, cursor: 'pointer', transition: 'opacity 0.15s',
+                  }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                     <div style={{ width: 40, height: 40, borderRadius: 999, flexShrink: 0, background: col + '22', color: col, font: '800 15px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -443,7 +451,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
                   </div>
 
                   <div style={{ height: 6, borderRadius: 999, background: c.surface2, overflow: 'hidden', marginBottom: 6 }}>
-                    <div style={{ width: Math.min(100, pct) + '%', height: '100%', borderRadius: 999, background: done ? c.good : col, transition: 'width 0.4s' }} />
+                    <div style={{ width: Math.min(100, pct) + '%', height: '100%', borderRadius: 999, background: done ? c.good : tone, transition: 'width 0.4s' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
