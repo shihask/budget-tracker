@@ -1278,7 +1278,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     if (action.type === 'export_transactions') {
       await exportTransactionsCsv(
         userId,
-        { categories: state.categories, accounts: state.accounts, creditCards: state.credit_cards ?? [] },
+        { categories: state.categories, accounts: state.accounts, creditCards: state.credit_cards ?? [], events: state.events },
         action.filters,
         action.sortKey,
       )

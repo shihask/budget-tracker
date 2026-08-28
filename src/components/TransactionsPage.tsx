@@ -5,6 +5,7 @@ import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker, selectOnFocus } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
+import { EventIcon } from '@/features/events/lib/eventIcons'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -26,6 +27,7 @@ type EditForm = {
   category_id: string
   from_account_id: string
   to_account_id: string
+  event_id: string
 }
 
 type SavedFormSnapshot = {
@@ -36,6 +38,7 @@ type SavedFormSnapshot = {
   category_id: string | null
   from_account_id: string | null
   to_account_id: string | null
+  event_id: string | null
 }
 
 interface TransactionsPageProps {
@@ -112,6 +115,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [filterAccount, setFilterAccount] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterGroup, setFilterGroup] = useState('all')
+  const [filterEvent, setFilterEvent] = useState('all')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const dateToRef = useRef<HTMLInputElement>(null)
@@ -203,9 +207,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const filtered = useMemo(() => filterAndSortTransactions(
     state.transactions,
     state.categories,
-    { search, account: filterAccount, category: filterCategory, group: filterGroup, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns },
+    { search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns },
     sortKey,
-  ), [state.transactions, state.categories, search, filterAccount, filterCategory, filterGroup, filterDateFrom, filterDateTo, sortKey, showSystemTxns])
+  ), [state.transactions, state.categories, search, filterAccount, filterCategory, filterGroup, filterEvent, filterDateFrom, filterDateTo, sortKey, showSystemTxns])
 
   // Sums the raw legs, not the group entries — correct as-is because it runs
   // before grouping, where a split is still N ordinary rows.
@@ -336,6 +340,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       category_id: t.category_id || '',
       from_account_id: t.from_account_id || (t as any).credit_card_id || '',
       to_account_id: t.to_account_id || '',
+      event_id: t.event_id || '',
     })
     setPendingReceipt(null)
     setRemoveReceiptFlag(false)
@@ -389,6 +394,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       category_id: editForm.category_id || null,
       from_account_id: editForm.from_account_id || null,
       to_account_id: editForm.transaction_type === 'transfer' ? (editForm.to_account_id || null) : null,
+      // Only expenses belong to a life event.
+      event_id: editForm.transaction_type === 'expense' ? (editForm.event_id || null) : null,
     }
 
     // If a previous attempt in this edit session already saved these exact core
@@ -405,6 +412,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       && lastSavedForm.category_id === form.category_id
       && lastSavedForm.from_account_id === form.from_account_id
       && lastSavedForm.to_account_id === form.to_account_id
+      && lastSavedForm.event_id === form.event_id
 
     if (!unchanged) {
       const updateBaseline = state.transactions.find(tx => tx.id === editingTx.id) ?? editingTx
@@ -432,7 +440,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
   const clearFilters = () => {
     setSearch(''); setFilterAccount('all'); setFilterCategory('all')
-    setFilterGroup('all'); setFilterDateFrom(''); setFilterDateTo('')
+    setFilterGroup('all'); setFilterEvent('all'); setFilterDateFrom(''); setFilterDateTo('')
   }
   const hasFilters = search || filterAccount !== 'all' || filterCategory !== 'all' ||
     filterGroup !== 'all' || filterDateFrom || filterDateTo
@@ -550,6 +558,15 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 {state.categories.filter(cat => filterGroup === 'all' || cat.group_name === filterGroup).map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
+            {state.events.length > 0 && (
+              <select value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={inp}>
+                <option value="all">All life events</option>
+                <option value="none">Not part of an event</option>
+                {state.events.map(ev => (
+                  <option key={ev.id} value={ev.id}>{ev.name}</option>
+                ))}
+              </select>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} style={{ ...inp, flex: 1 }}>
                 <option value="all">All accounts</option>
@@ -916,6 +933,32 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </div>
             )}
 
+            {/* Life event chip — the main way an event is corrected after the fact,
+                so it sits in the form rather than behind another menu. */}
+            {editingTx && editForm?.transaction_type === 'expense' && (state.settings.track_events ?? false) && state.events.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                  Life event
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <EventChip
+                    label="+ None"
+                    active={!editForm.event_id}
+                    onClick={() => setEditForm(f => f ? { ...f, event_id: '' } : f)}
+                  />
+                  {state.events.filter(ev => ev.status === 'active' || ev.id === editForm.event_id).map(ev => (
+                    <EventChip
+                      key={ev.id}
+                      label={ev.name}
+                      icon={ev.icon}
+                      active={editForm.event_id === ev.id}
+                      onClick={() => setEditForm(f => f ? { ...f, event_id: ev.id } : f)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Challenge exclusion toggle — only for expenses when challenge is active */}
             {editingTx && editForm?.transaction_type === 'expense' && (state.settings.challenge_enabled ?? false) && onToggleChallengeExclusion && (() => {
               const isExcluded = (state.settings.challenge_excluded_txn_ids ?? []).includes(editingTx.id)
@@ -1102,7 +1145,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         state={state}
         userId={userId}
         allTransactionsLoaded={!!allTransactionsLoaded}
-        initialFilters={{ search, account: filterAccount, category: filterCategory, group: filterGroup, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns }}
+        initialFilters={{ search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns }}
         initialSortKey={sortKey}
       />
 
@@ -1224,5 +1267,26 @@ function Label({ children }: { children: React.ReactNode }) {
     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
       {children}
     </div>
+  )
+}
+
+function EventChip({ label, icon, active, onClick }: { label: string; icon?: string | null; active: boolean; onClick: () => void }) {
+  const c = useTheme()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: `1.5px solid ${active ? c.accent : c.faint}`,
+        background: active ? c.accentSoft : 'transparent',
+        color: active ? c.accent : c.muted,
+        borderRadius: 99, padding: '6px 12px',
+        font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+      }}
+    >
+      {icon && <EventIcon name={icon} size={13} color="currentColor" />}
+      {label}
+    </button>
   )
 }

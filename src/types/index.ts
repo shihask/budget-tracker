@@ -71,6 +71,13 @@ export interface Transaction {
   // ordinary single-account expense, so the group total is always derived (sum of legs),
   // never stored. null = an ordinary transaction.
   split_group_id?: string | null
+  // Life event this expense belongs to (wedding, trip, house build). Orthogonal to
+  // category — a wedding expense is still Food or Clothing. The event total is always
+  // derived by summing tagged rows, never stored. null = not part of any event.
+  event_id?: string | null
+  // When the tag was applied — not created_at, because events are usually created
+  // after the spending and the rows are linked retroactively. Stamped by trigger.
+  event_linked_at?: string | null
   // joined
   category?: Category
   from_account?: Account
@@ -144,6 +151,7 @@ export interface Settings {
   notify_evening_recap?: boolean
   track_savings?: boolean
   track_projects?: boolean
+  track_events?: boolean
   track_aa_sync?: boolean
   budget_mode?: 'auto' | 'manual'
   hero_mode?: 'remaining' | 'budget'
@@ -345,6 +353,30 @@ export interface HabitCompletion {
   created_at: string
 }
 
+export type EventStatus = 'active' | 'completed' | 'archived'
+
+/** Named `LifeEvent` rather than `Event` because the DOM `Event` global is already in
+ *  scope across every component this feature touches. */
+export interface LifeEvent {
+  id: string
+  user_id?: string
+  name: string
+  // Key into EVENT_ICONS (src/features/events/lib/eventIcons.tsx), not an emoji glyph.
+  icon: string | null
+  target_amount: number | null
+  start_date: string | null
+  end_date: string | null
+  // true = tagged spend is kept out of weekly pacing, the lifestyle forecast, streaks
+  // and budget-strategy adherence. Never affects balances, cash flow or net worth.
+  excluded_from_budget: boolean
+  // Prefills for one-tap capture from the dashboard card.
+  default_category_id: string | null
+  default_account_id: string | null
+  status: EventStatus
+  created_at?: string
+  updated_at?: string
+}
+
 export interface PlannedExpense {
   id: string
   user_id?: string
@@ -374,6 +406,7 @@ export interface AppState {
   habits: Habit[]
   savings: Savings[]
   planned_expenses: PlannedExpense[]
+  events: LifeEvent[]
 }
 
 export type NotificationPriority = 'critical' | 'high' | 'medium' | 'info' | 'positive'
@@ -579,7 +612,7 @@ export type Layout = 'grid' | 'carousel' | 'list'
 export type DashboardSectionId =
   | 'hero' | 'affordability' | 'daily_challenge' | 'metrics' | 'commitments' | 'goals'
   | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns' | 'savings' | 'cashflow'
-  | 'projects' | 'wealth_summary' | 'budget_strategy'
+  | 'projects' | 'wealth_summary' | 'budget_strategy' | 'events'
 
 export interface DashboardSection {
   id: string                    // built-ins use DashboardSectionId; custom sections use 'custom__<timestamp>'
@@ -603,6 +636,7 @@ export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'savings',       visible: true },
   { id: 'borrowing',     visible: true },
   { id: 'credit_cards',  visible: true },
+  { id: 'events',        visible: true },
   { id: 'projects',      visible: true },
   { id: 'analytics',     visible: true },
   { id: 'recent_txns',   visible: true },

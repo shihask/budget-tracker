@@ -34,6 +34,7 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `autopilot_enabled` | boolean | false | AI categorization, opt-in |
 | `dashboard_sections` | json\|null | null | Section order/visibility |
 | `track_savings` | boolean | false | Savings & Investments tracker, opt-in |
+| `track_events` | boolean | false | Life Events tracker, opt-in |
 | `affordability_snapshot_date` | string\|null | null | Internal — written by `AffordabilityChecker`, not user-facing, no SettingsPanel UI |
 | `affordability_snapshot_daily_lifestyle` | number\|null | null | Internal — see above |
 | `affordability_snapshot_bills_total` | number\|null | null | Internal — see above |
@@ -94,6 +95,52 @@ ALTER TABLE categories ADD COLUMN IF NOT EXISTS budget_bucket text DEFAULT NULL;
 When filtering `forecast.projections` for itemized UI (timeline lists, driver summaries), always exclude `event.source === 'lifestyle'` — those are synthetic per-day entries, not real named bills, and there's one for every day in the forecast horizon.
 
 `d.weeklyBudget` / `d.safeWeeklySpend` (Dashboard's `HeroWeekly.tsx` pacing card) are a **separate, deliberately independent** concept — "spend at this rate and hit zero by payday" — not reused here; using it for purchase-safety reservation is circular (see git history on the Affordability fix for why).
+
+## Life Events — one-off event tagging
+A wedding/trip/house-build is **a tag on real transactions**, not a separate ledger and not a
+category. `transactions.event_id` is a nullable grouping key (same shape as `savings_id` /
+`borrowing_id`), so the money still leaves the real account and still hits cash flow — it just
+gets its own total and stays out of the running averages.
+
+Deliberately *not* built on Shared Projects: `project_transactions` never reaches
+`transactions`, balances or the forecast, which is wrong for money you actually spent.
+Deliberately *not* a category either: the event is orthogonal — a wedding expense is still Food
+or Clothing and needs both labels.
+
+| File | Purpose |
+|------|---------|
+| `src/lib/events.ts` | `ringFencedEventIds` / `countsTowardBudget` — the one shared exclusion predicate; `eventSpent` / `eventTransactions` |
+| `src/features/events/lib/eventIcons.tsx` | `EVENT_ICONS` map + `EventIcon`. `events.icon` stores a **key string** (`'ring'`), never a glyph — no emoji anywhere in the UI |
+| `src/features/events/components/` | `EventsCard` (dashboard), `EventFormSheet` (2-step create), `LinkExpensesSheet` (retroactive bulk-link), `EventDetailPage` |
+| `src/components/QuickAmountSheet.tsx` | The one-tap amount+account capture, shared by the event card and QuickAdd's long-press chip |
+
+### The exclusion — the part that's easy to break
+`excluded_from_budget` (default **true**) keeps tagged spend out of exactly four analytics
+readers, and out of nothing else. Balances, cash flow, net worth and history read raw
+transactions and must never consult it.
+
+| File | Site |
+|---|---|
+| `src/lib/data.ts` | `makeScopeFilter` — **both** branches, incl. the default Lifestyle-only one |
+| `src/lib/budget-strategy.ts` | `computeStrategyData` |
+| `src/features/forecast/lib/lifestyleForecast.ts` | `isBehavioralSpending` (optional 4th arg) |
+| `src/lib/challenge.ts` | filtered once at `computeChallenge`'s entry, not at its six spend reads |
+
+Totals are always **derived** by summing tagged rows, so toggling exclusion takes effect on the
+next render — no backfill, no recompute.
+
+### Gotchas
+- `updateTransaction` treats an **absent** `event_id` as "leave unchanged"; only an explicit
+  `null` clears it. Callers that don't know about events (AI chat editor, quick-category popup)
+  would otherwise silently untag a wedding expense.
+- `addTransaction` tags in a **follow-up update**, not through `mp_execute_transaction` — that
+  RPC owns the atomic balance deltas and shouldn't grow a column that doesn't affect them.
+- FK is `ON DELETE SET NULL`, never CASCADE: deleting an event must never delete real spending.
+- `event_linked_at` is stamped by **trigger** (two of them — `OLD` isn't available in an INSERT
+  trigger's `WHEN`), because four paths write `event_id` including the implicit `SET NULL`.
+- A partial unique index on `(user_id, lower(name)) WHERE status != 'archived'` makes duplicate
+  live names a `23505`; `addEvent`/`updateEvent` translate it into a readable message.
+- `LinkExpensesSheet` skips split legs — same reasoning as the daily-challenge exclusion toast.
 
 ## Auto-categorize in QuickAdd (four-tier)
 0. **History match** (`findHistoricalCategory`) — same description used before (exact, case-insensitive) → same category as the most recent matching transaction

@@ -29,6 +29,7 @@ const SECTION_META: Record<DashboardSectionId, { label: string; desc: string }> 
   savings:       { label: 'Savings & Investments',  desc: 'SIPs, gold schemes & recurring deposits' },
   borrowing:     { label: 'Lend & Borrow',          desc: 'Money lent & borrowed' },
   credit_cards:  { label: 'Credit Cards',          desc: 'Card balances & due dates' },
+  events:        { label: 'Life Events',           desc: 'Wedding, trip or house build spend, tracked separately' },
   projects:      { label: 'Projects',              desc: 'Shared goals, renovations & events' },
   analytics:     { label: 'Analytics',             desc: 'Spending trends & charts' },
   recent_txns:   { label: 'Recent Transactions',   desc: 'Latest activity' },

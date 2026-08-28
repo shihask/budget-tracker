@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Account, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, SplitLegInput, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency } from '@/types'
+import type { AppState, Account, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, SplitLegInput, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency, LifeEvent } from '@/types'
 import { evaluateEvent } from '@/lib/achievement-engine'
 import { computeChallengeResultUpdate } from '@/lib/challenge'
 import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
@@ -35,7 +35,7 @@ const EMPTY_STATE: AppState = {
   categories: [],
   groups: [],
   credit_cards: [],
-  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, ai_tokens_used: 0, ai_usage_pct: 0, ai_usage_enforcing: false, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, notify_evening_recap: true, track_savings: false, budget_mode: 'auto', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, challenge_clean_streak: 0, reflection_days_count: 0, last_reflection_date: null, monthly_salary: null, income_pattern: 'monthly', weekly_income: null, income_day: null, average_daily_income: null, working_days_per_week: null, business_monthly_drawings: null, primary_income_category_id: null, cycle_start_free_money: null, cycle_snapshot_key: null, affordability_snapshot_date: null, affordability_snapshot_daily_lifestyle: null, affordability_snapshot_bills_total: null, track_aa_sync: false },
+  settings: { id: '', weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_borrowings: true, autopilot_enabled: false, weekly_budget_scope: null, ai_requests_used: 0, ai_requests_reset_at: null, ai_tokens_used: 0, ai_usage_pct: 0, ai_usage_enforcing: false, budget_period: 'weekly', weekly_start_day: 1, monthly_start_date: 1, notifications_enabled: false, notify_daily_reminder: true, notify_budget_alert: true, notify_commitments: true, notify_weekly_summary: true, notify_evening_recap: true, track_savings: false, budget_mode: 'auto', hero_mode: 'remaining', challenge_enabled: false, challenge_difficulty: 'medium', challenge_streak: 0, challenge_pot: 0, challenge_leaves: 0, challenge_month_leaves: 0, challenge_last_date: null, challenge_excluded_txn_ids: [], challenge_total_days: 0, challenge_success_days: 0, challenge_clean_streak: 0, reflection_days_count: 0, last_reflection_date: null, monthly_salary: null, income_pattern: 'monthly', weekly_income: null, income_day: null, average_daily_income: null, working_days_per_week: null, business_monthly_drawings: null, primary_income_category_id: null, cycle_start_free_money: null, cycle_snapshot_key: null, affordability_snapshot_date: null, affordability_snapshot_daily_lifestyle: null, affordability_snapshot_bills_total: null, track_aa_sync: false, track_events: false },
   forecast_settings: { id: '', enabled: true, days: 30, commitment_ids: null, savings_ids: null, salary_override: null, forecast_mode: 'planned' },
   budget_strategy_settings: { id: '', budget_strategy: 'none', custom_needs_pct: 50, custom_wants_pct: 30, custom_savings_pct: 20, budget_strategy_base: 'income' },
   commitments: [],
@@ -47,6 +47,7 @@ const EMPTY_STATE: AppState = {
   habits: [],
   savings: [],
   planned_expenses: [],
+  events: [],
 }
 
 const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_projects: false }
@@ -176,6 +177,7 @@ export function useSupabaseData(userId: string) {
           { data: forecastRow },
           { data: budgetStrategyRow },
           { data: plannedExpenses },
+          { data: eventRows },
         ] = await Promise.all([
           supabase.from('settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
@@ -198,6 +200,7 @@ export function useSupabaseData(userId: string) {
           supabase.from('forecast_settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('budget_strategy_settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('planned_expenses').select('*').eq('user_id', userId).order('planned_date'),
+          supabase.from('events').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
         ])
 
         // First login — seed settings
@@ -397,6 +400,7 @@ export function useSupabaseData(userId: string) {
           habits: (habitsRows as Habit[]) || [],
           savings: (savingsRows as Savings[]) || [],
           planned_expenses: (plannedExpenses as PlannedExpense[]) || [],
+          events: (eventRows as LifeEvent[]) || [],
         })
         setAllTransactionsLoaded(txnList.length < TXN_PAGE_SIZE)
         setUsingSupabase(true)
@@ -442,8 +446,23 @@ export function useSupabaseData(userId: string) {
       })
       if (error) throw error
 
+      let row = data as Transaction
+
+      // Life-event tag is applied as a follow-up rather than through
+      // mp_execute_transaction, whose signature owns the atomic balance deltas
+      // and shouldn't grow a column that has no effect on them. event_linked_at
+      // is stamped by trigger, so it's read back rather than sent.
+      if (form.event_id) {
+        const { data: tagged, error: tagErr } = await supabase
+          .from('transactions').update({ event_id: form.event_id }).eq('id', row.id).select('*').single()
+        // A failed tag must not lose the transaction — it's already saved and the
+        // balance already moved. Leave it untagged and let the user retry.
+        if (tagErr) console.error('Failed to tag transaction to event:', tagErr)
+        else if (tagged) row = tagged as Transaction
+      }
+
       const newTx: Transaction = {
-        ...(data as Transaction),
+        ...row,
         category: stateRef.current.categories.find(c => c.id === form.category_id),
       }
 
@@ -791,8 +810,23 @@ export function useSupabaseData(userId: string) {
       if (error) throw error
 
       const result = data as { transaction: Transaction; borrowing: AppState['borrowings'][0] | null }
+      let row = result.transaction
+
+      // mp_update_transaction writes named columns only, so an existing event tag
+      // survives an ordinary edit untouched. Only a *changed* tag needs writing.
+      // An ABSENT event_id means "leave it alone" — callers that don't know about
+      // events (the AI chat editor, the quick-category popup) must not silently
+      // untag a wedding expense. Clearing requires an explicit null.
+      const nextEventId = form.event_id === undefined ? undefined : (form.event_id ?? null)
+      if (nextEventId !== undefined && nextEventId !== (old.event_id ?? null)) {
+        const { data: tagged, error: tagErr } = await supabase
+          .from('transactions').update({ event_id: nextEventId }).eq('id', old.id).select('*').single()
+        if (tagErr) console.error('Failed to update transaction event:', tagErr)
+        else if (tagged) row = tagged as Transaction
+      }
+
       const updated: Transaction = {
-        ...result.transaction,
+        ...row,
         category: stateRef.current.categories.find(c => c.id === form.category_id),
       }
 
@@ -1619,6 +1653,57 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, planned_expenses: s.planned_expenses.filter(p => p.id !== id) }))
   }, [])
 
+  // ── Life Events ──
+  const addEvent = useCallback(async (form: Omit<LifeEvent, 'id' | 'created_at' | 'updated_at'>) => {
+    const { data, error } = await supabase.from('events').insert({ ...form, user_id: userId }).select('*').single()
+    // 23505 = the partial unique index on (user_id, lower(name)) for non-archived
+    // events. Surface it as something a person can act on.
+    if (error?.code === '23505') throw new Error(`You already have an event called "${form.name}".`)
+    if (error) throw error
+    const ev = data as LifeEvent
+    setState(s => ({ ...s, events: [ev, ...s.events] }))
+    return ev
+  }, [userId])
+
+  const updateEvent = useCallback(async (id: string, patch: Partial<LifeEvent>) => {
+    const { data, error } = await supabase.from('events').update(patch).eq('id', id).select('*').single()
+    if (error?.code === '23505') throw new Error(`You already have an event called "${patch.name}".`)
+    if (error) throw error
+    setState(s => ({ ...s, events: s.events.map(e => e.id === id ? data as LifeEvent : e) }))
+  }, [])
+
+  const deleteEvent = useCallback(async (id: string) => {
+    const { error } = await supabase.from('events').delete().eq('id', id)
+    if (error) throw error
+    // ON DELETE SET NULL clears event_id server-side; mirror that locally so the
+    // rows immediately start counting toward the budget again. The transactions
+    // themselves are never touched.
+    setState(s => ({
+      ...s,
+      events: s.events.filter(e => e.id !== id),
+      transactions: s.transactions.map(t =>
+        t.event_id === id ? { ...t, event_id: null, event_linked_at: null } : t),
+    }))
+  }, [])
+
+  /** Bulk tag/untag. Used by the backfill sheet and by clearing an event from a
+   *  single transaction. event_linked_at is stamped by DB trigger, so it is read
+   *  back rather than sent. */
+  const linkTransactionsToEvent = useCallback(async (ids: string[], eventId: string | null) => {
+    if (ids.length === 0) return
+    const { data, error } = await supabase
+      .from('transactions').update({ event_id: eventId }).in('id', ids).select('id, event_id, event_linked_at')
+    if (error) throw error
+    const patched = new Map((data ?? []).map(r => [r.id as string, r as { event_id: string | null; event_linked_at: string | null }]))
+    setState(s => ({
+      ...s,
+      transactions: s.transactions.map(t => {
+        const p = patched.get(t.id)
+        return p ? { ...t, event_id: p.event_id, event_linked_at: p.event_linked_at } : t
+      }),
+    }))
+  }, [])
+
   const updateSettings = useCallback(async (patch: Partial<AppState['settings']>) => {
     try {
       await supabase.from('settings').update(patch).eq('id', state.settings.id)
@@ -2002,6 +2087,7 @@ export function useSupabaseData(userId: string) {
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addPlannedExpense, updatePlannedExpense, deletePlannedExpense,
+    addEvent, updateEvent, deleteEvent, linkTransactionsToEvent,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
     addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout,
     updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion,

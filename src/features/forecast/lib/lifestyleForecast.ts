@@ -4,6 +4,7 @@ import { buildCashFlowForecast, estimateForecastSalary } from '@/lib/cashflow'
 import { getStrategyPcts, getCategoryBucket } from '@/lib/budget-strategy'
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
+import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
 
 export type { ForecastMode }
 
@@ -136,14 +137,19 @@ function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySp
 }
 
 const BEHAVIORAL_GROUP_TYPES = new Set(['discretionary', 'essential'])
+const EMPTY_RING_FENCE: Set<string> = new Set()
 
 export function isBehavioralSpending(
   t: Transaction,
   catMap: Record<string, Category>,
   groupsByName: Record<string, Group>,
+  ringFencedEvents: Set<string> = EMPTY_RING_FENCE,
 ): boolean {
   if (t.transaction_type !== 'expense') return false
   if (!(t.amount > 0)) return false
+  // A wedding is spread over many days, so the top-10% daily trim below would
+  // not filter it out — it has to be excluded by tag, or every forecast inflates.
+  if (!countsTowardBudget(t, ringFencedEvents)) return false
   const cat = catMap[t.category_id ?? '']
   if (!cat) return false
   const group = groupsByName[cat.group_name]
@@ -161,12 +167,13 @@ function estimateFromHistory(state: AppState): HistResult | null {
 
   const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
   const groupsByName = Object.fromEntries(state.groups.map(g => [g.name, g]))
+  const ringFenced = ringFencedEventIds(state.events)
 
   const dailyTotals60 = new Map<string, number>()
   const dailyTotals30 = new Map<string, number>()
   for (const t of state.transactions) {
     if (t.transaction_date > todayIso) continue
-    if (!isBehavioralSpending(t, catMap, groupsByName)) continue
+    if (!isBehavioralSpending(t, catMap, groupsByName, ringFenced)) continue
     if (t.transaction_date >= sixtyDaysAgo) {
       dailyTotals60.set(t.transaction_date, (dailyTotals60.get(t.transaction_date) ?? 0) + t.amount)
     }

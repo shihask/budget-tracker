@@ -1,6 +1,7 @@
 import type { AppState, BudgetBucket, BudgetStrategySettings, BudgetStrategyType, DerivedMetrics } from '@/types'
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
+import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
 
 export const STRATEGY_PRESETS: Record<
   Exclude<BudgetStrategyType, 'none' | 'custom'>,
@@ -92,9 +93,12 @@ export function computeStrategyData(state: AppState, d: DerivedMetrics): Strateg
   const actuals: Record<BudgetBucket, number> = { needs: 0, wants: 0, savings: 0 }
   const catTotals: Record<BudgetBucket, Record<string, number>> = { needs: {}, wants: {}, savings: {} }
   const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
+  // A wedding shouldn't show up as blown "wants" adherence.
+  const ringFenced = ringFencedEventIds(state.events)
 
   for (const t of state.transactions) {
     if (new Date(t.transaction_date) < periodStart) continue
+    if (!countsTowardBudget(t, ringFenced)) continue
     const cat = catMap[t.category_id ?? '']
     if (!cat) continue
 

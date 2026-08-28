@@ -2,12 +2,13 @@ import { fetchAllPages } from '@/lib/supabasePagination'
 import { toCsv } from '@/lib/csvUtils'
 import { catById } from '@/lib/data'
 import { filterAndSortTransactions, type TransactionFilterState, type TxnSortKey } from '@/lib/transactionFilters'
-import type { Account, Category, CreditCard, Transaction, TransactionType } from '@/types'
+import type { Account, Category, CreditCard, LifeEvent, Transaction, TransactionType } from '@/types'
 
 export interface ExportLookupData {
   categories: Category[]
   accounts: Account[]
   creditCards: CreditCard[]
+  events: LifeEvent[]
 }
 
 const TXN_TYPE_LABELS: Record<TransactionType, string> = {
@@ -30,7 +31,7 @@ const EXPORT_COLUMNS = [
   'Date', 'Description', 'Amount', 'Transaction Type', 'Category', 'Group',
   // Split payments stay one row per leg; rows sharing a Split Group are one expense.
   // A dedicated column keeps that machine-readable instead of mangling Description.
-  'Account', 'To Account', 'Split Group', 'Notes',
+  'Account', 'To Account', 'Split Group', 'Life Event', 'Notes',
 ]
 
 function nameById<T extends { id: string; name: string }>(items: T[]): Record<string, string> {
@@ -57,6 +58,7 @@ export async function exportTransactionsCsv(
   const catMap = catById(lookup.categories)
   const accountNames = nameById(lookup.accounts)
   const creditCardNames = nameById(lookup.creditCards)
+  const eventNames = nameById(lookup.events)
 
   const csvRows = rows.map(t => {
     const cat = catMap[t.category_id ?? '']
@@ -70,6 +72,7 @@ export async function exportTransactionsCsv(
       'Account': accountNames[t.from_account_id ?? ''] ?? creditCardNames[t.credit_card_id ?? ''] ?? '',
       'To Account': t.to_account_id ? (accountNames[t.to_account_id] ?? '') : '',
       'Split Group': t.split_group_id ?? '',
+      'Life Event': eventNames[t.event_id ?? ''] ?? '',
       'Notes': t.notes ?? '',
     }
   })

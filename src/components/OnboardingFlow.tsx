@@ -8,7 +8,7 @@ import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpre
 import { round2, selectOnFocus } from '@/lib/utils'
 
 type AccountType = 'bank' | 'cash' | 'wallet'
-type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
+type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'track_events' | 'autopilot_enabled' | 'notifications_enabled'
 
 interface AccountDraft {
   name: string

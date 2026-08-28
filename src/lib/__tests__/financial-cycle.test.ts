@@ -63,6 +63,7 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
     habits: [],
     savings: [],
     planned_expenses: [],
+    events: [],
     ...overrides,
   }
 }

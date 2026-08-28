@@ -10,6 +10,7 @@ import { getCurrentBalance, getOpeningBalanceForMonth, getClosingBalanceForMonth
 import { getRemainingObligations } from '@/lib/obligations'
 import { buildCashFlowForecast, summarizeCashFlow } from '@/lib/cashflow'
 import { estimateHistoricalDailyIncome, calculateAvgDailySpending, calculateSafeUntilDays, calculateTodaySummary, calculateWeekSummary } from '@/lib/variable-income'
+import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
 
 // System transactions (opening_balance, balance_adjustment) must never count as real income/expense.
 // Also covers legacy transactions created before the dedicated types existed (category-group fallback).
@@ -37,12 +38,19 @@ function makeScopeFilter(state: AppState) {
   const scope = state.settings.weekly_budget_scope
   const hasGroupOrCat = scope && (scope.groups.length > 0 || scope.categoryIds.length > 0)
   const hasTxn = scope && scope.transactionIds && scope.transactionIds.length > 0
+  // Ring-fenced life-event spend never counts toward pacing, whichever branch
+  // below applies — including the default one, which is the easy miss.
+  const ringFenced = ringFencedEventIds(state.events)
 
-  if (!hasGroupOrCat && !hasTxn) return isLifestyle
+  if (!hasGroupOrCat && !hasTxn) {
+    return (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
+      countsTowardBudget(t, ringFenced) && isLifestyle(t, catMap)
+  }
 
   return (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) => {
     if (t.transaction_type !== 'expense') return false
     if (isSystemTx(t, catMap)) return false   // never count system transactions as spending
+    if (!countsTowardBudget(t, ringFenced)) return false
     if (hasTxn && scope!.transactionIds.includes(t.id)) return true
     if (!hasGroupOrCat) return false
     const cat = catMap[t.category_id ?? '']

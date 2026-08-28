@@ -2,6 +2,7 @@ import { TODAY, iso, addDays } from '@/lib/utils'
 import type { AppState } from '@/types'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
+import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
 
 export interface PlantGrowth {
   leaves: number
@@ -88,10 +89,14 @@ export function computeChallenge(
   safeToSpend: number,
   precomputedCycle?: FinancialCycle,
 ): ChallengeCalc {
-  const { settings, transactions } = state
+  const { settings } = state
   const now = new Date()
   const todayStr = iso(TODAY)
   const excluded = settings.challenge_excluded_txn_ids ?? []
+  // Ring-fenced life-event spend never counts against a streak. Filtered once here
+  // rather than at each of the six spend reads below, so a new read can't miss it.
+  const ringFenced = ringFencedEventIds(state.events)
+  const transactions = state.transactions.filter(t => countsTowardBudget(t, ringFenced))
 
   const availableSpendable = Math.max(0, safeToSpend)
 

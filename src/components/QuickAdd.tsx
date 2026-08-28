@@ -7,6 +7,7 @@ import { fmt, TODAY, iso, round2, selectOnFocus } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
+import { QuickAmountBody } from './QuickAmountSheet'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
 import { Camera, Sparkles } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
@@ -104,19 +105,23 @@ interface QuickAddSheetProps {
   onBusyChange?: (busy: boolean) => void
   defaultTxType?: 'expense' | 'income' | 'transfer'
   defaultCategoryId?: string | null
+  defaultEventId?: string | null
+  trackEvents?: boolean
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onReceiptFailed?: (transaction: Transaction, receipt: PickedReceipt, error: unknown) => void
   showSmartInputTip?: boolean
   onDismissSmartInputTip?: () => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, trackEvents = false, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
   // null = split mode off, which is the default and what essentially everyone sees.
   // Every piece of split UI is gated behind this being non-null.
   const [splitLegs, setSplitLegs] = useState<SplitLegInput[] | null>(null)
+  const [eventId, setEventId] = useState('')
+  const activeEvents = useMemo(() => state.events.filter(e => e.status === 'active'), [state.events])
   const [pendingReceipt, setPendingReceipt] = useState<PickedReceipt | null>(null)
   const amountRef = useRef<HTMLInputElement | null>(null)
   const [amountFocused, setAmountFocused] = useState(false)
@@ -124,7 +129,6 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   // Long press quick save
   const [longPressChip, setLongPressChip] = useState<{ label: string; category_id: string | null } | null>(null)
   const [quickAmount, setQuickAmount] = useState('')
-  const [quickAmountFocused, setQuickAmountFocused] = useState(false)
   const [quickAccountId, setQuickAccountId] = useState('')
   const [smartInput, setSmartInput] = useState('')
   const [smartParsed, setSmartParsed] = useState<{ description: string; amount: number | null; accountName: string | null; categoryName: string | null } | null>(null)
@@ -135,7 +139,6 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   const enterSubmittedRef = useRef(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
-  const quickAmountRef = useRef<HTMLInputElement | null>(null)
   const dragStartY = useRef<number | null>(null)
   const [dragY, setDragY] = useState(0)
 
@@ -199,7 +202,6 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       setQuickAmount(lastTx ? String(lastTx.amount) : '')
       setQuickAccountId(lastTx?.from_account_id || lastAcc?.id || '')
       setLongPressChip({ label, category_id })
-      setTimeout(() => quickAmountRef.current?.focus(), 80)
     }, 500)
   }
 
@@ -279,6 +281,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       setAiParsing(false)
       setAiSuccess(false)
       setPendingReceipt(null)
+      setEventId(defaultEventId ?? '')
       setReceiptSuggestion(null)
     }
   }, [open, reset])
@@ -540,6 +543,8 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         category_id: data.category_id || null,
         from_account_id: data.from_account_id,
         to_account_id: null,
+        // Only expenses belong to a life event; income/transfers never do.
+        event_id: txType === 'expense' && eventId ? eventId : null,
       }).then(tx => {
         if (receiptToUpload && tx) {
           onUploadReceipt?.(tx.id, receiptToUpload)?.catch(err => onReceiptFailed?.(tx, receiptToUpload, err))
@@ -852,52 +857,18 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                         boxShadow: '0 8px 28px rgba(0,0,0,0.22)', border: `1px solid ${c.faint}`,
                         zIndex: 200, minWidth: 220, width: '80vw', maxWidth: 300,
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 10 }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                          </svg>
-                          Quick Save — {label}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Amount</div>
-                            <input
-                              ref={quickAmountRef}
-                              type="text"
-                              value={quickAmount}
-                              onChange={e => setQuickAmount(sanitizeAmountInput(e.target.value))}
-                              onKeyDown={e => e.key === 'Enter' && handleQuickSave()}
-                              placeholder="0"
-                              inputMode="decimal"
-                              onFocus={e => { selectOnFocus(e.target); setQuickAmountFocused(true) }}
-                              onBlur={e => {
-                                setQuickAmountFocused(false)
-                                const r = evaluateAmountExpression(e.target.value)
-                                setQuickAmount(r === null ? '' : String(round2(r)))
-                              }}
-                              style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 10px', font: '700 18px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
-                            />
-                            {quickAmountFocused && <AmountOperatorRow inputRef={quickAmountRef} onChange={setQuickAmount} />}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Account</div>
-                            <select value={quickAccountId} onChange={e => setQuickAccountId(e.target.value)}
-                              style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 6px', font: '600 12px Plus Jakarta Sans', color: c.ink, outline: 'none' }}>
-                              {state.accounts.filter(a => a.is_active).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                              {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name} (CC)</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button type="button" onClick={() => setLongPressChip(null)}
-                            style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
-                            Cancel
-                          </button>
-                          <button type="button" onClick={handleQuickSave} disabled={!quickAmount || (evaluateAmountExpression(quickAmount) ?? 0) <= 0}
-                            style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', opacity: !quickAmount ? 0.6 : 1 }}>
-                            Save ₹{quickAmount || '0'}
-                          </button>
-                        </div>
+                        <QuickAmountBody
+                          title={`Quick Save — ${label}`}
+                          accounts={state.accounts}
+                          creditCards={state.credit_cards || []}
+                          accountId={quickAccountId}
+                          onAccountChange={setQuickAccountId}
+                          amount={quickAmount}
+                          onAmountChange={setQuickAmount}
+                          onSave={handleQuickSave}
+                          onCancel={() => setLongPressChip(null)}
+                          autoFocus
+                        />
                       </div>
                     )}
                   </div>
@@ -1097,6 +1068,18 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                     </select>
                   )}
                 </div>
+              </div>
+            )}
+
+            {isExpense && trackEvents && activeEvents.length > 0 && (
+              <div>
+                <label style={labelStyle}>Life event <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span></label>
+                <select value={eventId} onChange={e => setEventId(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">None</option>
+                  {activeEvents.map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.name}</option>
+                  ))}
+                </select>
               </div>
             )}
 

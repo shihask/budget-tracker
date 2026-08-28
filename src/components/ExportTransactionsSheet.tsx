@@ -71,7 +71,7 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
     try {
       const count = await exportTransactionsCsv(
         userId,
-        { categories: state.categories, accounts: state.accounts, creditCards },
+        { categories: state.categories, accounts: state.accounts, creditCards, events: state.events },
         filters,
         sortKey,
       )

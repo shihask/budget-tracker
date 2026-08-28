@@ -11,6 +11,7 @@ import { useStrategyData } from './BudgetStrategyCard'
 import { CategorySelect } from './CategorySelect'
 import { simulatePurchase } from '@/lib/cashflow'
 import { buildLifestyleForecast, isBehavioralSpending } from '@/features/forecast/lib/lifestyleForecast'
+import { ringFencedEventIds } from '@/lib/events'
 import { CashFlowGraph } from './CashFlowGraph'
 import type { AppState, DerivedMetrics, ForecastMode, ForecastSettings, PlannedExpense } from '@/types'
 
@@ -180,10 +181,13 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
     const todayIso = toIso(today0)
     const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
     const groupsByName = Object.fromEntries(state.groups.map(g => [g.name, g]))
+    // Same ring-fence the estimate itself applies, so this "what drove it" list
+    // can't show rows the estimate never counted.
+    const ringFenced = ringFencedEventIds(state.events)
     const txns = state.transactions
       .filter(t => {
         if (t.transaction_date < cutoffIso || t.transaction_date > todayIso) return false
-        return isBehavioralSpending(t, catMap, groupsByName)
+        return isBehavioralSpending(t, catMap, groupsByName, ringFenced)
       })
       .sort((a, b) => a.transaction_date < b.transaction_date ? 1 : -1)
 
