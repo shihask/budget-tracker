@@ -26,11 +26,17 @@ interface BodyProps {
    *  dependency on CategorySelect/AppState. The chip popup omits it — its
    *  category comes from the tapped chip's history. */
   categoryNode?: React.ReactNode
+  /** Optional free-text note. Rendered only when onDescriptionChange is given —
+   *  the chip popup omits it, since the chip label already is the description. */
+  description?: string
+  onDescriptionChange?: (v: string) => void
+  descriptionPlaceholder?: string
 }
 
 export function QuickAmountBody({
   title, accounts, creditCards, accountId, onAccountChange,
   amount, onAmountChange, onSave, onCancel, saving = false, autoFocus = false, categoryNode,
+  description = '', onDescriptionChange, descriptionPlaceholder,
 }: BodyProps) {
   const c = useTheme()
   const amountRef = useRef<HTMLInputElement>(null)
@@ -85,6 +91,19 @@ export function QuickAmountBody({
         <div style={{ marginBottom: 10 }}>
           <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Category</div>
           {categoryNode}
+        </div>
+      )}
+      {onDescriptionChange && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase' }}>Description</div>
+          <input
+            type="text"
+            value={description}
+            onChange={e => onDescriptionChange(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && valid) onSave() }}
+            placeholder={descriptionPlaceholder}
+            style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '9px 10px', font: '600 13px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
+          />
         </div>
       )}
       <div style={{ display: 'flex', gap: 8 }}>

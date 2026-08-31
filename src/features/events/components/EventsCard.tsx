@@ -28,6 +28,7 @@ export function EventsCard({ state, onAdd, onOpenEvent, onSave, onAddCategory }:
   const [amount, setAmount] = useState('')
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
 
   const active = state.events.filter(e => e.status === 'active')
@@ -46,6 +47,7 @@ export function EventsCard({ state, onAdd, onOpenEvent, onSave, onAddCategory }:
     // and Decoration, so one fixed category would be wrong more often than right.
     setCategoryId(e.default_category_id || guessCategory(e.name, state.categories) || '')
     setAmount('')
+    setDescription('')
     setQuickFor(e)
   }
 
@@ -55,8 +57,10 @@ export function EventsCard({ state, onAdd, onOpenEvent, onSave, onAddCategory }:
     setSaving(true)
     try {
       await onSave({
+        // The event name always leads so the row is self-describing in the main
+        // transaction list, where there's no event column to give it context.
+        description: description.trim() ? `${quickFor.name} - ${description.trim()}` : quickFor.name,
         transaction_date: iso(TODAY),
-        description: quickFor.name,
         amount: round2(amt),
         transaction_type: 'expense',
         category_id: categoryId || null,
@@ -135,6 +139,9 @@ export function EventsCard({ state, onAdd, onOpenEvent, onSave, onAddCategory }:
         onSave={handleSave}
         onCancel={() => setQuickFor(null)}
         saving={saving}
+        description={description}
+        onDescriptionChange={setDescription}
+        descriptionPlaceholder="e.g. Stage decoration"
         categoryNode={
           <CategorySelect
             value={categoryId}
