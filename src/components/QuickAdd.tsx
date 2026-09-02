@@ -259,12 +259,17 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   // Reset with correct first account & category each time sheet opens
   useEffect(() => {
     if (open) {
-      const lastUsedAccountId = state.transactions[0]?.from_account_id
-      const firstAccount = (lastUsedAccountId && accs.some(a => a.id === lastUsedAccountId))
-        ? lastUsedAccountId
-        : (accs[0]?.id || '')
-      const secondAccount = accs.find(a => a.id !== firstAccount)?.id || ''
       const initType = defaultTxType ?? 'expense'
+      // Credit cards are only offered as a funding source on expenses, so they only
+      // count as "last used" there. Scan back through history rather than trusting
+      // transactions[0] — the newest row can be a card charge, an optimistically
+      // prepended card-opening entry, or anything else with no usable source account.
+      const isSelectableSource = (id: string | null | undefined) =>
+        !!id && (accs.some(a => a.id === id)
+          || (initType === 'expense' && (state.credit_cards || []).some(cc => cc.id === id)))
+      const lastUsedAccountId = state.transactions.find(t => isSelectableSource(t.from_account_id))?.from_account_id
+      const firstAccount = lastUsedAccountId || accs[0]?.id || ''
+      const secondAccount = accs.find(a => a.id !== firstAccount)?.id || ''
       const firstCat = initType === 'income'
         ? (defaultCategoryId || cats.find(c => c.group_name === 'Income')?.id || cats[0]?.id || '')
         : (cats.find(c => c.group_name === 'Lifestyle')?.id || cats[0]?.id || '')
@@ -641,6 +646,11 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 setTxType(t)
                 // Split payment is an expense-only idea — leaving the tab leaves the mode.
                 if (t !== 'expense') setSplitLegs(null)
+                // Cards fund expenses only; their options vanish on the other tabs, so a
+                // card left in the field would submit an id the select can no longer show.
+                if (t !== 'expense' && (state.credit_cards || []).some(cc => cc.id === fromAccountId)) {
+                  setValue('from_account_id', accs[0]?.id || '', { shouldValidate: true })
+                }
                 if (t === 'transfer') {
                   setValue('description', 'Transfer', { shouldValidate: true })
                 } else {

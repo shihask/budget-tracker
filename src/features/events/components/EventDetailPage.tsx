@@ -6,6 +6,7 @@ import { useAppDialog } from '@/components/AppDialog'
 import { catById } from '@/lib/data'
 import { eventTransactions, eventSpent } from '@/lib/events'
 import { EventIcon } from '../lib/eventIcons'
+import { exportEventCsv } from '../lib/exportEventCsv'
 import type { AppState, LifeEvent, Transaction } from '@/types'
 
 const EVENT_COLOR = '#E0568A'
@@ -168,6 +169,11 @@ export function EventDetailPage({
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: `1px solid ${c.faint}` }}>
           <ActionButton label="Edit event" onClick={onEdit} disabled={busy} />
+          <ActionButton
+            label="Download CSV"
+            onClick={() => exportEventCsv(state, event)}
+            disabled={busy || txns.length === 0}
+          />
           {event.status === 'active'
             ? <ActionButton label="Mark complete" onClick={() => setStatus('completed')} disabled={busy} />
             : <ActionButton label="Reopen event" onClick={() => setStatus('active')} disabled={busy} />}
