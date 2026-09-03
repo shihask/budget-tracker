@@ -26,7 +26,6 @@ interface SettingsPanelProps {
   trackBorrowings: boolean
   trackSavings: boolean
   trackProjects: boolean
-  trackEvents: boolean
   trackAaSync: boolean
   budgetStrategyEnabled: boolean
   challengeEnabled: boolean
@@ -51,7 +50,6 @@ interface SettingsPanelProps {
   onTrackBorrowings: (v: boolean) => Promise<void>
   onTrackSavings: (v: boolean) => Promise<void>
   onTrackProjects: (v: boolean) => Promise<void>
-  onTrackEvents: (v: boolean) => Promise<void>
   onTrackAaSync: (v: boolean) => Promise<void>
   onOpenAaSync: () => void
   onBudgetStrategy: (v: boolean) => void
@@ -68,7 +66,7 @@ interface SettingsPanelProps {
   tourHighlight?: boolean
 }
 
-export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackEvents, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiUsagePct, aiUsageEnforcing, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackEvents, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, tourHighlight }: SettingsPanelProps) {
+export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiUsagePct, aiUsageEnforcing, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, tourHighlight }: SettingsPanelProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
@@ -609,19 +607,6 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
           style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackProjects ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
         >
           <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackProjects ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-        </button>
-      </div>
-
-      <div style={rowStyle}>
-        <div>
-          <div style={labelStyle}>Life Events</div>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Wedding, trip or house build, tracked separately</div>
-        </div>
-        <button
-          onClick={() => onTrackEvents(!trackEvents)}
-          style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: trackEvents ? c.accent : c.surface2, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
-        >
-          <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackEvents ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </button>
       </div>
 

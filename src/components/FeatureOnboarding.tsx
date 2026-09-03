@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Sparkles } from 'lucide-react'
 
-type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'track_events' | 'autopilot_enabled' | 'notifications_enabled'
+type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
 
 interface FeaturePage {
   key: FeatureKey
@@ -60,17 +60,6 @@ function SuitcaseIcon({ size }: { size: number }) {
   )
 }
 
-function CalendarHeartIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 10h18"/>
-      <path d="M21 12V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/>
-      <path d="M8 2v4"/><path d="M16 2v4"/>
-      <path d="M21.29 15.7a2.43 2.43 0 0 0-2.65-.52c-.3.12-.57.3-.8.53l-.34.34-.35-.34a2.43 2.43 0 0 0-3.44 3.44l3.44 3.44 3.44-3.44a2.43 2.43 0 0 0 .7-1.72 2.43 2.43 0 0 0-.7-1.72z"/>
-    </svg>
-  )
-}
-
 function BellIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -121,14 +110,6 @@ const PAGES: FeaturePage[] = [
     description: 'Organize and split shared expenses across trips, events, and group activities.\n\nCreate a project for a trip, event or shared goal — invite friends or family, log costs as they happen, and see who owes what, all in one place.',
     defaultOn: false,
     Icon: SuitcaseIcon,
-  },
-  {
-    key: 'track_events',
-    label: 'Life Events',
-    subtitle: 'One-off spending, tracked on its own',
-    description: 'A wedding, a trip, a house build — big one-off spending that would otherwise wreck your weekly averages.\n\nExpenses still come out of your real accounts, but they get their own running total and progress, and stay out of your weekly budget, forecast and streaks.',
-    defaultOn: false,
-    Icon: CalendarHeartIcon,
   },
   {
     key: 'notifications_enabled',

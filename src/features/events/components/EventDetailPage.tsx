@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, fmtDate } from '@/lib/utils'
-import { BottomSheet } from '@/components/BottomSheet'
 import { useAppDialog } from '@/components/AppDialog'
 import { catById } from '@/lib/data'
 import { eventTransactions, eventSpent } from '@/lib/events'
@@ -12,10 +11,9 @@ import type { AppState, LifeEvent, Transaction } from '@/types'
 const EVENT_COLOR = '#E0568A'
 
 interface Props {
-  open: boolean
   onClose: () => void
   state: AppState
-  event: LifeEvent | null
+  event: LifeEvent
   onEdit: () => void
   onLinkMore: () => void
   onEditTransaction: (t: Transaction) => void
@@ -23,8 +21,15 @@ interface Props {
   onDeleteEvent: (id: string) => Promise<void>
 }
 
+/** A full page, not a sheet: a wedding can carry 100+ transactions, and the
+ *  category breakdown plus timeline plus action stack don't fit a sheet. Sits
+ *  on top of EventsListPage at a higher z, mirroring ProjectsListPage →
+ProjectDetailPage.
+ *
+ *  Deliberately takes no onSwipeProgress: swiping this away reveals the opaque
+ *  list page beneath, not the dashboard, so dimming App's scrim would be wrong. */
 export function EventDetailPage({
-  open, onClose, state, event, onEdit, onLinkMore,
+  onClose, state, event, onEdit, onLinkMore,
   onEditTransaction, onUpdateEvent, onDeleteEvent,
 }: Props) {
   const c = useTheme()
@@ -46,7 +51,62 @@ export function EventDetailPage({
     return [...totals.entries()].sort((a, b) => b[1] - a[1])
   }, [txns, catMap])
 
-  if (!event) return null
+
+  // ── Swipe-back — same shape as the list page beneath it. ──────────────────
+  const [dragX, setDragX] = useState(0)
+  const [closing, setClosing] = useState(false)
+  const [snapping, setSnapping] = useState(false)
+  const [entryPlayed, setEntryPlayed] = useState(false)
+  const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
+  const W = typeof window !== 'undefined' ? window.innerWidth : 400
+
+  useEffect(() => {
+    const t = setTimeout(() => setEntryPlayed(true), 360)
+    return () => clearTimeout(t)
+  }, [])
+
+  const triggerClose = () => {
+    setClosing(true)
+    setTimeout(() => onClose(), 290)
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (closing || busy) return
+    const t = e.touches[0]
+    if (t.clientX > 28) return
+    gestureRef.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now() }
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!gestureRef.current) return
+    const t = e.touches[0]
+    const dx = t.clientX - gestureRef.current.startX
+    const dy = Math.abs(t.clientY - gestureRef.current.startY)
+    if (dy > Math.abs(dx) + 5 && Math.abs(dx) < 15) {
+      gestureRef.current = null; setDragX(0); return
+    }
+    gestureRef.current = { ...gestureRef.current, lastX: t.clientX, lastT: Date.now() }
+    setDragX(Math.max(0, dx))
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!gestureRef.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - gestureRef.current.startX
+    const dt = Date.now() - gestureRef.current.lastT
+    const vx = dt > 0 ? (t.clientX - gestureRef.current.lastX) / dt : 0
+    gestureRef.current = null
+    if (dx > W * 0.38 || (dx > 50 && vx > 0.5)) {
+      triggerClose()
+    } else {
+      setSnapping(true); setDragX(0)
+      setTimeout(() => setSnapping(false), 300)
+    }
+  }
+  const onTouchCancel = () => {
+    if (!gestureRef.current) return
+    gestureRef.current = null
+    setSnapping(true); setDragX(0)
+    setTimeout(() => setSnapping(false), 300)
+  }
 
   const target = event.target_amount ?? 0
   const pct = target > 0 ? Math.min(100, Math.round((spent / target) * 100)) : 0
@@ -74,14 +134,41 @@ export function EventDetailPage({
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
-      <div style={{ padding: '0 4px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2 }}>
-          <span style={{ display: 'flex', color: EVENT_COLOR, flexShrink: 0 }}>
-            <EventIcon name={event.icon} size={21} color="currentColor" />
-          </span>
-          <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink }}>{event.name}</div>
-        </div>
+    <div
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 210, background: c.bg,
+        display: 'flex', flexDirection: 'column',
+        overflowY: dragX > 0 ? 'hidden' : 'auto',
+        overscrollBehavior: 'contain',
+        fontFamily: '"Plus Jakarta Sans", sans-serif',
+        willChange: 'transform',
+        ...(closing
+          ? { transform: 'translateX(100%)', transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)', animation: 'none' }
+          : dragX > 0
+          ? { transform: `translateX(${dragX}px)`, animation: 'none', boxShadow: '-8px 0 24px rgba(0,0,0,0.18)' }
+          : snapping
+          ? { transform: 'translateX(0)', transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)', animation: 'none' }
+          : entryPlayed
+          ? {}
+          : { animation: 'slideInFromRight 0.32s cubic-bezier(0.32,0.72,0,1)' }),
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `calc(16px + env(safe-area-inset-top,0px)) 16px 14px`, borderBottom: `1px solid ${c.faint}`, background: c.bg, position: 'sticky', top: 0, zIndex: 10 }}>
+        <button onClick={triggerClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.muted, padding: '4px 8px 4px 0', display: 'flex', alignItems: 'center', gap: 5, font: '600 14px Plus Jakarta Sans', flexShrink: 0 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          Back
+        </button>
+        <span style={{ display: 'flex', color: EVENT_COLOR, flexShrink: 0 }}>
+          <EventIcon name={event.icon} size={18} color="currentColor" />
+        </span>
+        <span style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {event.name}
+        </span>
+      </div>
+
+      <div style={{ padding: '16px 16px calc(32px + env(safe-area-inset-bottom,0px))', maxWidth: 540, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>
           {event.excluded_from_budget ? 'Tracked separately from your weekly budget' : 'Counted in your weekly budget'}
         </div>
@@ -184,7 +271,7 @@ export function EventDetailPage({
         </div>
       </div>
       {dialogNode}
-    </BottomSheet>
+    </div>
   )
 }
 

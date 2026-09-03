@@ -11,6 +11,8 @@ interface NavMenuProps {
   onSavings: () => void
   onBorrowing: () => void
   onProjects: () => void
+  onEvents: () => void
+  onCreate: () => void
   onGrow: () => void
   onPlant: () => void
   onCategories: () => void
@@ -18,6 +20,7 @@ interface NavMenuProps {
   trackSavings: boolean
   trackBorrowings: boolean
   trackProjects: boolean
+  hasEvents: boolean
 }
 
 function NavIcon({ children, color }: { children: React.ReactNode; color: string }) {
@@ -30,12 +33,17 @@ function NavIcon({ children, color }: { children: React.ReactNode; color: string
 
 export function NavMenu({
   open, onClose,
-  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onGrow, onPlant, onCategories, onSettings,
-  trackSavings, trackBorrowings, trackProjects,
+  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onEvents, onCreate, onGrow, onPlant, onCategories, onSettings,
+  trackSavings, trackBorrowings, trackProjects, hasEvents,
 }: NavMenuProps) {
   const c = useTheme()
-
   const items: { id: string; label: string; icon: React.ReactNode; onClick: () => void; hidden?: boolean }[] = [
+    {
+      // First, and never hidden — this is the feature-discovery surface now that
+      // Life Events has no settings toggle.
+      id: 'create', label: 'Create new', onClick: onCreate,
+      icon: <NavIcon color={c.ink}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></NavIcon>,
+    },
     {
       id: 'transactions', label: 'Transactions', onClick: onTransactions,
       icon: <NavIcon color={c.ink}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></NavIcon>,
@@ -59,6 +67,10 @@ export function NavMenu({
     {
       id: 'borrowing', label: 'Lend & Borrow', onClick: onBorrowing, hidden: !trackBorrowings,
       icon: <NavIcon color={c.ink}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></NavIcon>,
+    },
+    {
+      id: 'events', label: 'Life Events', onClick: onEvents, hidden: !hasEvents,
+      icon: <NavIcon color={c.ink}><path d="M3 10h18"/><path d="M21 12V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h7"/><path d="M8 2v4"/><path d="M16 2v4"/><circle cx="18" cy="18" r="3"/></NavIcon>,
     },
     {
       id: 'projects', label: 'Projects', onClick: onProjects, hidden: !trackProjects,

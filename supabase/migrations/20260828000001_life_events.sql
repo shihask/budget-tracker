@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   name text NOT NULL,
-  icon text,
+  icon text NOT NULL DEFAULT 'ring',
   target_amount numeric,
   start_date date,
   end_date date,
@@ -118,5 +118,3 @@ CREATE TRIGGER trg_transactions_stamp_event_linked_at
   WHEN (OLD.event_id IS DISTINCT FROM NEW.event_id)
   EXECUTE FUNCTION mp_stamp_event_linked_at();
 
--- Opt-in feature flag, mirroring track_projects / track_savings.
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS track_events boolean DEFAULT false;

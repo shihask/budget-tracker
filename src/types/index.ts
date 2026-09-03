@@ -151,7 +151,6 @@ export interface Settings {
   notify_evening_recap?: boolean
   track_savings?: boolean
   track_projects?: boolean
-  track_events?: boolean
   track_aa_sync?: boolean
   budget_mode?: 'auto' | 'manual'
   hero_mode?: 'remaining' | 'budget'
@@ -362,7 +361,8 @@ export interface LifeEvent {
   user_id?: string
   name: string
   // Key into EVENT_ICONS (src/features/events/lib/eventIcons.tsx), not an emoji glyph.
-  icon: string | null
+  // Never null — the DB defaults it to 'ring'.
+  icon: string
   target_amount: number | null
   start_date: string | null
   end_date: string | null

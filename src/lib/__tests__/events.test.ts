@@ -3,7 +3,7 @@ import { ringFencedEventIds, countsTowardBudget, eventSpent, eventTransactions }
 import type { LifeEvent, Transaction } from '@/types'
 
 const ev = (id: string, excluded: boolean): LifeEvent => ({
-  id, name: id, icon: null, target_amount: null,
+  id, name: id, icon: 'ring', target_amount: null,
   start_date: null, end_date: null,
   excluded_from_budget: excluded,
   default_category_id: null, default_account_id: null,

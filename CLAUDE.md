@@ -34,7 +34,6 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `autopilot_enabled` | boolean | false | AI categorization, opt-in |
 | `dashboard_sections` | json\|null | null | Section order/visibility |
 | `track_savings` | boolean | false | Savings & Investments tracker, opt-in |
-| `track_events` | boolean | false | Life Events tracker, opt-in |
 | `affordability_snapshot_date` | string\|null | null | Internal — written by `AffordabilityChecker`, not user-facing, no SettingsPanel UI |
 | `affordability_snapshot_daily_lifestyle` | number\|null | null | Internal — see above |
 | `affordability_snapshot_bills_total` | number\|null | null | Internal — see above |
@@ -111,9 +110,31 @@ or Clothing and needs both labels.
 |------|---------|
 | `src/lib/events.ts` | `ringFencedEventIds` / `countsTowardBudget` — the one shared exclusion predicate; `eventSpent` / `eventTransactions` |
 | `src/features/events/lib/eventIcons.tsx` | `EVENT_ICONS` map + `EventIcon`. `events.icon` stores a **key string** (`'ring'`), never a glyph — no emoji anywhere in the UI |
-| `src/features/events/components/` | `EventsCard` (dashboard), `EventFormSheet` (2-step create), `LinkExpensesSheet` (retroactive bulk-link), `EventDetailPage` |
-| `src/components/QuickAmountSheet.tsx` | The one-tap amount+account capture, shared by the event card and QuickAdd's long-press chip |
+| `src/features/events/components/` | `EventsCard` (dashboard), `EventsListPage` (the feature's home), `EventDetailPage` (a full **page**, nested in the list), `EventFormSheet` (2-step create), `LinkExpensesSheet` (retroactive bulk-link) |
+| `src/components/QuickAmountSheet.tsx` | The one-tap amount+account+category+description capture, shared by the event card and QuickAdd's long-press chip |
+| `src/features/events/components/EventTile.tsx` | The one tile the dashboard card and the list page both render; past events take a variant that drops the progress bar |
+| `src/components/CreateMenuSheet.tsx` | NavMenu → Create new — the feature's discovery surface |
 
+
+### Data-driven, never settings-driven (v1.58)
+There is **no `track_events` flag** — it was removed because a toggle that can hide a feature the
+user already has data in is only a way to lose track of it, and it made the feature undiscoverable
+(off by default, surfaced once on page 6 of 7 of a signup carousel that pre-v1.57 users never see).
+
+| Surface | Shown when |
+|---|---|
+| NavMenu → **Create new** → Life Event | **always** — this is the discovery path, do not gate it |
+| NavMenu → Life Events | `state.events.length > 0` |
+| Dashboard card | at least one **active** event (not merely `length > 0` — the card can only show active ones, and a card that is all call-to-action is the nag this replaced) |
+| Transaction event chip | any expense, even with zero events |
+
+The FAB deliberately still opens Quick Add directly. A chooser in front of it would tax the most
+common action in the app forever; Create lives in NavMenu instead.
+
+`EventsListPage` owns `EventDetailPage` beneath it (the `ProjectsListPage` → `ProjectDetailPage`
+shape), so the back stack is Dashboard → List → Detail however you entered. The dashboard tile
+passes `initialEventId` to keep its one-tap open. Detail takes **no** `onSwipeProgress`: swiping it
+away reveals the opaque list page, not the dashboard, so dimming App's scrim would be wrong.
 ### The exclusion — the part that's easy to break
 `excluded_from_budget` (default **true**) keeps tagged spend out of exactly four analytics
 readers, and out of nothing else. Balances, cash flow, net worth and history read raw

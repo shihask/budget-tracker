@@ -6,6 +6,7 @@ import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker, selectOnFocus } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { EventIcon } from '@/features/events/lib/eventIcons'
+import { EventFormSheet, type EventFormValues } from '@/features/events/components/EventFormSheet'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -16,7 +17,7 @@ import { Receipt } from 'lucide-react'
 import { filterAndSortTransactions, type TxnSortKey } from '@/lib/transactionFilters'
 import { groupSplitTransactions, splitGroupLegs, isSplitValid, type TransactionGroup } from '@/lib/splitGroups'
 import { SplitLegsEditor } from './SplitLegsEditor'
-import type { AppState, Transaction, TransactionType, SplitLegInput } from '@/types'
+import type { AppState, Transaction, TransactionType, SplitLegInput, LifeEvent } from '@/types'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
 type EditForm = {
@@ -56,6 +57,7 @@ interface TransactionsPageProps {
   onSettings: () => void
   onCategories: () => void
   onAddCategory: (name: string, group_name: string) => Promise<string>
+  onAddEvent: (form: EventFormValues) => Promise<LifeEvent | undefined>
   onReversePayment: (t: Transaction) => Promise<void>
   onDeleteSavings?: (id: string) => Promise<void>
   initialEditTx?: Transaction | null
@@ -89,7 +91,7 @@ type SplitEditState = {
   originalLegIds: string[]
 }
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -116,6 +118,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterGroup, setFilterGroup] = useState('all')
   const [filterEvent, setFilterEvent] = useState('all')
+  const [eventPickerOpen, setEventPickerOpen] = useState(false)
+  const [eventFormOpen, setEventFormOpen] = useState(false)
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const dateToRef = useRef<HTMLInputElement>(null)
@@ -989,32 +993,26 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 />
               </div>
             )}
-
-            {/* Life event chip — the main way an event is corrected after the fact,
-                so it sits in the form rather than behind another menu. */}
-            {editingTx && editForm?.transaction_type === 'expense' && (state.settings.track_events ?? false) && state.events.length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
-                  Life event
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {/* One adaptive event chip — the place people actually are when they
+                realise a run of expenses belongs together. Always rendered on an
+                expense, including when no event exists yet, because the chip is
+                itself a discovery surface. */}
+            {editingTx && editForm?.transaction_type === 'expense' && (() => {
+              const attached = state.events.find(ev => ev.id === editForm.event_id)
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                    Life event
+                  </div>
                   <EventChip
-                    label="+ None"
-                    active={!editForm.event_id}
-                    onClick={() => setEditForm(f => f ? { ...f, event_id: '' } : f)}
+                    label={attached ? attached.name : '+ Add to Event'}
+                    icon={attached?.icon}
+                    active={!!attached}
+                    onClick={() => setEventPickerOpen(true)}
                   />
-                  {state.events.filter(ev => ev.status === 'active' || ev.id === editForm.event_id).map(ev => (
-                    <EventChip
-                      key={ev.id}
-                      label={ev.name}
-                      icon={ev.icon}
-                      active={editForm.event_id === ev.id}
-                      onClick={() => setEditForm(f => f ? { ...f, event_id: ev.id } : f)}
-                    />
-                  ))}
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Challenge exclusion toggle — only for expenses when challenge is active */}
             {editingTx && editForm?.transaction_type === 'expense' && (state.settings.challenge_enabled ?? false) && onToggleChallengeExclusion && (() => {
@@ -1206,6 +1204,51 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         initialSortKey={sortKey}
       />
 
+      {/* Event picker — opened by the adaptive chip. Kept local to this page so
+          creating an event can attach it to the row being edited without any
+          cross-component plumbing, and without closing the edit sheet. */}
+      <BottomSheet open={eventPickerOpen} onClose={() => setEventPickerOpen(false)} showHelpButton={false} zIndex={320}>
+        <div style={{ padding: '0 4px 16px' }}>
+          <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16 }}>Life event</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <EventPickerRow
+              label="None"
+              selected={!editForm?.event_id}
+              onClick={() => { setEditForm(f => f ? { ...f, event_id: '' } : f); setEventPickerOpen(false) }}
+            />
+            {state.events
+              .filter(ev => ev.status === 'active' || ev.id === editForm?.event_id)
+              .map(ev => (
+                <EventPickerRow
+                  key={ev.id}
+                  label={ev.name}
+                  icon={ev.icon}
+                  selected={editForm?.event_id === ev.id}
+                  onClick={() => { setEditForm(f => f ? { ...f, event_id: ev.id } : f); setEventPickerOpen(false) }}
+                />
+              ))}
+            <EventPickerRow
+              label="+ New event"
+              accent
+              onClick={() => { setEventPickerOpen(false); setEventFormOpen(true) }}
+            />
+          </div>
+        </div>
+      </BottomSheet>
+
+      <EventFormSheet
+        open={eventFormOpen}
+        onClose={() => setEventFormOpen(false)}
+        state={state}
+        onAddCategory={onAddCategory}
+        onSave={async form => {
+          const created = await onAddEvent(form)
+          // Attach immediately — the whole point of creating from here is that
+          // this transaction belongs to the event you just named.
+          if (created) setEditForm(f => f ? { ...f, event_id: created.id } : f)
+        }}
+      />
+
       {/* Borrowing-linked delete confirmation */}
       {borrowingDeleteTarget && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -1344,6 +1387,34 @@ function EventChip({ label, icon, active, onClick }: { label: string; icon?: str
     >
       {icon && <EventIcon name={icon} size={13} color="currentColor" />}
       {label}
+    </button>
+  )
+}
+
+function EventPickerRow({ label, icon, selected, accent, onClick }: {
+  label: string; icon?: string | null; selected?: boolean; accent?: boolean; onClick: () => void
+}) {
+  const c = useTheme()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+        padding: '13px 12px', borderRadius: 12, border: 'none', cursor: 'pointer',
+        background: selected ? c.accentSoft : 'transparent',
+        color: accent ? c.accent : c.ink,
+        font: `${accent || selected ? 700 : 600} 14px Plus Jakarta Sans`,
+        textAlign: 'left',
+      }}
+    >
+      {icon && <EventIcon name={icon} size={16} color="currentColor" />}
+      <span style={{ flex: 1 }}>{label}</span>
+      {selected && (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      )}
     </button>
   )
 }

@@ -23,17 +23,20 @@ interface HeaderProps {
   onSavings: () => void
   onBorrowing: () => void
   onProjects: () => void
+  onEvents: () => void
+  onCreate: () => void
   onGrow: () => void
   onPlant: () => void
   trackSavings: boolean
   trackBorrowings: boolean
   trackProjects: boolean
+  hasEvents: boolean
 }
 
 export function Header({
   dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications, onTour, onAdmin,
-  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onGrow, onPlant,
-  trackSavings, trackBorrowings, trackProjects,
+  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onEvents, onCreate, onGrow, onPlant,
+  trackSavings, trackBorrowings, trackProjects, hasEvents,
 }: HeaderProps) {
   const c = useTheme()
   const hour = new Date().getHours()
@@ -274,6 +277,8 @@ export function Header({
         onSavings={onSavings}
         onBorrowing={onBorrowing}
         onProjects={onProjects}
+        onEvents={onEvents}
+        onCreate={onCreate}
         onGrow={onGrow}
         onPlant={onPlant}
         onCategories={onCategories}
@@ -281,6 +286,7 @@ export function Header({
         trackSavings={trackSavings}
         trackBorrowings={trackBorrowings}
         trackProjects={trackProjects}
+        hasEvents={hasEvents}
       />
     </div>
   )

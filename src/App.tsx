@@ -89,7 +89,8 @@ import { ProjectsDashboardCard } from '@/features/shared-projects/components/Pro
 import { EventsCard } from '@/features/events/components/EventsCard'
 import { EventFormSheet } from '@/features/events/components/EventFormSheet'
 import { LinkExpensesSheet } from '@/features/events/components/LinkExpensesSheet'
-import { EventDetailPage } from '@/features/events/components/EventDetailPage'
+import { EventsListPage } from '@/features/events/components/EventsListPage'
+import { CreateMenuSheet } from '@/components/CreateMenuSheet'
 import { ProjectsListPage } from '@/features/shared-projects/components/ProjectsListPage'
 import { PublicProjectPage } from '@/features/shared-projects/components/PublicProjectPage'
 import { useProjectsSummary } from '@/features/shared-projects/hooks/useProjectsSummary'
@@ -210,6 +211,9 @@ function AppContent({ session }: { session: Session }) {
   // ── Life Events ──
   const [eventFormOpen, setEventFormOpen] = useState(false)
   const [eventEditing, setEventEditing] = useState<LifeEvent | null>(null)
+  const [eventsListOpen, setEventsListOpen] = useState(false)
+  const [createMenuOpen, setCreateMenuOpen] = useState(false)
+  const [eventsAddOnOpen, setEventsAddOnOpen] = useState(false)
   const [eventDetailId, setEventDetailId] = useState<string | null>(null)
   const [linkExpensesForId, setLinkExpensesForId] = useState<string | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -582,9 +586,12 @@ function AppContent({ session }: { session: Session }) {
               onSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }}
               onBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }}
               onProjects={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }}
+              onEvents={() => { setEventsAddOnOpen(false); setEventDetailId(null); setEventsListOpen(true) }}
+              onCreate={() => setCreateMenuOpen(true)}
               onGrow={() => setGrowOpen(true)}
               onPlant={() => setPlantSheetOpen(true)}
               trackSavings={state.settings.track_savings ?? false}
+              hasEvents={state.events.length > 0}
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackProjects={state.settings.track_projects ?? false}
             />
@@ -691,10 +698,11 @@ function AppContent({ session }: { session: Session }) {
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} onAdjustBalance={adjustCreditCardBalance} /> : null
                       break
                     case 'events':
-                      el = (state.settings.track_events ?? false) ? <EventsCard
+                      el = state.events.some(e => e.status === 'active') ? <EventsCard
                         state={state}
                         onAdd={() => { setEventEditing(null); setEventFormOpen(true) }}
-                        onOpenEvent={e => setEventDetailId(e.id)}
+                        onSeeAll={() => { setEventDetailId(null); setEventsListOpen(true) }}
+                        onOpenEvent={e => { setEventDetailId(e.id); setEventsListOpen(true) }}
                         onAddCategory={addCategory}
                         onSave={handleSave}
                       /> : null
@@ -829,10 +837,27 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} trackEvents={state.settings.track_events ?? false} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} />
+            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} />
           </div>
 
-          {/* Life Events */}
+          <CreateMenuSheet
+            open={createMenuOpen}
+            onClose={() => setCreateMenuOpen(false)}
+            onExpense={() => { setSheetDefaultType('expense'); setSheetOpen(true) }}
+            onIncome={() => { setSheetDefaultType('income'); setSheetOpen(true) }}
+            onTransfer={() => { setSheetDefaultType('transfer'); setSheetOpen(true) }}
+            onLifeEvent={() => { setEventEditing(null); setEventFormOpen(true) }}
+            // Goals and Credit Cards have no full-screen page — their add sheet is
+            // local to the dashboard section, and prefillGoal is its open-add path.
+            onGoal={() => setPrefillGoal({ name: '', goal_amount: 0, current_saved: 0, monthly_target: 0, target_date: '' })}
+            onCommitment={() => { setCommitmentsAddOnOpen(true); setCommitmentsOpen(true) }}
+            onSavings={() => { setSavingsAddOnOpen(true); setSavingsOpen(true) }}
+            onProject={() => { setProjectsAddOnOpen(true); setProjectsOpen(true) }}
+            trackSavings={state.settings.track_savings ?? false}
+            trackProjects={state.settings.track_projects ?? false}
+          />
+          {/* Life Events — the list page owns the detail page beneath it, so the
+              back stack reads Dashboard → List → Detail however you entered. */}
           <EventFormSheet
             open={eventFormOpen}
             onClose={() => { setEventFormOpen(false); setEventEditing(null) }}
@@ -844,7 +869,7 @@ function AppContent({ session }: { session: Session }) {
               const created = await addEvent(form)
               // Straight into the backfill step — the event is almost always
               // created after the spending has already happened.
-              if (created) setLinkExpensesForId(created.id)
+              if (created) { setEventsListOpen(true); setLinkExpensesForId(created.id) }
             }}
           />
           <LinkExpensesSheet
@@ -853,20 +878,6 @@ function AppContent({ session }: { session: Session }) {
             state={state}
             event={state.events.find(e => e.id === linkExpensesForId) ?? null}
             onLink={linkTransactionsToEvent}
-          />
-          <EventDetailPage
-            open={!!eventDetailId && !eventFormOpen && !linkExpensesForId}
-            onClose={() => setEventDetailId(null)}
-            state={state}
-            event={state.events.find(e => e.id === eventDetailId) ?? null}
-            onEdit={() => {
-              const ev = state.events.find(e => e.id === eventDetailId)
-              if (ev) { setEventEditing(ev); setEventFormOpen(true) }
-            }}
-            onLinkMore={() => setLinkExpensesForId(eventDetailId)}
-            onEditTransaction={t => { setEventDetailId(null); setDashEditTx(t); setTxnsOpen(true) }}
-            onUpdateEvent={updateEvent}
-            onDeleteEvent={deleteEvent}
           />
 
           {/* AI Assist FAB + Chat */}
@@ -939,13 +950,13 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
-            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || adminOpen) ? 'auto' : 'none',
+            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || adminOpen) ? 'auto' : 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onAddEvent={addEvent} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} />
           )}
 
           {commitmentsOpen && (
@@ -963,6 +974,22 @@ function AppContent({ session }: { session: Session }) {
               onClose={() => { setProjectsOpen(false); setProjectsAddOnOpen(false) }}
               onSwipeProgress={setSwipePct}
               initialAddOpen={projectsAddOnOpen}
+            />
+          )}
+
+          {eventsListOpen && (
+            <EventsListPage
+              state={state}
+              onClose={() => { setEventsListOpen(false); setEventsAddOnOpen(false); setEventDetailId(null) }}
+              onSwipeProgress={setSwipePct}
+              initialAddOpen={eventsAddOnOpen}
+              initialEventId={eventDetailId}
+              onAddEvent={() => { setEventEditing(null); setEventFormOpen(true) }}
+              onEditEvent={ev => { setEventEditing(ev); setEventFormOpen(true) }}
+              onLinkMore={id => setLinkExpensesForId(id)}
+              onEditTransaction={t => { setEventsListOpen(false); setEventDetailId(null); setDashEditTx(t); setTxnsOpen(true) }}
+              onUpdateEvent={updateEvent}
+              onDeleteEvent={deleteEvent}
             />
           )}
 
@@ -1067,7 +1094,7 @@ function AppContent({ session }: { session: Session }) {
               trackBorrowings={state.settings.track_borrowings ?? true}
               trackSavings={state.settings.track_savings ?? false}
               trackProjects={state.settings.track_projects ?? false}
-              trackEvents={state.settings.track_events ?? false}
+             
               trackAaSync={state.settings.track_aa_sync ?? false}
               budgetStrategyEnabled={state.budget_strategy_settings.budget_strategy !== 'none'}
               challengeEnabled={state.settings.challenge_enabled ?? false}
@@ -1094,7 +1121,6 @@ function AppContent({ session }: { session: Session }) {
               onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
               onTrackSavings={v => updateSettings({ track_savings: v })}
               onTrackProjects={v => updateSettings({ track_projects: v })}
-              onTrackEvents={v => updateSettings({ track_events: v })}
               onTrackAaSync={v => updateSettings({ track_aa_sync: v })}
               onOpenAaSync={() => setAaSyncOpen(true)}
               onBudgetStrategy={v => { updateBudgetStrategySettings({ budget_strategy: v ? 'balanced' : 'none' }); if (v) setBudgetStrategySheetOpen(true) }}

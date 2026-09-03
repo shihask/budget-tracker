@@ -106,14 +106,13 @@ interface QuickAddSheetProps {
   defaultTxType?: 'expense' | 'income' | 'transfer'
   defaultCategoryId?: string | null
   defaultEventId?: string | null
-  trackEvents?: boolean
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onReceiptFailed?: (transaction: Transaction, receipt: PickedReceipt, error: unknown) => void
   showSmartInputTip?: boolean
   onDismissSmartInputTip?: () => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, trackEvents = false, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -1081,7 +1080,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
               </div>
             )}
 
-            {isExpense && trackEvents && activeEvents.length > 0 && (
+            {isExpense && activeEvents.length > 0 && (
               <div>
                 <label style={labelStyle}>Life event <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span></label>
                 <select value={eventId} onChange={e => setEventId(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
