@@ -39,7 +39,18 @@ input, select, button, textarea {
   input, select, textarea {
     font-size: 16px !important;
   }
+  /* The select-all mirror is a div, so it misses the rule above — without this it
+     would render at 13px and the highlight would drift off the digits. */
+  .amt-selectall-mirror {
+    font-size: 16px !important;
+  }
 }
+
+/* Select-all highlight: mobile engines don't paint a scripted select(), so the
+   pill behind the value is drawn by .amt-selectall-mirror instead. Mute the
+   native highlight while it's up, or desktop draws both. */
+.amt-selectall::selection { background: transparent; }
+.amt-selectall::-moz-selection { background: transparent; }
 
 /* Remove iOS inner shadow on inputs */
 input[type="text"],

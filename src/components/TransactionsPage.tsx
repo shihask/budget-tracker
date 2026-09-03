@@ -811,8 +811,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 <div style={{ flex: 1 }}>
                   <Label>Amount</Label>
                   <HelpText>Transaction amount in rupees.</HelpText>
+                  <div style={{ position: 'relative' }}>
                   <input
                     ref={editAmountRef}
+                    className={editAmountSelectAll ? 'amt-selectall' : undefined}
                     type="text"
                     inputMode="decimal"
                     value={editForm.amount}
@@ -840,10 +842,24 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       setEditForm(f => f ? { ...f, amount: r === null ? '' : String(round2(r)) } : f)
                     }}
                     style={editAmountSelectAll
-                      ? { ...inp, background: c.accentSoft, borderColor: c.accent }
+                      ? { ...inp, color: 'transparent', WebkitTextFillColor: 'transparent', caretColor: c.ink }
                       : inp}
                     placeholder="0"
                   />
+                  {editAmountSelectAll && editForm.amount !== '' && (
+                    // The painted stand-in for the selection the engine won't draw. Same
+                    // font and box as the input, so the pill lands exactly on the digits.
+                    <div aria-hidden className="amt-selectall-mirror" style={{
+                      position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+                      padding: '9px 13.5px', font: '600 13px Plus Jakarta Sans',
+                      pointerEvents: 'none', overflow: 'hidden', whiteSpace: 'pre', boxSizing: 'border-box',
+                    }}>
+                      <span style={{ background: c.accent, color: '#fff', borderRadius: 3, padding: '0 1px' }}>
+                        {editForm.amount}
+                      </span>
+                    </div>
+                  )}
+                  </div>
                   {editAmountFocused && (
                     <AmountOperatorRow
                       inputRef={editAmountRef}
