@@ -141,6 +141,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const dragXRef = useRef(0)
   const editAmountRef = useRef<HTMLInputElement | null>(null)
   const [editAmountFocused, setEditAmountFocused] = useState(false)
+  // Mobile engines don't paint a scripted select() — the range is real (the first
+  // keystroke replaces the whole value) but there's no highlight, so the field looks
+  // like an ordinary caret placement. Render that state ourselves instead.
+  const [editAmountSelectAll, setEditAmountSelectAll] = useState(false)
   const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
@@ -812,25 +816,38 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     type="text"
                     inputMode="decimal"
                     value={editForm.amount}
-                    onChange={e => setEditForm(f => f ? { ...f, amount: sanitizeAmountInput(e.target.value) } : f)}
-                    onFocus={e => { selectOnFocus(e.target); setEditAmountFocused(true) }}
+                    onChange={e => {
+                      setEditAmountSelectAll(false)
+                      setEditForm(f => f ? { ...f, amount: sanitizeAmountInput(e.target.value) } : f)
+                    }}
+                    onFocus={e => { selectOnFocus(e.target); setEditAmountFocused(true); setEditAmountSelectAll(true) }}
+                    onSelect={e => {
+                      // A tap that moves the caret collapses the range — drop the tint
+                      // rather than promise a select-all that no longer exists.
+                      const el = e.currentTarget
+                      if (el.selectionStart !== 0 || el.selectionEnd !== el.value.length) setEditAmountSelectAll(false)
+                    }}
                     onBlur={e => {
                       setEditAmountFocused(false)
+                      setEditAmountSelectAll(false)
                       const r = evaluateAmountExpression(e.target.value)
                       setEditForm(f => f ? { ...f, amount: r === null ? '' : String(round2(r)) } : f)
                     }}
                     onKeyDown={e => {
+                      setEditAmountSelectAll(false)
                       if (e.key !== 'Enter') return
                       const r = evaluateAmountExpression(e.currentTarget.value)
                       setEditForm(f => f ? { ...f, amount: r === null ? '' : String(round2(r)) } : f)
                     }}
-                    style={inp}
+                    style={editAmountSelectAll
+                      ? { ...inp, background: c.accentSoft, borderColor: c.accent }
+                      : inp}
                     placeholder="0"
                   />
                   {editAmountFocused && (
                     <AmountOperatorRow
                       inputRef={editAmountRef}
-                      onChange={v => setEditForm(f => f ? { ...f, amount: v } : f)}
+                      onChange={v => { setEditAmountSelectAll(false); setEditForm(f => f ? { ...f, amount: v } : f) }}
                     />
                   )}
                 </div>
