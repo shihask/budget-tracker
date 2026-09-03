@@ -141,10 +141,32 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const dragXRef = useRef(0)
   const editAmountRef = useRef<HTMLInputElement | null>(null)
   const [editAmountFocused, setEditAmountFocused] = useState(false)
-  // Mobile engines don't paint a scripted select() — the range is real (the first
-  // keystroke replaces the whole value) but there's no highlight, so the field looks
-  // like an ordinary caret placement. Render that state ourselves instead.
+  // Mobile engines paint a scripted select() only briefly, then collapse it when the
+  // keyboard animates in — so neither the highlight nor the replace-everything
+  // behaviour can rest on the DOM selection. Both are owned here instead: the pill is
+  // painted by the mirror below, and the first input is rewritten in `beforeinput`.
   const [editAmountSelectAll, setEditAmountSelectAll] = useState(false)
+  const editAmountSelectAllRef = useRef(false)
+  editAmountSelectAllRef.current = editAmountSelectAll
+  const editSheetOpen = editForm !== null
+  // Native listener, not React's onBeforeInput — that one is still a synthesized event
+  // in React 19 and its preventDefault doesn't reliably stop the insertion.
+  useEffect(() => {
+    const el = editAmountRef.current
+    if (!el) return
+    const onBeforeInput = (ev: InputEvent) => {
+      if (!editAmountSelectAllRef.current) return
+      ev.preventDefault()
+      setEditAmountSelectAll(false)
+      const typed = ev.inputType === 'insertText' ? ev.data ?? ''
+        : ev.inputType === 'insertFromPaste' ? ev.dataTransfer?.getData('text') ?? ''
+        : ''  // a delete of the whole value is still an empty field
+      setEditForm(f => f ? { ...f, amount: sanitizeAmountInput(typed) } : f)
+    }
+    el.addEventListener('beforeinput', onBeforeInput)
+    return () => el.removeEventListener('beforeinput', onBeforeInput)
+  }, [editSheetOpen])
+
   const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
@@ -823,11 +845,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       setEditForm(f => f ? { ...f, amount: sanitizeAmountInput(e.target.value) } : f)
                     }}
                     onFocus={e => { selectOnFocus(e.target); setEditAmountFocused(true); setEditAmountSelectAll(true) }}
-                    onSelect={e => {
-                      // A tap that moves the caret collapses the range — drop the tint
-                      // rather than promise a select-all that no longer exists.
-                      const el = e.currentTarget
-                      if (el.selectionStart !== 0 || el.selectionEnd !== el.value.length) setEditAmountSelectAll(false)
+                    onPointerDown={e => {
+                      // A tap on an already-focused field is the user placing a caret —
+                      // that cancels select-all. A tap that causes the focus doesn't.
+                      if (document.activeElement === e.currentTarget) setEditAmountSelectAll(false)
                     }}
                     onBlur={e => {
                       setEditAmountFocused(false)
@@ -836,13 +857,16 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       setEditForm(f => f ? { ...f, amount: r === null ? '' : String(round2(r)) } : f)
                     }}
                     onKeyDown={e => {
-                      setEditAmountSelectAll(false)
+                      // No clearing here — keydown lands before beforeinput, and that
+                      // handler needs the flag still set to swallow the first keystroke.
                       if (e.key !== 'Enter') return
                       const r = evaluateAmountExpression(e.currentTarget.value)
                       setEditForm(f => f ? { ...f, amount: r === null ? '' : String(round2(r)) } : f)
                     }}
                     style={editAmountSelectAll
-                      ? { ...inp, color: 'transparent', WebkitTextFillColor: 'transparent', caretColor: c.ink }
+                      // No caret while the pill is up — a select-all doesn't show one,
+                      // and the engine may have parked it at 0, on top of the digits.
+                      ? { ...inp, color: 'transparent', WebkitTextFillColor: 'transparent', caretColor: 'transparent' }
                       : inp}
                     placeholder="0"
                   />
