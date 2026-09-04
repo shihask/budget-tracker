@@ -7,6 +7,8 @@ import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker, selectOnFo
 import { catById as buildCatById } from '@/lib/data'
 import { EventIcon } from '@/features/events/lib/eventIcons'
 import { masterById, MASTER_ACCENTS } from '@/lib/masters'
+import { MasterSelect } from './MasterSelect'
+import type { MasterFormValues } from '@/features/masters/components/MasterFormSheet'
 import { EventFormSheet, type EventFormValues } from '@/features/events/components/EventFormSheet'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
@@ -18,7 +20,7 @@ import { Receipt } from 'lucide-react'
 import { filterAndSortTransactions, type TxnSortKey } from '@/lib/transactionFilters'
 import { groupSplitTransactions, splitGroupLegs, isSplitValid, type TransactionGroup } from '@/lib/splitGroups'
 import { SplitLegsEditor } from './SplitLegsEditor'
-import type { AppState, Transaction, TransactionType, SplitLegInput, LifeEvent } from '@/types'
+import type { Master, AppState, Transaction, TransactionType, SplitLegInput, LifeEvent } from '@/types'
 import { reimbursementsFor, reimbursementSummary, remainingReimbursable, reimbursedTotals } from '@/lib/reimbursements'
 import { LinkReimbursementSheet } from './LinkReimbursementSheet'
 import type { PickedReceipt } from '@/lib/imageCompress'
@@ -32,6 +34,7 @@ type EditForm = {
   from_account_id: string
   to_account_id: string
   event_id: string
+  master_id: string
   /** '' = leave the link alone is NOT representable here; the sheet always knows
    *  the current value, so '' means unlinked and an id means linked. */
   reimbursement_for: string
@@ -46,6 +49,7 @@ type SavedFormSnapshot = {
   from_account_id: string | null
   to_account_id: string | null
   event_id: string | null
+  master_id: string | null
   reimbursement_for: string | null
 }
 
@@ -64,6 +68,7 @@ interface TransactionsPageProps {
   onSettings: () => void
   onCategories: () => void
   onAddCategory: (name: string, group_name: string) => Promise<string>
+  onAddMaster: (form: MasterFormValues) => Promise<Master | undefined>
   onAddEvent: (form: EventFormValues) => Promise<LifeEvent | undefined>
   onReversePayment: (t: Transaction) => Promise<void>
   onDeleteSavings?: (id: string) => Promise<void>
@@ -101,7 +106,7 @@ type SplitEditState = {
   originalLegIds: string[]
 }
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddMaster, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
@@ -131,6 +136,17 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [filterGroup, setFilterGroup] = useState('all')
   const [filterEvent, setFilterEvent] = useState('all')
   const [eventPickerOpen, setEventPickerOpen] = useState(false)
+  // Optional-fields disclosure, mirroring QuickAdd's. Its own localStorage key:
+  // these are different forms and a preference set while adding shouldn't
+  // silently change how editing looks.
+  const [showEditMore, setShowEditMore] = useState(() => {
+    try { return localStorage.getItem('mp-edittx-more') === '1' } catch { return false }
+  })
+  const toggleEditMore = () => setShowEditMore(v => {
+    const next = !v
+    try { localStorage.setItem('mp-edittx-more', next ? '1' : '0') } catch { /* private mode */ }
+    return next
+  })
   const [eventFormOpen, setEventFormOpen] = useState(false)
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
@@ -402,6 +418,28 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     setDeleting(null)
   }
 
+  // How many optional things this transaction already carries. Drives the "N set"
+  // badge, and forces the section open so a collapsed sheet never hides them.
+  const editMoreCount = (() => {
+    if (!editingTx || !editForm) return 0
+    let n = 0
+    if (editForm.event_id) n++
+    if (editForm.master_id) n++
+    if (pendingReceipt || (!removeReceiptFlag && editingTx.receipt_path)) n++
+    if (reimbursementsFor(editingTx, state.transactions).length > 0) n++
+    if (editForm.reimbursement_for) n++
+    return n
+  })()
+
+  // Derived, never written to state: the sheet is reused across transactions, so
+  // setting showEditMore here would leak one reimbursed expense's forced-open
+  // into every later edit and quietly override the saved preference.
+  //
+  // A linked reimbursement forces it open regardless of preference — the summary
+  // says what the expense ACTUALLY cost (₹154 net on a ₹408 gross), and hiding
+  // that behind a collapsed row would misreport the number the user came to see.
+  const editMoreOpen = showEditMore || editMoreCount > 0
+
   const openEdit = (t: Transaction) => {
     if (t.split_group_id && onUpdateSplitGroup) { openSplitEdit(t); return }
     setEditingTx(t)
@@ -414,6 +452,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       from_account_id: t.from_account_id || (t as any).credit_card_id || '',
       to_account_id: t.to_account_id || '',
       event_id: t.event_id || '',
+      master_id: t.master_id || '',
       reimbursement_for: t.reimbursement_for || '',
     })
     setPendingReceipt(null)
@@ -470,6 +509,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       to_account_id: editForm.transaction_type === 'transfer' ? (editForm.to_account_id || null) : null,
       // Only expenses belong to a life event.
       event_id: editForm.transaction_type === 'expense' ? (editForm.event_id || null) : null,
+      // Same rule for the master, and the same explicit-null reasoning as
+      // reimbursement_for below: this sheet renders the current value, so
+      // clearing the field is a real instruction rather than an omission.
+      master_id: editForm.transaction_type === 'expense' ? (editForm.master_id || null) : null,
       // Only incoming money can be a reimbursement. Explicit null (not undefined)
       // because this sheet does know the current value — it renders it — so an
       // unlink here is a real instruction, not an omission.
@@ -491,6 +534,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       && lastSavedForm.from_account_id === form.from_account_id
       && lastSavedForm.to_account_id === form.to_account_id
       && lastSavedForm.event_id === form.event_id
+      && lastSavedForm.master_id === form.master_id
       && lastSavedForm.reimbursement_for === form.reimbursement_for
 
     if (!unchanged) {
@@ -1067,7 +1111,36 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </div>
             </div>
 
-            {editingTx && editForm?.transaction_type === 'expense' && (
+            {/* Optional fields, folded away so the sheet stays short. Auto-opens
+                when something inside is already set — see editMoreCount /
+                editMoreForceOpen — because a collapsed section must never hide a
+                value, least of all a reimbursement that changes what this expense
+                actually cost. */}
+            {editingTx && editForm && (
+              <div style={{ marginTop: 16 }}>
+                <button
+                  type="button"
+                  onClick={toggleEditMore}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 12,
+                    border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted,
+                    font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 7,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ flexShrink: 0, transition: 'transform 0.2s', transform: editMoreOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                  <span>
+                    More options
+                    {!editMoreOpen && editMoreCount > 0 && ` · ${editMoreCount} set`}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {editMoreOpen && editingTx && editForm?.transaction_type === 'expense' && (
               <div style={{ marginTop: 12 }}>
                 <ReceiptField
                   pendingReceipt={pendingReceipt}
@@ -1083,7 +1156,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 realise a run of expenses belongs together. Always rendered on an
                 expense, including when no event exists yet, because the chip is
                 itself a discovery surface. */}
-            {editingTx && editForm?.transaction_type === 'expense' && (() => {
+            {editMoreOpen && editingTx && editForm?.transaction_type === 'expense' && (() => {
               const attached = state.events.find(ev => ev.id === editForm.event_id)
               return (
                 <div style={{ marginTop: 16 }}>
@@ -1100,10 +1173,29 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               )
             })()}
 
+            {/* Who / where. v1.61 shipped this as create-only, which left a
+                mistagged expense permanently wrong — this is the fix. */}
+            {editMoreOpen && editingTx && editForm?.transaction_type === 'expense' && state.masters.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                  Who / where
+                </div>
+                <MasterSelect
+                  value={editForm.master_id}
+                  onChange={v => setEditForm(f => f ? { ...f, master_id: v } : f)}
+                  state={state}
+                  onAddMaster={onAddMaster}
+                  includeEmpty
+                  emptyLabel="None"
+                  style={inp}
+                />
+              </div>
+            )}
+
             {/* Reimbursement summary — what this expense actually cost, plus the
                 reverse entry point. This is where the need usually arises: you are
                 looking at the ₹408 gift when the friend pays you back. */}
-            {editingTx && editForm && (editForm.transaction_type === 'expense' || editForm.transaction_type === 'commitment') && (() => {
+            {editMoreOpen && editingTx && editForm && (editForm.transaction_type === 'expense' || editForm.transaction_type === 'commitment') && (() => {
               const linked = reimbursementsFor(editingTx, state.transactions)
               const summary = reimbursementSummary(editingTx, state.transactions)
               // Nothing linked and no way to link: a bare section header would be
@@ -1173,7 +1265,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
             {/* The other side of the link: an incoming row that repays an expense.
                 Never rendered as salary or plain income. */}
-            {editingTx && editForm?.transaction_type === 'income' && (() => {
+            {editMoreOpen && editingTx && editForm?.transaction_type === 'income' && (() => {
               const target = editForm.reimbursement_for
                 ? state.transactions.find(t => t.id === editForm.reimbursement_for) ?? null
                 : null
@@ -1350,14 +1442,38 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
               {/* Splits are reimbursed as a group, so the summary and the reverse
                   entry point belong here too — a split gift is one ₹408 expense as
-                  far as the person who got paid back is concerned. */}
+                  far as the person who got paid back is concerned.
+
+                  Folded behind the same disclosure as the ordinary edit sheet, so
+                  the two edit paths look alike. It opens itself once anything is
+                  linked: the summary is what the split ACTUALLY cost, and that is
+                  never something to hide behind a collapsed row. */}
               {(() => {
                 const anchor = state.transactions.find(t => t.split_group_id === splitEdit.groupId)
                 if (!anchor) return null
                 const linked = reimbursementsFor(anchor, state.transactions)
                 const summary = reimbursementSummary(anchor, state.transactions)
                 if (linked.length === 0 && !onRecordReimbursement) return null
+                const open = showEditMore || linked.length > 0
                 return (
+                  <>
+                    <button
+                      type="button"
+                      onClick={toggleEditMore}
+                      style={{
+                        width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 12,
+                        border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted,
+                        font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 7,
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                      <span>More options{!open && linked.length > 0 && ` · ${linked.length} set`}</span>
+                    </button>
+                    {open && (
                   <div>
                     <Label>Reimbursement</Label>
                     {linked.length > 0 && (
@@ -1393,6 +1509,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       </button>
                     )}
                   </div>
+                    )}
+                  </>
                 )
               })()}
 
