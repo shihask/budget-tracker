@@ -6,6 +6,7 @@ import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker, selectOnFocus } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { EventIcon } from '@/features/events/lib/eventIcons'
+import { masterById, MASTER_ACCENTS } from '@/lib/masters'
 import { EventFormSheet, type EventFormValues } from '@/features/events/components/EventFormSheet'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CategorySelect } from './CategorySelect'
@@ -816,6 +817,23 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                         {t.reimbursement_for && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>Reimbursement</span>
                         )}
+                        {/* Who/where. Display-only in v1.61 — the edit sheet doesn't
+                            carry masters yet, and a chip that looks tappable but isn't
+                            is worse than a plain label.
+
+                            masterById returns null for a SOFT-DELETED master (they're
+                            loaded with deleted_at IS NULL while the tag survives on the
+                            row), and we render nothing rather than "Unknown". */}
+                        {(() => {
+                          const mst = masterById(state.masters, t.master_id)
+                          if (!mst) return null
+                          const ma = MASTER_ACCENTS[mst.type]
+                          return (
+                            <span style={{ font: '600 10px Plus Jakarta Sans', color: ma.solid, background: ma.soft, borderRadius: 999, padding: '2px 7px' }}>
+                              {mst.name}
+                            </span>
+                          )
+                        })()}
                         {rowReimbursed > 0 && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, background: c.good + '18', borderRadius: 999, padding: '2px 7px' }}>
                             Reimbursed {fmt(rowReimbursed)}

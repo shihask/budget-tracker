@@ -1,5 +1,6 @@
 import { MASTER_TYPES } from '@/types'
-import type { Master, MasterType } from '@/types'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
+import type { Master, MasterType, Transaction } from '@/types'
 
 /** UX normalization: trim, and collapse inner runs of whitespace so
  *  "Rahul    Menon" is stored as "Rahul Menon".
@@ -39,6 +40,28 @@ export function findDuplicateMaster(
     m.type === type &&
     normalizeMasterName(m.name).toLowerCase() === needle
   ) ?? null
+}
+
+/** Match an AI-extracted merchant/payee name against the directory.
+ *
+ *  The receipt extractor's `description` IS the merchant name — the Edge Function
+ *  prompt asks for "short, customer-friendly merchant/payee name … the store name
+ *  at the top (e.g. 'DMart', not 'DMART RETAIL LTD. STORE 0054')" and then returns
+ *  it as both fields (`merchant: validDescription`). So matching on the cleaned
+ *  description is matching on the merchant, and no Edge Function change is needed.
+ *
+ *  Exact after normalization, never fuzzy. A wrong tag is worse than no tag: a
+ *  word-overlap match would happily link "Daya Discount Hyper Pharma" to a person
+ *  called "Daya", quietly attributing spending to the wrong entity. Missing a
+ *  match just leaves the field empty, which the user can see and fix.
+ *
+ *  Searches BOTH types — a receipt can name a merchant, but money handed to a
+ *  person shows their name just the same. Merchants win ties because a receipt
+ *  naming both is far more likely to mean the shop. */
+export function matchMasterByName(masters: Master[], name: string | null | undefined): Master | null {
+  if (!name) return null
+  return findDuplicateMaster(masters, name, MASTER_TYPES.MERCHANT)
+    ?? findDuplicateMaster(masters, name, MASTER_TYPES.PERSON)
 }
 
 /** Name always; phone only for people. Merchants have no phone in practice, but
@@ -109,3 +132,44 @@ export const MASTER_TYPE_PLURAL: Record<MasterType, string> = {
 export function duplicateMasterMessage(name: string, type: MasterType): string {
   return `A ${MASTER_TYPE_LABEL[type].toLowerCase()} named ${normalizeMasterName(name)} already exists.`
 }
+
+/** Resolve a transaction's master_id for display. Returns null for an id that
+ *  resolves to nothing — which is the NORMAL case for a soft-deleted master,
+ *  since `masters` is loaded with `deleted_at IS NULL` while the tag survives on
+ *  the transaction. Callers render nothing, never "Unknown". */
+export function masterById(masters: Master[], id: string | null | undefined): Master | null {
+  if (!id) return null
+  return masters.find(m => m.id === id) ?? null
+}
+
+/** Expenses tagged to one master, newest first. */
+export const masterTransactions = (transactions: Transaction[], masterId: string): Transaction[] =>
+  transactions
+    .filter(t => t.master_id === masterId && t.transaction_type === 'expense')
+    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+
+/** What this master has cost, net of anything reimbursed against those expenses —
+ *  if a colleague paid back half the Zomato order, Zomato did not cost the full
+ *  amount. `amount` is what left the account; `spendAmount` is what it cost.
+ *
+ *  THE COUNTING INVARIANT — do not "optimise" this away:
+ *  This sums stored transaction rows EXACTLY ONCE. Split legs are independent
+ *  expense rows whose amounts already partition the original total, so summing
+ *  them yields that total: a ₹408 bill split ₹250 Food + ₹158 Drinks is two rows
+ *  adding to ₹408, which is correct. No grouping or de-duplication by
+ *  description, date, split_group_id, or any notion of a "parent" row is
+ *  performed, and none must be added — there is no parent row to group by, and
+ *  collapsing look-alike rows would silently report ₹250. split_group_id exists
+ *  to EDIT legs together, never to collapse them for totals.
+ *
+ *  Reimbursement netting composes safely: recovery on a split group is
+ *  distributed across legs proportionally, so each leg's spendAmount already
+ *  carries its share.
+ *
+ *  Takes a transaction LIST, not AppState, so the same function can run over rows
+ *  fetched from the database — state.transactions holds only the most recent 200,
+ *  which would silently undercount a long-lived merchant. */
+export const masterSpent = (transactions: Transaction[], masterId: string): number =>
+  forSpendAnalytics(transactions)
+    .filter(t => t.master_id === masterId && t.transaction_type === 'expense')
+    .reduce((s, t) => s + spendAmount(t), 0)

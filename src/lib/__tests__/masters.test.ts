@@ -7,9 +7,13 @@ import {
   sortMasters,
   masterInitials,
   duplicateMasterMessage,
+  masterById,
+  masterTransactions,
+  masterSpent,
+  matchMasterByName,
 } from '@/lib/masters'
 import { MASTER_TYPES } from '@/types'
-import type { Master, MasterType } from '@/types'
+import type { Master, MasterType, Transaction } from '@/types'
 
 const m = (name: string, type: MasterType, over: Partial<Master> = {}): Master => ({
   id: name + '-' + type,
@@ -158,5 +162,142 @@ describe('duplicateMasterMessage', () => {
       .toBe('A person named Rahul already exists.')
     expect(duplicateMasterMessage('Zomato', MASTER_TYPES.MERCHANT))
       .toBe('A merchant named Zomato already exists.')
+  })
+})
+
+// ── Transaction linking (v1.61) ──────────────────────────────────────────────
+
+const tx = (over: Partial<Transaction> = {}): Transaction => ({
+  id: 't1',
+  transaction_date: '2026-09-01',
+  description: 'Lulu',
+  amount: 100,
+  transaction_type: 'expense',
+  category_id: 'cat-1',
+  from_account_id: 'acc-1',
+  to_account_id: null,
+  notes: null,
+  created_at: '2026-09-01',
+  ...over,
+})
+
+describe('masterById', () => {
+  const list = [m('Rahul', MASTER_TYPES.PERSON)]
+
+  it('resolves a known id', () => {
+    expect(masterById(list, 'Rahul-person')?.name).toBe('Rahul')
+  })
+
+  it('returns null for null/undefined rather than throwing', () => {
+    expect(masterById(list, null)).toBeNull()
+    expect(masterById(list, undefined)).toBeNull()
+  })
+
+  it('returns null for a soft-deleted master, which is NOT loaded into state', () => {
+    // The tag survives on the transaction while the master is filtered out by
+    // `deleted_at IS NULL`. Callers must render nothing, never "Unknown".
+    expect(masterById(list, 'deleted-master-id')).toBeNull()
+  })
+})
+
+describe('masterTransactions', () => {
+  const txns = [
+    tx({ id: 'a', master_id: 'lulu', transaction_date: '2026-09-01' }),
+    tx({ id: 'b', master_id: 'lulu', transaction_date: '2026-09-05' }),
+    tx({ id: 'c', master_id: 'zomato' }),
+    tx({ id: 'd' }),
+  ]
+
+  it('returns only that master, newest first', () => {
+    expect(masterTransactions(txns, 'lulu').map(t => t.id)).toEqual(['b', 'a'])
+  })
+
+  it('ignores income rows — a master total is about spending', () => {
+    const withIncome = [...txns, tx({ id: 'e', master_id: 'lulu', transaction_type: 'income' })]
+    expect(masterTransactions(withIncome, 'lulu').map(t => t.id)).toEqual(['b', 'a'])
+  })
+})
+
+describe('masterSpent', () => {
+  it('sums a single expense', () => {
+    expect(masterSpent([tx({ master_id: 'lulu', amount: 250 })], 'lulu')).toBe(250)
+  })
+
+  it('returns 0 for an unknown master', () => {
+    expect(masterSpent([tx({ master_id: 'lulu', amount: 250 })], 'nobody')).toBe(0)
+  })
+
+  it('ignores income rows', () => {
+    const txns = [
+      tx({ id: 'a', master_id: 'rahul', amount: 250 }),
+      tx({ id: 'b', master_id: 'rahul', amount: 900, transaction_type: 'income' }),
+    ]
+    expect(masterSpent(txns, 'rahul')).toBe(250)
+  })
+
+  it('nets a reimbursement against the expense it repays', () => {
+    const txns = [
+      tx({ id: 'exp', master_id: 'zomato', amount: 500 }),
+      tx({ id: 'rec', transaction_type: 'income', amount: 200, reimbursement_for: 'exp' }),
+    ]
+    expect(masterSpent(txns, 'zomato')).toBe(300)
+  })
+
+  // ── The counting invariant ──
+  it('sums both legs of a split to the original total, not one leg', () => {
+    const legs = [
+      tx({ id: 'leg1', master_id: 'lulu', amount: 250, split_group_id: 'g1', category_id: 'food' }),
+      tx({ id: 'leg2', master_id: 'lulu', amount: 158, split_group_id: 'g1', category_id: 'drinks' }),
+    ]
+    expect(masterSpent(legs, 'lulu')).toBe(408)
+  })
+
+  it('does NOT de-duplicate legs that share a description and date', () => {
+    // The exact shape a future reader might mistake for a double-count and
+    // "fix" by de-duplicating — which would silently report 250.
+    const legs = [
+      tx({ id: 'leg1', master_id: 'lulu', amount: 250, description: 'Lulu', transaction_date: '2026-09-01', split_group_id: 'g1' }),
+      tx({ id: 'leg2', master_id: 'lulu', amount: 158, description: 'Lulu', transaction_date: '2026-09-01', split_group_id: 'g1' }),
+    ]
+    expect(masterSpent(legs, 'lulu')).toBe(408)
+  })
+})
+
+describe('matchMasterByName', () => {
+  const list = [
+    m('Zomato', MASTER_TYPES.MERCHANT),
+    m('Rahul', MASTER_TYPES.PERSON),
+  ]
+
+  it('matches a merchant by exact name', () => {
+    expect(matchMasterByName(list, 'Zomato')?.id).toBe('Zomato-merchant')
+  })
+
+  it('ignores case and surrounding whitespace, as the AI output varies', () => {
+    expect(matchMasterByName(list, '  ZOMATO ')?.id).toBe('Zomato-merchant')
+    expect(matchMasterByName(list, 'zomato')?.id).toBe('Zomato-merchant')
+  })
+
+  it('falls through to people when no merchant matches', () => {
+    expect(matchMasterByName(list, 'rahul')?.id).toBe('Rahul-person')
+  })
+
+  it('prefers the merchant when both types share a name', () => {
+    const both = [...list, m('Zomato', MASTER_TYPES.PERSON)]
+    expect(matchMasterByName(both, 'Zomato')?.type).toBe(MASTER_TYPES.MERCHANT)
+  })
+
+  it('returns null rather than guessing on a partial name', () => {
+    // "Daya Discount Hyper Pharma" must NOT link to a person called "Daya":
+    // a wrong tag attributes spending to the wrong entity, which is worse than
+    // no tag at all.
+    const withDaya = [...list, m('Daya', MASTER_TYPES.PERSON)]
+    expect(matchMasterByName(withDaya, 'Daya Discount Hyper Pharma')).toBeNull()
+  })
+
+  it('handles null/undefined/empty input', () => {
+    expect(matchMasterByName(list, null)).toBeNull()
+    expect(matchMasterByName(list, undefined)).toBeNull()
+    expect(matchMasterByName(list, '   ')).toBeNull()
   })
 })

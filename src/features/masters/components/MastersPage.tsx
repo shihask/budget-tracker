@@ -9,7 +9,7 @@ import { MasterAvatar } from './MasterAvatar'
 import { MasterDetailPage } from './MasterDetailPage'
 import { MasterFormSheet, type MasterFormValues } from './MasterFormSheet'
 import { MASTER_TYPES } from '@/types'
-import type { AppState, Master, MasterType } from '@/types'
+import type { AppState, Master, MasterType, Transaction } from '@/types'
 
 const MASTERS_COLOR = '#6366F1'
 
@@ -25,10 +25,11 @@ interface Props {
   onAddMaster: (form: MasterFormValues) => Promise<void>
   onUpdateMaster: (id: string, patch: Partial<MasterFormValues>) => Promise<void>
   onDeleteMaster: (id: string) => Promise<void>
+  onFetchSpend: (masterId: string) => Promise<{ total: number; count: number; recent: Transaction[] }>
 }
 
 export function MastersPage({
-  state, onClose, onSwipeProgress, onAddMaster, onUpdateMaster, onDeleteMaster,
+  state, onClose, onSwipeProgress, onAddMaster, onUpdateMaster, onDeleteMaster, onFetchSpend,
 }: Props) {
   const c = useTheme()
   const [search, setSearch] = useState('')
@@ -297,6 +298,7 @@ export function MastersPage({
           onClose={() => setDetailId(null)}
           onEdit={() => openEdit(detailMaster)}
           onDelete={onDeleteMaster}
+          onFetchSpend={onFetchSpend}
         />
       )}
 

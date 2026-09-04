@@ -6,6 +6,8 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt, TODAY, iso, round2, selectOnFocus } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
+import { MasterSelect } from './MasterSelect'
+import { matchMasterByName, normalizeMasterName, MASTER_TYPE_LABEL } from '@/lib/masters'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { QuickAmountBody } from './QuickAmountSheet'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
@@ -13,7 +15,9 @@ import { Camera, Sparkles, Undo2 } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { SplitLegsEditor } from './SplitLegsEditor'
 import { isSplitValid, splitHint } from '@/lib/splitGroups'
-import type { AppState, Transaction, TransactionType, Category, SplitLegInput, Settings } from '@/types'
+import type { AppState, Transaction, TransactionType, Category, SplitLegInput, Settings, Master } from '@/types'
+import type { MasterFormValues } from '@/features/masters/components/MasterFormSheet'
+import { MASTER_TYPES } from '@/types'
 import { parseExpenseWithAI, aiUsagePatch, type AIReceiptExtraction } from '@/lib/gemini'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
@@ -95,7 +99,7 @@ interface QuickAddSheetProps {
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => Promise<Transaction | undefined>
   /** Saves one expense funded by several accounts. Absent = split mode unavailable. */
   onSaveSplit?: (
-    form: { transaction_date: string; description: string; amount: number; category_id: string | null },
+    form: { transaction_date: string; description: string; amount: number; category_id: string | null; master_id?: string | null },
     legs: SplitLegInput[],
   ) => Promise<Transaction[]>
   state: AppState
@@ -107,6 +111,8 @@ interface QuickAddSheetProps {
   defaultTxType?: 'expense' | 'income' | 'transfer'
   defaultCategoryId?: string | null
   defaultEventId?: string | null
+  defaultMasterId?: string | null
+  onAddMaster: (form: MasterFormValues) => Promise<Master | undefined>
   /** Opens straight into reimbursement mode against this expense — the reverse
    *  entry point, from the expense detail. `remaining` prefills the amount. */
   defaultReimbursement?: { targetId: string; remaining: number }
@@ -119,7 +125,7 @@ interface QuickAddSheetProps {
   onDismissSmartInputTip?: () => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultMasterId, onAddMaster, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -127,6 +133,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   // Every piece of split UI is gated behind this being non-null.
   const [splitLegs, setSplitLegs] = useState<SplitLegInput[] | null>(null)
   const [eventId, setEventId] = useState('')
+  // Who/where this expense involved. Plain useState like eventId, NOT a zod field:
+  // adding it to the schema would drag it into isValid and the baseValid gate.
+  const [masterId, setMasterId] = useState('')
   // Income purpose: ordinary earnings, or money back for an expense you already
   // recorded. Not a transaction type — a reimbursement is still an income row and
   // still credits the account; only the analytics reading changes.
@@ -142,6 +151,23 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
 
   // Long press quick save
   const [longPressChip, setLongPressChip] = useState<{ label: string; category_id: string | null } | null>(null)
+  // Optional-fields disclosure. A pure client UI preference, so localStorage
+  // rather than a Settings column — it never needs to leave the device, and a DB
+  // migration for it would be all cost. Key convention: mp-kebab-case for
+  // non-user-scoped UI state (cf. mp-journey-view), mp_snake_case_<userId> for
+  // per-user one-time flags. try/catch because it throws in private mode.
+  // An AI-extracted name with no master behind it yet. Held so we can offer to
+  // create it rather than silently inventing directory entries for every petrol
+  // pump and one-off shop.
+  const [masterOffer, setMasterOffer] = useState<string | null>(null)
+  const [showAdvanced, setShowAdvanced] = useState(() => {
+    try { return localStorage.getItem('mp-quickadd-advanced') === '1' } catch { return false }
+  })
+  const toggleAdvanced = () => setShowAdvanced(v => {
+    const next = !v
+    try { localStorage.setItem('mp-quickadd-advanced', next ? '1' : '0') } catch { /* private mode */ }
+    return next
+  })
   const [quickAmount, setQuickAmount] = useState('')
   const [quickAccountId, setQuickAccountId] = useState('')
   const [smartInput, setSmartInput] = useState('')
@@ -310,6 +336,8 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       setAiSuccess(false)
       setPendingReceipt(null)
       setEventId(defaultEventId ?? '')
+      setMasterId(defaultMasterId ?? '')
+      setMasterOffer(null)
       setIncomePurpose(defaultReimbursement ? 'reimbursement' : 'income')
       setReimbursementFor(defaultReimbursement?.targetId ?? null)
       setReimbursementRemaining(defaultReimbursement?.remaining ?? 0)
@@ -394,6 +422,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       if (parsed.amount !== null) setValue('amount', parsed.amount, { shouldValidate: true })
       if (parsed.accountId) setValue('from_account_id', parsed.accountId, { shouldValidate: true })
       if (parsed.categoryId) setValue('category_id', parsed.categoryId, { shouldValidate: true })
+      applyMasterFromName(parsed.description)
       setSmartParsed({
         description: parsed.description,
         amount: parsed.amount,
@@ -434,6 +463,10 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         const cat = catsRef.current.find(c => c.name === result.category)
         if (cat) setValue('category_id', cat.id, { shouldValidate: true })
       }
+      // parseExpenseWithAI has no `merchant` field, but its description is the
+      // same cleaned payee name the receipt extractor produces, so the one
+      // matcher serves both without an Edge Function change.
+      applyMasterFromName(result.description)
       setSmartParsed({
         description: result.description ?? '',
         amount: result.amount ?? null,
@@ -447,6 +480,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       if (parsed.amount !== null) setValue('amount', parsed.amount, { shouldValidate: true })
       if (parsed.accountId) setValue('from_account_id', parsed.accountId, { shouldValidate: true })
       if (parsed.categoryId) setValue('category_id', parsed.categoryId, { shouldValidate: true })
+      applyMasterFromName(parsed.description)
       setSmartParsed({
         description: parsed.description,
         amount: parsed.amount,
@@ -461,6 +495,21 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
 
   // Shared by both the high-confidence auto-fill path and the low-confidence
   // tap-to-fill suggestion's accept action — one place that actually touches setValue.
+  /** Tag the master from a name the AI or the local parser produced.
+   *
+   *  Two rules that matter more than the matching itself:
+   *  - A master the user picked by hand always wins. Extraction runs after the
+   *    user may already have chosen, and silently re-pointing their tag would be
+   *    worse than not tagging at all.
+   *  - Never auto-create. An unmatched name becomes an OFFER; the directory only
+   *    ever contains masters the user chose to make. */
+  const applyMasterFromName = (name: string | null | undefined) => {
+    if (!name || masterId) return
+    const hit = matchMasterByName(state.masters, name)
+    if (hit) { setMasterId(hit.id); setMasterOffer(null) }
+    else setMasterOffer(normalizeMasterName(name))
+  }
+
   const applyExtractionToForm = (result: AIReceiptExtraction) => {
     aiJustParsed.current = true
     setCatSuggestions([])
@@ -468,6 +517,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
     if (result.description) setValue('description', result.description, { shouldValidate: true })
     if (result.amount !== null) setValue('amount', result.amount, { shouldValidate: true })
     if (result.transaction_date) setValue('date', result.transaction_date, { shouldValidate: true })
+    // `merchant` is the Edge Function's alias of the cleaned description; prefer
+    // it so this keeps working if the two ever diverge.
+    applyMasterFromName(result.merchant ?? result.description)
     if (result.category) {
       const cat = catsRef.current.find(c => c.name === result.category)
       if (cat) setValue('category_id', cat.id, { shouldValidate: true })
@@ -482,6 +534,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   const hasMeaningfulReceiptTargets = () =>
     !!descriptionVal.trim() ||
     amountVal > 0 ||
+    !!masterId ||
     (!!categoryVal && categoryVal !== initialCategoryIdRef.current) ||
     dateVal !== initialDateRef.current
 
@@ -561,6 +614,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         description: data.description,
         amount: data.amount,
         category_id: data.category_id || null,
+        // Every leg gets tagged (see addSplitTransaction) — the whole bill was
+        // spent at this merchant, and the legs partition the total.
+        master_id: masterId || null,
       }, splitLegs).then(rows => {
         // One receipt per expense is the V1 model, so it rides on the first leg.
         const first = rows[0]
@@ -581,6 +637,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         to_account_id: null,
         // Only expenses belong to a life event; income/transfers never do.
         event_id: txType === 'expense' && eventId ? eventId : null,
+        // Expenses only in v1.61, matching event_id. Tagging income to a person
+        // ("Rahul paid me back") belongs to the deferred Lend & Borrow work.
+        master_id: txType === 'expense' && masterId ? masterId : null,
         reimbursement_for: isReimbursing ? reimbursementFor : null,
       })
       const withReceipt = (tx: Transaction | undefined) => {
@@ -624,6 +683,40 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
 
   const isExpense = txType === 'expense'
   const isTransfer = txType === 'transfer'
+
+  // Quick chips are a shortcut for starting from nothing — tapping one fills the
+  // description. Once the user has committed to any other input path they can
+  // only overwrite work, so the row collapses and gives its height back exactly
+  // when the form is longest.
+  //
+  // smartInput counts even though it doesn't populate `description` until the AI
+  // parse returns: it sits directly above the chips, and leaving them up while
+  // someone types a sentence into it is the same clutter this removes.
+  //
+  // longPressChip forces them to stay: the quick-save popup is rendered INSIDE
+  // the chips map, so collapsing mid-gesture would tear it down under the user's
+  // finger.
+  const showQuickChips = !!longPressChip ||
+    (!descriptionVal?.trim() && !(amountVal > 0) && !smartInput.trim())
+
+  // Count only what the user INTENTIONALLY set, so a collapsed section never
+  // hides a value silently. pendingReceipt is an actually attached photo;
+  // receiptSuggestion is unapplied OCR output and must not count, or the badge
+  // would claim "1 set" when nothing will be saved.
+  const advancedCount = [eventId, masterId, pendingReceipt].filter(Boolean).length
+
+  // Derived, NOT setShowAdvanced(true) in the reset effect. QuickAddSheet stays
+  // mounted between openings (it is driven by an `open` prop, not conditionally
+  // rendered), so writing to state here would survive the sheet closing: open
+  // once from a prefilled deep link and every later manual open would be
+  // expanded too, silently overriding a preference the user set deliberately.
+  const effectiveShowAdvanced = showAdvanced || !!defaultEventId || !!defaultMasterId
+
+  // Nothing inside? Render no toggle at all rather than an empty disclosure.
+  // All three children (life event, who/where, receipt) are expense-only, and
+  // ReceiptField has no further gate — so on an expense there is always at least
+  // the receipt, and on income/transfer there is never anything.
+  const hasAdvancedFields = isExpense
   const isReimbursing = txType === 'income' && incomePurpose === 'reimbursement'
   const linkedExpense = reimbursementFor
     ? state.transactions.find(t => t.id === reimbursementFor) ?? null
@@ -945,9 +1038,22 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
           </div>
         )}
 
-        {/* Quick chips — expense only, dynamic from history */}
+        {/* Quick chips — expense only, dynamic from history. Collapses once the
+            user starts entering the transaction another way; see showQuickChips. */}
         {isExpense && !isTransfer && (
-          <div style={{ marginBottom: 18 }}>
+          <div style={{
+            // 240px is a deliberate over-estimate, NOT the measured height. The
+            // row is ~110px today, but chip labels wrap on small screens, under
+            // long localized labels, and at large accessibility font scales — a
+            // snug max-height would clip them. Over-shooting only makes the
+            // collapse start slightly faster; it cannot clip. Do not "tighten"
+            // this to the observed height.
+            maxHeight: showQuickChips ? '240px' : '0px',
+            opacity: showQuickChips ? 1 : 0,
+            overflow: 'hidden',
+            marginBottom: showQuickChips ? 18 : 0,
+            transition: 'max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease, margin-bottom 0.3s cubic-bezier(0.4,0,0.2,1)',
+          }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: '72px', overflow: 'hidden' }}>
               {(topDescriptions.length === 0
                 ? ['Tea', 'Petrol', 'Groceries', 'Medical', 'Shopping'].map(label => ({ label, category_id: null }))
@@ -1235,50 +1341,129 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
               </div>
             )}
 
-            {isExpense && activeEvents.length > 0 && (
-              <div>
-                <label style={labelStyle}>Life event <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span></label>
-                <select value={eventId} onChange={e => setEventId(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="">None</option>
-                  {activeEvents.map(ev => (
-                    <option key={ev.id} value={ev.id}>{ev.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <div>
               <label style={labelStyle}>Date</label>
               <input type="date" {...register('date')} style={inputStyle} />
             </div>
 
-            {isExpense && (
-              <ReceiptField
-                ref={receiptFieldRef}
-                pendingReceipt={pendingReceipt}
-                existingPath={null}
-                onPick={setPendingReceipt}
-                onRemovePending={() => setPendingReceipt(null)}
-                autopilotEnabled={autopilotEnabled}
-                categoryNames={catsRef.current.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)}
-                groupNames={state.groups.map(g => g.name)}
-                onAiUsed={(n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf))}
-                onExtracted={handleReceiptExtracted}
-              />
-            )}
+            {hasAdvancedFields && (
+              <div>
+                <button
+                  type="button"
+                  onClick={toggleAdvanced}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 12,
+                    border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted,
+                    font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 7,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ flexShrink: 0, transition: 'transform 0.2s', transform: effectiveShowAdvanced ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                  {/* "More options", not "Advanced": nothing in here is advanced,
+                      it's just optional, and "Advanced" wrongly signals risky or
+                      expert. The count only appears while collapsed — once open
+                      the fields speak for themselves, and showing both is noise. */}
+                  <span>
+                    More options
+                    {!effectiveShowAdvanced && advancedCount > 0 && ` · ${advancedCount} set`}
+                  </span>
+                </button>
 
-            {receiptSuggestion && (
-              <button
-                type="button"
-                onClick={applyReceiptSuggestion}
-                style={{
-                  width: '100%', border: `1.5px dashed ${c.accent}`,
-                  background: c.accentSoft, borderRadius: 10, padding: '8px 10px',
-                  font: '600 12px Plus Jakarta Sans', color: c.accent, cursor: 'pointer', textAlign: 'left',
-                }}
-              >
-                Detected: {receiptSuggestion.description ?? '—'} · {receiptSuggestion.amount != null ? fmt(receiptSuggestion.amount) : '—'} · {receiptSuggestion.transaction_date ?? '—'} — tap to fill
-              </button>
+                {effectiveShowAdvanced && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>
+                      Optional tags and receipt
+                    </div>
+
+                    {isExpense && activeEvents.length > 0 && (
+                      <div>
+                        <label style={labelStyle}>Life event <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span></label>
+                        <select value={eventId} onChange={e => setEventId(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                          <option value="">None</option>
+                          {activeEvents.map(ev => (
+                            <option key={ev.id} value={ev.id}>{ev.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {isExpense && state.masters.length > 0 && (
+                      <div>
+                        <label style={labelStyle}>Who / where <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span></label>
+                        <MasterSelect
+                          value={masterId}
+                          onChange={setMasterId}
+                          state={state}
+                          onAddMaster={onAddMaster}
+                          includeEmpty
+                          emptyLabel="None"
+                          style={{ ...inputStyle, cursor: 'pointer' }}
+                        />
+                      </div>
+                    )}
+
+                    {/* An AI-extracted name we don't have a master for. Offered,
+                        never auto-created: the directory should only hold entities
+                        the user chose to track, not every petrol pump on a receipt. */}
+                    {masterOffer && !masterId && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const created = await onAddMaster({
+                            name: masterOffer,
+                            type: MASTER_TYPES.MERCHANT,
+                            phone: null,
+                            notes: null,
+                            category_id: null,
+                            photo_url: null,
+                          })
+                          if (created) { setMasterId(created.id); setMasterOffer(null) }
+                        }}
+                        style={{
+                          width: '100%', border: `1.5px dashed ${c.accent}`,
+                          background: c.accentSoft, borderRadius: 10, padding: '8px 10px',
+                          font: '600 12px Plus Jakarta Sans', color: c.accent,
+                          cursor: 'pointer', textAlign: 'left',
+                        }}
+                      >
+                        + Add "{masterOffer}" as a {MASTER_TYPE_LABEL[MASTER_TYPES.MERCHANT].toLowerCase()}
+                      </button>
+                    )}
+
+                    {isExpense && (
+                      <ReceiptField
+                        ref={receiptFieldRef}
+                        pendingReceipt={pendingReceipt}
+                        existingPath={null}
+                        onPick={setPendingReceipt}
+                        onRemovePending={() => setPendingReceipt(null)}
+                        autopilotEnabled={autopilotEnabled}
+                        categoryNames={catsRef.current.filter(c => c.group_name !== INCOME_GROUP).map(c => c.name)}
+                        groupNames={state.groups.map(g => g.name)}
+                        onAiUsed={(n, pct, enf) => onUpdateSettings?.(aiUsagePatch(n, pct, enf))}
+                        onExtracted={handleReceiptExtracted}
+                      />
+                    )}
+
+                    {receiptSuggestion && (
+                      <button
+                        type="button"
+                        onClick={applyReceiptSuggestion}
+                        style={{
+                          width: '100%', border: `1.5px dashed ${c.accent}`,
+                          background: c.accentSoft, borderRadius: 10, padding: '8px 10px',
+                          font: '600 12px Plus Jakarta Sans', color: c.accent, cursor: 'pointer', textAlign: 'left',
+                        }}
+                      >
+                        Detected: {receiptSuggestion.description ?? '—'} · {receiptSuggestion.amount != null ? fmt(receiptSuggestion.amount) : '—'} · {receiptSuggestion.transaction_date ?? '—'} — tap to fill
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {saveError && (

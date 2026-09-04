@@ -6,7 +6,7 @@ import { computeChallengeResultUpdate } from '@/lib/challenge'
 import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
-import { normalizeMasterName, duplicateMasterMessage } from '@/lib/masters'
+import { normalizeMasterName, duplicateMasterMessage, masterSpent, masterTransactions } from '@/lib/masters'
 import { withTimeout, iso, TODAY, fmt, round2 } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
@@ -461,16 +461,26 @@ export function useSupabaseData(userId: string) {
 
       let row = data as Transaction
 
-      // Life-event tag is applied as a follow-up rather than through
-      // mp_execute_transaction, whose signature owns the atomic balance deltas
-      // and shouldn't grow a column that has no effect on them. event_linked_at
-      // is stamped by trigger, so it's read back rather than sent.
-      if (form.event_id) {
+      // Life-event tag and master (person/merchant) tag are applied as a
+      // follow-up rather than through mp_execute_transaction, whose signature
+      // owns the atomic balance deltas and shouldn't grow columns that have no
+      // effect on them. event_linked_at is stamped by trigger, so it's read back
+      // rather than sent.
+      //
+      // Both in ONE update: they have identical failure semantics, so a second
+      // round trip would buy nothing.
+      if (form.event_id || form.master_id) {
+        const tag: { event_id?: string; master_id?: string } = {}
+        if (form.event_id) tag.event_id = form.event_id
+        if (form.master_id) tag.master_id = form.master_id
         const { data: tagged, error: tagErr } = await supabase
-          .from('transactions').update({ event_id: form.event_id }).eq('id', row.id).select('*').single()
+          .from('transactions').update(tag).eq('id', row.id).select('*').single()
         // A failed tag must not lose the transaction — it's already saved and the
         // balance already moved. Leave it untagged and let the user retry.
-        if (tagErr) console.error('Failed to tag transaction to event:', tagErr)
+        // Deliberately NOT thrown, unlike the reimbursement link below: a missing
+        // label is cosmetic, and blocking expense capture over one would be the
+        // worse bug.
+        if (tagErr) console.error('Failed to tag transaction (event/master):', tagErr)
         else if (tagged) row = tagged as Transaction
       }
 
@@ -620,7 +630,7 @@ export function useSupabaseData(userId: string) {
   }, [userId])
 
   const addSplitTransaction = useCallback(async (
-    form: { transaction_date: string; description: string; amount: number; category_id: string | null; notes?: string },
+    form: { transaction_date: string; description: string; amount: number; category_id: string | null; notes?: string; master_id?: string | null },
     legs: SplitLegInput[],
   ): Promise<Transaction[]> => {
     try {
@@ -633,7 +643,27 @@ export function useSupabaseData(userId: string) {
         p_legs:             legs.map(l => toSplitLegPayload(l, splitCardIds())),
       })
       if (error) throw error
-      const rows = (data as Transaction[]) ?? []
+      let rows = (data as Transaction[]) ?? []
+
+      // mp_execute_split_transaction has no relational parameter — which is also
+      // why splits can carry neither an event nor a reimbursement — so the master
+      // tag is a follow-up update, same reasoning as addTransaction's.
+      //
+      // EVERY leg is tagged, not just an anchor: the whole bill was spent at that
+      // merchant, and masterSpent() sums legs (which partition the total) rather
+      // than measuring a remainder. This differs from reimbursements, which do use
+      // an anchor leg, deliberately.
+      //
+      // It must run BEFORE applySplitRows, or local state is seeded with untagged
+      // rows and the UI shows no master until a reload.
+      if (form.master_id && rows.length > 0) {
+        const { data: tagged, error: tagErr } = await supabase
+          .from('transactions').update({ master_id: form.master_id })
+          .in('id', rows.map(r => r.id)).select('*')
+        if (tagErr) console.error('Failed to tag split transaction to master:', tagErr)
+        else if (tagged && tagged.length > 0) rows = tagged as Transaction[]
+      }
+
       applySplitRows([], rows)
       await refreshBalancesAfterSplit()
       return rows
@@ -847,6 +877,23 @@ export function useSupabaseData(userId: string) {
         const { data: tagged, error: tagErr } = await supabase
           .from('transactions').update({ event_id: nextEventId }).eq('id', old.id).select('*').single()
         if (tagErr) console.error('Failed to update transaction event:', tagErr)
+        else if (tagged) row = tagged as Transaction
+      }
+
+      // Same tri-state rule for the master tag, and for exactly the same reason:
+      // an ABSENT master_id means "leave it alone", so an edit made from a surface
+      // that knows nothing about masters — the quick-category popup, the AI chat
+      // editor, a statement-import merge — can't silently untag a Zomato expense.
+      // Only an explicit null clears it.
+      //
+      // Writing this as `form.master_id ?? null` instead would wipe the tag on
+      // every one of those edits. That is the single most dangerous bug in this
+      // feature and it has a test at the top of the file.
+      const nextMasterId = form.master_id === undefined ? undefined : (form.master_id ?? null)
+      if (nextMasterId !== undefined && nextMasterId !== (old.master_id ?? null)) {
+        const { data: tagged, error: tagErr } = await supabase
+          .from('transactions').update({ master_id: nextMasterId }).eq('id', old.id).select('*').single()
+        if (tagErr) console.error('Failed to update transaction master:', tagErr)
         else if (tagged) row = tagged as Transaction
       }
 
@@ -1791,6 +1838,49 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, masters: s.masters.map(m => m.id === id ? data as Master : m) }))
   }, [])
 
+  /** Per-master spend, read from the DATABASE rather than state.transactions.
+   *
+   *  state.transactions holds only the most recent TXN_PAGE_SIZE (200) rows. For
+   *  a life event that barely matters — an event is recent and short-lived. For a
+   *  merchant it is fatal: "how much have I spent at Lulu?" is inherently a
+   *  question about a long span, and summing the in-memory window would report a
+   *  fraction of the truth while looking authoritative. A wrong number here is
+   *  worse than no number. Same reasoning as CategoriesPage's delete-check count.
+   *
+   *  Reimbursements are fetched too and run through the SAME forSpendAnalytics /
+   *  spendAmount pair the in-memory path uses, so there is one netting
+   *  implementation rather than two that can drift. */
+  const fetchMasterSpend = useCallback(async (masterId: string): Promise<{
+    total: number; count: number; recent: Transaction[]
+  }> => {
+    const { data: expenses, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('master_id', masterId)
+      .eq('transaction_type', 'expense')
+      .order('transaction_date', { ascending: false })
+    if (error) throw error
+
+    const rows = (expenses as Transaction[]) ?? []
+    if (rows.length === 0) return { total: 0, count: 0, recent: [] }
+
+    // Reimbursements point AT these expenses, so they can't be found by master_id.
+    const { data: recoveries, error: recErr } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .in('reimbursement_for', rows.map(r => r.id))
+    if (recErr) throw recErr
+
+    const all = [...rows, ...((recoveries as Transaction[]) ?? [])]
+    return {
+      total: masterSpent(all, masterId),
+      count: rows.length,
+      recent: masterTransactions(rows, masterId).slice(0, 10),
+    }
+  }, [userId])
+
   /** Soft delete. Nothing references a master in v1.60, so this buys nothing
    *  today — it is here so the release that adds transactions.master_id can
    *  recover who a tagged expense belonged to. See the migration's comment. */
@@ -2203,7 +2293,7 @@ export function useSupabaseData(userId: string) {
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addPlannedExpense, updatePlannedExpense, deletePlannedExpense,
     addEvent, updateEvent, deleteEvent, linkTransactionsToEvent,
-    addMaster, updateMaster, deleteMaster,
+    addMaster, updateMaster, deleteMaster, fetchMasterSpend,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
     addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout,
     updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion,

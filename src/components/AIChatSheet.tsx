@@ -7,6 +7,7 @@ import { parseExpenseWithAI, extractReceiptWithAI, aiUsagePatch, type AIReceiptE
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
 import { round2 } from '@/lib/utils'
+import { matchMasterByName, masterById } from '@/lib/masters'
 import { forSpendAnalytics, spendAmount, isReimbursement } from '@/lib/reimbursements'
 import { MintAnimation } from './MintAnimation'
 import { CategorySelect } from './CategorySelect'
@@ -68,6 +69,11 @@ type ReceiptPrompt = {
   categoryId: string | null
   categorySuggestion: { name: string; group: string } | null
   accountId: string
+  // Matched against the directory from the extracted merchant name. Match-only:
+  // the chat card offers no "create master" action, so an unrecognised merchant
+  // simply stays untagged rather than inventing a directory entry from a screen
+  // the user is only glancing at.
+  masterId: string | null
   confidence: 'high' | 'low'
 }
 type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: string[]; receiptPrompt?: ReceiptPrompt; imagePreviewUrl?: string; actionCard?: MintAction }
@@ -1480,6 +1486,8 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
           categoryId: category?.id ?? null,
           categorySuggestion: !category ? (result.suggestion ?? null) : null,
           accountId: allAccObjs[0]?.id ?? '',
+          // `merchant` is the Edge Function's alias of the cleaned description.
+          masterId: matchMasterByName(state.masters, result.merchant ?? result.description)?.id ?? null,
           confidence: result.confidence,
         },
       }])
@@ -1548,6 +1556,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
           accountId: defaultAccId,
           categoryId: smsData.categoryId,
           categorySuggestion: smsData.categorySuggestion,
+          masterId: matchMasterByName(state.masters, smsData.description)?.id ?? null,
           confidence: 'high',
         },
       }])
@@ -1868,6 +1877,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
         transaction_type: 'expense',
         category_id: rp.categoryId,
         from_account_id: rp.accountId,
+        master_id: rp.masterId,
       })
       if (!tx) throw new Error('Save failed')
       if (rp.receipt) {
@@ -1881,7 +1891,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
       }
       setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : {
         role: 'ai',
-        text: `Done! Recorded expense "${rp.description}" ₹${rp.amount.toLocaleString()} under ${savedExpense.category} from ${savedExpense.account}.${rp.receipt ? ' Receipt attached.' : ''}`,
+        text: `Done! Recorded expense "${rp.description}" ₹${rp.amount.toLocaleString()} under ${savedExpense.category} from ${savedExpense.account}.${masterById(state.masters, rp.masterId) ? ` Tagged to ${masterById(state.masters, rp.masterId)!.name}.` : ''}${rp.receipt ? ' Receipt attached.' : ''}`,
         savedExpense,
       }))
     } catch {
