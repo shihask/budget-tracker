@@ -39,6 +39,7 @@ import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { PWAPrompt } from '@/components/PWAPrompt'
 import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
+import { MastersPage } from '@/features/masters/components/MastersPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
 import { AffordabilityChecker } from '@/components/AffordabilityChecker'
 import { GoalsSection } from '@/components/GoalsSection'
@@ -203,6 +204,7 @@ function AppContent({ session }: { session: Session }) {
   const [savingsOpen, setSavingsOpen] = useState(false)
   const [savingsAddOnOpen, setSavingsAddOnOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
+  const [mastersOpen, setMastersOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [metricsInfoOpen, setMetricsInfoOpen] = useState(false)
@@ -290,7 +292,7 @@ function AppContent({ session }: { session: Session }) {
     return () => { cancelled = true }
   }, [session.user.id])
 
-  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, addTransaction, deleteTransaction, updateTransaction, addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, addEvent, updateEvent, deleteEvent, linkTransactionsToEvent, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, addTransaction, deleteTransaction, updateTransaction, addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, addEvent, updateEvent, deleteEvent, linkTransactionsToEvent, addMaster, updateMaster, deleteMaster, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
 
   // Stages pending sync_events for review — every transaction event lands
   // in needs_review (DedupReviewSheet decides insert/merge/ignore from
@@ -590,10 +592,10 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || adminOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || mastersOpen || adminOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
-            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
+            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
               onTransactions={() => setTxnsOpen(true)}
               onAnalytics={() => setAnalyticsOpen(true)}
               onCashflow={() => setCashflowOpen(true)}
@@ -965,8 +967,8 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
-            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || adminOpen) ? 'auto' : 'none',
+            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || adminOpen) ? 'auto' : 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
 
@@ -1036,6 +1038,17 @@ function AppContent({ session }: { session: Session }) {
               onUpdateCategory={updateCategory}
               onDeleteCategory={deleteCategory}
               onToggleCategoryVisibility={toggleCategoryVisibility}
+            />
+          )}
+
+          {mastersOpen && (
+            <MastersPage
+              state={state}
+              onClose={() => setMastersOpen(false)}
+              onSwipeProgress={setSwipePct}
+              onAddMaster={async form => { await addMaster(form) }}
+              onUpdateMaster={updateMaster}
+              onDeleteMaster={deleteMaster}
             />
           )}
 

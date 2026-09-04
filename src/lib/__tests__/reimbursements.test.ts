@@ -68,6 +68,7 @@ function makeState(transactions: Transaction[]): AppState {
     goals: [], goal_contributions: [], user_achievements: [], habits: [],
     savings: [], planned_expenses: [],
     events: [],
+    masters: [],
   }
 }
 

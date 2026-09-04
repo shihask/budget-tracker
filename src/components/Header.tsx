@@ -11,6 +11,7 @@ interface HeaderProps {
   synced: boolean
   onSignOut: () => void
   onSettings: () => void
+  onMasters: () => void
   onCategories: () => void
   notificationCount?: number
   onNotifications?: () => void
@@ -34,7 +35,7 @@ interface HeaderProps {
 }
 
 export function Header({
-  dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, notificationCount = 0, onNotifications, onTour, onAdmin,
+  dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onMasters, onCategories, notificationCount = 0, onNotifications, onTour, onAdmin,
   onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onEvents, onCreate, onGrow, onPlant,
   trackSavings, trackBorrowings, trackProjects, hasEvents,
 }: HeaderProps) {
@@ -281,6 +282,7 @@ export function Header({
         onCreate={onCreate}
         onGrow={onGrow}
         onPlant={onPlant}
+        onMasters={onMasters}
         onCategories={onCategories}
         onSettings={onSettings}
         trackSavings={trackSavings}

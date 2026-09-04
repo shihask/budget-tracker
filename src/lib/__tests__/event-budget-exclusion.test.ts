@@ -59,6 +59,7 @@ function makeState(events: LifeEvent[], scope: WeeklyBudgetScope | null): AppSta
     goals: [], goal_contributions: [], user_achievements: [], habits: [],
     savings: [], planned_expenses: [],
     events,
+    masters: [],
   }
 }
 

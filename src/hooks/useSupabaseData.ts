@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Account, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, SplitLegInput, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency, LifeEvent } from '@/types'
+import type { AppState, Account, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, SplitLegInput, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency, LifeEvent, Master } from '@/types'
 import { evaluateEvent } from '@/lib/achievement-engine'
 import { computeChallengeResultUpdate } from '@/lib/challenge'
 import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
+import { normalizeMasterName, duplicateMasterMessage } from '@/lib/masters'
 import { withTimeout, iso, TODAY, fmt, round2 } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
@@ -48,6 +49,7 @@ const EMPTY_STATE: AppState = {
   savings: [],
   planned_expenses: [],
   events: [],
+  masters: [],
 }
 
 const DEFAULT_SETTINGS = { weekly_budget: 5000, emergency_fund: 0, salary_date: null, track_credit_cards: false, track_projects: false }
@@ -147,6 +149,11 @@ const savingsWithdrawNote = (type: string, isChit: boolean) =>
   isChit ? 'Chit Fund Payout' : `${SAVINGS_TYPE_LABEL[type] ?? 'Savings'} Redemption`
 const SAVINGS_CATEGORIES = ['SIP', 'Mutual Fund', 'Gold Scheme', 'Recurring Deposit', 'Fixed Deposit', 'PPF', 'NPS', 'Chit Fund']
 
+/** The writable half of a Master. Omitting 'display_name' is what makes writing
+ *  the GENERATED ALWAYS column a compile error rather than a runtime 428C9 from
+ *  Postgres — so patches take Partial<MasterForm>, never Partial<Master>. */
+export type MasterForm = Omit<Master, 'id' | 'user_id' | 'display_name' | 'created_at' | 'updated_at' | 'deleted_at'>
+
 const TXN_PAGE_SIZE = 200
 
 export function useSupabaseData(userId: string) {
@@ -178,6 +185,7 @@ export function useSupabaseData(userId: string) {
           { data: budgetStrategyRow },
           { data: plannedExpenses },
           { data: eventRows },
+          { data: masterRows },
         ] = await Promise.all([
           supabase.from('settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
@@ -201,6 +209,10 @@ export function useSupabaseData(userId: string) {
           supabase.from('budget_strategy_settings').select('*').eq('user_id', userId).limit(1).single(),
           supabase.from('planned_expenses').select('*').eq('user_id', userId).order('planned_date'),
           supabase.from('events').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+          // `deleted_at IS NULL` is the entire cost of soft-deleting this table.
+          // This is the ONLY read of `masters` in v1.60 — keep it that way, or
+          // repeat the filter wherever the next one appears.
+          supabase.from('masters').select('*').eq('user_id', userId).is('deleted_at', null).order('name'),
         ])
 
         // First login — seed settings
@@ -401,6 +413,7 @@ export function useSupabaseData(userId: string) {
           savings: (savingsRows as Savings[]) || [],
           planned_expenses: (plannedExpenses as PlannedExpense[]) || [],
           events: (eventRows as LifeEvent[]) || [],
+          masters: (masterRows as Master[]) || [],
         })
         setAllTransactionsLoaded(txnList.length < TXN_PAGE_SIZE)
         setUsingSupabase(true)
@@ -1712,6 +1725,82 @@ export function useSupabaseData(userId: string) {
     }))
   }, [])
 
+  // ── Master Directory ──
+  // A standalone people/merchant directory. Nothing else in the app reads it in
+  // v1.60 — `transactions.master_id` lands next release.
+
+  /** Normalize text at the write boundary, and drop `display_name`, which is
+   *  GENERATED ALWAYS in Postgres and errors if written. MasterForm already
+   *  omits it at the type level; this strips it if an untyped caller slips one
+   *  through. Empty strings become null so "cleared the notes" is NULL, not ''.
+   *  Phone is trimmed but never reformatted — users type country codes, spaces
+   *  and dashes, and no feature depends on the shape yet. */
+  const normalizeMaster = <T extends Partial<MasterForm>>(f: T): T => {
+    const out = { ...f } as Record<string, unknown>
+    delete out.display_name
+    if (typeof f.name === 'string') out.name = normalizeMasterName(f.name)
+    for (const k of ['phone', 'notes'] as const) {
+      if (typeof f[k] === 'string') {
+        const v = (f[k] as string).trim()
+        out[k] = v === '' ? null : v
+      }
+    }
+    return out as T
+  }
+
+  const addMaster = useCallback(async (form: MasterForm) => {
+    const clean = normalizeMaster(form)
+    const { data, error } = await supabase.from('masters')
+      .insert({ ...clean, user_id: userId }).select('*').single()
+    // 23505 = the partial unique index on (user_id, type, lower(display_name)).
+    if (error?.code === '23505') throw new Error(duplicateMasterMessage(form.name, form.type))
+    if (error) throw error
+    const m = data as Master
+    setState(s => ({ ...s, masters: [...s.masters, m] }))
+    return m
+  }, [userId])
+
+  /** Optimistic, unlike addEvent/updateEvent's write-through. A rename is a pure
+   *  local text change with nothing derived from it, so waiting a round trip to
+   *  repaint is latency the user has no reason to see. */
+  const updateMaster = useCallback(async (id: string, patch: Partial<MasterForm>) => {
+    // Snapshot BEFORE the optimistic write, via stateRef rather than by assigning
+    // to an outer variable from inside a setState updater. Updaters are not
+    // guaranteed to run synchronously and StrictMode runs them twice, so
+    // capturing `previous` in there would make the rollback depend on that timing.
+    const previous = stateRef.current.masters.find(m => m.id === id)
+    if (!previous) return
+
+    const clean = normalizeMaster(patch)
+    setState(s => ({ ...s, masters: s.masters.map(m => m.id === id ? { ...m, ...clean } : m) }))
+
+    const { data, error } = await supabase.from('masters')
+      .update(clean).eq('id', id).select('*').single()
+
+    if (error) {
+      // Roll back BEFORE throwing, or the sheet shows an error over an edit that
+      // still appears to have applied.
+      setState(s => ({ ...s, masters: s.masters.map(m => m.id === id ? previous : m) }))
+      if (error.code === '23505') {
+        throw new Error(duplicateMasterMessage(patch.name ?? previous.name, patch.type ?? previous.type))
+      }
+      throw error
+    }
+    // Reconcile with the server row so DB-side values (updated_at, display_name)
+    // aren't left stale behind the optimistic patch.
+    setState(s => ({ ...s, masters: s.masters.map(m => m.id === id ? data as Master : m) }))
+  }, [])
+
+  /** Soft delete. Nothing references a master in v1.60, so this buys nothing
+   *  today — it is here so the release that adds transactions.master_id can
+   *  recover who a tagged expense belonged to. See the migration's comment. */
+  const deleteMaster = useCallback(async (id: string) => {
+    const { error } = await supabase.from('masters')
+      .update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    if (error) throw error
+    setState(s => ({ ...s, masters: s.masters.filter(m => m.id !== id) }))
+  }, [])
+
   /** Bulk tag/untag. Used by the backfill sheet and by clearing an event from a
    *  single transaction. event_linked_at is stamped by DB trigger, so it is read
    *  back rather than sent. */
@@ -2114,6 +2203,7 @@ export function useSupabaseData(userId: string) {
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addPlannedExpense, updatePlannedExpense, deletePlannedExpense,
     addEvent, updateEvent, deleteEvent, linkTransactionsToEvent,
+    addMaster, updateMaster, deleteMaster,
     addGoal, updateGoal, deleteGoal, addGoalSavings,
     addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout,
     updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion,

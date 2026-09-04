@@ -15,6 +15,7 @@ interface NavMenuProps {
   onCreate: () => void
   onGrow: () => void
   onPlant: () => void
+  onMasters: () => void
   onCategories: () => void
   onSettings: () => void
   trackSavings: boolean
@@ -33,7 +34,7 @@ function NavIcon({ children, color }: { children: React.ReactNode; color: string
 
 export function NavMenu({
   open, onClose,
-  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onEvents, onCreate, onGrow, onPlant, onCategories, onSettings,
+  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onEvents, onCreate, onGrow, onPlant, onMasters, onCategories, onSettings,
   trackSavings, trackBorrowings, trackProjects, hasEvents,
 }: NavMenuProps) {
   const c = useTheme()
@@ -83,6 +84,13 @@ export function NavMenu({
     {
       id: 'plant', label: 'Plant', onClick: onPlant,
       icon: <NavIcon color={c.ink}><path d="M12 21V10"/><path d="M12 10c-4 0-7-2-7-6 4 0 7 2 7 6z"/><path d="M12 10c4 0 7-2 7-6-4 0-7 2-7 6z"/></NavIcon>,
+    },
+    {
+      // Sits with Categories rather than in Settings: this is the directory's
+      // only entry point, and the panel's Data section is its sixth and last —
+      // the same burial that made Life Events undiscoverable in v1.57.
+      id: 'masters', label: 'Masters', onClick: onMasters,
+      icon: <NavIcon color={c.ink}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></NavIcon>,
     },
     {
       id: 'categories', label: 'Categories', onClick: onCategories,

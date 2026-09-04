@@ -64,6 +64,7 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
     savings: [],
     planned_expenses: [],
     events: [],
+    masters: [],
     ...overrides,
   }
 }
