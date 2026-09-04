@@ -8,6 +8,7 @@ import { AmountOperatorRow } from './AmountOperatorRow'
 import type { DerivedMetrics, AppState, WeeklyBudgetScope } from '@/types'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 interface HeroWeeklyProps {
   d: DerivedMetrics
@@ -111,7 +112,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
       : activePeriod === 'monthly'
       ? getMonthStart(TODAY, settings.monthly_start_date ?? 1)
       : getWeekStart(TODAY, settings.weekly_start_day ?? 1)
-    return transactions
+    return forSpendAnalytics(transactions)
       .filter(t => t.transaction_type === 'expense' && new Date(t.transaction_date) >= start)
       .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
   }, [transactions, activePeriod, settings.weekly_start_day, settings.monthly_start_date])
@@ -1191,7 +1192,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                       </div>
                     </div>
                     <div style={{ font: '700 13px Plus Jakarta Sans', color: selected ? c.accent : covered ? c.muted : c.ink, flexShrink: 0 }}>
-                      {fmt(t.amount)}
+                      {fmt(spendAmount(t))}
                     </div>
                   </button>
                 )

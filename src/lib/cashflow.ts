@@ -4,6 +4,7 @@ import { getIncomePattern } from '@/lib/income-pattern'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getExpectedNextPrimaryIncome } from '@/lib/financial-cycle'
 import { isRecurringCompleted } from '@/lib/recurring'
+import { isReimbursement } from '@/lib/reimbursements'
 
 /* ============================================================================
    Cash Flow Forecast — projects future balance using KNOWN future events only.
@@ -85,6 +86,8 @@ export function estimateForecastSalary(state: AppState): { amount: number | null
   const salaryTxns = state.transactions
     .filter(t => {
       if (t.transaction_type !== 'income') return false
+      // A reimbursement is never a salary payment, whatever it is categorised as.
+      if (isReimbursement(t)) return false
       if (t.category_id == null || catName.get(t.category_id) !== 'salary') return false
       if (!(t.amount > 0)) return false
       const [y, m, dd] = t.transaction_date.split('-').map(Number)

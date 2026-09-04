@@ -1,4 +1,5 @@
 import type { LifeEvent, Transaction } from '@/types'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 /** Event ids whose spend is kept out of budget/pacing/forecast maths.
  *
@@ -25,7 +26,11 @@ export const eventTransactions = (transactions: Transaction[], eventId: string):
     .filter(t => t.event_id === eventId && t.transaction_type === 'expense')
     .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
 
+/** Net of anything reimbursed against those expenses — if a relative paid back
+ *  half the catering, the wedding did not cost you the full amount. Same reason
+ *  every other spend total nets: `amount` is what left the account, `spendAmount`
+ *  is what it cost. */
 export const eventSpent = (transactions: Transaction[], eventId: string): number =>
-  transactions
+  forSpendAnalytics(transactions)
     .filter(t => t.event_id === eventId && t.transaction_type === 'expense')
-    .reduce((s, t) => s + t.amount, 0)
+    .reduce((s, t) => s + spendAmount(t), 0)

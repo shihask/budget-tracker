@@ -15,6 +15,7 @@ import type { AppState, DerivedMetrics, HabitCompletionStatus } from '@/types'
 import type { ChallengeCalc } from '@/lib/challenge'
 import type { DailyChallengeState } from '@/hooks/useDailyChallenge'
 import type { GrowInsights } from '@/hooks/useGrowInsights'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 interface Props {
   open: boolean
@@ -185,9 +186,9 @@ export function GrowPage({
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening'
   const initials = userName.split(' ').map((w: string) => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
 
-  const todaySpend = state.transactions
+  const todaySpend = forSpendAnalytics(state.transactions)
     .filter(t => t.transaction_type === 'expense' && t.transaction_date === todayStr)
-    .reduce((s, t) => s + t.amount, 0)
+    .reduce((s, t) => s + spendAmount(t), 0)
   const reflectedToday = settings.last_reflection_date === todayStr
   const todayContribution = state.goal_contributions
     .filter(gc => gc.source === 'daily_challenge' && gc.created_at?.slice(0, 10) === todayStr)

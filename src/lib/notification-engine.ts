@@ -12,6 +12,7 @@ import { getNextRecurringDueDate } from '@/lib/recurring'
 import { calcGoalStatus, calcGoalForecast } from '@/lib/goals'
 import { computeChallenge } from '@/lib/challenge'
 import { getWeekStart, localIso } from '@/lib/utils'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 /*
  * Notifications are derived state, not persisted application data. Every notification
@@ -88,19 +89,20 @@ export function detectCategorySpike(state: AppState): CategorySpike | null {
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const lastMonthSameDay = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
 
-  const expenses = state.transactions.filter(t => t.transaction_type === 'expense')
+  // Net: an alert about a category "spike" that was reimbursed is a false alarm.
+  const expenses = forSpendAnalytics(state.transactions).filter(t => t.transaction_type === 'expense')
   const thisMonth = expenses.filter(t => new Date(t.transaction_date) >= thisMonthStart)
   const lastToSameDay = expenses.filter(t => {
     const dt = new Date(t.transaction_date)
     return dt >= lastMonthStart && dt <= lastMonthSameDay
   })
-  const lastMonthSpend = lastToSameDay.reduce((s, t) => s + t.amount, 0)
+  const lastMonthSpend = lastToSameDay.reduce((s, t) => s + spendAmount(t), 0)
   if (lastMonthSpend <= 0) return null
 
   const catThis: Record<string, number> = {}
   const catLast: Record<string, number> = {}
-  thisMonth.forEach(t => { const n = catName(state, t.category_id); catThis[n] = (catThis[n] ?? 0) + t.amount })
-  lastToSameDay.forEach(t => { const n = catName(state, t.category_id); catLast[n] = (catLast[n] ?? 0) + t.amount })
+  thisMonth.forEach(t => { const n = catName(state, t.category_id); catThis[n] = (catThis[n] ?? 0) + spendAmount(t) })
+  lastToSameDay.forEach(t => { const n = catName(state, t.category_id); catLast[n] = (catLast[n] ?? 0) + spendAmount(t) })
 
   let topSpike: CategorySpike | null = null
   for (const [cat, amount] of Object.entries(catThis)) {
@@ -129,15 +131,16 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const lastMonthSameDay = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
 
-  const expenses = state.transactions.filter(t => t.transaction_type === 'expense')
+  // Net: an alert about a category "spike" that was reimbursed is a false alarm.
+  const expenses = forSpendAnalytics(state.transactions).filter(t => t.transaction_type === 'expense')
   const thisMonth = expenses.filter(t => new Date(t.transaction_date) >= thisMonthStart)
   const lastToSameDay = expenses.filter(t => {
     const dt = new Date(t.transaction_date)
     return dt >= lastMonthStart && dt <= lastMonthSameDay
   })
 
-  const thisMonthSpend = thisMonth.reduce((s, t) => s + t.amount, 0)
-  const lastMonthSpend = lastToSameDay.reduce((s, t) => s + t.amount, 0)
+  const thisMonthSpend = thisMonth.reduce((s, t) => s + spendAmount(t), 0)
+  const lastMonthSpend = lastToSameDay.reduce((s, t) => s + spendAmount(t), 0)
 
   const notifications: AppNotification[] = []
   // Warning-tier (pace/spike) suppresses positive-tier rules within this same call —
@@ -187,7 +190,7 @@ export function generateBudgetNotifications(state: AppState, d: DerivedMetrics):
   const weekStartIso = localIso(weekStart)
   const weeklySpend = expenses
     .filter(t => t.transaction_date >= weekStartIso)
-    .reduce((s, t) => s + t.amount, 0)
+    .reduce((s, t) => s + spendAmount(t), 0)
   const weekPct = budget > 0 ? (weeklySpend / budget) * 100 : 0
   const weekProgress = (weekDay / 7) * 100
 

@@ -11,6 +11,7 @@ import { getRemainingObligations } from '@/lib/obligations'
 import { buildCashFlowForecast, summarizeCashFlow } from '@/lib/cashflow'
 import { estimateHistoricalDailyIncome, calculateAvgDailySpending, calculateSafeUntilDays, calculateTodaySummary, calculateWeekSummary } from '@/lib/variable-income'
 import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
+import { forSpendAnalytics, spendAmount, isReimbursement } from '@/lib/reimbursements'
 
 // System transactions (opening_balance, balance_adjustment) must never count as real income/expense.
 // Also covers legacy transactions created before the dedicated types existed (category-group fallback).
@@ -85,9 +86,14 @@ export function derive(state: AppState): DerivedMetrics {
     : period === 'monthly'
     ? getMonthStart(TODAY, state.settings.monthly_start_date ?? 1)
     : getWeekStart(TODAY, state.settings.weekly_start_day ?? 1)
-  const weeklySpent = state.transactions
+  // Reimbursed spend is netted off here and at every other sum below. Note the
+  // discipline line: getCurrentBalance() and buildCashFlowForecast() above keep
+  // receiving the RAW state, because the money really did leave the account and
+  // really did come back. Only the spend sums read the normalized list.
+  const spendTxns = forSpendAnalytics(state.transactions)
+  const weeklySpent = spendTxns
     .filter(t => matchesScope(t, catMap) && new Date(t.transaction_date) >= periodStart)
-    .reduce((s, t) => s + t.amount, 0)
+    .reduce((s, t) => s + spendAmount(t), 0)
   const weeklyRemaining = weeklyBudget - weeklySpent
   const weeklyPct = weeklyBudget ? (weeklySpent / weeklyBudget) * 100 : 0
 
@@ -113,9 +119,9 @@ export function derive(state: AppState): DerivedMetrics {
       ? { status: 'healthy', tone: 'positive', message: 'Cash Available', description: 'You have spendable Free Money available for this cycle.' }
       : { status: 'shortfall', tone: 'critical', message: 'Cash Shortfall', description: 'You currently have no spendable Free Money. Delay non-essential purchases until your next income or reduce commitments.' }
 
-    cycleSpent = state.transactions
+    cycleSpent = spendTxns
       .filter(tx => matchesScope(tx, catMap) && new Date(tx.transaction_date) >= cycle.cycleStart)
-      .reduce((s, tx) => s + tx.amount, 0)
+      .reduce((s, tx) => s + spendAmount(tx), 0)
 
     // Freeze the opening "envelope" once per cycle so % used / remaining don't
     // move every time realFreeMoney shrinks from the same spending they measure.
@@ -186,10 +192,15 @@ export function derive(state: AppState): DerivedMetrics {
 
 export function weeklyTrend(state: AppState, days: number = 7): TrendPoint[] {
   const catMap = catById(state.categories)
+  // forSpendAnalytics nets off reimbursements; countsTowardBudget excludes
+  // ring-fenced life-event spend. This chart previously did neither, so a wedding
+  // showed up here while the pacing card excluded it.
+  const ringFenced = ringFencedEventIds(state.events)
+  const txns = forSpendAnalytics(state.transactions).filter(t => countsTowardBudget(t, ringFenced))
   return Array.from({ length: days }, (_, i) => {
     const d = addDays(TODAY, -(days - 1 - i))
-    const dayTxns = state.transactions.filter(t => isLifestyle(t, catMap) && t.transaction_date === iso(d))
-    const total = dayTxns.reduce((s, t) => s + t.amount, 0)
+    const dayTxns = txns.filter(t => isLifestyle(t, catMap) && t.transaction_date === iso(d))
+    const total = dayTxns.reduce((s, t) => s + spendAmount(t), 0)
     const label = days <= 7
       ? ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()]
       : `${d.getDate()}/${d.getMonth() + 1}`
@@ -199,12 +210,14 @@ export function weeklyTrend(state: AppState, days: number = 7): TrendPoint[] {
 
 export function weeklyBars(state: AppState, weeks: number = 12): BarPoint[] {
   const catMap = catById(state.categories)
+  const ringFenced = ringFencedEventIds(state.events)
+  const txns = forSpendAnalytics(state.transactions).filter(t => countsTowardBudget(t, ringFenced))
   return Array.from({ length: weeks }, (_, w) => {
     const wOff = weeks - 1 - w
     const ws = addDays(WEEK_START, -7 * wOff)
     const we = addDays(ws, 7)
-    const weekTxns = state.transactions.filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= ws && new Date(t.transaction_date) < we)
-    const total = weekTxns.reduce((s, t) => s + t.amount, 0)
+    const weekTxns = txns.filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= ws && new Date(t.transaction_date) < we)
+    const total = weekTxns.reduce((s, t) => s + spendAmount(t), 0)
     return { label: wOff === 0 ? 'This wk' : wOff + 'w ago', value: Math.round(total * 100) / 100, transactions: weekTxns }
   })
 }
@@ -220,11 +233,14 @@ export function categorySplit(state: AppState, monthOffset: number = 0): CatPoin
   const start = new Date(TODAY.getFullYear(), TODAY.getMonth() - monthOffset, 1)
   const end = new Date(TODAY.getFullYear(), TODAY.getMonth() - monthOffset + 1, 1)
   const map: Record<string, number> = {}
-  state.transactions
+  const ringFenced = ringFencedEventIds(state.events)
+  forSpendAnalytics(state.transactions)
+    .filter(t => countsTowardBudget(t, ringFenced))
     .filter(t => isLifestyle(t, catMap) && new Date(t.transaction_date) >= start && new Date(t.transaction_date) < end)
     .forEach(t => {
       const name = catMap[t.category_id!]?.name
-      if (name) map[name] = (map[name] || 0) + t.amount
+      // Net, so a 408 gift with 400 recovered reads as 8 here.
+      if (name) map[name] = (map[name] || 0) + spendAmount(t)
     })
   return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
 }
@@ -241,8 +257,10 @@ export function monthTimeline(state: AppState, monthOffset: number = 0): MonthTi
   const prefix = `${y}-${pad(m + 1)}`
 
   const catMap = catById(state.categories)
-  const monthTxns = state.transactions.filter(
+  const ringFenced = ringFencedEventIds(state.events)
+  const monthTxns = forSpendAnalytics(state.transactions).filter(
     t => t.transaction_type === 'expense' && t.transaction_date.startsWith(prefix)
+      && countsTowardBudget(t, ringFenced)
   )
 
   const byDay: TimelineDayPoint[] = Array.from({ length: daysInMonth }, (_, i) => {
@@ -252,7 +270,7 @@ export function monthTimeline(state: AppState, monthOffset: number = 0): MonthTi
     return {
       day,
       isoDate,
-      total: dayTxns.reduce((s, t) => s + t.amount, 0),
+      total: dayTxns.reduce((s, t) => s + spendAmount(t), 0),
       isFuture: isCurrentMonth && day > todayDay,
       transactions: dayTxns,
     }
@@ -263,9 +281,9 @@ export function monthTimeline(state: AppState, monthOffset: number = 0): MonthTi
     const cat = catMap[t.category_id ?? '']
     if (!cat) return
     if (!catAcc[cat.name]) catAcc[cat.name] = { name: cat.name, group: cat.group_name, total: 0, count: 0, days: {} }
-    catAcc[cat.name].total += t.amount
+    catAcc[cat.name].total += spendAmount(t)
     catAcc[cat.name].count += 1
-    catAcc[cat.name].days[t.transaction_date] = (catAcc[cat.name].days[t.transaction_date] || 0) + t.amount
+    catAcc[cat.name].days[t.transaction_date] = (catAcc[cat.name].days[t.transaction_date] || 0) + spendAmount(t)
   })
   const byCategory: TimelineLane[] = Object.values(catAcc)
     .sort((a, b) => b.total - a.total)
@@ -281,9 +299,9 @@ export function monthTimeline(state: AppState, monthOffset: number = 0): MonthTi
     const cat = catMap[t.category_id ?? '']
     const group = cat?.group_name || 'Uncategorized'
     if (!grpAcc[group]) grpAcc[group] = { name: group, total: 0, count: 0, days: {} }
-    grpAcc[group].total += t.amount
+    grpAcc[group].total += spendAmount(t)
     grpAcc[group].count += 1
-    grpAcc[group].days[t.transaction_date] = (grpAcc[group].days[t.transaction_date] || 0) + t.amount
+    grpAcc[group].days[t.transaction_date] = (grpAcc[group].days[t.transaction_date] || 0) + spendAmount(t)
   })
   const byGroup: TimelineLane[] = Object.values(grpAcc)
     .sort((a, b) => b.total - a.total)
@@ -297,7 +315,9 @@ export function monthTimeline(state: AppState, monthOffset: number = 0): MonthTi
   return {
     byDay, byCategory, byGroup,
     daysInMonth, todayDay, monthLabel, isCurrentMonth,
-    totalSpent: monthTxns.reduce((s, t) => s + t.amount, 0),
+    totalSpent: monthTxns.reduce((s, t) => s + spendAmount(t), 0),
+    grossSpent: monthTxns.reduce((s, t) => s + t.amount, 0),
+    recovered: monthTxns.reduce((s, t) => s + (t.reimbursed_amount ?? 0), 0),
     txnCount: monthTxns.length,
   }
 }
@@ -320,9 +340,10 @@ export function journeyData(state: AppState, monthOffset: number = 0): JourneyDa
   const inMonthTs = (d: Date) => d >= monthStart && d < monthEndExclusive
   const catMap = catById(state.categories)
 
-  // Seed — income this month
+  // Seed — income this month. A reimbursement is money back, not money earned:
+  // it never counts here, in any month.
   const incomeTxns = state.transactions.filter(
-    t => t.transaction_type === 'income' && inMonth(t.transaction_date)
+    t => t.transaction_type === 'income' && !isReimbursement(t) && inMonth(t.transaction_date)
   )
   const incomeByCat: Record<string, number> = {}
   incomeTxns.forEach(t => {
@@ -334,10 +355,12 @@ export function journeyData(state: AppState, monthOffset: number = 0): JourneyDa
     .sort((a, b) => b.amount - a.amount)
   const totalIncome = incomeTxns.reduce((s, t) => s + t.amount, 0)
 
-  // Roots — commitments paid + savings contributed + goal contributions
-  const commitmentsPaid = state.transactions
+  // Roots — commitments paid + savings contributed + goal contributions.
+  // Commitments are reimbursable too (a shared bill someone pays their half of),
+  // so this reads net for the same reason lifestyle spending does.
+  const commitmentsPaid = forSpendAnalytics(state.transactions)
     .filter(t => t.transaction_type === 'commitment' && inMonth(t.transaction_date))
-    .reduce((s, t) => s + t.amount, 0)
+    .reduce((s, t) => s + spendAmount(t), 0)
   const savingsContributed = state.transactions
     .filter(t => t.transaction_type === 'savings_contribution' && inMonth(t.transaction_date))
     .reduce((s, t) => s + t.amount, 0)
@@ -436,15 +459,18 @@ export function journeyData(state: AppState, monthOffset: number = 0): JourneyDa
   const healthScore = savingsScore + challengeScore + goalScore + wealthScore
   const healthLabel = healthScore >= 85 ? 'Thriving' : healthScore >= 70 ? 'Growing Strong' : healthScore >= 55 ? 'Building' : healthScore >= 40 ? 'Sprouting' : 'Just Planted'
 
-  // Lifestyle spending — regular expenses this month
-  const lifestyleTxns = state.transactions.filter(
+  // Lifestyle spending — regular expenses this month, net of anything recovered
+  // against them and excluding ring-fenced life-event spend.
+  const ringFencedJourney = ringFencedEventIds(state.events)
+  const lifestyleTxns = forSpendAnalytics(state.transactions).filter(
     t => t.transaction_type === 'expense' && inMonth(t.transaction_date)
+      && countsTowardBudget(t, ringFencedJourney)
   )
-  const lifestyleSpending = lifestyleTxns.reduce((s, t) => s + t.amount, 0)
+  const lifestyleSpending = lifestyleTxns.reduce((s, t) => s + spendAmount(t), 0)
   const lifeCatAcc: Record<string, number> = {}
   lifestyleTxns.forEach(t => {
     const name = catMap[t.category_id ?? '']?.name || 'Other'
-    lifeCatAcc[name] = (lifeCatAcc[name] || 0) + t.amount
+    lifeCatAcc[name] = (lifeCatAcc[name] || 0) + spendAmount(t)
   })
   const lifestyleCategories: JourneyFlowItem[] = Object.entries(lifeCatAcc)
     .map(([name, amount]) => ({ name, amount }))
@@ -479,9 +505,14 @@ export function journeyData(state: AppState, monthOffset: number = 0): JourneyDa
     return 'shopping-cart'
   }
   const replayEvents: JourneyReplayEvent[] = []
-  state.transactions
-    .filter(t => t.transaction_type === 'income' && inMonth(t.transaction_date))
+  incomeTxns
     .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'coins', title: t.description, subtitle: catMap[t.category_id ?? '']?.name, amount: t.amount, eventType: 'income' }))
+  // Reimbursements get their own row rather than being dropped. Netting is
+  // expense-dated, so an August expense refunded in September would otherwise
+  // leave September's story silent about money that genuinely arrived.
+  state.transactions
+    .filter(t => isReimbursement(t) && inMonth(t.transaction_date))
+    .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'undo-2', title: t.description, subtitle: 'Reimbursement', amount: t.amount, eventType: 'recovered' }))
   state.transactions
     .filter(t => t.transaction_type === 'savings_contribution' && inMonth(t.transaction_date))
     .forEach(t => replayEvents.push({ date: t.transaction_date, emoji: 'trending-up', title: t.description, amount: t.amount, eventType: 'savings' }))
@@ -493,7 +524,7 @@ export function journeyData(state: AppState, monthOffset: number = 0): JourneyDa
     .forEach(gc => replayEvents.push({ date: gc.created_at.slice(0, 10), emoji: 'target', title: state.goals.find(g => g.id === gc.goal_id)?.name ?? 'Goal funded', amount: gc.amount, eventType: 'goal' }))
   lifestyleTxns.forEach(t => {
     const catName = catMap[t.category_id ?? '']?.name
-    replayEvents.push({ date: t.transaction_date, emoji: expenseCatEmoji(catName), title: t.description, subtitle: catName, amount: t.amount, eventType: 'expense' })
+    replayEvents.push({ date: t.transaction_date, emoji: expenseCatEmoji(catName), title: t.description, subtitle: catName, amount: spendAmount(t), eventType: 'expense' })
   })
 
   // Borrowing activity — borrowed/lent + their repayments, joined to state.borrowings

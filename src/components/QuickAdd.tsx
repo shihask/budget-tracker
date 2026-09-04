@@ -18,6 +18,7 @@ import { parseExpenseWithAI, aiUsagePatch, type AIReceiptExtraction } from '@/li
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
 import { findCategoryMatches, guessCategory, findHistoricalCategory } from '@/lib/categorize'
+import { LinkReimbursementSheet } from './LinkReimbursementSheet'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -106,13 +107,16 @@ interface QuickAddSheetProps {
   defaultTxType?: 'expense' | 'income' | 'transfer'
   defaultCategoryId?: string | null
   defaultEventId?: string | null
+  /** Opens straight into reimbursement mode against this expense — the reverse
+   *  entry point, from the expense detail. `remaining` prefills the amount. */
+  defaultReimbursement?: { targetId: string; remaining: number }
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onReceiptFailed?: (transaction: Transaction, receipt: PickedReceipt, error: unknown) => void
   showSmartInputTip?: boolean
   onDismissSmartInputTip?: () => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -120,6 +124,14 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   // Every piece of split UI is gated behind this being non-null.
   const [splitLegs, setSplitLegs] = useState<SplitLegInput[] | null>(null)
   const [eventId, setEventId] = useState('')
+  // Income purpose: ordinary earnings, or money back for an expense you already
+  // recorded. Not a transaction type — a reimbursement is still an income row and
+  // still credits the account; only the analytics reading changes.
+  const [incomePurpose, setIncomePurpose] = useState<'income' | 'reimbursement'>('income')
+  const [reimbursementFor, setReimbursementFor] = useState<string | null>(null)
+  const [reimbursementRemaining, setReimbursementRemaining] = useState(0)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const activeEvents = useMemo(() => state.events.filter(e => e.status === 'active'), [state.events])
   const [pendingReceipt, setPendingReceipt] = useState<PickedReceipt | null>(null)
   const amountRef = useRef<HTMLInputElement | null>(null)
@@ -272,7 +284,16 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       const firstCat = initType === 'income'
         ? (defaultCategoryId || cats.find(c => c.group_name === 'Income')?.id || cats[0]?.id || '')
         : (cats.find(c => c.group_name === 'Lifestyle')?.id || cats[0]?.id || '')
-      reset({ date: iso(TODAY), description: '', amount: 0, category_id: firstCat, from_account_id: firstAccount })
+      const target = defaultReimbursement
+        ? state.transactions.find(t => t.id === defaultReimbursement.targetId)
+        : undefined
+      reset({
+        date: iso(TODAY),
+        description: target ? `Reimbursement · ${target.description}` : '',
+        amount: defaultReimbursement?.remaining ?? 0,
+        category_id: defaultReimbursement ? '' : firstCat,
+        from_account_id: firstAccount,
+      })
       initialCategoryIdRef.current = firstCat
       initialDateRef.current = iso(TODAY)
       setTxType(initType)
@@ -286,6 +307,11 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       setAiSuccess(false)
       setPendingReceipt(null)
       setEventId(defaultEventId ?? '')
+      setIncomePurpose(defaultReimbursement ? 'reimbursement' : 'income')
+      setReimbursementFor(defaultReimbursement?.targetId ?? null)
+      setReimbursementRemaining(defaultReimbursement?.remaining ?? 0)
+      setPickerOpen(false)
+      setSaveError(null)
       setReceiptSuggestion(null)
     }
   }, [open, reset])
@@ -512,6 +538,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
 
   const onSubmit = (data: FormValues) => {
     const receiptToUpload = pendingReceipt
+    setSaveError(null)
     if (txType === 'transfer') {
       onSave({
         transaction_date: data.date,
@@ -539,21 +566,38 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         }
       })
     } else {
-      onSave({
+      const saved = onSave({
         transaction_date: data.date,
         description: data.description,
         amount: data.amount,
         transaction_type: txType as TransactionType,
-        category_id: data.category_id || null,
+        // A reimbursement belongs to no income category — it is not earnings of any
+        // kind, and giving it one would put it in income category charts.
+        category_id: isReimbursing ? null : (data.category_id || null),
         from_account_id: data.from_account_id,
         to_account_id: null,
         // Only expenses belong to a life event; income/transfers never do.
         event_id: txType === 'expense' && eventId ? eventId : null,
-      }).then(tx => {
+        reimbursement_for: isReimbursing ? reimbursementFor : null,
+      })
+      const withReceipt = (tx: Transaction | undefined) => {
         if (receiptToUpload && tx) {
           onUploadReceipt?.(tx.id, receiptToUpload)?.catch(err => onReceiptFailed?.(tx, receiptToUpload, err))
         }
-      })
+      }
+      if (isReimbursing) {
+        // The link is written as a follow-up update, so it can be rejected by
+        // mp_validate_reimbursement after the row already exists. Closing here
+        // would leave the user with a row silently counting as income — exactly
+        // the bug this feature exists to fix — so hold the sheet and say so.
+        saved.then(tx => { withReceipt(tx); onClose() }).catch(err => {
+          setSaveError(err?.code === 'PT422'
+            ? `${err.message} It was saved as ordinary income — edit it to link the expense.`
+            : 'Saved, but could not link it to that expense. Edit it to try again.')
+        })
+        return
+      }
+      saved.then(withReceipt)
     }
     onClose()
   }
@@ -577,10 +621,20 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
 
   const isExpense = txType === 'expense'
   const isTransfer = txType === 'transfer'
+  const isReimbursing = txType === 'income' && incomePurpose === 'reimbursement'
+  const linkedExpense = reimbursementFor
+    ? state.transactions.find(t => t.id === reimbursementFor) ?? null
+    : null
   const fromAccountId = watch('from_account_id')
   const typeColor = isTransfer ? c.accent : isExpense ? c.bad : c.good
   const transferValid = isTransfer && accs.length >= 2 && amountVal > 0 && !!fromAccountId && !!transferToAccountId && transferToAccountId !== fromAccountId
-  const baseValid = isValid && amountVal > 0 && !!descriptionVal.trim() && (txType === 'income' || !!categoryVal)
+  // A reimbursement needs a linked expense instead of a category, and can never
+  // exceed what is still owed on it — checked here so the user sees it before the
+  // round-trip, with mp_validate_reimbursement as the real backstop.
+  const reimbursementValid = !isReimbursing
+    || (!!reimbursementFor && amountVal > 0 && amountVal <= reimbursementRemaining)
+  const baseValid = isValid && amountVal > 0 && !!descriptionVal.trim()
+    && (txType === 'income' || !!categoryVal) && reimbursementValid
   const valid = isTransfer
     ? transferValid
     : splitLegs
@@ -650,6 +704,11 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 if (t !== 'expense' && (state.credit_cards || []).some(cc => cc.id === fromAccountId)) {
                   setValue('from_account_id', accs[0]?.id || '', { shouldValidate: true })
                 }
+                // Leaving the income tab leaves reimbursement mode with it.
+                if (t !== 'income') {
+                  setIncomePurpose('income')
+                  setReimbursementFor(null)
+                }
                 if (t === 'transfer') {
                   setValue('description', 'Transfer', { shouldValidate: true })
                 } else {
@@ -670,6 +729,30 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
             )
           })}
         </div>
+
+        {/* Income purpose. Only two options, and only on the income tab, so the
+            common case (ordinary income) stays one tap away. */}
+        {txType === 'income' && (
+          <div style={{ display: 'flex', background: c.surface2, borderRadius: 14, padding: 4, marginBottom: 16, gap: 4 }}>
+            {([['income', 'Income'], ['reimbursement', 'Reimbursement']] as const).map(([p, label]) => {
+              const active = incomePurpose === p
+              return (
+                <button key={p} type="button" onClick={() => {
+                  setIncomePurpose(p)
+                  if (p === 'income') setReimbursementFor(null)
+                  else setValue('category_id', '', { shouldValidate: false })
+                }} style={{
+                  flex: 1, border: 'none', borderRadius: 11, padding: '8px 0',
+                  font: '700 12.5px Plus Jakarta Sans',
+                  background: active ? c.good : 'transparent', color: active ? '#fff' : c.muted,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Smart input */}
         {isExpense && !isTransfer && (
@@ -979,6 +1062,36 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
               // stack. Same block, same position — it just gets wider.
               <div style={{ display: 'flex', gap: 12, flexDirection: splitLegs ? 'column' : 'row' }}>
                 <div style={{ flex: 1 }}>
+                  {isReimbursing ? (
+                    /* The linked expense takes the category slot: a reimbursement
+                       has no category of its own, and this is the field that
+                       actually needs filling in. */
+                    <>
+                      <label style={labelStyle}>Reimburses</label>
+                      <button
+                        type="button"
+                        onClick={() => setPickerOpen(true)}
+                        style={{
+                          ...inputStyle, cursor: 'pointer', textAlign: 'left',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          borderColor: reimbursementFor ? c.accent : c.faint,
+                          color: reimbursementFor ? c.ink : c.muted,
+                        }}
+                      >
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {linkedExpense ? linkedExpense.description : 'Choose expense'}
+                        </span>
+                        <span style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, flexShrink: 0, marginLeft: 8 }}>
+                          {reimbursementFor ? `${fmt(reimbursementRemaining)} left` : '+'}
+                        </span>
+                      </button>
+                      {reimbursementFor && amountVal > reimbursementRemaining && (
+                        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.bad, marginTop: 6 }}>
+                          Only {fmt(reimbursementRemaining)} can still be reimbursed on this expense.
+                        </div>
+                      )}
+                    </>
+                  ) : (<>
                   <div style={fieldHeaderStyle}>
                     <label style={{ ...labelStyle, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
                       Category
@@ -1040,10 +1153,11 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: -1, marginRight: 4 }}><path d="M12 2l2.2 6.3L21 11l-6.8 2.7L12 20l-2.2-6.3L3 11l6.8-2.7z"/></svg>Create "{aiSuggestion.name}" in {aiSuggestion.group}?
                     </button>
                   )}
+                  </>)}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={fieldHeaderStyle}>
-                    <label style={{ ...labelStyle, marginBottom: 0 }}>Account</label>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>{isReimbursing ? 'Received in' : 'Account'}</label>
                     {canSplit && (
                       <button
                         type="button"
@@ -1126,6 +1240,12 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
               </button>
             )}
 
+            {saveError && (
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.bad, textAlign: 'center', lineHeight: 1.5 }}>
+                {saveError}
+              </div>
+            )}
+
             {isTransfer && transferToAccountId === fromAccountId && fromAccountId && (
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.bad, textAlign: 'center' }}>
                 From and To accounts must be different
@@ -1142,7 +1262,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
             {valid
               ? isTransfer
                 ? `Transfer  ·  ${fmt(amountVal)}`
-                : `${isExpense ? 'Save Expense' : 'Add Income'}  ·  ${fmt(amountVal)}`
+                : `${isExpense ? 'Save Expense' : isReimbursing ? 'Save Reimbursement' : 'Add Income'}  ·  ${fmt(amountVal)}`
+              : isReimbursing && !reimbursementFor
+                ? 'Choose the expense this repays'
               : isTransfer
                 ? 'Enter amount & select accounts'
                 // Same hint the leg editor shows, so the button states the actual reason
@@ -1153,6 +1275,23 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
           </button>
         </form>
       </div>
+
+      <LinkReimbursementSheet
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        state={state}
+        onPick={(targetId, remaining) => {
+          setReimbursementFor(targetId)
+          setReimbursementRemaining(remaining)
+          // Prefill what is still owed: the whole point of opening this sheet is
+          // usually to recover exactly that.
+          if (!amountVal) setValue('amount', remaining, { shouldValidate: true })
+          const target = state.transactions.find(t => t.id === targetId)
+          if (target && !descriptionVal.trim()) {
+            setValue('description', `Reimbursement · ${target.description}`, { shouldValidate: true })
+          }
+        }}
+      />
     </div>
   )
 }

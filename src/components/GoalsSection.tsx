@@ -8,6 +8,7 @@ import { AmountOperatorRow } from './AmountOperatorRow'
 import { goalProgressInsightWithAI, aiUsagePatch } from '@/lib/gemini'
 import { calcGoalStatus, calcGoalForecast, calcGoalMomentum, calcTargetInfo, MS_MONTH } from '@/lib/goals'
 import type { Goal, GoalType, GoalContribution, DerivedMetrics, Settings, Transaction } from '@/types'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 interface PrefillData {
   name: string
@@ -103,9 +104,9 @@ export function GoalsSection({
   const suggestedMonthly = useMemo(() => {
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 30)
-    const total30d = transactions
+    const total30d = forSpendAnalytics(transactions)
       .filter(t => t.transaction_type === 'expense' && new Date(t.transaction_date) >= cutoff)
-      .reduce((s, t) => s + t.amount, 0)
+      .reduce((s, t) => s + spendAmount(t), 0)
     return Math.max(500, Math.round((d.weeklyBudget * 52) / 12 - total30d))
   }, [d.weeklyBudget, transactions])
 

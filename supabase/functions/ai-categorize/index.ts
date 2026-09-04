@@ -297,22 +297,32 @@ async function executeTool(name: string, args: ToolArgs, userId: string, db: DbC
     const end = `${yr}-${String(mo).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     const { data } = await db
       .from('transactions')
-      .select('amount, transaction_type, categories!category_id(name)')
+      .select('id, amount, transaction_type, reimbursement_for, categories!category_id(name)')
       .eq('user_id', userId)
       .gte('transaction_date', start)
       .lte('transaction_date', end)
       .in('transaction_type', ['expense', 'income'])
       .limit(500)
-    type TxRow = { amount: number; transaction_type: string; categories: { name: string } | null }
+    type TxRow = { id: string; amount: number; transaction_type: string; reimbursement_for: string | null; categories: { name: string } | null }
     const rows = (data ?? []) as TxRow[]
+
+    // Reimbursements are money back, not money earned: they never count as income,
+    // and they reduce the expense they point at. Mirrors src/lib/reimbursements.ts.
+    const recoveredByExpense = new Map<string, number>()
+    for (const r of rows) {
+      if (!r.reimbursement_for) continue
+      recoveredByExpense.set(r.reimbursement_for, (recoveredByExpense.get(r.reimbursement_for) ?? 0) + r.amount)
+    }
+    const net = (r: TxRow) => Math.max(0, r.amount - (recoveredByExpense.get(r.id) ?? 0))
+
     const expenses = rows.filter(r => r.transaction_type === 'expense')
-    const incomes = rows.filter(r => r.transaction_type === 'income')
-    const totalExpense = expenses.reduce((s, r) => s + r.amount, 0)
+    const incomes = rows.filter(r => r.transaction_type === 'income' && !r.reimbursement_for)
+    const totalExpense = expenses.reduce((s, r) => s + net(r), 0)
     const totalIncome = incomes.reduce((s, r) => s + r.amount, 0)
     const catTotals: Record<string, number> = {}
     expenses.forEach(r => {
       const cat = r.categories?.name ?? 'Uncategorized'
-      catTotals[cat] = (catTotals[cat] ?? 0) + r.amount
+      catTotals[cat] = (catTotals[cat] ?? 0) + net(r)
     })
     return {
       month: target,

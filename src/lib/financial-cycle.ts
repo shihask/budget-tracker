@@ -2,6 +2,7 @@ import type { AppState, Transaction, IncomePattern } from '@/types'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { INCOME_GROUP } from '@/lib/constants'
 import { getWeekStart } from '@/lib/utils'
+import { isReimbursement } from '@/lib/reimbursements'
 
 export type CycleSource = 'transaction' | 'calendar_fallback' | 'estimated'
 
@@ -90,6 +91,10 @@ export function isPrimaryIncomeTransaction(
   state: AppState,
 ): boolean {
   if (t.transaction_type !== 'income') return false
+  // Money paid back for an earlier expense can never start a new income cycle.
+  // This is the link-based version of the `name !== 'refund'` heuristic below,
+  // and supersedes it for any row the user has actually linked.
+  if (isReimbursement(t)) return false
   if (!(t.amount > 0)) return false
 
   const today = midnight(new Date())

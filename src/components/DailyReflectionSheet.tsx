@@ -7,6 +7,7 @@ import { fmt, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { computeChallenge } from '@/lib/challenge'
 import type { AppState, DerivedMetrics } from '@/types'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 interface Props {
   open: boolean
@@ -30,9 +31,9 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
   const targetStr = localDateStr(isYesterday ? -1 : 0)
 
   const todaySpend = useMemo(() => {
-    return state.transactions
+    return forSpendAnalytics(state.transactions)
       .filter(t => t.transaction_date === targetStr && t.transaction_type === 'expense')
-      .reduce((s, t) => s + t.amount, 0)
+      .reduce((s, t) => s + spendAmount(t), 0)
   }, [state.transactions, targetStr])
 
   const challengeOn = state.settings.challenge_enabled ?? false

@@ -78,6 +78,15 @@ export interface Transaction {
   // When the tag was applied — not created_at, because events are usually created
   // after the spending and the rows are linked retroactively. Stamped by trigger.
   event_linked_at?: string | null
+  // The expense this incoming money repays. A reimbursement is an ordinary income
+  // row — it still credits the account, so balances, cash flow and net worth are
+  // untouched — but it never counts as income, and it subtracts from the linked
+  // expense in analytics. The recovered total is always derived by summing linked
+  // rows, never stored. null = ordinary income.
+  //
+  // There is deliberately no `reimbursed_at` sibling to event_linked_at: this row's
+  // own transaction_date already IS the day the money came back.
+  reimbursement_for?: string | null
   // joined
   category?: Category
   from_account?: Account
@@ -531,7 +540,11 @@ export interface MonthTimelineData {
   todayDay: number
   monthLabel: string
   isCurrentMonth: boolean
+  /** Net of anything reimbursed. The headline figure — what the month really cost. */
   totalSpent: number
+  /** Before reimbursements. Equals totalSpent when nothing was recovered. */
+  grossSpent: number
+  recovered: number
   txnCount: number
 }
 
@@ -544,6 +557,10 @@ export interface JourneyHealthItem  { label: string; score: number; max: number 
 export type JourneyEventType =
   | 'income' | 'savings' | 'commitment' | 'goal' | 'expense'
   | 'borrowed' | 'lent' | 'repayment_in' | 'repayment_out'
+  // Money recovered against an earlier expense. Deliberately its own kind: it is
+  // neither income nor negative spend, and netting is expense-dated, so without
+  // this the month the money actually arrived has nothing to show for it.
+  | 'recovered'
 export interface JourneyReplayEvent {
   date: string; emoji: string; title: string; subtitle?: string; amount?: number
   eventType: JourneyEventType

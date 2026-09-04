@@ -566,8 +566,19 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                 <div style={{ font: '800 26px Plus Jakarta Sans', color: c.ink }}>{fmt(timeline.totalSpent)}</div>
-                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>total spent</div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                  {timeline.recovered > 0 ? 'net spent' : 'total spent'}
+                </div>
               </div>
+              {/* Only when there is something to explain: with nothing recovered,
+                  gross and net are the same number said twice. */}
+              {timeline.recovered > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, font: '600 11px Plus Jakarta Sans', color: c.muted }}>
+                  <span>Gross <span style={{ color: c.ink, fontWeight: 700 }}>{fmt(timeline.grossSpent)}</span></span>
+                  <span style={{ opacity: 0.5 }}>•</span>
+                  <span>Recovered <span style={{ color: c.good, fontWeight: 700 }}>{fmt(timeline.recovered)}</span></span>
+                </div>
+              )}
               {timeline.txnCount > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, font: '600 11px Plus Jakarta Sans', color: c.muted }}>
                   <span>{timeline.txnCount} transaction{timeline.txnCount !== 1 ? 's' : ''}</span>

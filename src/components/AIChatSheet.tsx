@@ -7,6 +7,7 @@ import { parseExpenseWithAI, extractReceiptWithAI, aiUsagePatch, type AIReceiptE
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
 import { round2 } from '@/lib/utils'
+import { forSpendAnalytics, spendAmount, isReimbursement } from '@/lib/reimbursements'
 import { MintAnimation } from './MintAnimation'
 import { CategorySelect } from './CategorySelect'
 import {
@@ -83,11 +84,11 @@ function buildCategoryChart(state: AppState): ChartData {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const catTotals: Record<string, number> = {}
-  state.transactions
+  forSpendAnalytics(state.transactions)
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense')
     .forEach(t => {
       const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
-      catTotals[name] = (catTotals[name] ?? 0) + t.amount
+      catTotals[name] = (catTotals[name] ?? 0) + spendAmount(t)
     })
   const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 6)
   const total = sorted.reduce((s, [, v]) => s + v, 0)
@@ -111,13 +112,14 @@ function buildMonthlyChart(state: AppState): ChartData {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
-  const thisMonth = state.transactions
+  const spendTxns = forSpendAnalytics(state.transactions)
+  const thisMonth = spendTxns
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense')
-    .reduce((s, t) => s + t.amount, 0)
-  const lastMonth = state.transactions
+    .reduce((s, t) => s + spendAmount(t), 0)
+  const lastMonth = spendTxns
     .filter(t => { const dt = new Date(t.transaction_date); return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense' })
-    .reduce((s, t) => s + t.amount, 0)
-  const income = state.transactions
+    .reduce((s, t) => s + spendAmount(t), 0)
+  const income = spendTxns
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income')
     .reduce((s, t) => s + t.amount, 0)
   return { type: 'monthly', thisMonth, lastMonth, income }
@@ -127,6 +129,10 @@ function buildMonthlyChart(state: AppState): ChartData {
 // Add new transaction types here (e.g. 'cashback', 'emi') as the platform grows.
 type MovementClass = 'recurring-income' | 'temporary-cash' | 'one-time-source' | 'recoverable-realized' | 'lent-out' | 'debt-payment' | 'savings-contributed' | 'savings-withdrawn' | 'expense' | 'transfer' | 'other'
 function getMovementClass(t: Transaction): MovementClass {
+  // Money back for an expense already recorded — not earnings. 'recoverable-realized'
+  // is exactly this shape (something you were owed, now received), and it keeps Mint
+  // from describing a refund as income.
+  if (t.reimbursement_for)                                                      return 'recoverable-realized'
   if (t.transaction_type === 'income')                                          return 'recurring-income'
   if (t.transaction_type === 'borrowing'           &&  t.is_credit)            return 'temporary-cash'
   if (t.transaction_type === 'borrowing'           && !t.is_credit)            return 'lent-out'
@@ -147,9 +153,9 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
     const daysLeft  = d.cycleDaysLeft ?? 0
     const nowD = new Date()
     const mStart = new Date(nowD.getFullYear(), nowD.getMonth(), 1)
-    const monthSpend = state.transactions
+    const monthSpend = forSpendAnalytics(state.transactions)
       .filter(t => new Date(t.transaction_date) >= mStart && t.transaction_type === 'expense')
-      .reduce((s, t) => s + t.amount, 0)
+      .reduce((s, t) => s + spendAmount(t), 0)
     return [
       { icon: <TrendingDown size={11} />, label: 'Month Spend', value: `₹${monthSpend.toLocaleString()}`, tone: 'neutral' },
       { icon: <Wallet size={11} />,       label: 'Free Money',  value: `₹${freeMoney.toLocaleString()}`,  tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good' },
@@ -209,9 +215,9 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
     const totalBalance = activeAccs.reduce((s, a) => s + a.current_balance, 0)
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const monthlySpend = state.transactions
+    const monthlySpend = forSpendAnalytics(state.transactions)
       .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense')
-      .reduce((s, t) => s + t.amount, 0)
+      .reduce((s, t) => s + spendAmount(t), 0)
     const freeMoney = d.realFreeMoney ?? 0
     return [
       { icon: <Building2 size={11} />, label: 'Balance', value: `₹${totalBalance.toLocaleString()}`, tone: 'neutral' },
@@ -313,14 +319,16 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     t.transaction_type === 'cc_balance_adjustment'
 
   // ── Pre-compute aggregates used across multiple modules ──
-  const thisMonthTxns = state.transactions.filter(t =>
+  // Mint must never tell the user they earned money they were only paid back.
+  const spendTxns = forSpendAnalytics(state.transactions)
+  const thisMonthTxns = spendTxns.filter(t =>
     new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense' && !isSystemTx(t)
   )
-  const lastMonthTxns = state.transactions.filter(t => {
+  const lastMonthTxns = spendTxns.filter(t => {
     const dt = new Date(t.transaction_date)
     return dt >= lastMonthStart && dt <= lastMonthEnd && t.transaction_type === 'expense' && !isSystemTx(t)
   })
-  const thisMonthIncome = state.transactions
+  const thisMonthIncome = spendTxns
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income' && !isSystemTx(t))
     .reduce((s, t) => s + t.amount, 0)
   const thisMonthTransfers = state.transactions
@@ -333,8 +341,8 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'savings_withdrawal')
     .reduce((s, t) => s + t.amount, 0)
 
-  const monthlySpend = thisMonthTxns.reduce((s, t) => s + t.amount, 0)
-  const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + t.amount, 0)
+  const monthlySpend = thisMonthTxns.reduce((s, t) => s + spendAmount(t), 0)
+  const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + spendAmount(t), 0)
   const monthStartBalance = Math.round(totalBalance + monthlySpend - thisMonthIncome)
   const trackingDays = new Set(thisMonthTxns.map(t => t.transaction_date)).size
   const trackingCount = thisMonthTxns.length
@@ -383,12 +391,12 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   // general: same but also shown as a broad fallback
   // financial_health / budget: NOT included — those don't need category drill-down
   if (['spending', 'general'].includes(intent)) {
-    const todayTxns = state.transactions.filter(t =>
+    const todayTxns = forSpendAnalytics(state.transactions).filter(t =>
       t.transaction_date === localDateStr && t.transaction_type === 'expense'
     )
-    const todaySpend = todayTxns.reduce((s, t) => s + t.amount, 0)
+    const todaySpend = todayTxns.reduce((s, t) => s + spendAmount(t), 0)
     const todayStr = todayTxns.length > 0
-      ? todayTxns.map(t => `${t.description} ₹${t.amount.toLocaleString()} (${state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'})`).join(' | ')
+      ? todayTxns.map(t => `${t.description} ₹${spendAmount(t).toLocaleString()} (${state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'})`).join(' | ')
       : 'none'
 
     const catTotals: Record<string, number> = {}
@@ -401,12 +409,12 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
 
     const ninetyDaysAgo = new Date(now); ninetyDaysAgo.setDate(now.getDate() - 90)
     const descCount: Record<string, { count: number; total: number }> = {}
-    state.transactions
+    forSpendAnalytics(state.transactions)
       .filter(t => new Date(t.transaction_date) >= ninetyDaysAgo && t.transaction_type === 'expense')
       .forEach(t => {
         const key = t.description.toLowerCase().trim()
         if (!descCount[key]) descCount[key] = { count: 0, total: 0 }
-        descCount[key].count++; descCount[key].total += t.amount
+        descCount[key].count++; descCount[key].total += spendAmount(t)
       })
     const recurring = Object.entries(descCount).filter(([, v]) => v.count >= 3)
       .sort((a, b) => b[1].total - a[1].total).slice(0, CTX_LIMITS.recurring)
@@ -673,11 +681,11 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     if (stratPcts) {
       const stratStart = (d.financialCycle ?? getCurrentFinancialCycle(state)).cycleStart
       const stratIncome = state.transactions
-        .filter(t => t.transaction_type === 'income' && new Date(t.transaction_date) >= stratStart)
+        .filter(t => t.transaction_type === 'income' && !isReimbursement(t) && new Date(t.transaction_date) >= stratStart)
         .reduce((s, t) => s + t.amount, 0)
       const catMap = Object.fromEntries(state.categories.map(c => [c.id, c]))
       const actuals: Record<string, number> = { needs: 0, wants: 0, savings: 0 }
-      for (const t of state.transactions) {
+      for (const t of forSpendAnalytics(state.transactions)) {
         if (new Date(t.transaction_date) < stratStart) continue
         const cat = catMap[t.category_id ?? '']
         if (!cat) continue
@@ -692,7 +700,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
           bucket = cat.budget_bucket ?? 'needs'
         }
         if (!bucket) continue
-        actuals[bucket] += t.amount
+        actuals[bucket] += spendAmount(t)
       }
       const targets = {
         needs:   Math.round(stratIncome * stratPcts.needs   / 100),

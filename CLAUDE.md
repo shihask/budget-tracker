@@ -163,6 +163,79 @@ next render — no backfill, no recompute.
   live names a `23505`; `addEvent`/`updateEvent` translate it into a readable message.
 - `LinkExpensesSheet` skips split legs — same reasoning as the daily-challenge exclusion toast.
 
+## Expense Reimbursement — linked recovery
+When someone pays you back, the money is **not income** — it reduces the expense it repays.
+`transactions.reimbursement_for` is a nullable self-FK on an ordinary `income` row, so the
+money still credits the account (balances, cash flow, net worth untouched) while analytics
+read it as a correction to the original spend.
+
+No new transaction type: `delta()` must keep crediting the account, so only the analytics
+reading changes — which is exactly what a nullable grouping key expresses. Same shape as
+`event_id` / `savings_id` / `borrowing_id`. Totals are always **derived**, never stored.
+
+| File | Purpose |
+|---|---|
+| `src/lib/reimbursements.ts` | The one shared module — `forSpendAnalytics`, `spendAmount`, `reimbursedTotals`, `remainingReimbursable`, `reimbursementSummary`, `reimbursementsFor`, and the two anchor resolvers |
+| `src/components/LinkReimbursementSheet.tsx` | Single-select expense picker; unbounded + searchable, splits collapsed to one row |
+| `supabase/migrations/20260905000001_expense_reimbursements.sql` | Column, index and three triggers |
+
+### The two halves have very different blast radii
+| Half | Sites | How |
+|---|---|---|
+| Exclude from income | ~12, enumerable | `!isReimbursement(t)` at each |
+| Net off the expense | ~40 `reduce` sites | `forSpendAnalytics` at the entry point, then `spendAmount(t)` in place of `t.amount` |
+
+`forSpendAnalytics(state.transactions)` drops reimbursement rows and annotates reimbursed
+expenses with `net_amount` / `gross_amount` / `reimbursed_amount`. **`amount` is never
+rewritten** — exports, the AI context, drill-downs and any future audit log must keep seeing
+the real database value. Read the net through `spendAmount(t)`, which falls through to
+`t.amount` on a raw row and so is greppable when auditing coverage.
+
+**Deliberately raw** — the money really did move, in both directions: `account-balance.ts`,
+`cashflow.ts`, `services/index.ts`, `WealthSummaryCard`, `TransactionsPage` row rendering and
+`totalFiltered`, and CSV export (two separate rows at their true amounts, so the export still
+reconciles against a bank statement). Inside `derive()` this is the easiest thing to break:
+`getCurrentBalance(state)` and `buildCashFlowForecast(state, …)` keep receiving the **raw**
+state; only the sum loops read the normalized list.
+
+### Netting is expense-dated
+An August expense refunded in September shows **August** as ₹8. The refund corrects the
+original spend — that is what makes a category total honest. The September arrival is not
+hidden: balances and the forecast read raw, so +₹400 still lands on Sep 2, and `journeyData`'s
+replay gains a `recovered` event kind so September's story isn't silent.
+
+### Split expenses reimburse as a **group**
+A ₹408 gift paid ₹300 Axis + ₹108 Cash is two legs with no parent row; excluding split legs
+would make it unreimbursable. The link is stored on the group's **anchor leg** (earliest
+`created_at`, tie-broken by id) and remaining is measured against the group total. The anchor
+rule is internal to `reimbursements.ts` — callers go through `resolveReimbursementTarget` /
+`resolveReimbursedExpense`, so a future split refactor can move the anchor without
+invalidating stored links. Recovery is distributed across legs proportionally, so a
+per-account breakdown still balances.
+
+### Gotchas
+- **`AND id <> NEW.id` in `mp_validate_reimbursement` is load-bearing.** Without it, editing an
+  existing reimbursement from ₹250 to ₹300 is checked against its own stale ₹250 and falsely
+  "exceeds remaining". The client mirrors the same self-exclusion.
+- The link is written as a **follow-up update** (like `event_id`) because `mp_execute_transaction`
+  owns the atomic balance deltas. Unlike the event tag, a failure here is **not** swallowed — an
+  unlinked reimbursement is silently miscounted as income, the exact bug this fixes — so QuickAdd
+  holds the sheet open and reports it.
+- `updateTransaction` treats an **absent** `reimbursement_for` as "leave unchanged"; only an
+  explicit `null` unlinks. Same tri-state rule as `event_id`.
+- FK is `ON DELETE SET NULL`, never CASCADE. Deleting a reimbursed expense warns first, then the
+  received money survives as ordinary income.
+- `trg_transactions_reanchor_reimbursements` (BEFORE DELETE) re-points a link to a surviving leg
+  when the anchor leg of a split is deleted — it fires ahead of the FK's SET NULL.
+- Triggers raise `SQLSTATE 'PT422'` with user-facing messages; both QuickAdd and the edit sheet
+  surface `err.message` verbatim.
+- A reimbursement carries **no category** — it belongs to no income category, and giving it one
+  would put it in income category charts.
+- `financial-cycle.ts`'s `isPrimaryIncomeTransaction` now excludes linked rows; this supersedes
+  the older name-based `cat.name !== 'refund'` heuristic for anything actually linked.
+- The two Edge Functions (`push-evening-recap`, `ai-categorize`) re-implement this math
+  server-side and each carry their own copy of the netting.
+
 ## Auto-categorize in QuickAdd (four-tier)
 0. **History match** (`findHistoricalCategory`) — same description used before (exact, case-insensitive) → same category as the most recent matching transaction
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  

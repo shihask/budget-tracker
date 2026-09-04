@@ -184,6 +184,9 @@ function AppContent({ session }: { session: Session }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [sheetDefaultType, setSheetDefaultType] = useState<'expense' | 'income' | 'transfer' | undefined>()
   const [sheetDefaultCategoryId, setSheetDefaultCategoryId] = useState<string | null | undefined>()
+  // The reverse entry point: opened from the expense you are already looking at,
+  // prefilled with what it still owes.
+  const [sheetReimbursement, setSheetReimbursement] = useState<{ targetId: string; remaining: number } | undefined>()
   const [postIncomeAmount, setPostIncomeAmount] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
@@ -487,6 +490,8 @@ function AppContent({ session }: { session: Session }) {
     if (
       newTx &&
       form.transaction_type === 'income' &&
+      // Being paid back isn't income to allocate — it's a correction to an expense.
+      !form.reimbursement_for &&
       (incPattern === 'variable' || incPattern === 'business') &&
       state.budget_strategy_settings.budget_strategy !== 'none' &&
       form.amount > 0
@@ -837,7 +842,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} />
+            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultReimbursement={sheetReimbursement} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} />
           </div>
 
           <CreateMenuSheet
@@ -956,7 +961,7 @@ function AppContent({ session }: { session: Session }) {
           }} />
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onAddEvent={addEvent} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onAddEvent={addEvent} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} onRecordReimbursement={(expense, remaining) => { setSheetDefaultType('income'); setSheetReimbursement({ targetId: expense.id, remaining }); setSheetOpen(true) }} />
           )}
 
           {commitmentsOpen && (

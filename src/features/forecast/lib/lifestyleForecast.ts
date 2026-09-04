@@ -5,6 +5,7 @@ import { getStrategyPcts, getCategoryBucket } from '@/lib/budget-strategy'
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
 import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 export type { ForecastMode }
 
@@ -97,14 +98,14 @@ function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySp
   let wantsSpent = 0
   const periodStartIso = isoOf(periodStart)
 
-  for (const t of state.transactions) {
+  for (const t of forSpendAnalytics(state.transactions)) {
     if (t.transaction_date < periodStartIso) continue
     if (t.transaction_type !== 'expense' && t.transaction_type !== 'commitment') continue
     const cat = catMap[t.category_id ?? '']
     if (!cat) continue
     const bucket = getCategoryBucket(cat, state.groups)
-    if (bucket === 'needs') needsSpent += t.amount
-    else if (bucket === 'wants') wantsSpent += t.amount
+    if (bucket === 'needs') needsSpent += spendAmount(t)
+    else if (bucket === 'wants') wantsSpent += spendAmount(t)
   }
 
   const today = midnight(new Date())
@@ -171,14 +172,17 @@ function estimateFromHistory(state: AppState): HistResult | null {
 
   const dailyTotals60 = new Map<string, number>()
   const dailyTotals30 = new Map<string, number>()
-  for (const t of state.transactions) {
+  // Net, so a reimbursed expense doesn't inflate the daily lifestyle estimate the
+  // whole forecast is built on. Reimbursement rows are income and never reach
+  // isBehavioralSpending anyway, but forSpendAnalytics drops them regardless.
+  for (const t of forSpendAnalytics(state.transactions)) {
     if (t.transaction_date > todayIso) continue
     if (!isBehavioralSpending(t, catMap, groupsByName, ringFenced)) continue
     if (t.transaction_date >= sixtyDaysAgo) {
-      dailyTotals60.set(t.transaction_date, (dailyTotals60.get(t.transaction_date) ?? 0) + t.amount)
+      dailyTotals60.set(t.transaction_date, (dailyTotals60.get(t.transaction_date) ?? 0) + spendAmount(t))
     }
     if (t.transaction_date >= thirtyDaysAgo) {
-      dailyTotals30.set(t.transaction_date, (dailyTotals30.get(t.transaction_date) ?? 0) + t.amount)
+      dailyTotals30.set(t.transaction_date, (dailyTotals30.get(t.transaction_date) ?? 0) + spendAmount(t))
     }
   }
 
@@ -254,14 +258,14 @@ export function calculateBudgetRecommendation(state: AppState, d: DerivedMetrics
   const catMap = Object.fromEntries(state.categories.map(cc => [cc.id, cc]))
   const periodStartIso = isoOf(periodStart)
   let needsSpent = 0, wantsSpent = 0
-  for (const t of state.transactions) {
+  for (const t of forSpendAnalytics(state.transactions)) {
     if (t.transaction_date < periodStartIso) continue
     if (t.transaction_type !== 'expense' && t.transaction_type !== 'commitment') continue
     const cat = catMap[t.category_id ?? '']
     if (!cat) continue
     const bucket = getCategoryBucket(cat, state.groups)
-    if (bucket === 'needs') needsSpent += t.amount
-    else if (bucket === 'wants') wantsSpent += t.amount
+    if (bucket === 'needs') needsSpent += spendAmount(t)
+    else if (bucket === 'wants') wantsSpent += spendAmount(t)
   }
 
   return {

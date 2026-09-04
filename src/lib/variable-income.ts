@@ -1,6 +1,7 @@
 import type { AppState, Settings, EstimateConfidence } from '@/types'
 import { TODAY, iso, getWeekStart } from '@/lib/utils'
 import { isSystemTx, catById } from '@/lib/data'
+import { forSpendAnalytics, spendAmount, isReimbursement } from '@/lib/reimbursements'
 
 export interface HistoricalIncomeEstimate {
   avgDailyIncome: number
@@ -31,8 +32,12 @@ export function estimateHistoricalDailyIncome(state: AppState): HistoricalIncome
   const cutoff = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - 60)
   const cutoffIso = iso(cutoff)
 
+  // Reimbursements are excluded: they are money back, not earnings, and letting
+  // them into a variable-income estimate would inflate the daily figure the whole
+  // forecast is built on.
   const incomeTxns = state.transactions.filter(
-    t => t.transaction_type === 'income' && t.amount > 0 && t.transaction_date >= cutoffIso
+    t => t.transaction_type === 'income' && !isReimbursement(t)
+      && t.amount > 0 && t.transaction_date >= cutoffIso
   )
   if (incomeTxns.length < 5) return null
 
@@ -73,11 +78,11 @@ export function calculateAvgDailySpending(state: AppState): number {
   const catMap = catById(state.categories)
 
   let total = 0
-  for (const t of state.transactions) {
+  for (const t of forSpendAnalytics(state.transactions)) {
     if (t.transaction_date < cutoffIso) continue
     if (isSystemTx(t, catMap)) continue
     if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') {
-      total += t.amount
+      total += spendAmount(t)
     }
   }
   return Math.round(total / 30)
@@ -92,15 +97,17 @@ export function calculateTodaySummary(state: AppState): { todayIncome: number; t
   const todayStr = iso(TODAY)
   let todayIncome = 0, todaySpending = 0, todaySaving = 0
 
-  for (const t of state.transactions) {
+  // forSpendAnalytics does both halves at once: reimbursement rows are gone, so
+  // they never reach the 'income' case, and reimbursed expenses read net.
+  for (const t of forSpendAnalytics(state.transactions)) {
     if (t.transaction_date !== todayStr) continue
     switch (t.transaction_type) {
       case 'income':
         todayIncome += t.amount; break
       case 'expense':
-        todaySpending += t.amount; break
+        todaySpending += spendAmount(t); break
       case 'commitment':
-        todaySaving += t.amount; break
+        todaySaving += spendAmount(t); break
       case 'savings_contribution':
         todaySaving += t.amount; break
     }
@@ -113,14 +120,15 @@ export function calculateWeekSummary(state: AppState, settings: Settings): { wee
   const weekStartIso = iso(weekStart)
   let weekEarned = 0, weekSpent = 0, weekSaved = 0
 
-  for (const t of state.transactions) {
+  for (const t of forSpendAnalytics(state.transactions)) {
     if (t.transaction_date < weekStartIso) continue
     switch (t.transaction_type) {
       case 'income':
         weekEarned += t.amount; break
       case 'expense':
-        weekSpent += t.amount; break
+        weekSpent += spendAmount(t); break
       case 'commitment':
+        weekSaved += spendAmount(t); break
       case 'savings_contribution':
         weekSaved += t.amount; break
     }

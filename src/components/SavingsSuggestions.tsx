@@ -4,6 +4,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
 import type { AppState, DerivedMetrics } from '@/types'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 interface Props {
   state: AppState
@@ -29,13 +30,13 @@ export interface RecurringExpense {
 export function detectRecurringExpenses(state: AppState): RecurringExpense[] {
   const now = new Date()
   const descCount: Record<string, { count: number; total: number }> = {}
-  state.transactions
+  forSpendAnalytics(state.transactions)
     .filter(t => new Date(t.transaction_date) >= new Date(now.getFullYear(), now.getMonth() - 3, 1) && t.transaction_type === 'expense' && t.amount < 1000)
     .forEach(t => {
       const key = t.description.toLowerCase().trim()
       if (!descCount[key]) descCount[key] = { count: 0, total: 0 }
       descCount[key].count++
-      descCount[key].total += t.amount
+      descCount[key].total += spendAmount(t)
     })
   return Object.entries(descCount)
     .filter(([, v]) => v.count >= 3)
@@ -52,7 +53,7 @@ function analyzeSavings(state: AppState, d: DerivedMetrics): Suggestion[] {
 
   // Category totals last 30 days (keyed by category id to avoid name collisions)
   const catTotals: Record<string, { total: number; count: number; name: string; group: string }> = {}
-  state.transactions
+  forSpendAnalytics(state.transactions)
     .filter(t => new Date(t.transaction_date) >= last30 && t.transaction_type === 'expense')
     .forEach(t => {
       const cat = state.categories.find(c => c.id === t.category_id)
@@ -60,7 +61,7 @@ function analyzeSavings(state: AppState, d: DerivedMetrics): Suggestion[] {
       const name = cat?.name ?? 'Uncategorized'
       const group = cat?.group_name ?? ''
       if (!catTotals[key]) catTotals[key] = { total: 0, count: 0, name, group }
-      catTotals[key].total += t.amount
+      catTotals[key].total += spendAmount(t)
       catTotals[key].count++
     })
 

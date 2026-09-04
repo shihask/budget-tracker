@@ -3,6 +3,7 @@ import type { AppState } from '@/types'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
 import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
+import { forSpendAnalytics, spendAmount, type AnalyticsTransaction } from '@/lib/reimbursements'
 
 export interface PlantGrowth {
   leaves: number
@@ -73,10 +74,10 @@ function getPlantGrowth(leaves: number, streak: number): PlantGrowth {
   }
 }
 
-function getDailyExpenses(transactions: AppState['transactions'], dateStr: string, excluded: string[]): number {
+function getDailyExpenses(transactions: AnalyticsTransaction[], dateStr: string, excluded: string[]): number {
   return transactions
     .filter(t => t.transaction_type === 'expense' && t.transaction_date === dateStr && !excluded.includes(t.id))
-    .reduce((s, t) => s + t.amount, 0)
+    .reduce((s, t) => s + spendAmount(t), 0)
 }
 
 // computeChallenge() does not calculate cash availability — it consumes a precomputed
@@ -96,7 +97,9 @@ export function computeChallenge(
   // Ring-fenced life-event spend never counts against a streak. Filtered once here
   // rather than at each of the six spend reads below, so a new read can't miss it.
   const ringFenced = ringFencedEventIds(state.events)
-  const transactions = state.transactions.filter(t => countsTowardBudget(t, ringFenced))
+  // forSpendAnalytics does the same job for reimbursements: a day whose spend was
+  // paid back shouldn't break a streak, and the row that paid it back is not spend.
+  const transactions = forSpendAnalytics(state.transactions).filter(t => countsTowardBudget(t, ringFenced))
 
   const availableSpendable = Math.max(0, safeToSpend)
 
@@ -125,7 +128,7 @@ export function computeChallenge(
   const thirtyDaysAgo = iso(addDays(TODAY, -30))
   const totalLast30 = transactions
     .filter(t => t.transaction_type === 'expense' && t.transaction_date >= thirtyDaysAgo && t.transaction_date <= todayStr)
-    .reduce((s, t) => s + t.amount, 0)
+    .reduce((s, t) => s + spendAmount(t), 0)
   const avgDailySpend30 = totalLast30 / 30
 
   let recommendedDifficulty: 'easy' | 'medium' | 'hard'
@@ -273,7 +276,7 @@ export function getChallengeMessage(pctUsed: number, remaining: number, target: 
 }
 
 function getTodaysWin(
-  transactions: AppState['transactions'],
+  transactions: AnalyticsTransaction[],
   excluded: string[],
   spentToday: number,
   yesterdaySpent: number,
@@ -291,13 +294,13 @@ function getTodaysWin(
   const todayByCategory: Record<string, number> = {}
   transactions
     .filter(t => t.transaction_type === 'expense' && t.transaction_date === todayStr && !excluded.includes(t.id) && t.category_id)
-    .forEach(t => { todayByCategory[t.category_id!] = (todayByCategory[t.category_id!] ?? 0) + t.amount })
+    .forEach(t => { todayByCategory[t.category_id!] = (todayByCategory[t.category_id!] ?? 0) + spendAmount(t) })
 
   const topCatId = Object.entries(todayByCategory).sort((a, b) => b[1] - a[1])[0]?.[0]
   if (topCatId) {
     const last30ForCat = transactions
       .filter(t => t.transaction_type === 'expense' && t.transaction_date >= thirtyDaysAgo && t.transaction_date <= todayStr && t.category_id === topCatId)
-      .reduce((s, t) => s + t.amount, 0)
+      .reduce((s, t) => s + spendAmount(t), 0)
     const avg30DailyForCat = last30ForCat / 30
     if (todayByCategory[topCatId] < avg30DailyForCat * 0.8) {
       const catName = transactions.find(t => t.category_id === topCatId && t.category)?.category?.name

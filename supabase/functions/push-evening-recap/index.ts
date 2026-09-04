@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // Fetch today's transactions
     const { data: todayTxns } = await supabase
       .from('transactions')
-      .select('user_id, amount, transaction_type, category_id')
+      .select('id, user_id, amount, transaction_type, category_id, reimbursement_for')
       .in('user_id', enabledUserIds)
       .eq('transaction_date', today)
 
@@ -83,10 +83,27 @@ Deno.serve(async (req) => {
 
     const { data: periodTxns } = await supabase
       .from('transactions')
-      .select('user_id, amount, transaction_date, transaction_type')
+      .select('id, user_id, amount, transaction_date, transaction_type')
       .in('user_id', enabledUserIds)
       .eq('transaction_type', 'expense')
       .gte('transaction_date', monthStart)
+
+    // Reimbursements recorded this month, so the totals below report what the
+    // user actually spent rather than the gross they were partly paid back for.
+    // Mirrors src/lib/reimbursements.ts; the client is the source of truth for
+    // the rule, this is the server-side copy the push path needs.
+    const { data: recoveries } = await supabase
+      .from('transactions')
+      .select('user_id, amount, reimbursement_for')
+      .in('user_id', enabledUserIds)
+      .not('reimbursement_for', 'is', null)
+      .gte('transaction_date', monthStart)
+
+    const recoveredByExpense = new Map<string, number>()
+    for (const r of (recoveries ?? []) as any[]) {
+      recoveredByExpense.set(r.reimbursement_for, (recoveredByExpense.get(r.reimbursement_for) ?? 0) + r.amount)
+    }
+    const net = (t: any) => Math.max(0, t.amount - (recoveredByExpense.get(t.id) ?? 0))
 
     let totalSent = 0
 
@@ -94,9 +111,10 @@ Deno.serve(async (req) => {
       const settings = settingsMap.get(uid)
       const userTodayTxns = (todayTxns ?? []).filter((t: any) => t.user_id === uid)
       const expenses = userTodayTxns.filter((t: any) => t.transaction_type === 'expense' || t.transaction_type === 'commitment')
-      const income = userTodayTxns.filter((t: any) => t.transaction_type === 'income')
+      // A reimbursement credits the account but is not money earned.
+      const income = userTodayTxns.filter((t: any) => t.transaction_type === 'income' && !t.reimbursement_for)
 
-      const totalSpent = expenses.reduce((s: number, t: any) => s + t.amount, 0)
+      const totalSpent = expenses.reduce((s: number, t: any) => s + net(t), 0)
       const totalIncome = income.reduce((s: number, t: any) => s + t.amount, 0)
       const txCount = expenses.length
 
@@ -104,7 +122,7 @@ Deno.serve(async (req) => {
       const catSpend: Record<string, number> = {}
       expenses.forEach((t: any) => {
         const name = catMap.get(t.category_id) ?? 'Other'
-        catSpend[name] = (catSpend[name] ?? 0) + t.amount
+        catSpend[name] = (catSpend[name] ?? 0) + net(t)
       })
       const topCats = Object.entries(catSpend)
         .sort((a, b) => b[1] - a[1])
@@ -115,7 +133,7 @@ Deno.serve(async (req) => {
       const periodStart = getPeriodStart(uid)
       const periodSpend = (periodTxns ?? [])
         .filter((t: any) => t.user_id === uid && t.transaction_date >= periodStart)
-        .reduce((s: number, t: any) => s + t.amount, 0)
+        .reduce((s: number, t: any) => s + net(t), 0)
       const remaining = Math.max(0, budget - periodSpend)
       const periodLabel = (settings?.budget_period ?? 'weekly') === 'daily' ? 'today' :
         (settings?.budget_period ?? 'weekly') === 'monthly' ? 'this month' : 'this week'

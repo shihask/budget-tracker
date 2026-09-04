@@ -18,6 +18,8 @@ import { filterAndSortTransactions, type TxnSortKey } from '@/lib/transactionFil
 import { groupSplitTransactions, splitGroupLegs, isSplitValid, type TransactionGroup } from '@/lib/splitGroups'
 import { SplitLegsEditor } from './SplitLegsEditor'
 import type { AppState, Transaction, TransactionType, SplitLegInput, LifeEvent } from '@/types'
+import { reimbursementsFor, reimbursementSummary, remainingReimbursable, reimbursedTotals } from '@/lib/reimbursements'
+import { LinkReimbursementSheet } from './LinkReimbursementSheet'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
 type EditForm = {
@@ -29,6 +31,9 @@ type EditForm = {
   from_account_id: string
   to_account_id: string
   event_id: string
+  /** '' = leave the link alone is NOT representable here; the sheet always knows
+   *  the current value, so '' means unlinked and an id means linked. */
+  reimbursement_for: string
 }
 
 type SavedFormSnapshot = {
@@ -40,6 +45,7 @@ type SavedFormSnapshot = {
   from_account_id: string | null
   to_account_id: string | null
   event_id: string | null
+  reimbursement_for: string | null
 }
 
 interface TransactionsPageProps {
@@ -79,6 +85,9 @@ interface TransactionsPageProps {
   ) => Promise<Transaction[]>
   onDeleteSplitGroup?: (splitGroupId: string) => Promise<void>
   onDeleteSplitLeg?: (leg: Transaction) => Promise<void>
+  /** Opens Quick Add prefilled to reimburse `expense` for `remaining` — the reverse
+   *  entry point, from the expense you are already looking at. */
+  onRecordReimbursement?: (expense: Transaction, remaining: number) => void
 }
 
 type SplitEditState = {
@@ -91,10 +100,12 @@ type SplitEditState = {
   originalLegIds: string[]
 }
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
   const catMap = buildCatById(state.categories)
+  // Built once per render rather than re-scanning the ledger for every row.
+  const rowRecovered = useMemo(() => reimbursedTotals(state.transactions), [state.transactions])
 
   useEffect(() => {
     if (initialEditTx) openEdit(initialEditTx)
@@ -257,9 +268,34 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [savingsDeleteTarget, setSavingsDeleteTarget] = useState<Transaction | null>(null)
   const [splitEdit, setSplitEdit] = useState<SplitEditState | null>(null)
   const [splitLegDeleteTarget, setSplitLegDeleteTarget] = useState<{ leg: Transaction; groupSize: number; groupTotal: number } | null>(null)
+  const [reimbursePickerOpen, setReimbursePickerOpen] = useState(false)
+
+  // Live bound on a reimbursement's amount: what the target still owes, plus this
+  // row's own current value. Mirrors the `id <> NEW.id` self-exclusion in
+  // mp_validate_reimbursement, so editing 400 down to 250 doesn't fail against
+  // its own stale 400. The trigger remains the real backstop.
+  const reimburseTargetId = editForm?.transaction_type === 'income' ? editForm.reimbursement_for : ''
+  const reimburseRemaining = (() => {
+    if (!reimburseTargetId || !editingTx) return 0
+    const target = state.transactions.find(t => t.id === reimburseTargetId)
+    if (!target) return 0
+    return remainingReimbursable(target, state.transactions.filter(t => t.id !== editingTx.id))
+  })()
+  const reimburseAmount = evaluateAmountExpression(editForm?.amount ?? '') ?? 0
+  const reimburseOverBy = reimburseTargetId ? Math.max(0, round2(reimburseAmount - reimburseRemaining)) : 0
 
   const handleDelete = async (t: Transaction) => {
-    if (!await confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
+    // Deleting a reimbursed expense doesn't delete the money that came back — the
+    // FK is ON DELETE SET NULL — but it does turn it into ordinary income, which
+    // moves the user's income figure. Name that before it happens.
+    const linkedBack = reimbursementsFor(t, state.transactions)
+    if (linkedBack.length > 0) {
+      const total = linkedBack.reduce((s, r) => s + r.amount, 0)
+      const ok = await confirm(
+        `Delete "${t.description}" (${fmt(t.amount)})? ${fmt(total)} across ${linkedBack.length} ` +
+        `reimbursement${linkedBack.length === 1 ? '' : 's'} will become ordinary income.`)
+      if (!ok) return
+    } else if (!await confirm(`Delete "${t.description}" (${fmt(t.amount)})?`)) return
     // Check if this transaction is linked to a borrowing
     if (t.borrowing_id) {
       setBorrowingDeleteTarget(t)
@@ -343,7 +379,13 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const handleDeleteGroup = async (group: TransactionGroup) => {
     const groupId = group.primary.split_group_id
     if (!groupId || !onDeleteSplitGroup) return
-    if (!await confirm(`Delete all ${group.groupSize} payments (${fmt(group.groupTotal)})?`)) return
+    // Same warning as the single-row path: the money that came back survives as
+    // ordinary income, which moves the user's income figure.
+    const linkedBack = reimbursementsFor(group.primary, state.transactions)
+    const backNote = linkedBack.length > 0
+      ? ` ${fmt(linkedBack.reduce((s, r) => s + r.amount, 0))} across ${linkedBack.length} reimbursement${linkedBack.length === 1 ? '' : 's'} will become ordinary income.`
+      : ''
+    if (!await confirm(`Delete all ${group.groupSize} payments (${fmt(group.groupTotal)})?${backNote}`)) return
     setDeleting(group.key)
     try { await onDeleteSplitGroup(groupId) } catch (_) {}
     setDeleting(null)
@@ -371,6 +413,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       from_account_id: t.from_account_id || (t as any).credit_card_id || '',
       to_account_id: t.to_account_id || '',
       event_id: t.event_id || '',
+      reimbursement_for: t.reimbursement_for || '',
     })
     setPendingReceipt(null)
     setRemoveReceiptFlag(false)
@@ -426,6 +469,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       to_account_id: editForm.transaction_type === 'transfer' ? (editForm.to_account_id || null) : null,
       // Only expenses belong to a life event.
       event_id: editForm.transaction_type === 'expense' ? (editForm.event_id || null) : null,
+      // Only incoming money can be a reimbursement. Explicit null (not undefined)
+      // because this sheet does know the current value — it renders it — so an
+      // unlink here is a real instruction, not an omission.
+      reimbursement_for: editForm.transaction_type === 'income' ? (editForm.reimbursement_for || null) : null,
     }
 
     // If a previous attempt in this edit session already saved these exact core
@@ -443,13 +490,21 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       && lastSavedForm.from_account_id === form.from_account_id
       && lastSavedForm.to_account_id === form.to_account_id
       && lastSavedForm.event_id === form.event_id
+      && lastSavedForm.reimbursement_for === form.reimbursement_for
 
     if (!unchanged) {
       const updateBaseline = state.transactions.find(tx => tx.id === editingTx.id) ?? editingTx
       try {
         await onUpdate(updateBaseline, form)
         setLastSavedForm(form)
-      } catch (_) {
+      } catch (err) {
+        // The reimbursement triggers raise PT422 with a message written for the
+        // user ("Only ₹8 can still be reimbursed…"). Silently swallowing it would
+        // leave the Save button doing nothing on a rule we deliberately enforce.
+        const msg = (err as { code?: string; message?: string } | null)?.code === 'PT422'
+          ? (err as { message: string }).message
+          : null
+        setReceiptError(msg)
         setSaving(false)
         return
       }
@@ -674,6 +729,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               // exactly the code path it has always taken.
               const t = g.primary
               const collapsedSplit = g.isSplit && g.legs.length > 1
+              // Recovered against this row (or its whole split group when collapsed).
+              // Derived per render — nothing is stored, so unlink/delete are instant.
+              const rowReimbursed = collapsedSplit
+                ? g.legs.reduce((s, leg) => s + (rowRecovered.get(leg.id) ?? 0), 0)
+                : (rowRecovered.get(t.id) ?? 0)
               const cat = catMap[t.category_id!]
               const col = (cat && CAT_COLORS[cat.name]) || c.muted
               const acc = state.accounts.find(a => a.id === t.from_account_id)
@@ -751,6 +811,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                         {g.isSplit && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>
                             {collapsedSplit ? `Split · ${g.groupSize}` : 'Split'}
+                          </span>
+                        )}
+                        {t.reimbursement_for && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>Reimbursement</span>
+                        )}
+                        {rowReimbursed > 0 && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.good, background: c.good + '18', borderRadius: 999, padding: '2px 7px' }}>
+                            Reimbursed {fmt(rowReimbursed)}
                           </span>
                         )}
                         {(state.settings.challenge_excluded_txn_ids ?? []).includes(t.id) && (
@@ -1014,6 +1082,121 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               )
             })()}
 
+            {/* Reimbursement summary — what this expense actually cost, plus the
+                reverse entry point. This is where the need usually arises: you are
+                looking at the ₹408 gift when the friend pays you back. */}
+            {editingTx && editForm && (editForm.transaction_type === 'expense' || editForm.transaction_type === 'commitment') && (() => {
+              const linked = reimbursementsFor(editingTx, state.transactions)
+              const summary = reimbursementSummary(editingTx, state.transactions)
+              // Nothing linked and no way to link: a bare section header would be
+              // an empty promise.
+              if (linked.length === 0 && !onRecordReimbursement) return null
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                    Reimbursement
+                  </div>
+                  {linked.length > 0 && (
+                    <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 8 }}>
+                      {([
+                        ['Original expense', fmt(summary.gross), c.ink],
+                        ['Reimbursed', '-' + fmt(summary.reimbursed), c.good],
+                        ['Net expense', fmt(summary.net), c.ink],
+                      ] as const).map(([label, value, colour], i) => (
+                        <div key={label} style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: i === 2 ? '8px 0 0' : '0 0 6px',
+                          borderTop: i === 2 ? '1px solid ' + c.faint : 'none',
+                          marginTop: i === 2 ? 2 : 0,
+                        }}>
+                          <span style={{ font: (i === 2 ? '700' : '600') + ' 12.5px Plus Jakarta Sans', color: i === 2 ? c.ink : c.muted }}>{label}</span>
+                          <span style={{ font: (i === 2 ? '800 15px' : '700 13px') + ' Plus Jakarta Sans', color: colour }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {linked.map(r => (
+                    <div key={r.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '8px 12px', borderRadius: 11, background: c.surface2, marginBottom: 6,
+                    }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ font: '600 12.5px Plus Jakarta Sans', color: c.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {r.description}
+                        </div>
+                        <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted }}>
+                          {fmtDate(r.transaction_date)}
+                        </div>
+                      </div>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color: c.good, flexShrink: 0, marginLeft: 10 }}>+{fmt(r.amount)}</div>
+                    </div>
+                  ))}
+                  {summary.net > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onRecordReimbursement?.(editingTx, summary.net)}
+                      style={{
+                        width: '100%', padding: '10px 0', borderRadius: 12,
+                        border: '1.5px dashed ' + c.accent, background: 'transparent',
+                        color: c.accent, font: '700 12.5px Plus Jakarta Sans', cursor: 'pointer',
+                      }}
+                    >
+                      + Record reimbursement · {fmt(summary.net)} left
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* The other side of the link: an incoming row that repays an expense.
+                Never rendered as salary or plain income. */}
+            {editingTx && editForm?.transaction_type === 'income' && (() => {
+              const target = editForm.reimbursement_for
+                ? state.transactions.find(t => t.id === editForm.reimbursement_for) ?? null
+                : null
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                    Purpose
+                  </div>
+                  {target ? (
+                    <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
+                      <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>
+                        Reimbursement
+                      </span>
+                      <div style={{ font: '600 12.5px Plus Jakarta Sans', color: c.ink, marginTop: 8 }}>
+                        Reimburses: {target.description}
+                      </div>
+                      <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+                        {fmtDate(target.transaction_date)} · {fmt(target.amount)}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <button type="button" onClick={() => setReimbursePickerOpen(true)} style={{
+                          flex: 1, padding: '8px 0', borderRadius: 10, border: '1.5px solid ' + c.faint,
+                          background: 'transparent', color: c.ink, font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+                        }}>Change</button>
+                        <button type="button" onClick={() => setEditForm(f => f && ({ ...f, reimbursement_for: '' }))} style={{
+                          flex: 1, padding: '8px 0', borderRadius: 10, border: '1.5px solid ' + c.faint,
+                          background: 'transparent', color: c.bad, font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+                        }}>Unlink</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setReimbursePickerOpen(true)} style={{
+                      width: '100%', padding: '10px 0', borderRadius: 12,
+                      border: '1.5px dashed ' + c.faint, background: 'transparent',
+                      color: c.muted, font: '700 12.5px Plus Jakarta Sans', cursor: 'pointer',
+                    }}>+ Link to an expense</button>
+                  )}
+                  {reimburseOverBy > 0 && (
+                    <div style={{ font: '600 11px Plus Jakarta Sans', color: c.bad, marginTop: 8 }}>
+                      Only {fmt(reimburseRemaining)} can still be reimbursed on that expense.
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
             {/* Challenge exclusion toggle — only for expenses when challenge is active */}
             {editingTx && editForm?.transaction_type === 'expense' && (state.settings.challenge_enabled ?? false) && onToggleChallengeExclusion && (() => {
               const isExcluded = (state.settings.challenge_excluded_txn_ids ?? []).includes(editingTx.id)
@@ -1056,10 +1239,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </button>
               <button
                 onClick={handleEditSave}
-                disabled={saving}
-                style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+                disabled={saving || reimburseOverBy > 0}
+                style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: saving || reimburseOverBy > 0 ? 'not-allowed' : 'pointer', opacity: saving || reimburseOverBy > 0 ? 0.7 : 1 }}
               >
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? 'Saving...' : reimburseOverBy > 0 ? 'Amount exceeds remaining' : 'Save Changes'}
               </button>
             </div>
             </>}
@@ -1141,6 +1324,54 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                   creditCards={state.credit_cards || []}
                 />
               </div>
+
+              {/* Splits are reimbursed as a group, so the summary and the reverse
+                  entry point belong here too — a split gift is one ₹408 expense as
+                  far as the person who got paid back is concerned. */}
+              {(() => {
+                const anchor = state.transactions.find(t => t.split_group_id === splitEdit.groupId)
+                if (!anchor) return null
+                const linked = reimbursementsFor(anchor, state.transactions)
+                const summary = reimbursementSummary(anchor, state.transactions)
+                if (linked.length === 0 && !onRecordReimbursement) return null
+                return (
+                  <div>
+                    <Label>Reimbursement</Label>
+                    {linked.length > 0 && (
+                      <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 8 }}>
+                        {([
+                          ['Original expense', fmt(summary.gross), c.ink],
+                          ['Reimbursed', '-' + fmt(summary.reimbursed), c.good],
+                          ['Net expense', fmt(summary.net), c.ink],
+                        ] as const).map(([label, value, colour], i) => (
+                          <div key={label} style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            padding: i === 2 ? '8px 0 0' : '0 0 6px',
+                            borderTop: i === 2 ? '1px solid ' + c.faint : 'none',
+                            marginTop: i === 2 ? 2 : 0,
+                          }}>
+                            <span style={{ font: (i === 2 ? '700' : '600') + ' 12.5px Plus Jakarta Sans', color: i === 2 ? c.ink : c.muted }}>{label}</span>
+                            <span style={{ font: (i === 2 ? '800 15px' : '700 13px') + ' Plus Jakarta Sans', color: colour }}>{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {onRecordReimbursement && summary.net > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setSplitEdit(null); onRecordReimbursement(anchor, summary.net) }}
+                        style={{
+                          width: '100%', padding: '10px 0', borderRadius: 12,
+                          border: '1.5px dashed ' + c.accent, background: 'transparent',
+                          color: c.accent, font: '700 12.5px Plus Jakarta Sans', cursor: 'pointer',
+                        }}
+                      >
+                        + Record reimbursement · {fmt(summary.net)} left
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
 
               <button
                 onClick={handleSplitSave}
@@ -1235,6 +1466,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
           </div>
         </div>
       </BottomSheet>
+
+      <LinkReimbursementSheet
+        open={reimbursePickerOpen}
+        onClose={() => setReimbursePickerOpen(false)}
+        state={state}
+        editingId={editingTx?.id ?? null}
+        onPick={targetId => setEditForm(f => f && ({ ...f, reimbursement_for: targetId }))}
+      />
 
       <EventFormSheet
         open={eventFormOpen}

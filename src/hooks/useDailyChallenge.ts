@@ -4,6 +4,7 @@ import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { loadFrozenSnapshot, saveFrozenSnapshot, freezeFromCalc } from '@/lib/challenge-snapshot'
 import { iso, addDays, TODAY } from '@/lib/utils'
 import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 import type { AppState, DerivedMetrics } from '@/types'
 
 export interface DailyChallengeState {
@@ -106,11 +107,12 @@ export function useDailyChallenge(
         const excluded = settings.challenge_excluded_txn_ids ?? []
         // Two independent exclusions: the per-transaction "large expense" opt-out
         // above, and ring-fenced life events — a wedding shouldn't break a streak.
+        // A third: spend that was reimbursed counts only for what it really cost.
         const ringFenced = ringFencedEventIds(state.events)
-        const daySpent = state.transactions
+        const daySpent = forSpendAnalytics(state.transactions)
           .filter(t => t.transaction_type === 'expense' && t.transaction_date === dateStr
             && !excluded.includes(t.id) && countsTowardBudget(t, ringFenced))
-          .reduce((s, t) => s + t.amount, 0)
+          .reduce((s, t) => s + spendAmount(t), 0)
         const dayTarget = targets[dayDifficulty]
         const savedAmt = dayTarget - daySpent
         const result = daySpent <= dayTarget ? 'success' : 'miss'

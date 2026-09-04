@@ -461,6 +461,18 @@ export function useSupabaseData(userId: string) {
         else if (tagged) row = tagged as Transaction
       }
 
+      // Reimbursement link, same follow-up reasoning as the event tag above.
+      // Unlike that one a failure must NOT be swallowed: an unlinked
+      // reimbursement is silently miscounted as income, which is the exact bug
+      // this feature exists to fix. Surface the trigger's message.
+      if (form.reimbursement_for) {
+        const { data: linked, error: linkErr } = await supabase
+          .from('transactions').update({ reimbursement_for: form.reimbursement_for })
+          .eq('id', row.id).select('*').single()
+        if (linkErr) throw linkErr
+        if (linked) row = linked as Transaction
+      }
+
       const newTx: Transaction = {
         ...row,
         category: stateRef.current.categories.find(c => c.id === form.category_id),
@@ -823,6 +835,20 @@ export function useSupabaseData(userId: string) {
           .from('transactions').update({ event_id: nextEventId }).eq('id', old.id).select('*').single()
         if (tagErr) console.error('Failed to update transaction event:', tagErr)
         else if (tagged) row = tagged as Transaction
+      }
+
+      // Same tri-state rule for the reimbursement link, and for the same reason:
+      // an absent reimbursement_for means "leave it alone", so an edit made from
+      // a surface that knows nothing about reimbursements can't silently turn a
+      // linked recovery back into income. Only an explicit null unlinks.
+      const nextReimbursementFor =
+        form.reimbursement_for === undefined ? undefined : (form.reimbursement_for ?? null)
+      if (nextReimbursementFor !== undefined && nextReimbursementFor !== (old.reimbursement_for ?? null)) {
+        const { data: linked, error: linkErr } = await supabase
+          .from('transactions').update({ reimbursement_for: nextReimbursementFor })
+          .eq('id', old.id).select('*').single()
+        if (linkErr) throw linkErr
+        if (linked) row = linked as Transaction
       }
 
       const updated: Transaction = {

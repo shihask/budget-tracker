@@ -2,6 +2,7 @@ import type { AppState, BudgetBucket, BudgetStrategySettings, BudgetStrategyType
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
+import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 
 export const STRATEGY_PRESETS: Record<
   Exclude<BudgetStrategyType, 'none' | 'custom'>,
@@ -96,7 +97,7 @@ export function computeStrategyData(state: AppState, d: DerivedMetrics): Strateg
   // A wedding shouldn't show up as blown "wants" adherence.
   const ringFenced = ringFencedEventIds(state.events)
 
-  for (const t of state.transactions) {
+  for (const t of forSpendAnalytics(state.transactions)) {
     if (new Date(t.transaction_date) < periodStart) continue
     if (!countsTowardBudget(t, ringFenced)) continue
     const cat = catMap[t.category_id ?? '']
@@ -120,8 +121,8 @@ export function computeStrategyData(state: AppState, d: DerivedMetrics): Strateg
     }
 
     if (!effectiveBucket) continue
-    actuals[effectiveBucket] += t.amount
-    catTotals[effectiveBucket][cat.name] = (catTotals[effectiveBucket][cat.name] || 0) + t.amount
+    actuals[effectiveBucket] += spendAmount(t)
+    catTotals[effectiveBucket][cat.name] = (catTotals[effectiveBucket][cat.name] || 0) + spendAmount(t)
   }
 
   const categoryBreakdown: Record<BudgetBucket, { name: string; amount: number }[]> = { needs: [], wants: [], savings: [] }
