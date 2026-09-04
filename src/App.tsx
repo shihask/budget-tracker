@@ -580,7 +580,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || catsOpen || adminOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || adminOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
             <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
