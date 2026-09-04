@@ -996,6 +996,11 @@ Only return all nulls and confidence "low" if this is clearly neither a receipt 
       let validDate: string | null = null
       if (typeof extractParsed.transaction_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(extractParsed.transaction_date)) {
         const candidate = new Date(extractParsed.transaction_date + 'T00:00:00')
+        // Declared here, not borrowed from an outer scope: the only other `now`
+        // in this file is local to the getMonthlySummary tool handler, so this
+        // line used to throw "now is not defined" and fail every receipt whose
+        // date the model actually managed to read.
+        const now = new Date()
         const tomorrow = new Date(now)
         tomorrow.setDate(tomorrow.getDate() + 1)
         if (candidate <= tomorrow) validDate = extractParsed.transaction_date
@@ -1140,7 +1145,9 @@ If there are no transaction rows at all, return an empty "transactions" array ra
         stmtParsed = {}
       }
 
-      const stmtTomorrow = new Date(now)
+      // Same fix as the receipt-extract branch above: `now` is not in scope here.
+      const stmtNow = new Date()
+      const stmtTomorrow = new Date(stmtNow)
       stmtTomorrow.setDate(stmtTomorrow.getDate() + 1)
 
       function coerceStmtAmount(v: unknown): number | null {
