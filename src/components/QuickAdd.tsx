@@ -774,7 +774,12 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
               <div style={{ flex: 1 }}>
                 <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 2 }}>Got paid back for something?</div>
                 <div style={{ font: '500 11.5px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
-                  Pick <strong style={{ color: c.ink }}>Reimbursement</strong> and link the original expense. The money still lands in your account, but it counts as money back rather than income — so a ₹408 gift you were repaid ₹400 for shows up as ₹8 spent, not ₹408 spent and ₹400 earned.
+                  Use <strong style={{ color: c.ink }}>Reimbursement</strong> when someone returns money for an expense you already recorded. It increases your account balance, but doesn't count as income.
+                </div>
+                {/* The example carries the idea faster than the explanation does,
+                    so it gets its own line rather than trailing the paragraph. */}
+                <div style={{ font: '600 11px Plus Jakarta Sans', color: c.accent, lineHeight: 1.5, marginTop: 6 }}>
+                  Example: Gift ₹408 → Friend pays back ₹400 → Your actual expense is ₹8.
                 </div>
               </div>
             </div>
