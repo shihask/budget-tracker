@@ -231,6 +231,16 @@ function AppContent({ session }: { session: Session }) {
     try { localStorage.setItem('mp_smart_input_tip_seen_' + session.user.id, '1') } catch {}
     setSmartInputTipSeen(true)
   }
+  // Shown once to ANYONE who hasn't seen it, not only new signups. Gating this on
+  // account age would repeat the Life Events mistake: a feature explained only in
+  // a carousel that existing users never see is a feature they never find.
+  const [reimbursementTipSeen, setReimbursementTipSeen] = useState(
+    () => { try { return localStorage.getItem('mp_reimbursement_tip_seen_' + session.user.id) === '1' } catch { return false } }
+  )
+  const dismissReimbursementTip = () => {
+    try { localStorage.setItem('mp_reimbursement_tip_seen_' + session.user.id, '1') } catch {}
+    setReimbursementTipSeen(true)
+  }
   const [chatReceiptTipSeen, setChatReceiptTipSeen] = useState(
     () => { try { return localStorage.getItem('mp_chat_receipt_tip_seen_' + session.user.id) === '1' } catch { return false } }
   )
@@ -842,7 +852,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultReimbursement={sheetReimbursement} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} />
+            <QuickAddSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultReimbursement={sheetReimbursement} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} showReimbursementTip={!reimbursementTipSeen} onDismissReimbursementTip={dismissReimbursementTip} />
           </div>
 
           <CreateMenuSheet

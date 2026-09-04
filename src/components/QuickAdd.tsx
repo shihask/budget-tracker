@@ -9,7 +9,7 @@ import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { QuickAmountBody } from './QuickAmountSheet'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
-import { Camera, Sparkles } from 'lucide-react'
+import { Camera, Sparkles, Undo2 } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { SplitLegsEditor } from './SplitLegsEditor'
 import { isSplitValid, splitHint } from '@/lib/splitGroups'
@@ -113,10 +113,13 @@ interface QuickAddSheetProps {
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onReceiptFailed?: (transaction: Transaction, receipt: PickedReceipt, error: unknown) => void
   showSmartInputTip?: boolean
+  /** One-time explainer for the Income / Reimbursement choice. */
+  showReimbursementTip?: boolean
+  onDismissReimbursementTip?: () => void
   onDismissSmartInputTip?: () => void
 }
 
-export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip }: QuickAddSheetProps) {
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -740,7 +743,11 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 <button key={p} type="button" onClick={() => {
                   setIncomePurpose(p)
                   if (p === 'income') setReimbursementFor(null)
-                  else setValue('category_id', '', { shouldValidate: false })
+                  else {
+                    setValue('category_id', '', { shouldValidate: false })
+                    // Choosing it teaches it better than reading about it does.
+                    if (showReimbursementTip) onDismissReimbursementTip?.()
+                  }
                 }} style={{
                   flex: 1, border: 'none', borderRadius: 11, padding: '8px 0',
                   font: '700 12.5px Plus Jakarta Sans',
@@ -751,6 +758,35 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 </button>
               )
             })}
+          </div>
+        )}
+
+        {/* Explains the choice at the moment it's offered, rather than in a
+            carousel nobody re-reads. Appears only on the income tab, which is
+            rare enough not to nag and is exactly when the concept matters. */}
+        {txType === 'income' && showReimbursementTip && (
+          <div style={{
+            marginBottom: 16,
+            background: c.accentSoft, border: `1px solid ${c.accent}33`, borderRadius: 12, padding: '10px 12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <Undo2 size={14} color={c.accent} style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 2 }}>Got paid back for something?</div>
+                <div style={{ font: '500 11.5px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+                  Pick <strong style={{ color: c.ink }}>Reimbursement</strong> and link the original expense. The money still lands in your account, but it counts as money back rather than income — so a ₹408 gift you were repaid ₹400 for shows up as ₹8 spent, not ₹408 spent and ₹400 earned.
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={onDismissReimbursementTip}
+                style={{ background: 'none', border: 'none', color: c.accent, font: '700 12px Plus Jakarta Sans', cursor: 'pointer', padding: '4px 6px' }}
+              >
+                Got it
+              </button>
+            </div>
           </div>
         )}
 
