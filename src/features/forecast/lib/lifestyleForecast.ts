@@ -1,6 +1,6 @@
 import type { AppState, DerivedMetrics, ForecastMode, Transaction, Category, Group } from '@/types'
 import type { CashFlowEvent, CashFlowForecast, CashFlowProjection } from '@/lib/cashflow'
-import { buildCashFlowForecast, estimateForecastSalary } from '@/lib/cashflow'
+import { buildCashFlowForecast, estimateForecastSalary, type ForecastOptions } from '@/lib/cashflow'
 import { getStrategyPcts, getCategoryBucket } from '@/lib/budget-strategy'
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
@@ -342,8 +342,8 @@ export function calculateDailySpendEstimate(state: AppState, d: DerivedMetrics, 
   }
 }
 
-export function buildLifestyleForecast(state: AppState, d: DerivedMetrics, opts?: DailySpendOptions): LifestyleForecast {
-  const base = buildCashFlowForecast(state, d)
+export function buildLifestyleForecast(state: AppState, d: DerivedMetrics, opts?: DailySpendOptions, forecastOpts?: ForecastOptions): LifestyleForecast {
+  const base = buildCashFlowForecast(state, d, forecastOpts)
   const dailySpend = calculateDailySpendEstimate(state, d, opts)
   const recommendation = calculateBudgetRecommendation(state, d)
 
@@ -498,6 +498,6 @@ export function buildLifestyleForecast(state: AppState, d: DerivedMetrics, opts?
 
 // Mirrors simulatePurchase() in cashflow.ts, but runs the lifestyle-aware
 // engine (known bills + estimated ongoing spending) instead of known-events-only.
-export function simulateLifestylePurchase(state: AppState, derived: DerivedMetrics, amount: number, opts?: DailySpendOptions): LifestyleForecast {
-  return buildLifestyleForecast(state, { ...derived, availableBalance: derived.availableBalance - amount }, opts)
+export function simulateLifestylePurchase(state: AppState, derived: DerivedMetrics, amount: number, opts?: DailySpendOptions, forecastOpts?: ForecastOptions): LifestyleForecast {
+  return buildLifestyleForecast(state, { ...derived, availableBalance: derived.availableBalance - amount }, opts, forecastOpts)
 }

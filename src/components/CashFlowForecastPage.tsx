@@ -4,7 +4,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
-import { buildCashFlowForecast, daysUntil, getForecastDrivers } from '@/lib/cashflow'
+import { buildCashFlowForecast, daysUntil, getForecastDrivers, type ForecastOptions } from '@/lib/cashflow'
 import { forecastHealth, getHealthMessage } from '@/components/CashFlowForecastCard'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { useStrategyData } from './BudgetStrategyCard'
@@ -14,6 +14,11 @@ import { buildLifestyleForecast, isBehavioralSpending } from '@/features/forecas
 import { ringFencedEventIds } from '@/lib/events'
 import { CashFlowGraph } from './CashFlowGraph'
 import type { AppState, DerivedMetrics, ForecastMode, ForecastSettings, PlannedExpense } from '@/types'
+
+// The Cash Flow Forecast page is the ONE surface that projects unbilled card
+// balances. Everywhere else — dashboard cards, Real Free Money, Hero pacing,
+// Daily Challenge, Affordability — stays billed-only. See ForecastOptions.
+const FORECAST_OPTS: ForecastOptions = { includeUnbilledCards: true }
 
 interface Props {
   state: AppState
@@ -80,8 +85,8 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   const mode: ForecastMode = state.forecast_settings.forecast_mode ?? 'planned'
   const setMode = (m: ForecastMode) => onUpdateForecastSettings({ forecast_mode: m })
 
-  const plannedForecast = useMemo(() => buildCashFlowForecast(state, d), [state, d])
-  const lifestyleForecast = useMemo(() => mode === 'lifestyle' ? buildLifestyleForecast(state, d) : null, [state, d, mode])
+  const plannedForecast = useMemo(() => buildCashFlowForecast(state, d, FORECAST_OPTS), [state, d])
+  const lifestyleForecast = useMemo(() => mode === 'lifestyle' ? buildLifestyleForecast(state, d, undefined, FORECAST_OPTS) : null, [state, d, mode])
 
   const forecast = mode === 'lifestyle' && lifestyleForecast ? lifestyleForecast : plannedForecast
   const { currentBalance, lowestBalance, lowestBalanceDate, nextSalaryDate, recoveryDate, recoveryBalance, projections } = forecast
@@ -199,7 +204,7 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
   const peImpact = useMemo(() => {
     const amt = evaluateAmountExpression(peAmount) ?? NaN
     if (!peAdding || !(amt > 0)) return null
-    const sim = simulatePurchase(state, d, amt)
+    const sim = simulatePurchase(state, d, amt, FORECAST_OPTS)
     return { lowestBefore: forecast.lowestBalance, lowestAfter: sim.lowestBalance }
   }, [peAdding, peAmount, state, d, forecast])
 

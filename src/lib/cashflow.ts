@@ -38,6 +38,21 @@ export interface CashFlowForecast {
   projections: CashFlowProjection[]
 }
 
+// Opt-in knobs for the forecast engine. Everything here is OFF by default, so
+// the shared readers (Real Free Money, Hero pacing, Daily Challenge,
+// Affordability, notifications, AI context) keep the exact behaviour they had.
+export interface ForecastOptions {
+  // Also project each card's UNBILLED balance as a second, later bill.
+  //
+  // Real debt, but deliberately not part of the default forecast: it is a
+  // moving figure that grows with every swipe until the statement generates,
+  // and letting it set the forecast low point would swing Real Free Money — and
+  // everything derived from it — by a whole statement overnight. The Cash Flow
+  // Forecast page opts in because there the user is reading a dated list of
+  // what is coming, not a number telling them what is safe to spend today.
+  includeUnbilledCards?: boolean
+}
+
 const HORIZON_DAYS = 30
 
 function midnight(d: Date): Date {
@@ -238,7 +253,7 @@ function allDueDates(dueDay: number, from: Date, until: Date): Date[] {
   return dates
 }
 
-export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics): CashFlowForecast {
+export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics, opts?: ForecastOptions): CashFlowForecast {
   const today = midnight(new Date())
   const days = state.forecast_settings.days ?? HORIZON_DAYS
   const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days)
@@ -317,16 +332,38 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
     }
   }
 
-  // ── Upcoming credit-card bills (billed amount due on the card's next due date) ──
+  // ── Upcoming credit-card bills ──
+  // The BILLED amount is always projected, on the card's next due date.
+  // The UNBILLED amount — money already spent that gets statemented at the next
+  // bill date and falls due one due-day later — is projected ONLY when the
+  // caller opts in via `includeUnbilledCards`. See ForecastOptions for why it is
+  // off by default.
   if (state.settings.track_credit_cards) {
     for (const cc of state.credit_cards) {
       if (cc.is_active === false) continue
       if (!(cc.current_balance > 0)) continue
       const billing = getCreditCardBilling(cc, state.transactions, today)
-      if (!(billing.billedAmount > 0)) continue
-      const due = new Date(billing.nextDueDate + 'T00:00:00')
-      if (due < today || due > horizon) continue
-      events.push({ date: billing.nextDueDate, title: `${cc.name} bill`, amount: Math.round(billing.billedAmount), type: 'expense', source: 'card', card_id: cc.id })
+
+      const pushBill = (dateStr: string, title: string, amount: number) => {
+        if (!(amount > 0)) return
+        const due = new Date(dateStr + 'T00:00:00')
+        if (due < today || due > horizon) return
+        const rounded = Math.round(amount)
+        // Both halves land on the same due day when the statement generates
+        // before that day (bill 15th, due 25th). Merge rather than show the
+        // same card twice on one date.
+        const same = events.find(e => e.source === 'card' && e.card_id === cc.id && e.date === dateStr)
+        if (same) { same.amount += rounded; return }
+        events.push({ date: dateStr, title, amount: rounded, type: 'expense', source: 'card', card_id: cc.id })
+      }
+
+      pushBill(billing.nextDueDate, `${cc.name} bill`, billing.billedAmount)
+
+      if (opts?.includeUnbilledCards) {
+        const nextBill = new Date(billing.nextBillDate + 'T00:00:00')
+        const afterBill = new Date(nextBill.getFullYear(), nextBill.getMonth(), nextBill.getDate() + 1)
+        pushBill(isoOf(nextDueDate(cc.due_day, afterBill)), `${cc.name} next bill`, billing.unbilledAmount)
+      }
     }
   }
 
@@ -432,11 +469,11 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics):
   }
 }
 
-export function simulatePurchase(state: AppState, derived: DerivedMetrics, amount: number): CashFlowForecast {
+export function simulatePurchase(state: AppState, derived: DerivedMetrics, amount: number, opts?: ForecastOptions): CashFlowForecast {
   return buildCashFlowForecast(state, {
     ...derived,
     availableBalance: derived.availableBalance - amount,
-  })
+  }, opts)
 }
 
 // Whole days from today until an ISO date (>= 0).
