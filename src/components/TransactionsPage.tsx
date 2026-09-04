@@ -1134,7 +1134,12 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                   {summary.net > 0 && (
                     <button
                       type="button"
-                      onClick={() => onRecordReimbursement?.(editingTx, summary.net)}
+                      // Close this sheet first. Quick Add renders its own shell
+                      // inside the phone frame, while this is a portalled
+                      // BottomSheet at zIndex 300 — leaving it open buries Quick
+                      // Add behind it. Leaving the expense is also the right
+                      // model: you're going off to record the money coming back.
+                      onClick={() => { const tx = editingTx; closeEdit(); onRecordReimbursement?.(tx, summary.net) }}
                       style={{
                         width: '100%', padding: '10px 0', borderRadius: 12,
                         border: '1.5px dashed ' + c.accent, background: 'transparent',
