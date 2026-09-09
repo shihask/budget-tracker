@@ -7,7 +7,7 @@ import { fmt, TODAY, iso, round2, selectOnFocus } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { MasterSelect } from './MasterSelect'
-import { matchMasterByName, normalizeMasterName, MASTER_TYPE_LABEL } from '@/lib/masters'
+import { matchMasterByName, normalizeMasterName, isMasterTaggable, MASTER_TYPE_LABEL } from '@/lib/masters'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { QuickAmountBody } from './QuickAmountSheet'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
@@ -637,9 +637,10 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         to_account_id: null,
         // Only expenses belong to a life event; income/transfers never do.
         event_id: txType === 'expense' && eventId ? eventId : null,
-        // Expenses only in v1.61, matching event_id. Tagging income to a person
-        // ("Rahul paid me back") belongs to the deferred Lend & Borrow work.
-        master_id: txType === 'expense' && masterId ? masterId : null,
+        // Expenses AND income: "Rahul paid me back" names a person just as much
+        // as a shop does, and Lend & Borrow now creates those people. A transfer
+        // moves money between the user's own accounts, so it names nobody.
+        master_id: isMasterTaggable(txType) && masterId ? masterId : null,
         reimbursement_for: isReimbursing ? reimbursementFor : null,
       })
       const withReceipt = (tx: Transaction | undefined) => {
@@ -713,10 +714,11 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   const effectiveShowAdvanced = showAdvanced || !!defaultEventId || !!defaultMasterId
 
   // Nothing inside? Render no toggle at all rather than an empty disclosure.
-  // All three children (life event, who/where, receipt) are expense-only, and
-  // ReceiptField has no further gate — so on an expense there is always at least
-  // the receipt, and on income/transfer there is never anything.
-  const hasAdvancedFields = isExpense
+  // On an expense there is always at least the receipt (ReceiptField has no
+  // further gate). On income the only child is who/where, which is itself gated
+  // on the directory being non-empty — so that gate has to be repeated here or
+  // the toggle opens onto nothing. Transfers name nobody and hold no receipt.
+  const hasAdvancedFields = isExpense || (txType === 'income' && state.masters.length > 0)
   const isReimbursing = txType === 'income' && incomePurpose === 'reimbursement'
   const linkedExpense = reimbursementFor
     ? state.transactions.find(t => t.id === reimbursementFor) ?? null
@@ -1375,7 +1377,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 {effectiveShowAdvanced && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>
-                      Optional tags and receipt
+                      {isExpense ? 'Optional tags and receipt' : 'Optional tags'}
                     </div>
 
                     {isExpense && activeEvents.length > 0 && (
@@ -1390,9 +1392,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                       </div>
                     )}
 
-                    {isExpense && state.masters.length > 0 && (
+                    {isMasterTaggable(txType) && state.masters.length > 0 && (
                       <div>
-                        <label style={labelStyle}>Who / where <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span></label>
+                        <label style={labelStyle}>{txType === 'income' ? 'Who from' : 'Who / where'} <span style={{ color: c.muted, fontWeight: 400 }}>(optional)</span></label>
                         <MasterSelect
                           value={masterId}
                           onChange={setMasterId}

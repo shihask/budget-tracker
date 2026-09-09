@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from '@/components/AppDialog'
-import { MASTER_ACCENTS, MASTER_TYPE_LABEL } from '@/lib/masters'
+import { MASTER_ACCENTS, MASTER_TYPE_LABEL, isMasterInflow } from '@/lib/masters'
 import { fmt, fmtDate } from '@/lib/utils'
 import { MasterAvatar } from './MasterAvatar'
 import { MASTER_TYPES } from '@/types'
@@ -15,7 +15,7 @@ function fmtCreated(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-interface MasterSpend { total: number; count: number; recent: Transaction[] }
+interface MasterSpend { total: number; count: number; received: number; recent: Transaction[] }
 
 interface Props {
   master: Master
@@ -182,11 +182,13 @@ export function MasterDetailPage({ master, onClose, onEdit, onDelete, onFetchSpe
           </div>
         </div>
 
-        {/* Spend summary. "Total spent" reads wrong for a person you lend to or
-            receive from, so people get the neutral noun until Lend & Borrow lands. */}
+        {/* Spend summary. "Total spent" reads wrong for a person who also pays you,
+            so people get the neutral noun. Received is a SEPARATE figure, never
+            subtracted from paid: netting them would report a friend you lent
+            ₹5,000 and got ₹5,000 back as ₹0, erasing both real movements. */}
         <div style={{ background: c.surface, borderRadius: 16, border: `1px solid ${c.faint}`, padding: '16px', marginBottom: 12 }}>
           <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-            {master.type === MASTER_TYPES.MERCHANT ? 'Total spent' : 'Total'}
+            {master.type === MASTER_TYPES.MERCHANT ? 'Total spent' : 'Paid to them'}
           </div>
 
           {spendError ? (
@@ -212,6 +214,16 @@ export function MasterDetailPage({ master, onClose, onEdit, onDelete, onFetchSpe
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>
                 {spend.count} transaction{spend.count === 1 ? '' : 's'}
               </div>
+              {spend.received > 0 && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.faint}` }}>
+                  <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                    Received from them
+                  </div>
+                  <div style={{ font: '800 20px Plus Jakarta Sans', color: c.good, letterSpacing: '-0.02em' }}>
+                    {fmt(spend.received)}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -228,7 +240,12 @@ export function MasterDetailPage({ master, onClose, onEdit, onDelete, onFetchSpe
                     {fmtDate(t.transaction_date)}
                   </div>
                 </div>
-                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, flexShrink: 0 }}>{fmt(t.amount)}</div>
+                {/* Direction, not type: money you lent and money you borrowed are
+                    both transaction_type 'borrowing' and only is_credit tells them
+                    apart — see isMasterInflow. */}
+                <div style={{ font: '700 14px Plus Jakarta Sans', color: isMasterInflow(t) ? c.good : c.ink, flexShrink: 0 }}>
+                  {isMasterInflow(t) ? '+' : ''}{fmt(t.amount)}
+                </div>
               </div>
             ))}
           </div>

@@ -6,7 +6,7 @@ import { computeChallengeResultUpdate } from '@/lib/challenge'
 import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
-import { normalizeMasterName, duplicateMasterMessage, masterSpent, masterTransactions } from '@/lib/masters'
+import { normalizeMasterName, duplicateMasterMessage, ensurePersonMaster, masterPaid, masterReceived, masterActivity } from '@/lib/masters'
 import { withTimeout, iso, TODAY, fmt, round2 } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
@@ -650,7 +650,7 @@ export function useSupabaseData(userId: string) {
       // tag is a follow-up update, same reasoning as addTransaction's.
       //
       // EVERY leg is tagged, not just an anchor: the whole bill was spent at that
-      // merchant, and masterSpent() sums legs (which partition the total) rather
+      // merchant, and masterPaid() sums legs (which partition the total) rather
       // than measuring a remainder. This differs from reimbursements, which do use
       // an anchor leg, deliberately.
       //
@@ -1048,6 +1048,13 @@ export function useSupabaseData(userId: string) {
   const stateRef = useRef(state)
   stateRef.current = state
 
+  // Same stateRef trick, for a callback instead of state: the borrowing writes
+  // create a person master, but addMaster is declared with the rest of the master
+  // API far below them. Reading it through a ref keeps the file's declaration
+  // order intact and keeps addBorrowing out of the business of re-creating itself
+  // whenever the master API does.
+  const addMasterRef = useRef<(form: MasterForm) => Promise<Master | undefined>>(async () => undefined)
+
   const addCategory = useCallback(async (name: string, group_name: string): Promise<string> => {
     // Return existing category if one with the same name already exists (case-insensitive)
     const existing = stateRef.current.categories.find(c => c.name.toLowerCase() === name.toLowerCase())
@@ -1084,12 +1091,50 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, categories: s.categories.map(c => c.id === id ? { ...c, budget_bucket: bucket } : c) }))
   }, [])
 
+  /** Tag every transaction of one borrowing with the person it is about.
+   *
+   *  A loan is the one place the app already knows the counterparty's name, so
+   *  the person is created in Masters if new and the rows are stamped with them —
+   *  the same "who / where" tag a hand-entered expense carries, which is what
+   *  makes the master's page show money lent alongside money spent.
+   *
+   *  Written as a FOLLOW-UP UPDATE rather than through mp_add_borrowing /
+   *  mp_record_borrowing_payment, for the same reason event_id is: those RPCs own
+   *  the atomic balance deltas and should not grow a column that does not affect
+   *  them.
+   *
+   *  Swallows its own failures. An untagged row is a cosmetic loss; the loan and
+   *  the balance it moved are already committed, and failing here would report a
+   *  save that actually succeeded. (Unlike reimbursement_for, where an unlinked
+   *  row is silently miscounted as income — nothing miscounts an untagged row.)
+   *
+   *  Unconditional over the whole borrowing, not just new rows: that is what
+   *  makes renaming the person on an existing entry re-point its history, and
+   *  every row under one borrowing is about that one person anyway. */
+  const tagBorrowingPerson = useCallback(async (borrowingId: string, personName: string) => {
+    try {
+      const master = await ensurePersonMaster(stateRef.current.masters, personName, addMasterRef.current)
+      if (!master) return
+      const { error } = await supabase
+        .from('transactions').update({ master_id: master.id }).eq('borrowing_id', borrowingId)
+      if (error) return
+      setState(s => ({
+        ...s,
+        transactions: s.transactions.map(t =>
+          t.borrowing_id === borrowingId ? { ...t, master_id: master.id } : t),
+      }))
+    } catch {
+      // See above — a missing tag must never surface as a failed save.
+    }
+  }, [])
+
   const addBorrowing = useCallback(async (
     form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; transaction_date?: string; repayment_date?: string | null },
     addTransaction: boolean,
     accountId: string | null,
   ) => {
     const today = form.transaction_date || new Date().toISOString().slice(0, 10)
+    let borrowingId: string
 
     if (addTransaction && accountId) {
       const isBorrowed  = form.direction === 'borrowed'
@@ -1129,6 +1174,7 @@ export function useSupabaseData(userId: string) {
           : a
         ),
       }))
+      borrowingId = result.borrowing.id
     } else {
       // No transaction — just insert the borrowing record
       const { data: bData, error: bErr } = await supabase
@@ -1137,8 +1183,14 @@ export function useSupabaseData(userId: string) {
         .select('*').single()
       if (bErr) throw bErr
       setState(s => ({ ...s, borrowings: [...s.borrowings, bData as AppState['borrowings'][0]] }))
+      borrowingId = (bData as AppState['borrowings'][0]).id
     }
-  }, [userId])
+
+    // Both branches: the person joins Masters either way. A loan recorded without
+    // a transaction has nothing to tag, but the name the user typed is still a
+    // person they deal with, and the picker that took it said so.
+    await tagBorrowingPerson(borrowingId, form.person_name)
+  }, [userId, tagBorrowingPerson])
 
   const updateBorrowing = useCallback(async (id: string, form: { person_name: string; total_amount: number; paid_amount: number; notes: string | null; direction: 'lent' | 'borrowed'; repayment_date: string | null }) => {
     const current      = stateRef.current
@@ -1193,7 +1245,11 @@ export function useSupabaseData(userId: string) {
           })
         : s.accounts,
     }))
-  }, [userId])
+
+    // Retagged on every save, not only when the name changed: this is also the
+    // repair path for an entry created before the tag existed.
+    await tagBorrowingPerson(id, form.person_name)
+  }, [userId, tagBorrowingPerson])
 
   const deleteBorrowing = useCallback(async (id: string, deleteTransactions: boolean) => {
     if (deleteTransactions) {
@@ -1265,6 +1321,7 @@ export function useSupabaseData(userId: string) {
         transactions: [newTx, ...s.transactions],
         accounts: s.accounts.map(a => a.id !== accountId ? a : { ...a, current_balance: a.current_balance + accountDelta }),
       }))
+      await tagBorrowingPerson(borrowing.id, borrowing.person_name)
     } else {
       // No transaction — just update the borrowing paid amount
       await supabase.from('borrowings').update({ paid_amount: newPaid }).eq('id', borrowing.id)
@@ -1276,7 +1333,7 @@ export function useSupabaseData(userId: string) {
         ),
       }))
     }
-  }, [userId])
+  }, [userId, tagBorrowingPerson])
 
   const addCommitment = useCallback(async (form: Omit<Commitment, 'id'>) => {
     const { data, error } = await supabase.from('commitments').insert({ ...form, user_id: userId }).select('*').single()
@@ -1806,6 +1863,10 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, masters: [...s.masters, m] }))
     return m
   }, [userId])
+  // Synced in an effect, not assigned during render like stateRef above: the only
+  // reader is an async borrowing save, which cannot run before mount, so there is
+  // nothing to gain from the earlier write and a lint rule worth not tripping.
+  useEffect(() => { addMasterRef.current = addMaster }, [addMaster])
 
   /** Optimistic, unlike addEvent/updateEvent's write-through. A rename is a pure
    *  local text change with nothing derived from it, so waiting a round trip to
@@ -1851,21 +1912,25 @@ export function useSupabaseData(userId: string) {
    *  spendAmount pair the in-memory path uses, so there is one netting
    *  implementation rather than two that can drift. */
   const fetchMasterSpend = useCallback(async (masterId: string): Promise<{
-    total: number; count: number; recent: Transaction[]
+    total: number; count: number; received: number; recent: Transaction[]
   }> => {
-    const { data: expenses, error } = await supabase
+    // Both directions in one query: money you receive names a payer just as money
+    // you spend names a payee, and a person you lend to is usually both.
+    const { data: tagged, error } = await supabase
       .from('transactions')
       .select('*')
       .eq('user_id', userId)
       .eq('master_id', masterId)
-      .eq('transaction_type', 'expense')
+      .in('transaction_type', ['expense', 'income'])
       .order('transaction_date', { ascending: false })
     if (error) throw error
 
-    const rows = (expenses as Transaction[]) ?? []
-    if (rows.length === 0) return { total: 0, count: 0, recent: [] }
+    const rows = (tagged as Transaction[]) ?? []
+    if (rows.length === 0) return { total: 0, count: 0, received: 0, recent: [] }
 
     // Reimbursements point AT these expenses, so they can't be found by master_id.
+    // An untagged one still nets off a tagged expense, which is why this fetch
+    // cannot be replaced by filtering the rows already in hand.
     const { data: recoveries, error: recErr } = await supabase
       .from('transactions')
       .select('*')
@@ -1873,11 +1938,19 @@ export function useSupabaseData(userId: string) {
       .in('reimbursement_for', rows.map(r => r.id))
     if (recErr) throw recErr
 
-    const all = [...rows, ...((recoveries as Transaction[]) ?? [])]
+    // Deduplicated by id: a reimbursement tagged to this same master is already in
+    // `rows`, and handing masterPaid the same recovery twice would over-net the
+    // expense it repays.
+    const byId = new Map<string, Transaction>()
+    for (const t of [...rows, ...((recoveries as Transaction[]) ?? [])]) byId.set(t.id, t)
+    const all = [...byId.values()]
     return {
-      total: masterSpent(all, masterId),
+      total: masterPaid(all, masterId),
+      // Counts only what the totals describe — the tagged rows, not the untagged
+      // recoveries fetched to net them.
       count: rows.length,
-      recent: masterTransactions(rows, masterId).slice(0, 10),
+      received: masterReceived(rows, masterId),
+      recent: masterActivity(rows, masterId).slice(0, 10),
     }
   }, [userId])
 

@@ -6,6 +6,7 @@ import { fmt, fmtDate, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
+import { MasterNameInput } from './MasterNameInput'
 import type { AppState, Borrowing } from '@/types'
 
 type BForm = {
@@ -215,6 +216,8 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
       return
     }
     setSaving(true)
+    // The person is created in Masters and the linked rows retagged by
+    // updateBorrowing — the write path owns it, so every caller gets it.
     try { await onUpdate(editingId, payload); closeSheet() } catch (_) {}
     setSaving(false)
   }
@@ -503,7 +506,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 14 }}>What each field means</div>
               {[
                 ['Type', '"I gave money" = you lent it, so they owe you. "I received money" = you borrowed it, so you owe them. This can\u2019t be changed after the entry is created.'],
-                ['Person name', 'Who you lent money to, or borrowed it from.'],
+                ['Person name', 'Who you lent money to, or borrowed it from. Start typing to pick someone from Masters, or type a new name — it is added to Masters for you.'],
                 ['Total amount', 'The full amount of the loan.'],
                 ['Repaid by them / Repaid by you', 'How much has already been paid back so far. Leave it 0 for a brand-new entry.'],
                 ['Repayment date', 'Only for money you owe. Until this date, the amount won’t be reserved in the current financial cycle’s Real Free Money — but it will still show up in the Cash Flow Forecast if it falls within the selected forecast period.'],
@@ -547,8 +550,9 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
           </div>
           <div>
             <Label>Person name</Label>
-            <HelpText>Who you lent money to or borrowed from.</HelpText>
-            <input value={form.person_name} onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))} placeholder="e.g. Alex" style={inp} />
+            <HelpText>Pick someone from Masters, or type a new name.</HelpText>
+            <MasterNameInput value={form.person_name} onChange={v => setForm(f => ({ ...f, person_name: v }))}
+              state={state} placeholder="e.g. Alex" style={inp} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>

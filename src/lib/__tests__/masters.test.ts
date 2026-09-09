@@ -9,7 +9,12 @@ import {
   duplicateMasterMessage,
   masterById,
   masterTransactions,
-  masterSpent,
+  masterPaid,
+  masterReceived,
+  masterActivity,
+  isMasterTaggable,
+  isMasterInflow,
+  ensurePersonMaster,
   matchMasterByName,
 } from '@/lib/masters'
 import { MASTER_TYPES } from '@/types'
@@ -218,13 +223,13 @@ describe('masterTransactions', () => {
   })
 })
 
-describe('masterSpent', () => {
+describe('masterPaid', () => {
   it('sums a single expense', () => {
-    expect(masterSpent([tx({ master_id: 'lulu', amount: 250 })], 'lulu')).toBe(250)
+    expect(masterPaid([tx({ master_id: 'lulu', amount: 250 })], 'lulu')).toBe(250)
   })
 
   it('returns 0 for an unknown master', () => {
-    expect(masterSpent([tx({ master_id: 'lulu', amount: 250 })], 'nobody')).toBe(0)
+    expect(masterPaid([tx({ master_id: 'lulu', amount: 250 })], 'nobody')).toBe(0)
   })
 
   it('ignores income rows', () => {
@@ -232,7 +237,7 @@ describe('masterSpent', () => {
       tx({ id: 'a', master_id: 'rahul', amount: 250 }),
       tx({ id: 'b', master_id: 'rahul', amount: 900, transaction_type: 'income' }),
     ]
-    expect(masterSpent(txns, 'rahul')).toBe(250)
+    expect(masterPaid(txns, 'rahul')).toBe(250)
   })
 
   it('nets a reimbursement against the expense it repays', () => {
@@ -240,7 +245,7 @@ describe('masterSpent', () => {
       tx({ id: 'exp', master_id: 'zomato', amount: 500 }),
       tx({ id: 'rec', transaction_type: 'income', amount: 200, reimbursement_for: 'exp' }),
     ]
-    expect(masterSpent(txns, 'zomato')).toBe(300)
+    expect(masterPaid(txns, 'zomato')).toBe(300)
   })
 
   // ── The counting invariant ──
@@ -249,7 +254,7 @@ describe('masterSpent', () => {
       tx({ id: 'leg1', master_id: 'lulu', amount: 250, split_group_id: 'g1', category_id: 'food' }),
       tx({ id: 'leg2', master_id: 'lulu', amount: 158, split_group_id: 'g1', category_id: 'drinks' }),
     ]
-    expect(masterSpent(legs, 'lulu')).toBe(408)
+    expect(masterPaid(legs, 'lulu')).toBe(408)
   })
 
   it('does NOT de-duplicate legs that share a description and date', () => {
@@ -259,7 +264,7 @@ describe('masterSpent', () => {
       tx({ id: 'leg1', master_id: 'lulu', amount: 250, description: 'Lulu', transaction_date: '2026-09-01', split_group_id: 'g1' }),
       tx({ id: 'leg2', master_id: 'lulu', amount: 158, description: 'Lulu', transaction_date: '2026-09-01', split_group_id: 'g1' }),
     ]
-    expect(masterSpent(legs, 'lulu')).toBe(408)
+    expect(masterPaid(legs, 'lulu')).toBe(408)
   })
 })
 
@@ -299,5 +304,172 @@ describe('matchMasterByName', () => {
     expect(matchMasterByName(list, null)).toBeNull()
     expect(matchMasterByName(list, undefined)).toBeNull()
     expect(matchMasterByName(list, '   ')).toBeNull()
+  })
+})
+
+describe('isMasterTaggable', () => {
+  it('covers exactly the two types that name a counterparty', () => {
+    expect(isMasterTaggable('expense')).toBe(true)
+    expect(isMasterTaggable('income')).toBe(true)
+  })
+
+  it('excludes a transfer — it moves money between accounts you already own', () => {
+    expect(isMasterTaggable('transfer')).toBe(false)
+  })
+
+  it('covers both sides of a loan — every borrowing row is about one named person', () => {
+    expect(isMasterTaggable('borrowing')).toBe(true)
+    expect(isMasterTaggable('borrowing_repayment')).toBe(true)
+  })
+
+  it('excludes the system types the user never names a counterparty for', () => {
+    expect(isMasterTaggable('opening_balance')).toBe(false)
+    expect(isMasterTaggable('balance_adjustment')).toBe(false)
+    expect(isMasterTaggable('credit_card_payment')).toBe(false)
+  })
+})
+
+describe('masterActivity', () => {
+  it('returns money out AND money in, newest first', () => {
+    const txns = [
+      tx({ id: 'paid', master_id: 'rahul', transaction_date: '2026-09-01' }),
+      tx({ id: 'got', master_id: 'rahul', transaction_date: '2026-09-05', transaction_type: 'income' }),
+      tx({ id: 'other', master_id: 'zomato' }),
+    ]
+    expect(masterActivity(txns, 'rahul').map(t => t.id)).toEqual(['got', 'paid'])
+  })
+
+  it('keeps a reimbursement visible even though masterReceived drops it — the money did arrive', () => {
+    const txns = [
+      tx({ id: 'exp', master_id: 'rahul', amount: 500 }),
+      tx({ id: 'rec', master_id: 'rahul', amount: 200, transaction_type: 'income', reimbursement_for: 'exp' }),
+    ]
+    expect(masterActivity(txns, 'rahul').map(t => t.id).sort()).toEqual(['exp', 'rec'])
+  })
+
+  it('excludes a transfer that somehow carries a master', () => {
+    const txns = [tx({ id: 't', master_id: 'rahul', transaction_type: 'transfer' })]
+    expect(masterActivity(txns, 'rahul')).toEqual([])
+  })
+})
+
+describe('masterReceived', () => {
+  it('sums income tagged to that master', () => {
+    const txns = [
+      tx({ id: 'a', master_id: 'rahul', amount: 900, transaction_type: 'income' }),
+      tx({ id: 'b', master_id: 'rahul', amount: 100, transaction_type: 'income' }),
+      tx({ id: 'c', master_id: 'rahul', amount: 250 }),
+    ]
+    expect(masterReceived(txns, 'rahul')).toBe(1000)
+  })
+
+  it('excludes a reimbursement — masterPaid already netted it off the paid side', () => {
+    const txns = [
+      tx({ id: 'exp', master_id: 'rahul', amount: 500 }),
+      tx({ id: 'rec', master_id: 'rahul', amount: 200, transaction_type: 'income', reimbursement_for: 'exp' }),
+    ]
+    // The ₹200 shows up once, as a smaller bill — never twice.
+    expect(masterPaid(txns, 'rahul')).toBe(300)
+    expect(masterReceived(txns, 'rahul')).toBe(0)
+  })
+
+  it('returns 0 for an unknown master', () => {
+    expect(masterReceived([tx({ master_id: 'rahul', transaction_type: 'income', amount: 900 })], 'nobody')).toBe(0)
+  })
+})
+
+describe('ensurePersonMaster', () => {
+  const rahul = m('Rahul', MASTER_TYPES.PERSON)
+
+  it('reuses an existing person, case- and whitespace-insensitively', async () => {
+    let calls = 0
+    const found = await ensurePersonMaster([rahul], '  rahul  ', async () => { calls++; return undefined })
+    expect(found).toBe(rahul)
+    expect(calls).toBe(0)
+  })
+
+  it('does not reuse a MERCHANT of the same name — uniqueness is per type', async () => {
+    const created = m('Rahul', MASTER_TYPES.PERSON)
+    const res = await ensurePersonMaster([m('Rahul', MASTER_TYPES.MERCHANT)], 'Rahul', async () => created)
+    expect(res).toBe(created)
+  })
+
+  it('creates a person from a new name, normalized', async () => {
+    let sent: { name: string; type: MasterType } | null = null
+    const created = m('Rahul Menon', MASTER_TYPES.PERSON)
+    const res = await ensurePersonMaster([], '  Rahul   Menon ', async form => { sent = form; return created })
+    expect(sent).toMatchObject({ name: 'Rahul Menon', type: MASTER_TYPES.PERSON })
+    expect(res).toBe(created)
+  })
+
+  it('ignores an empty name rather than creating a blank person', async () => {
+    let calls = 0
+    expect(await ensurePersonMaster([], '   ', async () => { calls++; return undefined })).toBeNull()
+    expect(calls).toBe(0)
+  })
+
+  it('swallows a failure — directory upkeep must never fail the save it rides on', async () => {
+    await expect(
+      ensurePersonMaster([], 'Rahul', async () => { throw new Error('23505') })
+    ).resolves.toBeNull()
+  })
+})
+
+describe('isMasterInflow', () => {
+  it('reads the fixed-direction types off the type alone', () => {
+    expect(isMasterInflow(tx({ transaction_type: 'income' }))).toBe(true)
+    expect(isMasterInflow(tx({ transaction_type: 'expense' }))).toBe(false)
+  })
+
+  // The whole reason this helper exists: 'borrowing' is money out when you lent
+  // and money in when you borrowed, so the type cannot decide.
+  it('reads a loan off is_credit, not the type', () => {
+    expect(isMasterInflow(tx({ transaction_type: 'borrowing', is_credit: true }))).toBe(true)
+    expect(isMasterInflow(tx({ transaction_type: 'borrowing', is_credit: false }))).toBe(false)
+    expect(isMasterInflow(tx({ transaction_type: 'borrowing_repayment', is_credit: true }))).toBe(true)
+    expect(isMasterInflow(tx({ transaction_type: 'borrowing_repayment', is_credit: false }))).toBe(false)
+  })
+
+  it('treats a loan with no is_credit as money out rather than guessing', () => {
+    expect(isMasterInflow(tx({ transaction_type: 'borrowing' }))).toBe(false)
+  })
+})
+
+describe('masters across a whole lend-and-repay cycle', () => {
+  // You lend Rahul ₹5,000; he repays ₹2,000; you also buy him lunch for ₹300.
+  const cycle = [
+    tx({ id: 'lent', master_id: 'rahul', amount: 5000, transaction_type: 'borrowing', is_credit: false, transaction_date: '2026-09-01' }),
+    tx({ id: 'repaid', master_id: 'rahul', amount: 2000, transaction_type: 'borrowing_repayment', is_credit: true, transaction_date: '2026-09-10' }),
+    tx({ id: 'lunch', master_id: 'rahul', amount: 300, transaction_type: 'expense', transaction_date: '2026-09-05' }),
+  ]
+
+  it('counts money lent and money spent on the same out side', () => {
+    expect(masterPaid(cycle, 'rahul')).toBe(5300)
+  })
+
+  it('counts a repayment received as money in', () => {
+    expect(masterReceived(cycle, 'rahul')).toBe(2000)
+  })
+
+  it('never nets the two — a ₹5,000 loan fully repaid is not ₹0 of activity', () => {
+    const settled = [
+      tx({ id: 'lent', master_id: 'rahul', amount: 5000, transaction_type: 'borrowing', is_credit: false }),
+      tx({ id: 'back', master_id: 'rahul', amount: 5000, transaction_type: 'borrowing_repayment', is_credit: true }),
+    ]
+    expect(masterPaid(settled, 'rahul')).toBe(5000)
+    expect(masterReceived(settled, 'rahul')).toBe(5000)
+  })
+
+  it('lists the whole cycle newest first', () => {
+    expect(masterActivity(cycle, 'rahul').map(t => t.id)).toEqual(['repaid', 'lunch', 'lent'])
+  })
+
+  it('counts money you borrowed as money in, and repaying it as money out', () => {
+    const owed = [
+      tx({ id: 'got', master_id: 'meera', amount: 4000, transaction_type: 'borrowing', is_credit: true }),
+      tx({ id: 'paid', master_id: 'meera', amount: 1000, transaction_type: 'borrowing_repayment', is_credit: false }),
+    ]
+    expect(masterReceived(owed, 'meera')).toBe(4000)
+    expect(masterPaid(owed, 'meera')).toBe(1000)
   })
 })

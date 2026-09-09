@@ -6,7 +6,7 @@ import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
 import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker, selectOnFocus } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { EventIcon } from '@/features/events/lib/eventIcons'
-import { masterById, MASTER_ACCENTS } from '@/lib/masters'
+import { masterById, isMasterTaggable, MASTER_ACCENTS } from '@/lib/masters'
 import { MasterSelect } from './MasterSelect'
 import type { MasterFormValues } from '@/features/masters/components/MasterFormSheet'
 import { EventFormSheet, type EventFormValues } from '@/features/events/components/EventFormSheet'
@@ -509,10 +509,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       to_account_id: editForm.transaction_type === 'transfer' ? (editForm.to_account_id || null) : null,
       // Only expenses belong to a life event.
       event_id: editForm.transaction_type === 'expense' ? (editForm.event_id || null) : null,
-      // Same rule for the master, and the same explicit-null reasoning as
-      // reimbursement_for below: this sheet renders the current value, so
-      // clearing the field is a real instruction rather than an omission.
-      master_id: editForm.transaction_type === 'expense' ? (editForm.master_id || null) : null,
+      // The master rides on income too (who paid you back), and carries the same
+      // explicit-null reasoning as reimbursement_for below: this sheet renders the
+      // current value, so clearing the field is a real instruction, not an omission.
+      // A transfer names nobody — it moves money between the user's own accounts.
+      master_id: isMasterTaggable(editForm.transaction_type) ? (editForm.master_id || null) : null,
       // Only incoming money can be a reimbursement. Explicit null (not undefined)
       // because this sheet does know the current value — it renders it — so an
       // unlink here is a real instruction, not an omission.
@@ -1175,10 +1176,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
             {/* Who / where. v1.61 shipped this as create-only, which left a
                 mistagged expense permanently wrong — this is the fix. */}
-            {editMoreOpen && editingTx && editForm?.transaction_type === 'expense' && state.masters.length > 0 && (
+            {editMoreOpen && editingTx && editForm && isMasterTaggable(editForm.transaction_type) && state.masters.length > 0 && (
               <div style={{ marginTop: 16 }}>
                 <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
-                  Who / where
+                  {editForm.transaction_type === 'income' ? 'Who from' : 'Who / where'}
                 </div>
                 <MasterSelect
                   value={editForm.master_id}

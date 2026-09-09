@@ -1,6 +1,35 @@
 import { MASTER_TYPES } from '@/types'
-import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
-import type { Master, MasterType, Transaction } from '@/types'
+import { forSpendAnalytics, spendAmount, isReimbursement } from '@/lib/reimbursements'
+import type { Master, MasterType, Transaction, TransactionType } from '@/types'
+
+/** Which transaction types can name a person or merchant.
+ *
+ *  Money you spend has a payee and money you receive has a payer. So does a loan,
+ *  in both directions — lending, borrowing and either side of a repayment are ALL
+ *  about one named person, which is why Lend & Borrow tags the rows it creates.
+ *
+ *  A transfer moves money between accounts you already own and names nobody, and
+ *  the system types (opening balance, adjustments, card settlements) are
+ *  bookkeeping the user never types a counterparty for.
+ *
+ *  One predicate, read by QuickAdd, the edit sheet and the borrowing writes for
+ *  BOTH a field's visibility and what gets written, so no two can disagree — a
+ *  form that shows a field it then refuses to save is how a tag silently
+ *  disappears. */
+export const isMasterTaggable = (type: TransactionType): boolean =>
+  type === 'expense' || type === 'income'
+  || type === 'borrowing' || type === 'borrowing_repayment'
+
+/** Did this row put money INTO the user's pocket?
+ *
+ *  The borrowing types carry no fixed direction — 'borrowing' is money out when
+ *  you lent and money in when you borrowed, and a repayment flips the same way —
+ *  so `is_credit` decides, exactly as the balance math does in
+ *  account-balance.ts. Every other taggable type has a direction fixed by name. */
+export const isMasterInflow = (t: Transaction): boolean =>
+  t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment'
+    ? !!t.is_credit
+    : t.transaction_type === 'income'
 
 /** UX normalization: trim, and collapse inner runs of whitespace so
  *  "Rahul    Menon" is stored as "Rahul Menon".
@@ -148,7 +177,23 @@ export const masterTransactions = (transactions: Transaction[], masterId: string
     .filter(t => t.master_id === masterId && t.transaction_type === 'expense')
     .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
 
-/** What this master has cost, net of anything reimbursed against those expenses —
+/** Everything tagged to one master — money out and money in — newest first.
+ *
+ *  This is the activity log, not a total: reimbursement rows appear here at their
+ *  real amount even though `masterReceived` excludes them, because the money did
+ *  arrive and hiding it would make the list disagree with the bank statement.
+ *
+ *  Loans are in here too, since a person you lend to is usually both a payee and
+ *  a payer — see isMasterTaggable. */
+export const masterActivity = (transactions: Transaction[], masterId: string): Transaction[] =>
+  transactions
+    .filter(t => t.master_id === masterId && isMasterTaggable(t.transaction_type))
+    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+
+/** Money that went OUT to this master — spending, money you lent them, and
+ *  repayments you made to them.
+ *
+ *  Net of anything reimbursed against those expenses —
  *  if a colleague paid back half the Zomato order, Zomato did not cost the full
  *  amount. `amount` is what left the account; `spendAmount` is what it cost.
  *
@@ -169,7 +214,54 @@ export const masterTransactions = (transactions: Transaction[], masterId: string
  *  Takes a transaction LIST, not AppState, so the same function can run over rows
  *  fetched from the database — state.transactions holds only the most recent 200,
  *  which would silently undercount a long-lived merchant. */
-export const masterSpent = (transactions: Transaction[], masterId: string): number =>
+export const masterPaid = (transactions: Transaction[], masterId: string): number =>
   forSpendAnalytics(transactions)
-    .filter(t => t.master_id === masterId && t.transaction_type === 'expense')
+    .filter(t => t.master_id === masterId && isMasterTaggable(t.transaction_type) && !isMasterInflow(t))
     .reduce((s, t) => s + spendAmount(t), 0)
+
+/** Money that came IN from this master — income, money they lent you, and
+ *  repayments they made to you.
+ *
+ *  Reimbursement rows are excluded on purpose, and this is the whole subtlety:
+ *  a reimbursement is not earnings, it is a correction to the expense it repays,
+ *  and `masterPaid` has ALREADY netted it off the paid side. Counting it here as
+ *  well would show the same ₹400 twice — once as a smaller bill, once as income —
+ *  which is the exact double count `forSpendAnalytics` exists to prevent.
+ *
+ *  Raw amounts otherwise: nothing nets off income. */
+export const masterReceived = (transactions: Transaction[], masterId: string): number =>
+  transactions
+    .filter(t => t.master_id === masterId && isMasterInflow(t) && !isReimbursement(t))
+    .reduce((s, t) => s + t.amount, 0)
+
+/** Find the person master for a typed name, creating one if it is new.
+ *
+ *  This is what makes a free-text name field feed the directory instead of
+ *  drifting away from it: whatever the user types in Lent & Borrowed is either
+ *  an existing person (matched case-insensitively, exactly as the DB's unique
+ *  index does) or becomes one.
+ *
+ *  Never throws. Keeping the directory tidy is a side effect of saving a
+ *  borrowing — a failure here must not lose the entry the user actually came to
+ *  record, and the name is still stored on the borrowing row either way. */
+export async function ensurePersonMaster(
+  masters: Master[],
+  rawName: string,
+  addMaster: (form: {
+    name: string; type: MasterType; phone: string | null; notes: string | null
+    category_id: string | null; photo_url: string | null
+  }) => Promise<Master | undefined>,
+): Promise<Master | null> {
+  const name = normalizeMasterName(rawName)
+  if (!name) return null
+  const existing = findDuplicateMaster(masters, name, MASTER_TYPES.PERSON)
+  if (existing) return existing
+  try {
+    return (await addMaster({
+      name, type: MASTER_TYPES.PERSON, phone: null, notes: null,
+      category_id: null, photo_url: null,
+    })) ?? null
+  } catch {
+    return null
+  }
+}

@@ -25,7 +25,7 @@ interface Props {
   onAddMaster: (form: MasterFormValues) => Promise<void>
   onUpdateMaster: (id: string, patch: Partial<MasterFormValues>) => Promise<void>
   onDeleteMaster: (id: string) => Promise<void>
-  onFetchSpend: (masterId: string) => Promise<{ total: number; count: number; recent: Transaction[] }>
+  onFetchSpend: (masterId: string) => Promise<{ total: number; count: number; received: number; recent: Transaction[] }>
 }
 
 export function MastersPage({
