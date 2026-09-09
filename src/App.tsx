@@ -41,6 +41,7 @@ import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
 import { MastersPage } from '@/features/masters/components/MastersPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
+import { CreditCardsPage } from '@/components/CreditCardsPage'
 import { AffordabilityChecker } from '@/components/AffordabilityChecker'
 import { GoalsSection } from '@/components/GoalsSection'
 import { RemindersBar, buildReminders } from '@/components/RemindersBar'
@@ -205,6 +206,7 @@ function AppContent({ session }: { session: Session }) {
   const [savingsAddOnOpen, setSavingsAddOnOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
   const [mastersOpen, setMastersOpen] = useState(false)
+  const [creditCardsOpen, setCreditCardsOpen] = useState(false)
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [metricsInfoOpen, setMetricsInfoOpen] = useState(false)
@@ -592,7 +594,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || mastersOpen || adminOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
             <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
@@ -712,7 +714,7 @@ function AppContent({ session }: { session: Session }) {
                       el = (state.settings.track_borrowings ?? true) ? <BorrowingSection state={state} onSeeAll={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} onAdd={() => { setBorrowingAddOnOpen(true); setBorrowingOpen(true) }} /> : null
                       break
                     case 'credit_cards':
-                      el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} onAdjustBalance={adjustCreditCardBalance} /> : null
+                      el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onPayBill={payCreditCardBill} onViewDetails={() => setCreditCardsOpen(true)} /> : null
                       break
                     case 'events':
                       el = state.events.some(e => e.status === 'active') ? <EventsCard
@@ -967,8 +969,8 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
-            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || adminOpen) ? 'auto' : 'none',
+            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'auto' : 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
 
@@ -978,6 +980,10 @@ function AppContent({ session }: { session: Session }) {
 
           {commitmentsOpen && (
             <CommitmentsPage state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} onPayCCBill={payCreditCardBill} onClose={() => { setCommitmentsOpen(false); setCommitmentsAddOnOpen(false) }} initialAddOpen={commitmentsAddOnOpen} />
+          )}
+
+          {creditCardsOpen && (
+            <CreditCardsPage state={state} onClose={() => setCreditCardsOpen(false)} onSwipeProgress={setSwipePct} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} onAdjustBalance={adjustCreditCardBalance} />
           )}
 
           {borrowingOpen && (
