@@ -2097,6 +2097,28 @@ export function useSupabaseData(userId: string) {
     }))
   }, [userId])
 
+  /** Every credit-card row since `sinceDate`, read from the DATABASE rather than state.transactions.
+   *
+   *  Same reasoning as fetchMasterSpend above: state.transactions holds only the most recent
+   *  TXN_PAGE_SIZE (200) rows. The Cards tab is fine on that window — it asks about right now. But
+   *  "what did each of my statements come to" and "how has card spend moved over six months" are
+   *  inherently long-span questions, and summing the in-memory window would report a fraction of the
+   *  truth while looking authoritative.
+   *
+   *  One query covers both tabs: credit_card_payment rows carry credit_card_id too, so spend and the
+   *  settlements against it arrive together and the statement engine can allocate in one pass. */
+  const fetchCardHistory = useCallback(async (sinceDate: string): Promise<Transaction[]> => {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .not('credit_card_id', 'is', null)
+      .gte('transaction_date', sinceDate)
+      .order('transaction_date', { ascending: false })
+    if (error) throw error
+    return (data as Transaction[]) ?? []
+  }, [userId])
+
   const adjustCreditCardBalance = useCallback(async (cardId: string, actualBalance: number, newBilled?: number) => {
     const card = stateRef.current.credit_cards.find(c => c.id === cardId)
     if (!card) return
@@ -2288,7 +2310,7 @@ export function useSupabaseData(userId: string) {
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
     addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,
-    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance,
+    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addPlannedExpense, updatePlannedExpense, deletePlannedExpense,

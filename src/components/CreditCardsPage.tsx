@@ -1,12 +1,24 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
+import { Card } from './Card'
 import { CreditCardTile } from './CreditCardTile'
 import { useCreditCardSheets } from './CreditCardSheets'
 import { getCreditCardBilling } from '@/lib/credit-card'
-import type { AppState, CreditCard } from '@/types'
+import { localYmd } from '@/lib/credit-card-cycles'
+import { thisMonthCardSpend } from '@/lib/credit-card-analytics'
+import { stmtDate } from './creditCardStatus'
+import { colorFor } from '@/lib/credit-card-colors'
+import { StatementsTab } from '@/features/credit-cards/components/StatementsTab'
+import { AnalyticsTab } from '@/features/credit-cards/components/AnalyticsTab'
+import type { AppState, CreditCard, Transaction } from '@/types'
 
 type CardPayload = Omit<CreditCard, 'id' | 'user_id' | 'is_active'>
+type Tab = 'cards' | 'statements' | 'analytics'
+const TABS: [Tab, string][] = [['cards', 'Cards'], ['statements', 'Statements'], ['analytics', 'Analytics']]
+
+/** 6 months of analytics plus one so the oldest statement window is whole. */
+const HISTORY_MONTHS = 7
 
 interface Props {
   state: AppState
@@ -17,10 +29,14 @@ interface Props {
   onDelete: (id: string) => Promise<void>
   onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
   onAdjustBalance: (cardId: string, actualBalance: number, billedAmount?: number) => Promise<void>
+  fetchCardHistory: (sinceDate: string) => Promise<Transaction[]>
 }
 
-/** The Credit Cards home: every card, its billing detail, and all card management. */
-export function CreditCardsPage({ state, onClose, onSwipeProgress, onAdd, onUpdate, onDelete, onPayBill, onAdjustBalance }: Props) {
+/** The Credit Cards home: overview, upcoming bills, and Cards / Statements / Analytics. */
+export function CreditCardsPage({
+  state, onClose, onSwipeProgress,
+  onAdd, onUpdate, onDelete, onPayBill, onAdjustBalance, fetchCardHistory,
+}: Props) {
   const c = useTheme()
 
   const [dragX, setDragX] = useState(0)
@@ -28,11 +44,61 @@ export function CreditCardsPage({ state, onClose, onSwipeProgress, onAdd, onUpda
   const [snapping, setSnapping] = useState(false)
   const [entryPlayed, setEntryPlayed] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [tab, setTab] = useState<Tab>('cards')
   const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
 
+  // ── Long-span history, fetched from the DB rather than the 200-row in-memory window ──────────
+  const [history, setHistory] = useState<Transaction[] | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    setHistoryError(null)
+    try {
+      const since = new Date()
+      since.setMonth(since.getMonth() - HISTORY_MONTHS)
+      setHistory(await fetchCardHistory(localYmd(since)))
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : 'Something went wrong')
+    }
+    setHistoryLoading(false)
+  }, [fetchCardHistory])
+
+  /** Fetch once, the first time a tab that needs it is opened. Driven from the tab click rather than
+   *  an effect — the fetch is a reaction to a user action, not a synchronisation with anything. */
+  const selectTab = useCallback((next: Tab) => {
+    setTab(next)
+    if (next !== 'cards' && !history && !historyLoading && !historyError) void loadHistory()
+  }, [history, historyLoading, historyError, loadHistory])
+
+  /** Any successful mutation makes the cached history stale. Refetch silently when a data tab is
+   *  showing (the stale numbers stay up meanwhile rather than flashing a skeleton); otherwise just
+   *  drop it so the next switch refetches. */
+  const invalidateHistory = useCallback(() => {
+    if (tab === 'cards') { setHistory(null); setHistoryError(null); return }
+    void loadHistory()
+  }, [tab, loadHistory])
+
+  // Wrapping here is what makes the cache policy unforgettable: every mutation on this page goes
+  // through useCreditCardSheets, so no call site can skip invalidation.
+  const withInvalidate = useCallback(
+    <A extends unknown[]>(fn: (...args: A) => Promise<void>) => async (...args: A) => {
+      await fn(...args)
+      invalidateHistory()
+    },
+    [invalidateHistory],
+  )
+
   const { openAdd, openEdit, openAdjust, openPay, confirmDelete, sheets, anyOpen } = useCreditCardSheets({
-    mode: 'full', state, onAdd, onUpdate, onDelete, onPayBill, onAdjustBalance,
+    mode: 'full',
+    state,
+    onAdd: withInvalidate(onAdd),
+    onUpdate: withInvalidate(onUpdate),
+    onDelete: withInvalidate(onDelete),
+    onPayBill: withInvalidate(onPayBill),
+    onAdjustBalance: withInvalidate(onAdjustBalance),
   })
 
   useEffect(() => {
@@ -88,19 +154,43 @@ export function CreditCardsPage({ state, onClose, onSwipeProgress, onAdd, onUpda
     setTimeout(() => setSnapping(false), 300)
   }
 
-  const cards = state.credit_cards || []
+  const cards = useMemo(() => state.credit_cards || [], [state.credit_cards])
 
-  const totalOutstanding = cards.reduce((s, cd) => s + cd.current_balance, 0)
-  const totalBilled = cards.reduce((s, cd) => {
-    const b = getCreditCardBilling(cd, state.transactions)
-    return s + Math.max(0, b.billedAmount)
-  }, 0)
-  const totalAvailable = cards.reduce((s, cd) => s + (cd.credit_limit - cd.current_balance), 0)
+  const totals = useMemo(() => {
+    let outstanding = 0, billed = 0, limit = 0
+    for (const cd of cards) {
+      outstanding += cd.current_balance
+      limit += cd.credit_limit
+      billed += Math.max(0, getCreditCardBilling(cd, state.transactions).billedAmount)
+    }
+    const available = limit - outstanding
+    const utilPct = limit > 0 ? Math.min(100, Math.round((outstanding / limit) * 100)) : 0
+    return { outstanding, billed, limit, available, utilPct }
+  }, [cards, state.transactions])
 
-  const stat = (label: string, value: number, color: string) => (
-    <div style={{ flex: 1, background: c.surface, borderRadius: 12, padding: '10px 12px', minWidth: 0 }}>
-      <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-      <div style={{ font: '800 17px Plus Jakarta Sans', color, letterSpacing: '-0.02em', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmt(value)}</div>
+  // Short-span, so the in-memory window is safe — no fetch needed for this one.
+  const monthSpend = useMemo(() => thisMonthCardSpend(state.transactions), [state.transactions])
+
+  /** Next bill and due date per card, soonest first. */
+  const upcoming = useMemo(() => {
+    const today = localYmd(new Date())
+    const items: { date: string; label: string; sub: string; amount: number | null; color: string }[] = []
+    for (const cd of cards) {
+      const b = getCreditCardBilling(cd, state.transactions)
+      items.push({ date: b.nextBillDate, label: cd.name, sub: 'Statement generated', amount: null, color: colorFor(cd.name) })
+      if (b.billedAmount > 0) {
+        items.push({ date: b.nextDueDate, label: cd.name, sub: 'Payment due', amount: b.billedAmount, color: c.bad })
+      }
+    }
+    return items.filter(i => i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4)
+  }, [cards, state.transactions, c.bad])
+
+  const utilColor = totals.utilPct > 80 ? c.bad : totals.utilPct > 50 ? c.warn : c.accent
+
+  const metric = (label: string, value: number, color: string) => (
+    <div style={{ flex: 1, minWidth: 0, background: c.surface, borderRadius: 12, border: `1px solid ${c.faint}`, padding: '9px 11px' }}>
+      <div style={{ font: '600 9.5px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      <div style={{ font: '700 15px Plus Jakarta Sans', color, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmt(value)}</div>
     </div>
   )
 
@@ -131,7 +221,7 @@ export function CreditCardsPage({ state, onClose, onSwipeProgress, onAdd, onUpda
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Credit Cards</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-              {cards.length} card{cards.length !== 1 ? 's' : ''} · Billed {fmt(totalBilled)}
+              {cards.length} card{cards.length !== 1 ? 's' : ''} · Billed {fmt(totals.billed)}
             </div>
           </div>
           <button
@@ -160,29 +250,88 @@ export function CreditCardsPage({ state, onClose, onSwipeProgress, onAdd, onUpda
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              {stat('Outstanding', totalOutstanding, c.ink)}
-              {stat('Billed', totalBilled, totalBilled > 0 ? c.bad : c.ink)}
-              {stat('Available', totalAvailable, c.good)}
+            {/* Hero */}
+            <Card pad={18} style={{ marginBottom: 10 }}>
+              <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Outstanding</div>
+              <div style={{ font: '800 30px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em', marginTop: 2 }}>{fmt(totals.outstanding)}</div>
+              <div style={{ height: 7, borderRadius: 999, background: c.surface2, overflow: 'hidden', marginTop: 14 }}>
+                <div style={{ width: `${totals.utilPct}%`, height: '100%', borderRadius: 999, background: utilColor, transition: 'width 0.5s' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                <span style={{ font: '700 12px Plus Jakarta Sans', color: utilColor }}>{totals.utilPct}% utilized</span>
+                <span style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted }}>
+                  {fmt(totals.available)} available of {fmt(totals.limit)}
+                </span>
+              </div>
+            </Card>
+
+            {/* Quick metrics */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {metric('Billed', totals.billed, totals.billed > 0 ? c.bad : c.ink)}
+              {metric('Available', totals.available, c.good)}
+              {metric('This Month', monthSpend, c.accent)}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {cards.map(card => (
-                <CreditCardTile
-                  key={card.id}
-                  card={card}
-                  state={state}
-                  expanded={expandedId === card.id}
-                  onToggle={() => setExpandedId(expandedId === card.id ? null : card.id)}
-                  onPay={() => openPay(card)}
-                  manage={{
-                    onEdit: () => openEdit(card),
-                    onAdjust: () => openAdjust(card),
-                    onDelete: () => { void confirmDelete(card) },
-                  }}
-                />
+            {/* Upcoming */}
+            {upcoming.length > 0 && (
+              <div style={{ background: c.surface2, borderRadius: 16, padding: 14, marginBottom: 12 }}>
+                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>Upcoming</div>
+                {upcoming.map((u, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: i < upcoming.length - 1 ? `1px solid ${c.faint}` : 'none' }}>
+                    <div style={{ width: 6, height: 6, borderRadius: 999, background: u.color, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: '700 12.5px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.label}</div>
+                      <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{stmtDate(u.date, false)} · {u.sub}</div>
+                    </div>
+                    {u.amount !== null && (
+                      <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, flexShrink: 0 }}>{fmt(u.amount)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Segmented control */}
+            <div style={{ display: 'flex', gap: 4, background: c.surface2, borderRadius: 12, padding: 4, marginBottom: 14 }}>
+              {TABS.map(([k, label]) => (
+                <button key={k} onClick={() => selectTab(k)} style={{
+                  flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '8px 0',
+                  font: '700 12.5px Plus Jakarta Sans', transition: 'all 0.2s',
+                  background: tab === k ? c.surface : 'transparent',
+                  color: tab === k ? c.ink : c.muted,
+                  boxShadow: tab === k ? c.cardShadow : 'none',
+                }}>{label}</button>
               ))}
             </div>
+
+            {tab === 'cards' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {cards.map(card => (
+                  <CreditCardTile
+                    key={card.id}
+                    card={card}
+                    state={state}
+                    expanded={expandedId === card.id}
+                    onToggle={() => setExpandedId(expandedId === card.id ? null : card.id)}
+                    onPay={() => openPay(card)}
+                    showCurrentStatement
+                    manage={{
+                      onEdit: () => openEdit(card),
+                      onAdjust: () => openAdjust(card),
+                      onDelete: () => { void confirmDelete(card) },
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {tab === 'statements' && (
+              <StatementsTab cards={cards} history={history} loading={historyLoading} error={historyError} onRetry={loadHistory} />
+            )}
+
+            {tab === 'analytics' && (
+              <AnalyticsTab cards={cards} history={history} loading={historyLoading} error={historyError} onRetry={loadHistory} />
+            )}
           </>
         )}
       </div>

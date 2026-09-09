@@ -1329,3 +1329,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
   .mp-cta { padding: 40px 20px; border-radius: 16px; }
 }
+
+/* Credit Cards page loading skeletons — placeholders sit at the real element heights so the
+   hero, metrics and tabs above them do not move when real data lands. */
+@keyframes ccSkeletonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.cc-skeleton {
+  animation: ccSkeletonPulse 1.4s ease-in-out infinite;
+}

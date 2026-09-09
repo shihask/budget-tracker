@@ -10,6 +10,11 @@ export interface CreditCardBilling {
   lastBillDate: string
   nextDueDate: string
   nextBillDate: string
+  /** Gross statement before payments. billedAmount is already net of them, so the Current Statement
+   *  preview needs this to show Total / Paid / Remaining. Additive only — nothing else reads it. */
+  statementAmount: number
+  /** Payments made since the last bill date, i.e. what has been settled against that statement. */
+  paidSinceBill: number
 }
 
 function getLastBillDate(billDay: number, today: Date): Date {
@@ -59,5 +64,7 @@ export function getCreditCardBilling(
     lastBillDate: lastBillStr,
     nextDueDate: getNextDate(card.due_day, today).toISOString().slice(0, 10),
     nextBillDate: getNextDate(card.bill_day, today).toISOString().slice(0, 10),
+    statementAmount,
+    paidSinceBill: round2(paidSinceBill),
   }
 }

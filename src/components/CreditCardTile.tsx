@@ -1,8 +1,11 @@
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { getCreditCardBilling } from '@/lib/credit-card'
+import { currentStatementPeriod, localYmd } from '@/lib/credit-card-cycles'
 import { colorFor } from '@/lib/credit-card-colors'
+import { STATEMENT_STATUS_LABEL, statementPillStyle, stmtDate, stmtPeriod } from './creditCardStatus'
 import type { AppState, CreditCard } from '@/types'
+import type { StatementStatus } from '@/lib/credit-card-cycles'
 
 function getDaysUntil(day: number): number {
   const now = new Date()
@@ -11,6 +14,8 @@ function getDaysUntil(day: number): number {
   if (target < today) target.setMonth(target.getMonth() + 1)
   return Math.round((target.getTime() - today.getTime()) / 86400000)
 }
+
+const todayYmd = () => localYmd(new Date())
 
 function dayLabel(n: number): string {
   if (n <= 0) return 'Today'
@@ -27,11 +32,14 @@ interface Props {
   /** Card management — passed by the Credit Cards page only. The dashboard omits it, so its
    *  accordion ends after the dates row and Pay Bill stays its one management action. */
   manage?: { onEdit: () => void; onAdjust: () => void; onDelete: () => void }
+  /** Current Statement preview — page-only, same gating as `manage`. Dates come from
+   *  `currentStatementPeriod` so this and the Statements tab agree on where the cycle begins. */
+  showCurrentStatement?: boolean
 }
 
 /** One credit card: the always-visible compact row plus the expandable detail. Shared by the
  *  dashboard section and the Credit Cards page. */
-export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage }: Props) {
+export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage, showCurrentStatement }: Props) {
   const c = useTheme()
   const col = colorFor(card.name)
   const utilPct = card.credit_limit > 0 ? Math.min(100, Math.round((card.current_balance / card.credit_limit) * 100)) : 0
@@ -152,6 +160,40 @@ export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage 
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>start day</div>
             </div>
           </div>
+
+          {showCurrentStatement && (() => {
+            const period = currentStatementPeriod(card)
+            const remaining = billing.billedAmount
+            const status: StatementStatus =
+              billing.statementAmount <= 0 || remaining <= 0.01 ? 'paid'
+              : billing.paidSinceBill > 0 ? 'partial'
+              : todayYmd() > period.dueDate ? 'overdue'
+              : 'due'
+            return (
+              <div style={{ marginTop: 12, background: c.surface, borderRadius: 12, padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Statement</div>
+                  <span style={statementPillStyle(c, status)}>{STATEMENT_STATUS_LABEL[status]}</span>
+                </div>
+                <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{stmtDate(period.statementDate)}</div>
+                <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+                  {stmtPeriod(period.periodStart, period.statementDate)} · due {stmtDate(period.dueDate, false)}
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  {([
+                    ['Total', billing.statementAmount, c.ink],
+                    ['Paid', billing.paidSinceBill, billing.paidSinceBill > 0 ? c.good : c.ink],
+                    ['Remaining', remaining, remaining > 0 ? c.bad : c.good],
+                  ] as const).map(([label, value, color]) => (
+                    <div key={label} style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: '600 9.5px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+                      <div style={{ font: '700 13px Plus Jakarta Sans', color, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmt(value)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {manage && (
             <div style={{ marginTop: 12 }} onClick={e => e.stopPropagation()}>
