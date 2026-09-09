@@ -214,6 +214,7 @@ export function CreditCardsPage({
   )
 
   return (
+    <>
     <div
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}
       style={{
@@ -355,18 +356,25 @@ export function CreditCardsPage({
         )}
       </div>
 
-      {detail && history && (
-        <StatementDetailsPage
-          state={state}
-          card={detail.card}
-          statement={detail.statement}
-          history={history}
-          onClose={() => setDetailKey(null)}
-          onPay={() => openPay(detail.card, detail.statement.remaining)}
-        />
-      )}
-
       {sheets}
     </div>
+
+    {/* Rendered OUTSIDE the container above, not inside it. That container sets
+        `will-change: transform`, which makes it the containing block for any position:fixed
+        descendant — a detail page nested inside would be positioned against the scrolling page box
+        instead of the viewport, so it would scroll away and expose the list beneath. BottomSheet
+        escapes this via createPortal; a plain child does not. Same placement as
+        EventsListPage → EventDetailPage. */}
+    {detail && history && (
+      <StatementDetailsPage
+        state={state}
+        card={detail.card}
+        statement={detail.statement}
+        history={history}
+        onClose={() => setDetailKey(null)}
+        onPay={() => openPay(detail.card, detail.statement.remaining)}
+      />
+    )}
+    </>
   )
 }
