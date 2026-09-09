@@ -10,6 +10,7 @@ interface NavMenuProps {
   onCommitments: () => void
   onSavings: () => void
   onBorrowing: () => void
+  onCreditCards: () => void
   onProjects: () => void
   onEvents: () => void
   onCreate: () => void
@@ -20,6 +21,7 @@ interface NavMenuProps {
   onSettings: () => void
   trackSavings: boolean
   trackBorrowings: boolean
+  trackCreditCards: boolean
   trackProjects: boolean
   hasEvents: boolean
 }
@@ -34,8 +36,8 @@ function NavIcon({ children, color }: { children: React.ReactNode; color: string
 
 export function NavMenu({
   open, onClose,
-  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onProjects, onEvents, onCreate, onGrow, onPlant, onMasters, onCategories, onSettings,
-  trackSavings, trackBorrowings, trackProjects, hasEvents,
+  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onCreditCards, onProjects, onEvents, onCreate, onGrow, onPlant, onMasters, onCategories, onSettings,
+  trackSavings, trackBorrowings, trackCreditCards, trackProjects, hasEvents,
 }: NavMenuProps) {
   const c = useTheme()
   const items: { id: string; label: string; icon: React.ReactNode; onClick: () => void; hidden?: boolean }[] = [
@@ -68,6 +70,12 @@ export function NavMenu({
     {
       id: 'borrowing', label: 'Lend & Borrow', onClick: onBorrowing, hidden: !trackBorrowings,
       icon: <NavIcon color={c.ink}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></NavIcon>,
+    },
+    {
+      // Gated on the same setting as the dashboard tile — unlike Life Events, credit cards are
+      // opt-in, so the tile and this row appear and disappear together.
+      id: 'credit_cards', label: 'Credit Cards', onClick: onCreditCards, hidden: !trackCreditCards,
+      icon: <NavIcon color={c.ink}><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="5" y1="15" x2="9" y2="15"/></NavIcon>,
     },
     {
       id: 'events', label: 'Life Events', onClick: onEvents, hidden: !hasEvents,

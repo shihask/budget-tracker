@@ -604,6 +604,7 @@ function AppContent({ session }: { session: Session }) {
               onCommitments={() => { setCommitmentsAddOnOpen(false); setCommitmentsOpen(true) }}
               onSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }}
               onBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }}
+              onCreditCards={() => setCreditCardsOpen(true)}
               onProjects={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }}
               onEvents={() => { setEventsAddOnOpen(false); setEventDetailId(null); setEventsListOpen(true) }}
               onCreate={() => setCreateMenuOpen(true)}
@@ -612,6 +613,7 @@ function AppContent({ session }: { session: Session }) {
               trackSavings={state.settings.track_savings ?? false}
               hasEvents={state.events.length > 0}
               trackBorrowings={state.settings.track_borrowings ?? true}
+              trackCreditCards={state.settings.track_credit_cards ?? false}
               trackProjects={state.settings.track_projects ?? false}
             />
           </div>
