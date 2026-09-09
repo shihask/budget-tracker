@@ -29,8 +29,11 @@ export type FullParams = {
 type Params = PayOnlyParams | FullParams
 
 export interface PayApi {
-  /** Opens the Pay Bill sheet, prefilled with the billed amount (falling back to total outstanding). */
-  openPay: (card: CreditCard) => void
+  /** Opens the Pay Bill sheet. Prefills the current billed amount (falling back to total
+   *  outstanding) unless `prefillAmount` is given — the statement details page passes that
+   *  statement's remaining, so paying a historical or part-settled statement offers the right
+   *  figure instead of the current cycle's. */
+  openPay: (card: CreditCard, prefillAmount?: number) => void
   /** True while any sheet this surface owns is open — the page's swipe guard reads this. */
   anyOpen: boolean
   sheets: React.ReactNode
@@ -126,10 +129,10 @@ export function useCreditCardSheets(p: Params): FullApi {
   }
   const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_FORM) }
 
-  const openPay = (card: CreditCard) => {
+  const openPay = (card: CreditCard, prefillAmount?: number) => {
     const billing = getCreditCardBilling(card, state.transactions)
     setPayTarget(card)
-    setPayAmount(String(round2(billing.billedAmount || card.current_balance)))
+    setPayAmount(String(round2(prefillAmount ?? (billing.billedAmount || card.current_balance))))
     setPayAccountId(accounts[0]?.id || '')
   }
 

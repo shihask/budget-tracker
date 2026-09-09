@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildStatements, currentStatementPeriod, clampedDay, localYmd } from './credit-card-cycles'
+import { buildStatements, currentStatementPeriod, getStatementTransactions, clampedDay, localYmd } from './credit-card-cycles'
 import type { CreditCard, Transaction, TransactionType } from '@/types'
 
 function card(over: Partial<CreditCard> = {}): CreditCard {
@@ -157,5 +157,114 @@ describe('currentStatementPeriod', () => {
 
   it('steps back a month when the bill day has not arrived yet', () => {
     expect(currentStatementPeriod(card(), new Date(2026, 8, 10)).statementDate).toBe('2026-08-25')
+  })
+})
+
+describe('statement breakdown (details page)', () => {
+  const today = new Date(2026, 8, 30) // 30 Sep 2026
+
+  it('reconciles: purchases + adjustments === amount', () => {
+    const txns = [
+      tx('2026-09-10', 500),
+      tx('2026-09-12', 300, 'commitment'),
+      tx('2026-09-14', 200, 'cc_balance_adjustment', { is_credit: false }), // reduces the bill
+    ]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    expect(latest.purchases).toBe(800)
+    expect(latest.adjustments).toBe(-200)
+    expect(latest.purchases + latest.adjustments).toBe(latest.amount)
+  })
+
+  it('counts a credit adjustment as increasing the bill', () => {
+    const txns = [tx('2026-09-10', 500), tx('2026-09-14', 150, 'cc_balance_adjustment', { is_credit: true })]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    expect(latest.adjustments).toBe(150)
+    expect(latest.amount).toBe(650)
+  })
+
+  it('getStatementTransactions sums exactly to purchases', () => {
+    const txns = [
+      tx('2026-09-10', 500),
+      tx('2026-09-12', 300, 'commitment'),
+      tx('2026-09-14', 200, 'cc_balance_adjustment', { is_credit: false }),
+      tx('2026-09-28', 900), // after the statement date — different cycle
+    ]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    const rows = getStatementTransactions(latest, txns)
+    expect(rows.reduce((s, t) => s + t.amount, 0)).toBe(latest.purchases)
+  })
+
+  it('excludes adjustments and opening balance from the purchases list', () => {
+    const txns = [
+      tx('2026-09-10', 500),
+      tx('2026-09-14', 200, 'cc_balance_adjustment', { is_credit: false }),
+      tx('2026-09-15', 100, 'cc_opening_balance'),
+    ]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    const rows = getStatementTransactions(latest, txns)
+    expect(rows).toHaveLength(1)
+    expect(rows.every(t => t.transaction_type === 'expense' || t.transaction_type === 'commitment')).toBe(true)
+  })
+
+  it('returns purchases newest first', () => {
+    const txns = [tx('2026-09-05', 100), tx('2026-09-20', 200), tx('2026-09-12', 300)]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    expect(getStatementTransactions(latest, txns).map(t => t.transaction_date))
+      .toEqual(['2026-09-20', '2026-09-12', '2026-09-05'])
+  })
+
+  it('returns [] for a statement with adjustments but no purchases', () => {
+    const txns = [tx('2026-09-14', 400, 'cc_balance_adjustment', { is_credit: true })]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    expect(getStatementTransactions(latest, txns)).toEqual([])
+  })
+
+  it('records each statements payments, summing to paid', () => {
+    const txns = [tx('2026-09-10', 500), tx('2026-09-28', 200, 'credit_card_payment')]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    expect(latest.payments).toHaveLength(1)
+    expect(latest.payments.reduce((s, p) => s + p.amount, 0)).toBe(latest.paid)
+  })
+
+  it('splits one payment across two statements as allocated portions', () => {
+    const txns = [
+      tx('2026-08-10', 400),                          // 25 Aug statement
+      tx('2026-09-10', 500),                          // 25 Sep statement
+      tx('2026-09-28', 700, 'credit_card_payment'),   // covers Aug fully, Sep partly
+    ]
+    const stmts = buildStatements(card(), txns, 6, today)
+    const aug = stmts.find(s => s.statementDate === '2026-08-25')!
+    const sep = stmts.find(s => s.statementDate === '2026-09-25')!
+    expect(aug.payments).toEqual([expect.objectContaining({ amount: 400 })])
+    expect(sep.payments).toEqual([expect.objectContaining({ amount: 300 })])
+    // The allocated portions, not the ₹700 face value, in both places.
+    expect(aug.payments[0].amount + sep.payments[0].amount).toBe(700)
+    for (const s of [aug, sep]) {
+      expect(s.payments.reduce((t, p) => t + p.amount, 0)).toBe(s.paid)
+    }
+  })
+
+  it('sets paidOn to the closing payments date, only when paid', () => {
+    const settled = buildStatements(card(), [
+      tx('2026-09-10', 500),
+      tx('2026-09-27', 300, 'credit_card_payment'),
+      tx('2026-09-29', 200, 'credit_card_payment'), // this one closes it
+    ], 6, today)[0]
+    expect(settled.status).toBe('paid')
+    expect(settled.paidOn).toBe('2026-09-29')
+
+    const partial = buildStatements(card(), [
+      tx('2026-09-10', 500),
+      tx('2026-09-27', 300, 'credit_card_payment'),
+    ], 6, today)[0]
+    expect(partial.status).toBe('partial')
+    expect(partial.paidOn).toBeUndefined()
+  })
+
+  it('leaves paidOn unset on an unpaid statement', () => {
+    const [latest] = buildStatements(card(), [tx('2026-09-10', 500)], 6, today)
+    expect(latest.status).toBe('due')
+    expect(latest.paidOn).toBeUndefined()
+    expect(latest.payments).toEqual([])
   })
 })

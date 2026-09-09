@@ -5,7 +5,8 @@ import { Card } from './Card'
 import { CreditCardTile } from './CreditCardTile'
 import { useCreditCardSheets } from './CreditCardSheets'
 import { getCreditCardBilling } from '@/lib/credit-card'
-import { localYmd } from '@/lib/credit-card-cycles'
+import { localYmd, buildAllStatements } from '@/lib/credit-card-cycles'
+import { StatementDetailsPage } from './StatementDetailsPage'
 import { thisMonthCardSpend } from '@/lib/credit-card-analytics'
 import { stmtDate } from './creditCardStatus'
 import { colorFor } from '@/lib/credit-card-colors'
@@ -45,6 +46,10 @@ export function CreditCardsPage({
   const [entryPlayed, setEntryPlayed] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('cards')
+  /** The open statement, held as its `${cardId}-${statementDate}` key rather than the object. The
+   *  live statement is re-derived below, so paying one updates the open page instead of leaving a
+   *  stale amount on screen. Mirrors EventsListPage's detailId. */
+  const [detailKey, setDetailKey] = useState<string | null>(null)
   const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
 
@@ -120,8 +125,9 @@ export function CreditCardsPage({
   }
 
   const onTouchStart = (e: React.TouchEvent) => {
-    // An open sheet owns the gesture — otherwise the page slides out from under it.
-    if (closing || anyOpen) return
+    // An open sheet or the statement detail owns the gesture — otherwise the page slides out from
+    // under it.
+    if (closing || anyOpen || detailKey) return
     const t = e.touches[0]
     if (t.clientX > 28) return
     gestureRef.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now() }
@@ -186,6 +192,19 @@ export function CreditCardsPage({
   }, [cards, state.transactions, c.bad])
 
   const utilColor = totals.utilPct > 80 ? c.bad : totals.utilPct > 50 ? c.warn : c.accent
+
+  // Re-derived every render from the current history, so the open detail follows a payment: paying
+  // invalidates the cache, buildStatements re-runs, and this resolves to the updated statement. If
+  // the key no longer resolves (card deleted), the detail closes on its own.
+  const detail = useMemo(() => {
+    if (!detailKey || !history) return null
+    const statement = buildAllStatements(cards, history).find(
+      s => `${s.cardId}-${s.statementDate}` === detailKey,
+    )
+    if (!statement) return null
+    const card = cards.find(cd => cd.id === statement.cardId)
+    return card ? { statement, card } : null
+  }, [detailKey, history, cards])
 
   const metric = (label: string, value: number, color: string) => (
     <div style={{ flex: 1, minWidth: 0, background: c.surface, borderRadius: 12, border: `1px solid ${c.faint}`, padding: '9px 11px' }}>
@@ -326,7 +345,7 @@ export function CreditCardsPage({
             )}
 
             {tab === 'statements' && (
-              <StatementsTab cards={cards} history={history} loading={historyLoading} error={historyError} onRetry={loadHistory} />
+              <StatementsTab cards={cards} history={history} loading={historyLoading} error={historyError} onRetry={loadHistory} onOpen={s => setDetailKey(`${s.cardId}-${s.statementDate}`)} />
             )}
 
             {tab === 'analytics' && (
@@ -335,6 +354,17 @@ export function CreditCardsPage({
           </>
         )}
       </div>
+
+      {detail && history && (
+        <StatementDetailsPage
+          state={state}
+          card={detail.card}
+          statement={detail.statement}
+          history={history}
+          onClose={() => setDetailKey(null)}
+          onPay={() => openPay(detail.card, detail.statement.remaining)}
+        />
+      )}
 
       {sheets}
     </div>

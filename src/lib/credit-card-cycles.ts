@@ -7,6 +7,15 @@ const CC_SPEND_TYPES = new Set<TransactionType>(['expense', 'commitment'])
 
 export type StatementStatus = 'paid' | 'partial' | 'due' | 'overdue'
 
+/** One payment's contribution to one statement. `amount` is the portion allocated HERE, not the
+ *  payment's face value — a single ₹1000 payment spanning two statements appears in both, as ₹600
+ *  and ₹400, so each statement's payments always sum to its `paid`. */
+export interface StatementPayment {
+  id: string
+  date: string
+  amount: number
+}
+
 export interface Statement {
   cardId: string
   cardName: string
@@ -17,9 +26,19 @@ export interface Statement {
   dueDate: string
   /** Gross spend in the window. */
   amount: number
+  /** Spend only — expense + commitment. What the purchases list shows. */
+  purchases: number
+  /** Signed reconciliation entries: cc_balance_adjustment and cc_opening_balance. Split out of the
+   *  same loop as `purchases` so the details footer reconciles by construction:
+   *  purchases + adjustments === amount (before the clamp below). */
+  adjustments: number
   /** Payments allocated to this statement, oldest-first. */
   paid: number
   remaining: number
+  /** The allocations that make up `paid`, in the order they were applied. */
+  payments: StatementPayment[]
+  /** Date of the payment that took this statement to zero. Only set when status === 'paid'. */
+  paidOn?: string
   status: StatementStatus
 }
 
@@ -95,13 +114,18 @@ export function buildStatements(
     const periodStart = localYmd(startDate)
     const statementDate = localYmd(stmtDate)
 
-    let amount = 0
+    // Split rather than one running total, so the details footer can show
+    // Purchases + Adjustments = Total without recomputing anything.
+    let purchases = 0
+    let adjustments = 0
     for (const t of mine) {
       if (t.transaction_date < periodStart || t.transaction_date > statementDate) continue
-      if (CC_SPEND_TYPES.has(t.transaction_type) || t.transaction_type === 'cc_opening_balance') {
-        amount += t.amount
+      if (CC_SPEND_TYPES.has(t.transaction_type)) {
+        purchases += t.amount
+      } else if (t.transaction_type === 'cc_opening_balance') {
+        adjustments += t.amount
       } else if (t.transaction_type === 'cc_balance_adjustment') {
-        amount += t.is_credit ? t.amount : -t.amount
+        adjustments += t.is_credit ? t.amount : -t.amount
       }
     }
 
@@ -111,9 +135,12 @@ export function buildStatements(
       periodStart,
       statementDate,
       dueDate: localYmd(dueDateFor(stmtDate, card.due_day)),
-      amount: Math.max(0, round2(amount)),
+      amount: Math.max(0, round2(purchases + adjustments)),
+      purchases: round2(purchases),
+      adjustments: round2(adjustments),
       paid: 0,
       remaining: 0,
+      payments: [],
       status: 'due' as StatementStatus,
     }
   })
@@ -125,7 +152,7 @@ export function buildStatements(
   // getCreditCardBilling already makes at credit-card.ts:43-45, so the two agree on the current cycle.
   const payments = mine
     .filter(t => t.transaction_type === 'credit_card_payment')
-    .map(t => ({ date: t.transaction_date, left: t.amount }))
+    .map(t => ({ id: t.id, date: t.transaction_date, left: t.amount }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
   for (const s of statements) {
@@ -138,6 +165,9 @@ export function buildStatements(
       p.left = round2(p.left - take)
       owing = round2(owing - take)
       s.paid = round2(s.paid + take)
+      // The allocated portion, not p's face value — one payment can span several statements.
+      s.payments.push({ id: p.id, date: p.date, amount: take })
+      if (owing <= 0.01) s.paidOn = p.date
     }
     s.remaining = Math.max(0, round2(owing))
   }
@@ -147,10 +177,36 @@ export function buildStatements(
     else if (s.paid > 0) s.status = 'partial'
     else if (todayStr > s.dueDate) s.status = 'overdue'
     else s.status = 'due'
+    // A zero-amount statement is 'paid' without any payment having closed it.
+    if (s.status !== 'paid') s.paidOn = undefined
   }
 
   // A dormant card should show no filler rows.
   return statements.filter(s => s.amount > 0 || s.paid > 0).reverse()
+}
+
+/**
+ * The purchases that made up a statement — expense and commitment only, newest first.
+ *
+ * Reconciliation rows (cc_balance_adjustment, cc_opening_balance) are deliberately excluded: they are
+ * summed into `statement.adjustments` and shown as a single footer line, so a manual balance
+ * correction never appears in the user's purchase history. These rows therefore sum exactly to
+ * `statement.purchases`, which is what lets the details footer reconcile.
+ *
+ * Bounds match buildStatements exactly — inclusive at both ends.
+ */
+export function getStatementTransactions(statement: Statement, txns: Transaction[]): Transaction[] {
+  return txns
+    .filter(t =>
+      t.credit_card_id === statement.cardId &&
+      CC_SPEND_TYPES.has(t.transaction_type) &&
+      t.transaction_date >= statement.periodStart &&
+      t.transaction_date <= statement.statementDate,
+    )
+    .sort((a, b) =>
+      b.transaction_date.localeCompare(a.transaction_date) ||
+      (b.created_at ?? '').localeCompare(a.created_at ?? ''),
+    )
 }
 
 /** Every card's statements, merged newest-first — what the Statements tab renders. */

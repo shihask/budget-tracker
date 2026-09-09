@@ -5,7 +5,7 @@ import { buildAllStatements } from '@/lib/credit-card-cycles'
 import { colorFor } from '@/lib/credit-card-colors'
 import { STATEMENT_STATUS_LABEL, statementPillStyle, stmtDate, stmtPeriod } from '@/components/creditCardStatus'
 import type { CreditCard, Transaction } from '@/types'
-import type { StatementStatus } from '@/lib/credit-card-cycles'
+import type { Statement, StatementStatus } from '@/lib/credit-card-cycles'
 
 type Filter = 'all' | StatementStatus
 const FILTERS: [Filter, string][] = [
@@ -18,9 +18,10 @@ interface Props {
   loading: boolean
   error: string | null
   onRetry: () => void
+  onOpen: (statement: Statement) => void
 }
 
-export function StatementsTab({ cards, history, loading, error, onRetry }: Props) {
+export function StatementsTab({ cards, history, loading, error, onRetry, onOpen }: Props) {
   const c = useTheme()
   const [filter, setFilter] = useState<Filter>('all')
 
@@ -92,7 +93,11 @@ export function StatementsTab({ cards, history, loading, error, onRetry }: Props
           {shown.map(s => {
             const col = colorFor(s.cardName)
             return (
-              <div key={`${s.cardId}-${s.statementDate}`} style={{ background: c.surface, borderRadius: 14, border: `1px solid ${c.faint}`, padding: '11px 13px' }}>
+              <div
+                key={`${s.cardId}-${s.statementDate}`}
+                onClick={() => onOpen(s)}
+                style={{ background: c.surface, borderRadius: 14, border: `1px solid ${c.faint}`, padding: '11px 13px', cursor: 'pointer' }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 3, background: col, flexShrink: 0 }} />
                   <span style={{ flex: 1, font: '700 13px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.cardName}</span>
