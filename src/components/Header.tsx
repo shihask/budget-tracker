@@ -85,6 +85,16 @@ export function Header({
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px 14px' }}>
       {/* Logo + App name + Greeting */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <button
+          onClick={() => window.location.reload()}
+          aria-label="Refresh app"
+          title="Refresh app"
+          style={{
+            padding: 0, border: 'none', background: 'none', cursor: 'pointer',
+            display: 'flex', flexShrink: 0, borderRadius: 10, lineHeight: 0,
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="36" height="36" style={{ flexShrink: 0, borderRadius: 10, boxShadow: `0 2px 8px #16C98A55` }}>
           <defs>
             <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1">
@@ -105,6 +115,7 @@ export function Header({
             <path d="M53.5 30.5 C 56.5 28 59.5 25.8 62.5 24.5"/>
           </g>
         </svg>
+        </button>
         <div>
           <div style={{ font: '800 15px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>
             <span style={{ color: c.ink }}>Money</span><span style={{ color: '#16C98A' }}>Plant</span>
