@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { usageTone } from '@/lib/aiUsage'
 import { ACCENT_OPTIONS } from '@/lib/tokens'
@@ -9,7 +9,7 @@ import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpre
 import { selectOnFocus } from '@/lib/utils'
 import { AmountOperatorRow } from './AmountOperatorRow'
 
-interface SettingsPanelProps {
+interface SettingsPageProps {
   accent: string
   dark: boolean
   layout: Layout
@@ -63,10 +63,12 @@ interface SettingsPanelProps {
   onNotifyEveningRecap: (v: boolean) => Promise<void>
   onDashboardLayout: () => void
   onExportData: () => Promise<void>
+  onClose: () => void
+  onSwipeProgress?: (pct: number) => void
   tourHighlight?: boolean
 }
 
-export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiUsagePct, aiUsageEnforcing, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, tourHighlight }: SettingsPanelProps) {
+export function SettingsPage({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiUsagePct, aiUsageEnforcing, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, onClose, onSwipeProgress, tourHighlight }: SettingsPageProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
@@ -153,19 +155,145 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
     padding: '14px 0 6px',
   }
 
-  const panelW = typeof window !== 'undefined' ? Math.min(280, window.innerWidth) : 280
+  // ── Swipe-back gesture ───────────────────────────────────────────
+  const [dragX, setDragX] = useState(0)
+  const [closing, setClosing] = useState(false)
+  const [snapping, setSnapping] = useState(false)
+  const [entryPlayed, setEntryPlayed] = useState(false)
+  const dragXRef = useRef(0)
+  const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const W = typeof window !== 'undefined' ? window.innerWidth : 400
+
+  useEffect(() => {
+    const t = setTimeout(() => setEntryPlayed(true), 360)
+    return () => clearTimeout(t)
+  }, [])
+
+  // Lock whatever is behind this full-screen page (no ghost scrollbar / background scroll).
+  useEffect(() => {
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
+  }, [])
+
+  // Cancel an in-flight close timer if this instance unmounts first (e.g. the tour closes it).
+  useEffect(() => {
+    return () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current) }
+  }, [])
+
+  const triggerClose = () => {
+    // During the guided tour this page is driven by the tour, not the user —
+    // the drawer's scrim carried the same guard.
+    if (tourHighlight) return
+    setClosing(true)
+    onSwipeProgress?.(1)
+    closeTimerRef.current = setTimeout(() => { onSwipeProgress?.(0); onClose() }, 290)
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (closing || tourHighlight) return
+    const t = e.touches[0]
+    if (t.clientX > 28) return
+    gestureRef.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now() }
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!gestureRef.current) return
+    const t = e.touches[0]
+    const dx = t.clientX - gestureRef.current.startX
+    const dy = Math.abs(t.clientY - gestureRef.current.startY)
+    if (dy > Math.abs(dx) + 5 && Math.abs(dx) < 15) {
+      gestureRef.current = null; setDragX(0); onSwipeProgress?.(0); return
+    }
+    gestureRef.current = { ...gestureRef.current, lastX: t.clientX, lastT: Date.now() }
+    const x = Math.max(0, dx)
+    dragXRef.current = x
+    setDragX(x)
+    onSwipeProgress?.(x / W)
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!gestureRef.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - gestureRef.current.startX
+    const dt = Date.now() - gestureRef.current.lastT
+    const vx = dt > 0 ? (t.clientX - gestureRef.current.lastX) / dt : 0
+    gestureRef.current = null
+    if (dx > W * 0.38 || (dx > 50 && vx > 0.5)) {
+      triggerClose()
+    } else {
+      setSnapping(true); setDragX(0); dragXRef.current = 0; onSwipeProgress?.(0)
+      setTimeout(() => setSnapping(false), 300)
+    }
+  }
+  const onTouchCancel = () => {
+    if (!gestureRef.current) return
+    gestureRef.current = null
+    setSnapping(true); setDragX(0); dragXRef.current = 0; onSwipeProgress?.(0)
+    setTimeout(() => setSnapping(false), 300)
+  }
 
   return (
-    <div data-tour="settings" style={{
-      position: 'fixed', right: 0, top: 0, bottom: 0, width: panelW,
-      background: c.surface, borderLeft: panelW < window.innerWidth ? `1px solid ${c.faint}` : 'none',
-      padding: `calc(60px + env(safe-area-inset-top, 0px)) 20px calc(20px + env(safe-area-inset-bottom, 0px))`,
-      zIndex: tourHighlight ? 603 : 200,
-      boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
-      overflowY: 'auto',
-    }}>
-      <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Settings</div>
-      <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Customize your dashboard</div>
+    <div
+      data-tour="settings"
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchCancel}
+      style={{
+        position: 'fixed', inset: 0, zIndex: tourHighlight ? 603 : 200, background: c.bg,
+        display: 'flex', flexDirection: 'column',
+        overscrollBehavior: 'contain',
+        fontFamily: '"Plus Jakarta Sans", sans-serif',
+        willChange: 'transform',
+        ...(closing
+          ? { transform: 'translateX(100%)', transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)', animation: 'none' }
+          : dragX > 0
+          ? { transform: `translateX(${dragX}px)`, animation: 'none', boxShadow: '-8px 0 24px rgba(0,0,0,0.18)' }
+          : snapping
+          ? { transform: 'translateX(0)', transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)', animation: 'none' }
+          : entryPlayed
+          ? {}
+          : { animation: 'slideInFromRight 0.32s cubic-bezier(0.32,0.72,0,1)' }),
+      }}
+    >
+      {/* Header */}
+      <div style={{
+        padding: `calc(16px + env(safe-area-inset-top, 0px)) 16px 14px`,
+        borderBottom: `1px solid ${c.faint}`,
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: c.bg, flexShrink: 0,
+      }}>
+        <button
+          onClick={triggerClose}
+          style={{
+            width: 36, height: 36, borderRadius: 999, border: 'none',
+            background: c.surface2, cursor: 'pointer', color: c.ink,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, flex: 1, minWidth: 0 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: c.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Settings</div>
+            <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Customize your dashboard</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, overflowY: dragX > 0 ? 'hidden' : 'auto', overscrollBehavior: 'contain' }}>
+        <div style={{ padding: `4px 16px calc(32px + env(safe-area-inset-bottom, 0px))`, maxWidth: 540, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
       <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: 7 }}>
         <span style={{ width: 18, height: 18, borderRadius: 5, background: '#3B82F6', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -889,6 +1017,8 @@ export function SettingsPanel({ accent, dark, layout, incomePattern, salaryDate,
         <div style={{ font: '600 11px Plus Jakarta Sans', color: '#EF4444', padding: '4px 0 8px' }}>{exportError}</div>
       )}
 
+        </div>
+      </div>
     </div>
   )
 }

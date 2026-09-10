@@ -81,7 +81,7 @@ The app is designed as a PWA with a narrow single-column dashboard that works we
 | `src/lib/supabase.ts` | Supabase client initialization from Vite environment variables. |
 | `src/lib/notifications.ts` | Push subscription and notification helper logic. |
 | `src/components/QuickAdd.tsx` | Fast transaction entry and AI-assisted parsing/categorization. |
-| `src/components/SettingsPanel.tsx` | User settings, notification preferences, budget behavior, and feature toggles. |
+| `src/components/SettingsPage.tsx` | User settings, notification preferences, budget behavior, and feature toggles. |
 | `src/features/shared-projects/` | Shared project data hooks, calculations, pages, forms, invite sheet, public API helpers, and activity components. |
 
 ## Environment Variables

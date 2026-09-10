@@ -10,7 +10,7 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `src/types/index.ts` | All shared interfaces (`Settings`, `Category`, `AppState`, …) |
 | `src/hooks/useSupabaseData.ts` | Single data hook — all Supabase reads/writes, `EMPTY_STATE`, `DEFAULT_SETTINGS` |
 | `src/App.tsx` | Root component — all state wiring, opens/closes panels, passes props down |
-| `src/components/SettingsPanel.tsx` | Slide-in settings drawer |
+| `src/components/SettingsPage.tsx` | Full-screen settings page (swipe-back, same shell as SavingsPage/BorrowingPage) |
 | `src/components/QuickAdd.tsx` | FAB + sheet for adding transactions; auto-categorize logic lives here |
 | `src/components/CategorySelect.tsx` | Category dropdown, supports `filterGroup` prop |
 | `src/lib/gemini.ts` | Client-side AI helpers + `aiUsagePatch` usage mirroring |
@@ -19,8 +19,8 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 ## How to add a new Settings field — checklist
 1. **`src/types/index.ts`** — add field to `Settings` interface
 2. **`src/hooks/useSupabaseData.ts`** — add field with default to `EMPTY_STATE.settings` (line ~13)
-3. **`src/components/SettingsPanel.tsx`** — add prop + toggle/control UI
-4. **`src/App.tsx`** — pass `state.settings.<field> ?? <default>` and `onField={v => updateSettings({ <field>: v })}` to `SettingsPanel`; pass to any other component that needs it (e.g. `QuickAddSheet`)
+3. **`src/components/SettingsPage.tsx`** — add prop + toggle/control UI
+4. **`src/App.tsx`** — pass `state.settings.<field> ?? <default>` and `onField={v => updateSettings({ <field>: v })}` to `SettingsPage`; pass to any other component that needs it (e.g. `QuickAddSheet`)
 5. **Supabase SQL** — `ALTER TABLE settings ADD COLUMN IF NOT EXISTS <field> <type> DEFAULT <value>;`
 
 ## Settings fields (current)
@@ -34,7 +34,7 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `autopilot_enabled` | boolean | false | AI categorization, opt-in |
 | `dashboard_sections` | json\|null | null | Section order/visibility |
 | `track_savings` | boolean | false | Savings & Investments tracker, opt-in |
-| `affordability_snapshot_date` | string\|null | null | Internal — written by `AffordabilityChecker`, not user-facing, no SettingsPanel UI |
+| `affordability_snapshot_date` | string\|null | null | Internal — written by `AffordabilityChecker`, not user-facing, no SettingsPage UI |
 | `affordability_snapshot_daily_lifestyle` | number\|null | null | Internal — see above |
 | `affordability_snapshot_bills_total` | number\|null | null | Internal — see above |
 

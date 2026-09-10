@@ -8,7 +8,7 @@ const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categoriz
 // rewrites the reset timestamp on the first call of a new UTC day, and it does
 // so straight to the database — the client never sees that write.
 //
-// SettingsPanel's quota card derives its number as
+// SettingsPage's quota card derives its number as
 // `isToday(reset_at) ? used : 0`. So a client that mirrors only `used` leaves
 // its local `reset_at` on yesterday's date, and the card renders 0/100 for the
 // rest of the day no matter how many requests are made — fixed only by a page

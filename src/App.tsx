@@ -31,7 +31,7 @@ import { SavingsSection } from '@/components/SavingsSection'
 import { SavingsPage } from '@/components/SavingsPage'
 import { CustomGroupSection, RecentTxns } from '@/components/Sections'
 import { FAB, QuickAddSheet } from '@/components/QuickAdd'
-import { SettingsPanel } from '@/components/SettingsPanel'
+import { SettingsPage } from '@/components/SettingsPage'
 import { TransactionsPage } from '@/components/TransactionsPage'
 import { ImportStatementSheet } from '@/features/statement-import/components/ImportStatementSheet'
 import { Glyph } from '@/components/Glyph'
@@ -553,7 +553,6 @@ function AppContent({ session }: { session: Session }) {
     return rows
   }
 
-  const panelW = typeof window !== 'undefined' ? Math.min(280, window.innerWidth) : 280
   const [windowW, setWindowW] = useState(typeof window !== 'undefined' ? window.innerWidth : 402)
   useEffect(() => {
     const measure = () => setWindowW(window.innerWidth)
@@ -971,8 +970,8 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
-            pointerEvents: (txnsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'auto' : 'none',
+            background: `rgba(0,0,0,${(txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            pointerEvents: (txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'auto' : 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
 
@@ -1114,66 +1113,65 @@ function AppContent({ session }: { session: Session }) {
         />
 
         {settingsOpen && (
-          <>
-            <div onClick={() => { if (!tourOpen) setSettingsOpen(false) }} style={{ position: 'fixed', inset: 0, zIndex: tourOpen ? 601 : 199 }} />
-            <SettingsPanel
-              accent={accent} dark={dark} layout={layout}
-              incomePattern={state.settings.income_pattern ?? 'monthly'}
-              salaryDate={state.settings.salary_date}
-              monthlySalary={state.settings.monthly_salary ?? null}
-              weeklyIncome={state.settings.weekly_income ?? null}
-              incomeDay={state.settings.income_day ?? null}
-              averageDailyIncome={state.settings.average_daily_income ?? null}
-              workingDaysPerWeek={state.settings.working_days_per_week ?? null}
-              businessMonthlyDrawings={state.settings.business_monthly_drawings ?? null}
-              historicalDailyIncome={historicalIncome}
-              trackCreditCards={state.settings.track_credit_cards ?? false}
-              trackBorrowings={state.settings.track_borrowings ?? true}
-              trackSavings={state.settings.track_savings ?? false}
-              trackProjects={state.settings.track_projects ?? false}
-             
-              trackAaSync={state.settings.track_aa_sync ?? false}
-              budgetStrategyEnabled={state.budget_strategy_settings.budget_strategy !== 'none'}
-              challengeEnabled={state.settings.challenge_enabled ?? false}
-              autopilotEnabled={state.settings.autopilot_enabled ?? false}
-              aiUsagePct={state.settings.ai_usage_pct ?? 0}
-              // Whether the token budget currently blocks. Mirrored from the
-              // server's `enforcing` flag on the last AI response — the client
-              // must not infer it, and while measuring, reaching 100% must not
-              // claim Mint has stopped.
-              aiUsageEnforcing={state.settings.ai_usage_enforcing ?? false}
-              aiRequestsResetAt={state.settings.ai_requests_reset_at ?? null}
-              notificationsEnabled={state.settings.notifications_enabled ?? false}
-              notifyDailyReminder={state.settings.notify_daily_reminder ?? true}
-              notifyBudgetAlert={state.settings.notify_budget_alert ?? true}
-              notifyCommitments={state.settings.notify_commitments ?? true}
-              notifyWeeklySummary={state.settings.notify_weekly_summary ?? true}
-              notifyEveningRecap={state.settings.notify_evening_recap ?? true}
-              onAccent={setAccent} onDark={setDarkManual} onLayout={setLayout}
-              onIncomePattern={v => updateSettings({ income_pattern: v })}
-              onSalaryDate={v => updateSettings({ salary_date: v })}
-              onMonthlySalary={v => updateSettings({ monthly_salary: v })}
-              onIncomeSettings={patch => updateSettings(patch as Partial<typeof state.settings>)}
-              onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
-              onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
-              onTrackSavings={v => updateSettings({ track_savings: v })}
-              onTrackProjects={v => updateSettings({ track_projects: v })}
-              onTrackAaSync={v => updateSettings({ track_aa_sync: v })}
-              onOpenAaSync={() => setAaSyncOpen(true)}
-              onBudgetStrategy={v => { updateBudgetStrategySettings({ budget_strategy: v ? 'balanced' : 'none' }); if (v) setBudgetStrategySheetOpen(true) }}
-              onChallengeEnabled={v => updateSettings({ challenge_enabled: v })}
-              onAutopilot={v => updateSettings({ autopilot_enabled: v })}
-              onNotificationsEnabled={v => updateSettings({ notifications_enabled: v })}
-              onNotifyDailyReminder={v => updateSettings({ notify_daily_reminder: v })}
-              onNotifyBudgetAlert={v => updateSettings({ notify_budget_alert: v })}
-              onNotifyCommitments={v => updateSettings({ notify_commitments: v })}
-              onNotifyWeeklySummary={v => updateSettings({ notify_weekly_summary: v })}
-              onNotifyEveningRecap={v => updateSettings({ notify_evening_recap: v })}
-              onDashboardLayout={() => { setSettingsOpen(false); setLayoutOpen(true) }}
-              onExportData={() => exportAllData(session.user.id, session.user.email ?? undefined)}
-              tourHighlight={tourOpen}
-            />
-          </>
+          <SettingsPage
+            accent={accent} dark={dark} layout={layout}
+            incomePattern={state.settings.income_pattern ?? 'monthly'}
+            salaryDate={state.settings.salary_date}
+            monthlySalary={state.settings.monthly_salary ?? null}
+            weeklyIncome={state.settings.weekly_income ?? null}
+            incomeDay={state.settings.income_day ?? null}
+            averageDailyIncome={state.settings.average_daily_income ?? null}
+            workingDaysPerWeek={state.settings.working_days_per_week ?? null}
+            businessMonthlyDrawings={state.settings.business_monthly_drawings ?? null}
+            historicalDailyIncome={historicalIncome}
+            trackCreditCards={state.settings.track_credit_cards ?? false}
+            trackBorrowings={state.settings.track_borrowings ?? true}
+            trackSavings={state.settings.track_savings ?? false}
+            trackProjects={state.settings.track_projects ?? false}
+           
+            trackAaSync={state.settings.track_aa_sync ?? false}
+            budgetStrategyEnabled={state.budget_strategy_settings.budget_strategy !== 'none'}
+            challengeEnabled={state.settings.challenge_enabled ?? false}
+            autopilotEnabled={state.settings.autopilot_enabled ?? false}
+            aiUsagePct={state.settings.ai_usage_pct ?? 0}
+            // Whether the token budget currently blocks. Mirrored from the
+            // server's `enforcing` flag on the last AI response — the client
+            // must not infer it, and while measuring, reaching 100% must not
+            // claim Mint has stopped.
+            aiUsageEnforcing={state.settings.ai_usage_enforcing ?? false}
+            aiRequestsResetAt={state.settings.ai_requests_reset_at ?? null}
+            notificationsEnabled={state.settings.notifications_enabled ?? false}
+            notifyDailyReminder={state.settings.notify_daily_reminder ?? true}
+            notifyBudgetAlert={state.settings.notify_budget_alert ?? true}
+            notifyCommitments={state.settings.notify_commitments ?? true}
+            notifyWeeklySummary={state.settings.notify_weekly_summary ?? true}
+            notifyEveningRecap={state.settings.notify_evening_recap ?? true}
+            onAccent={setAccent} onDark={setDarkManual} onLayout={setLayout}
+            onIncomePattern={v => updateSettings({ income_pattern: v })}
+            onSalaryDate={v => updateSettings({ salary_date: v })}
+            onMonthlySalary={v => updateSettings({ monthly_salary: v })}
+            onIncomeSettings={patch => updateSettings(patch as Partial<typeof state.settings>)}
+            onTrackCreditCards={v => updateSettings({ track_credit_cards: v })}
+            onTrackBorrowings={v => updateSettings({ track_borrowings: v })}
+            onTrackSavings={v => updateSettings({ track_savings: v })}
+            onTrackProjects={v => updateSettings({ track_projects: v })}
+            onTrackAaSync={v => updateSettings({ track_aa_sync: v })}
+            onOpenAaSync={() => setAaSyncOpen(true)}
+            onBudgetStrategy={v => { updateBudgetStrategySettings({ budget_strategy: v ? 'balanced' : 'none' }); if (v) setBudgetStrategySheetOpen(true) }}
+            onChallengeEnabled={v => updateSettings({ challenge_enabled: v })}
+            onAutopilot={v => updateSettings({ autopilot_enabled: v })}
+            onNotificationsEnabled={v => updateSettings({ notifications_enabled: v })}
+            onNotifyDailyReminder={v => updateSettings({ notify_daily_reminder: v })}
+            onNotifyBudgetAlert={v => updateSettings({ notify_budget_alert: v })}
+            onNotifyCommitments={v => updateSettings({ notify_commitments: v })}
+            onNotifyWeeklySummary={v => updateSettings({ notify_weekly_summary: v })}
+            onNotifyEveningRecap={v => updateSettings({ notify_evening_recap: v })}
+            onDashboardLayout={() => setLayoutOpen(true)}
+            onExportData={() => exportAllData(session.user.id, session.user.email ?? undefined)}
+            onClose={() => setSettingsOpen(false)}
+            onSwipeProgress={setSwipePct}
+            tourHighlight={tourOpen}
+          />
         )}
 
         <ConnectBankSheet
