@@ -9,6 +9,7 @@ import { buildCashFlowForecast } from '@/lib/cashflow'
 import { round2 } from '@/lib/utils'
 import { matchMasterByName, masterById } from '@/lib/masters'
 import { forSpendAnalytics, spendAmount, isReimbursement } from '@/lib/reimbursements'
+import { ringFencedEventIds, countsTowardBudget, eventSpent } from '@/lib/events'
 import { MintAnimation } from './MintAnimation'
 import { CategorySelect } from './CategorySelect'
 import {
@@ -289,6 +290,8 @@ const CTX_LIMITS = {
   recurring: 3,    // top N recurring patterns
   recent: 4,       // most recent transactions
   goals: 3,        // active goals shown
+  events: 5,       // life events shown (active first)
+  eventCats: 3,    // top N categories per life event
   borrowers: 5,    // people in lent/owed lists (each side)
 }
 
@@ -348,6 +351,19 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     .reduce((s, t) => s + t.amount, 0)
 
   const monthlySpend = thisMonthTxns.reduce((s, t) => s + spendAmount(t), 0)
+  // Life-event spend is inside monthlySpend (the money really left) but is ring-fenced
+  // from budget pacing — say so, or Mint reads a trip as lifestyle drift.
+  const ringFenced = ringFencedEventIds(state.events)
+  const eventTag = (t: Transaction) => {
+    const name = t.event_id ? state.events.find(e => e.id === t.event_id)?.name : undefined
+    return name ? ` {life-event:${name}}` : ''
+  }
+  const monthlyEventSpend = thisMonthTxns
+    .filter(t => !countsTowardBudget(t, ringFenced))
+    .reduce((s, t) => s + spendAmount(t), 0)
+  const eventSpendNote = monthlyEventSpend > 0
+    ? ` (incl. ₹${monthlyEventSpend.toLocaleString()} life-event spend kept outside the budget; lifestyle ₹${(monthlySpend - monthlyEventSpend).toLocaleString()})`
+    : ''
   const lastMonthSpend = lastMonthTxns.reduce((s, t) => s + spendAmount(t), 0)
   const monthStartBalance = Math.round(totalBalance + monthlySpend - thisMonthIncome)
   const trackingDays = new Set(thisMonthTxns.map(t => t.transaction_date)).size
@@ -363,7 +379,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   parts.push(
     `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}` +
     `\nAccounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}` +
-    `\nSpend: this-month ₹${monthlySpend.toLocaleString()} | income ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transferNote}${savingsNote}` +
+    `\nSpend: this-month ₹${monthlySpend.toLocaleString()}${eventSpendNote} | income ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transferNote}${savingsNote}` +
     `\nTracking: ${trackingCount} transactions across ${trackingDays} days this month` +
     (d.isWaitingForIncome
       ? `\nFinancial-Cycle: WAITING for income (expected ${d.expectedIncomeDate ? new Date(d.expectedIncomeDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'unknown'}). Current cycle started ${d.financialCycle?.startLabel ?? 'unknown'}. Salary/income has NOT been received yet. Safe daily spend: ₹0 until income is recorded.`
@@ -371,6 +387,46 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
       ? `\nFinancial-Cycle: active since ${d.financialCycle.startLabel}, ${d.cycleDaysLeft}d left, safe-daily:₹${Math.round(d.safeDailySpend).toLocaleString()} safe-weekly:₹${Math.round(d.safeWeeklySpend).toLocaleString()}`
       : '')
   )
+
+  // ── MODULE: Life events (sent whenever any exist — a few short lines) ──
+  // A trip or wedding is a tag on real expenses, so without this Mint sees only
+  // "Shopping ₹2,188" and can't tell it apart from everyday spend.
+  {
+    const live = (state.events ?? [])
+      .filter(e => e.status !== 'archived')
+      .sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1)
+        || (b.start_date ?? b.created_at ?? '').localeCompare(a.start_date ?? a.created_at ?? ''))
+      .slice(0, CTX_LIMITS.events)
+    if (live.length > 0) {
+      const lines = live.map(e => {
+        const txns = spendTxns
+          .filter(t => t.event_id === e.id && t.transaction_type === 'expense')
+          .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+        const spent = eventSpent(state.transactions, e.id)
+        const byCat: Record<string, number> = {}
+        for (const t of txns) {
+          const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
+          byCat[name] = (byCat[name] ?? 0) + spendAmount(t)
+        }
+        const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, CTX_LIMITS.eventCats)
+          .map(([n, v]) => `${n} ₹${v.toLocaleString()}`).join(', ')
+        const target = e.target_amount
+          ? ` of target ₹${e.target_amount.toLocaleString()} (${Math.round(spent / e.target_amount * 100)}%)`
+          : ' (no target)'
+        const dates = e.start_date || e.end_date ? ` dates:${e.start_date ?? '?'}→${e.end_date ?? 'open'}` : ''
+        const latest = txns[0]
+        return `- ${e.name} [${e.status}, ${e.excluded_from_budget ? 'outside-budget' : 'counts-in-budget'}] spent ₹${spent.toLocaleString()}${target}${dates}` +
+          ` | ${txns.length} expenses` +
+          (cats ? ` | by-category: ${cats}` : '') +
+          (latest ? ` | latest: ${latest.transaction_date} ${latest.description} ₹${spendAmount(latest).toLocaleString()}` : '')
+      })
+      parts.push(
+        'LifeEvents (one-off events tagged on real expenses — balances and cash flow include them; ' +
+        'outside-budget ones are excluded from weekly budget, pacing and strategy, so never call them overspending):\n' +
+        lines.join('\n')
+      )
+    }
+  }
 
   // ── MODULE: Cash flow forecast (always sent — answers "enough before salary?" / affordability) ──
   {
@@ -402,7 +458,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     )
     const todaySpend = todayTxns.reduce((s, t) => s + spendAmount(t), 0)
     const todayStr = todayTxns.length > 0
-      ? todayTxns.map(t => `${t.description} ₹${spendAmount(t).toLocaleString()} (${state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'})`).join(' | ')
+      ? todayTxns.map(t => `${t.description} ₹${spendAmount(t).toLocaleString()} (${state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'})${eventTag(t)}`).join(' | ')
       : 'none'
 
     const catTotals: Record<string, number> = {}
@@ -428,7 +484,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
 
     const recent = state.transactions.slice(0, CTX_LIMITS.recent).map(t => {
       const catName = state.categories.find(c => c.id === t.category_id)?.name ?? ''
-      return `${t.transaction_date} ${t.description} ₹${t.amount} ${catName} [${isBorrowingTx(t) ? 'balance-sheet' : t.transaction_type}]`
+      return `${t.transaction_date} ${t.description} ₹${t.amount} ${catName} [${isBorrowingTx(t) ? 'balance-sheet' : t.transaction_type}]${eventTag(t)}`
     }).join('\n')
 
     parts.push(
@@ -693,6 +749,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
       const actuals: Record<string, number> = { needs: 0, wants: 0, savings: 0 }
       for (const t of forSpendAnalytics(state.transactions)) {
         if (new Date(t.transaction_date) < stratStart) continue
+        if (!countsTowardBudget(t, ringFenced)) continue  // same exclusion as computeStrategyData
         const cat = catMap[t.category_id ?? '']
         if (!cat) continue
         let bucket: string | null = null
