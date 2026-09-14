@@ -72,8 +72,9 @@ export function LinkExpensesSheet({ open, onClose, state, event, onLink }: Props
     }
   }
 
+  // Above EventsListPage (200) and EventDetailPage (210), which it opens over.
   return (
-    <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
+    <BottomSheet open={open} onClose={onClose} showHelpButton={false} zIndex={220}>
       <div style={{ padding: '0 4px 16px' }}>
         <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
           Link recent expenses

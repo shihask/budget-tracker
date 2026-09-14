@@ -104,8 +104,11 @@ export function EventFormSheet({ open, onClose, state, onSave, onAddCategory, ed
   // reads as being about this wedding rather than about a settings concept.
   const subject = name.trim() || 'these'
 
+  // 330 clears every surface this opens over: EventsListPage (200),
+  // EventDetailPage (210), and TransactionsPage's edit sheet (300) + event
+  // picker (320) when creating an event from a transaction.
   return (
-    <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
+    <BottomSheet open={open} onClose={onClose} showHelpButton={false} zIndex={330}>
       <div style={{ padding: '0 4px 16px' }}>
         <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>
           {editEvent ? 'Edit Event' : 'New Life Event'}
