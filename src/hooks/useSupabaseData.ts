@@ -2180,16 +2180,27 @@ export function useSupabaseData(userId: string) {
    *
    *  One query covers both tabs: credit_card_payment rows carry credit_card_id too, so spend and the
    *  settlements against it arrive together and the statement engine can allocate in one pass. */
-  const fetchCardHistory = useCallback(async (sinceDate: string): Promise<Transaction[]> => {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .not('credit_card_id', 'is', null)
-      .gte('transaction_date', sinceDate)
-      .order('transaction_date', { ascending: false })
-    if (error) throw error
-    return (data as Transaction[]) ?? []
+  /** Card transactions since `sinceDate` — every card, or just `cardId`. Paged, because PostgREST caps
+   *  a response at 1000 rows and a multi-year single-card archive can pass that; a silently truncated
+   *  result would make old statements look empty. `id` breaks date ties so pages never overlap. */
+  const fetchCardHistory = useCallback(async (sinceDate: string, cardId?: string): Promise<Transaction[]> => {
+    const PAGE = 1000
+    const rows: Transaction[] = []
+    for (let from = 0; ; from += PAGE) {
+      let query = supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('transaction_date', sinceDate)
+      query = cardId ? query.eq('credit_card_id', cardId) : query.not('credit_card_id', 'is', null)
+      const { data, error } = await query
+        .order('transaction_date', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (error) throw error
+      rows.push(...((data as Transaction[]) ?? []))
+      if (!data || data.length < PAGE) return rows
+    }
   }, [userId])
 
   const adjustCreditCardBalance = useCallback(async (cardId: string, actualBalance: number, newBilled?: number) => {

@@ -5,7 +5,7 @@ import { Card } from './Card'
 import { CreditCardTile } from './CreditCardTile'
 import { useCreditCardSheets } from './CreditCardSheets'
 import { getCreditCardBilling } from '@/lib/credit-card'
-import { localYmd, buildAllStatements } from '@/lib/credit-card-cycles'
+import { localYmd, buildCardCycles, currentStatementPeriod, STATEMENT_ARCHIVE_CYCLES } from '@/lib/credit-card-cycles'
 import { StatementDetailsPage } from './StatementDetailsPage'
 import { thisMonthCardSpend } from '@/lib/credit-card-analytics'
 import { stmtDate } from './creditCardStatus'
@@ -30,7 +30,7 @@ interface Props {
   onDelete: (id: string) => Promise<void>
   onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
   onAdjustBalance: (cardId: string, actualBalance: number, billedAmount?: number) => Promise<void>
-  fetchCardHistory: (sinceDate: string) => Promise<Transaction[]>
+  fetchCardHistory: (sinceDate: string, cardId?: string) => Promise<Transaction[]>
 }
 
 /** The Credit Cards home: overview, upcoming bills, and Cards / Statements / Analytics. */
@@ -46,10 +46,10 @@ export function CreditCardsPage({
   const [entryPlayed, setEntryPlayed] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('cards')
-  /** The open statement, held as its `${cardId}-${statementDate}` key rather than the object. The
-   *  live statement is re-derived below, so paying one updates the open page instead of leaving a
+  /** The open statement, held as card id + statement date rather than the object. The live
+   *  statements are re-derived below, so paying one updates the open page instead of leaving a
    *  stale amount on screen. Mirrors EventsListPage's detailId. */
-  const [detailKey, setDetailKey] = useState<string | null>(null)
+  const [detailKey, setDetailKey] = useState<{ cardId: string; statementDate: string } | null>(null)
   const gestureRef = useRef<{ startX: number; startY: number; lastX: number; lastT: number } | null>(null)
   const W = typeof window !== 'undefined' ? window.innerWidth : 400
 
@@ -78,13 +78,45 @@ export function CreditCardsPage({
     if (next !== 'cards' && !history && !historyLoading && !historyError) void loadHistory()
   }, [history, historyLoading, historyError, loadHistory])
 
+  // ── Per-card archive for the statement detail ────────────────────────────────────────────────
+  // Separate from `history` on purpose: the detail lists every cycle since the card's first
+  // transaction, while the Statements/Analytics tabs are 6-month views and spendByCard sums whatever
+  // it is handed — widening the shared fetch would silently change their totals.
+  const [cardHistory, setCardHistory] = useState<{ cardId: string; txns: Transaction[] } | null>(null)
+  const [cardHistoryError, setCardHistoryError] = useState<string | null>(null)
+  /** Latest request wins — a slow fetch for a card already closed must not land on the next one. */
+  const cardRequestRef = useRef(0)
+
+  const loadCardHistory = useCallback(async (cardId: string) => {
+    const req = ++cardRequestRef.current
+    setCardHistoryError(null)
+    try {
+      const since = new Date()
+      since.setMonth(since.getMonth() - (STATEMENT_ARCHIVE_CYCLES + 1)) // +1 so the oldest window is whole
+      const txns = await fetchCardHistory(localYmd(since), cardId)
+      if (req === cardRequestRef.current) setCardHistory({ cardId, txns })
+    } catch (e) {
+      if (req === cardRequestRef.current) setCardHistoryError(e instanceof Error ? e.message : 'Something went wrong')
+    }
+  }, [fetchCardHistory])
+
+  /** Open a card's cycles on a given statement. The page slides in at once and shows its own
+   *  loading state; a cached archive for the same card stays up while it refreshes. */
+  const openStatement = useCallback((cardId: string, statementDate: string) => {
+    setDetailKey({ cardId, statementDate })
+    if (cardHistory?.cardId !== cardId) setCardHistory(null)
+    void loadCardHistory(cardId)
+  }, [cardHistory, loadCardHistory])
+
   /** Any successful mutation makes the cached history stale. Refetch silently when a data tab is
    *  showing (the stale numbers stay up meanwhile rather than flashing a skeleton); otherwise just
    *  drop it so the next switch refetches. */
   const invalidateHistory = useCallback(() => {
+    // The open detail reads its own archive, so refresh that too — a payment from it must show.
+    if (detailKey) void loadCardHistory(detailKey.cardId)
     if (tab === 'cards') { setHistory(null); setHistoryError(null); return }
     void loadHistory()
-  }, [tab, loadHistory])
+  }, [tab, detailKey, loadHistory, loadCardHistory])
 
   // Wrapping here is what makes the cache policy unforgettable: every mutation on this page goes
   // through useCreditCardSheets, so no call site can skip invalidation.
@@ -194,17 +226,15 @@ export function CreditCardsPage({
   const utilColor = totals.utilPct > 80 ? c.bad : totals.utilPct > 50 ? c.warn : c.accent
 
   // Re-derived every render from the current history, so the open detail follows a payment: paying
-  // invalidates the cache, buildStatements re-runs, and this resolves to the updated statement. If
-  // the key no longer resolves (card deleted), the detail closes on its own.
+  // invalidates the cache, buildStatements re-runs, and the page's selection resolves to the updated
+  // statement. If the card no longer resolves (deleted), the detail closes on its own.
   const detail = useMemo(() => {
-    if (!detailKey || !history) return null
-    const statement = buildAllStatements(cards, history).find(
-      s => `${s.cardId}-${s.statementDate}` === detailKey,
-    )
-    if (!statement) return null
-    const card = cards.find(cd => cd.id === statement.cardId)
-    return card ? { statement, card } : null
-  }, [detailKey, history, cards])
+    if (!detailKey) return null
+    const card = cards.find(cd => cd.id === detailKey.cardId)
+    if (!card) return null
+    const txns = cardHistory?.cardId === card.id ? cardHistory.txns : null
+    return { card, txns, statements: txns ? buildCardCycles(card, txns) : [] }
+  }, [detailKey, cardHistory, cards])
 
   const metric = (label: string, value: number, color: string) => (
     <div style={{ flex: 1, minWidth: 0, background: c.surface, borderRadius: 12, border: `1px solid ${c.faint}`, padding: '9px 11px' }}>
@@ -335,6 +365,7 @@ export function CreditCardsPage({
                     onToggle={() => setExpandedId(expandedId === card.id ? null : card.id)}
                     onPay={() => openPay(card)}
                     showCurrentStatement
+                    onViewStatement={() => openStatement(card.id, currentStatementPeriod(card).statementDate)}
                     manage={{
                       onEdit: () => openEdit(card),
                       onAdjust: () => openAdjust(card),
@@ -346,7 +377,7 @@ export function CreditCardsPage({
             )}
 
             {tab === 'statements' && (
-              <StatementsTab cards={cards} history={history} loading={historyLoading} error={historyError} onRetry={loadHistory} onOpen={s => setDetailKey(`${s.cardId}-${s.statementDate}`)} />
+              <StatementsTab cards={cards} history={history} loading={historyLoading} error={historyError} onRetry={loadHistory} onOpen={s => openStatement(s.cardId, s.statementDate)} />
             )}
 
             {tab === 'analytics' && (
@@ -365,14 +396,17 @@ export function CreditCardsPage({
         instead of the viewport, so it would scroll away and expose the list beneath. BottomSheet
         escapes this via createPortal; a plain child does not. Same placement as
         EventsListPage → EventDetailPage. */}
-    {detail && history && (
+    {detail && detailKey && (
       <StatementDetailsPage
         state={state}
         card={detail.card}
-        statement={detail.statement}
-        history={history}
+        statements={detail.statements}
+        initialStatementDate={detailKey.statementDate}
+        history={detail.txns}
+        error={cardHistoryError}
+        onRetry={() => { void loadCardHistory(detail.card.id) }}
         onClose={() => setDetailKey(null)}
-        onPay={() => openPay(detail.card, detail.statement.remaining)}
+        onPay={s => openPay(detail.card, s.remaining)}
       />
     )}
     </>

@@ -1,32 +1,82 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
 import { catById } from '@/lib/data'
 import { Card } from './Card'
-import { getStatementTransactions } from '@/lib/credit-card-cycles'
+import { buildUnbilledCycle, getStatementTransactions } from '@/lib/credit-card-cycles'
+import type { UnbilledCycle } from '@/lib/credit-card-cycles'
 import { STATEMENT_STATUS_LABEL, statementPillStyle, stmtDate, stmtPeriod } from './creditCardStatus'
 import type { AppState, CreditCard, Transaction } from '@/types'
 import type { Statement } from '@/lib/credit-card-cycles'
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+const UNBILLED = 'unbilled'
+
+/** One chip per cycle, grouped under its year the way a bank app lists statements. A statement is
+ *  filed by the month it is generated in (25 Aug → August); Unbilled is filed under the year it will
+ *  bill in, so it heads the list — normally in the current year's group. */
+function groupChips(unbilled: UnbilledCycle, statements: Statement[]): { year: number; chips: [string, string][] }[] {
+  const groups: { year: number; chips: [string, string][] }[] = []
+  const push = (date: string, key: string, label: string) => {
+    const year = Number(date.slice(0, 4))
+    const last = groups[groups.length - 1]
+    if (last?.year === year) last.chips.push([key, label])
+    else groups.push({ year, chips: [[key, label]] })
+  }
+  push(unbilled.statementDate, UNBILLED, 'Unbilled')
+  for (const s of statements) push(s.statementDate, s.statementDate, MONTH_NAMES[Number(s.statementDate.slice(5, 7)) - 1])
+  return groups
+}
+
 interface Props {
   state: AppState
   card: CreditCard
-  statement: Statement
-  history: Transaction[]
+  /** Every cycle of this card, newest first, empty ones included (`buildCardCycles`). */
+  statements: Statement[]
+  /** The statement the page opens on — its `statementDate`. */
+  initialStatementDate: string
+  /** This card's archive; null while it loads. */
+  history: Transaction[] | null
+  error: string | null
+  onRetry: () => void
   onClose: () => void
-  onPay: () => void
+  onPay: (statement: Statement) => void
 }
 
 /**
- * One statement, in full: what it came to, what settled it, and every purchase behind the number.
+ * One card's billing cycles, in full: what a statement came to, what settled it, and every purchase
+ * behind the number — plus the open unbilled cycle, where the latest spend lives.
+ *
+ * Selection is held as a statement date rather than the object, so a payment that re-derives
+ * `statements` updates the open view instead of leaving a stale amount on screen.
  *
  * Deliberately takes no onSwipeProgress: swiping this away reveals the opaque Credit Cards page
  * beneath, not the dashboard, so dimming App's scrim would be wrong. Same reasoning as
  * EventDetailPage.
  */
-export function StatementDetailsPage({ state, card, statement, history, onClose, onPay }: Props) {
+export function StatementDetailsPage({ state, card, statements, initialStatementDate, history, error, onRetry, onClose, onPay }: Props) {
   const c = useTheme()
+  const [selected, setSelected] = useState(initialStatementDate)
+  const ready = history !== null
+  const txns = useMemo(() => history ?? [], [history])
+
+  // Bring the opening chip into view once the chips exist — opening an older statement from the
+  // Statements tab would otherwise select a chip scrolled off to the right.
+  const activeChipRef = useRef<HTMLButtonElement | null>(null)
+  const scrolledRef = useRef(false)
+  useEffect(() => {
+    if (!ready || scrolledRef.current) return
+    scrolledRef.current = true
+    activeChipRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [ready])
+
+  const unbilled = useMemo(() => buildUnbilledCycle(card, txns), [card, txns])
+  // Falls back to the newest statement if the selected one stopped resolving.
+  const statement = selected === UNBILLED ? null : (statements.find(s => s.statementDate === selected) ?? statements[0] ?? null)
+  const isUnbilled = ready && !statement
 
   const [dragX, setDragX] = useState(0)
   const [closing, setClosing] = useState(false)
@@ -80,18 +130,33 @@ export function StatementDetailsPage({ state, card, statement, history, onClose,
   // fetchCardHistory selects '*', which returns no joined `category` object — resolving through
   // catMap is what keeps every row from rendering uncategorised.
   const catMap = useMemo(() => catById(state.categories), [state.categories])
+  const cycle = statement ?? unbilled
   const purchases = useMemo(
-    () => getStatementTransactions(statement, history),
-    [statement, history],
+    () => getStatementTransactions(cycle, txns),
+    [cycle, txns],
   )
 
   const statusColor =
-    statement.status === 'paid' ? c.good
-    : statement.status === 'partial' ? c.warn
-    : statement.status === 'overdue' ? c.bad
+    statement?.status === 'paid' ? c.good
+    : statement?.status === 'partial' ? c.warn
+    : statement?.status === 'overdue' ? c.bad
     : c.muted
 
-  const canPay = statement.status !== 'paid' && statement.remaining > 0
+  const canPay = !!statement && statement.status !== 'paid' && statement.remaining > 0
+
+  const groups = useMemo(() => groupChips(unbilled, statements), [unbilled, statements])
+  /** Years whose month chips are hidden. All start expanded; tapping a year toggles it. */
+  const [collapsedYears, setCollapsedYears] = useState<Set<number>>(() => new Set())
+  const toggleYear = (year: number) => setCollapsedYears(prev => {
+    const next = new Set(prev)
+    if (next.has(year)) next.delete(year)
+    else next.add(year)
+    return next
+  })
+  const activeChip = statement?.statementDate ?? UNBILLED
+  /** A cycle with nothing on it at all — no spend, no adjustment, no payment. Gets a neutral note
+   *  instead of a "Fully Paid" banner that would claim a payment happened. */
+  const isEmptyCycle = !!statement && statement.amount === 0 && statement.payments.length === 0
 
   const figure = (label: string, value: string, color: string) => (
     <div style={{ flex: 1, minWidth: 0 }}>
@@ -138,29 +203,117 @@ export function StatementDetailsPage({ state, card, statement, history, onClose,
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.name}</div>
-            <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{stmtDate(statement.statementDate)}</div>
+            <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
+              {!ready ? stmtDate(initialStatementDate)
+                : statement ? stmtDate(statement.statementDate)
+                : `Unbilled · since ${stmtDate(unbilled.periodStart, false)}`}
+            </div>
           </div>
-          <span style={statementPillStyle(c, statement.status)}>{STATEMENT_STATUS_LABEL[statement.status]}</span>
+          {ready && (statement
+            ? <span style={statementPillStyle(c, statement.status)}>{STATEMENT_STATUS_LABEL[statement.status]}</span>
+            : <span style={statementPillStyle(c, 'due')}>Unbilled</span>)}
         </div>
+
+        {/* Cycle filter — Unbilled first, since that's where the latest spend is, then every statement
+            newest first under a year label. In the sticky header so switching never needs a scroll
+            back up. */}
+        <div className="tab-scroll" style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', padding: '0 16px 10px' }}>
+          {!ready ? (
+            [0, 1, 2, 3].map(i => (
+              <div key={i} className="cc-skeleton" style={{ flexShrink: 0, width: 72, height: 28, borderRadius: 999, background: c.surface2 }} />
+            ))
+          ) : groups.map((g, gi) => {
+            const isCollapsed = collapsedYears.has(g.year)
+            // Selection hidden inside a collapsed year — tint the year so it isn't lost.
+            const holdsActive = isCollapsed && g.chips.some(([key]) => key === activeChip)
+            return (
+            <div key={g.year} style={{
+              display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+              paddingLeft: gi > 0 ? 8 : 0, marginLeft: gi > 0 ? 4 : 0,
+              borderLeft: gi > 0 ? `1px solid ${c.faint}` : 'none',
+            }}>
+              <button
+                onClick={() => toggleYear(g.year)}
+                aria-expanded={!isCollapsed}
+                aria-label={`${isCollapsed ? 'Show' : 'Hide'} ${g.year} statements`}
+                style={{
+                  flexShrink: 0, display: 'flex', alignItems: 'center', gap: 2, padding: '6px 4px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  font: '700 11px Plus Jakarta Sans', color: holdsActive ? c.accent : c.ink,
+                }}
+              >
+                {g.year}
+                {isCollapsed && <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginLeft: 3 }}>{g.chips.length}</span>}
+                <ChevronDown size={13} strokeWidth={2.4} style={{ transition: 'transform 0.2s', transform: isCollapsed ? 'rotate(-90deg)' : 'none' }} />
+              </button>
+              {g.chips.map(([key, label]) => {
+                if (isCollapsed) return null
+                const active = key === activeChip
+                return (
+                  <button
+                    key={key}
+                    ref={active ? activeChipRef : undefined}
+                    onClick={() => setSelected(key)}
+                    style={{
+                      flexShrink: 0, font: '600 11.5px Plus Jakarta Sans', padding: '6px 12px', borderRadius: 999,
+                      background: active ? c.accentSoft : c.surface2,
+                      color: active ? c.accent : c.muted,
+                      border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}
+                  >{label}</button>
+                )
+              })}
+            </div>
+            )
+          })}
+        </div>
+        <style>{`.tab-scroll::-webkit-scrollbar{display:none}`}</style>
       </div>
 
       <div style={{ padding: '16px 16px calc(32px + env(safe-area-inset-bottom, 0px))', maxWidth: 540, margin: '0 auto' }}>
+        {!ready ? (
+          error ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Couldn't load this card's statements</div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 5 }}>{error}</div>
+              <button onClick={onRetry} style={{ marginTop: 14, background: c.accentSoft, color: c.accent, border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
+                Try again
+              </button>
+            </div>
+          ) : (
+            // Skeleton at the real hero + list heights, so nothing shifts when data lands.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="cc-skeleton" style={{ height: 156, borderRadius: 16, background: c.surface2 }} />
+              <div className="cc-skeleton" style={{ height: 180, borderRadius: 16, background: c.surface2 }} />
+            </div>
+          )
+        ) : (<>
         {/* Hero — identified before it is quantified. The statement date is how a real card statement
             is named, and what the user matches against the one their bank sent. */}
         <Card pad={18} style={{ marginBottom: 12 }}>
           <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            Statement · {stmtDate(statement.statementDate)}
+            {statement ? `Statement · ${stmtDate(statement.statementDate)}` : 'Unbilled spend'}
           </div>
           <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-            {stmtPeriod(statement.periodStart, statement.statementDate)}
+            {stmtPeriod(cycle.periodStart, cycle.statementDate)}
           </div>
           <div style={{ font: '800 30px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.03em', marginTop: 12 }}>
-            {fmt(statement.amount)}
+            {fmt(cycle.amount)}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${c.faint}` }}>
-            {figure('Paid', fmt(statement.paid), statement.paid > 0 ? c.good : c.ink)}
-            {figure('Remaining', fmt(statement.remaining), statement.remaining > 0 ? statusColor : c.good)}
-            {figure('Due', stmtDate(statement.dueDate, false), statement.status === 'overdue' ? c.bad : c.ink)}
+            {statement ? (
+              <>
+                {figure('Paid', fmt(statement.paid), statement.paid > 0 ? c.good : c.ink)}
+                {figure('Remaining', fmt(statement.remaining), statement.remaining > 0 ? statusColor : c.good)}
+                {figure('Due', stmtDate(statement.dueDate, false), statement.status === 'overdue' ? c.bad : c.ink)}
+              </>
+            ) : (
+              <>
+                {figure('Purchases', String(purchases.length), c.ink)}
+                {figure('Bills on', stmtDate(unbilled.statementDate, false), c.ink)}
+                {figure('Due', stmtDate(unbilled.dueDate, false), c.ink)}
+              </>
+            )}
           </div>
         </Card>
 
@@ -203,17 +356,24 @@ export function StatementDetailsPage({ state, card, statement, history, onClose,
 
         {/* Footer — reconciles by construction: purchases + adjustments = amount */}
         <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 12 }}>
-          {totalRow('Purchases', fmt(statement.purchases))}
-          {statement.adjustments !== 0 && totalRow(
+          {totalRow('Purchases', fmt(cycle.purchases))}
+          {cycle.adjustments !== 0 && totalRow(
             'Adjustments',
-            `${statement.adjustments < 0 ? '−' : '+'}${fmt(Math.abs(statement.adjustments))}`,
-            { color: statement.adjustments < 0 ? c.good : c.ink },
+            `${cycle.adjustments < 0 ? '−' : '+'}${fmt(Math.abs(cycle.adjustments))}`,
+            { color: cycle.adjustments < 0 ? c.good : c.ink },
           )}
-          {totalRow('Statement Total', fmt(statement.amount), { strong: true })}
+          {totalRow(statement ? 'Statement Total' : 'Unbilled Total', fmt(cycle.amount), { strong: true })}
         </div>
 
+        {/* Nothing is owed on the open cycle yet, so it gets a note instead of payments or a Pay button. */}
+        {isUnbilled && (
+          <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+            These purchases will be billed on {stmtDate(unbilled.statementDate)}, payable by {stmtDate(unbilled.dueDate)}.
+          </div>
+        )}
+
         {/* Payment history — where a partial payment becomes legible */}
-        {statement.payments.length > 0 && (
+        {statement && statement.payments.length > 0 && (
           <>
             <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, letterSpacing: '0.05em', textTransform: 'uppercase', margin: '4px 2px 8px' }}>
               Payment History
@@ -238,9 +398,13 @@ export function StatementDetailsPage({ state, card, statement, history, onClose,
         )}
 
         {/* Action */}
-        {canPay ? (
+        {!statement ? null : isEmptyCycle ? (
+          <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
+            Nothing was billed on this card for this cycle.
+          </div>
+        ) : canPay ? (
           <button
-            onClick={onPay}
+            onClick={() => onPay(statement)}
             style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
           >
             Pay {fmt(statement.remaining)}
@@ -260,6 +424,7 @@ export function StatementDetailsPage({ state, card, statement, history, onClose,
             </div>
           </div>
         )}
+        </>)}
       </div>
     </div>
   )

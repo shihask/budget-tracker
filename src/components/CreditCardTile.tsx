@@ -1,3 +1,4 @@
+import { ReceiptText } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { getCreditCardBilling } from '@/lib/credit-card'
@@ -35,11 +36,13 @@ interface Props {
   /** Current Statement preview — page-only, same gating as `manage`. Dates come from
    *  `currentStatementPeriod` so this and the Statements tab agree on where the cycle begins. */
   showCurrentStatement?: boolean
+  /** Opens this cycle's transactions in StatementDetailsPage. Omitted = no icon. */
+  onViewStatement?: () => void
 }
 
 /** One credit card: the always-visible compact row plus the expandable detail. Shared by the
  *  dashboard section and the Credit Cards page. */
-export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage, showCurrentStatement }: Props) {
+export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage, showCurrentStatement, onViewStatement }: Props) {
   const c = useTheme()
   const col = colorFor(card.name)
   const utilPct = card.credit_limit > 0 ? Math.min(100, Math.round((card.current_balance / card.credit_limit) * 100)) : 0
@@ -173,7 +176,19 @@ export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage,
               <div style={{ marginTop: 12, background: c.surface, borderRadius: 12, padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Statement</div>
-                  <span style={statementPillStyle(c, status)}>{STATEMENT_STATUS_LABEL[status]}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={statementPillStyle(c, status)}>{STATEMENT_STATUS_LABEL[status]}</span>
+                    {onViewStatement && (
+                      <button
+                        onClick={onViewStatement}
+                        aria-label="View statement transactions"
+                        title="View transactions"
+                        style={{ width: 26, height: 26, borderRadius: 8, border: 'none', padding: 0, background: col + '18', color: col, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                      >
+                        <ReceiptText size={14} strokeWidth={2.2} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{stmtDate(period.statementDate)}</div>
                 <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>

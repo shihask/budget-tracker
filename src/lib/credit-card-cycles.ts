@@ -72,6 +72,25 @@ function dueDateFor(stmt: Date, dueDay: number): Date {
   return clampedDay(stmt.getFullYear(), stmt.getMonth() + 1, dueDay)
 }
 
+/** Spend and reconciliation totals for one card's rows in an inclusive date window. Split rather than
+ *  one running total, so the details footer can show Purchases + Adjustments = Total without
+ *  recomputing anything. Shared by past statements and the open unbilled cycle. */
+function sumWindow(mine: Transaction[], start: string, end: string): { purchases: number; adjustments: number } {
+  let purchases = 0
+  let adjustments = 0
+  for (const t of mine) {
+    if (t.transaction_date < start || t.transaction_date > end) continue
+    if (CC_SPEND_TYPES.has(t.transaction_type)) {
+      purchases += t.amount
+    } else if (t.transaction_type === 'cc_opening_balance') {
+      adjustments += t.amount
+    } else if (t.transaction_type === 'cc_balance_adjustment') {
+      adjustments += t.is_credit ? t.amount : -t.amount
+    }
+  }
+  return { purchases, adjustments }
+}
+
 /**
  * Past statements for one card, newest first.
  *
@@ -91,8 +110,54 @@ export function buildStatements(
   months = 6,
   today: Date = new Date(),
 ): Statement[] {
+  // A dormant card should show no filler rows.
+  return buildStatementWindows(card, txns, months, today).filter(s => s.amount > 0 || s.paid > 0)
+}
+
+/** How many cycles the per-card archive keeps. Bounds the fetch and the chip row, so one mistyped
+ *  decades-old transaction date can't produce hundreds of empty months. */
+export const STATEMENT_ARCHIVE_CYCLES = 36
+
+/**
+ * Every statement for one card, newest first, from the cycle holding its earliest transaction up to
+ * the last generated one — empty cycles INCLUDED, the way a bank app lists every month since the card
+ * was opened. Capped at `STATEMENT_ARCHIVE_CYCLES`.
+ *
+ * Pass the card's full history (at least `STATEMENT_ARCHIVE_CYCLES + 1` months) so the oldest window
+ * is whole and payment allocation sees every earlier statement. A card with no transactions yields
+ * just the current cycle, so there is always something to select.
+ */
+export function buildCardCycles(card: CreditCard, txns: Transaction[], today: Date = new Date()): Statement[] {
   const mine = txns.filter(t => t.credit_card_id === card.id)
-  if (mine.length === 0) return []
+  const lastBill = currentStatementPeriod(card, today).statementDate
+  const earliest = mine.reduce<string | null>(
+    (min, t) => (min === null || t.transaction_date < min ? t.transaction_date : min), null,
+  )
+
+  // Walk back from the last statement while the earliest row still sits in an older window. A window
+  // is (previous statement, this statement], so the row is older exactly when it is <= the previous date.
+  let months = 1
+  if (earliest !== null) {
+    const [y, m, d] = lastBill.split('-').map(Number)
+    let cursor = new Date(y, m - 1, d)
+    while (months < STATEMENT_ARCHIVE_CYCLES) {
+      const prev = clampedDay(cursor.getFullYear(), cursor.getMonth() - 1, card.bill_day)
+      if (earliest > localYmd(prev)) break
+      months++
+      cursor = prev
+    }
+  }
+  return buildStatementWindows(card, mine, months, today)
+}
+
+/** `months` statement windows ending at the last generated statement, newest first, unfiltered. */
+function buildStatementWindows(
+  card: CreditCard,
+  txns: Transaction[],
+  months: number,
+  today: Date,
+): Statement[] {
+  const mine = txns.filter(t => t.credit_card_id === card.id)
 
   // Statement dates: the most recent bill_day on or before today, then back `months` cycles.
   const dates: Date[] = []
@@ -114,20 +179,7 @@ export function buildStatements(
     const periodStart = localYmd(startDate)
     const statementDate = localYmd(stmtDate)
 
-    // Split rather than one running total, so the details footer can show
-    // Purchases + Adjustments = Total without recomputing anything.
-    let purchases = 0
-    let adjustments = 0
-    for (const t of mine) {
-      if (t.transaction_date < periodStart || t.transaction_date > statementDate) continue
-      if (CC_SPEND_TYPES.has(t.transaction_type)) {
-        purchases += t.amount
-      } else if (t.transaction_type === 'cc_opening_balance') {
-        adjustments += t.amount
-      } else if (t.transaction_type === 'cc_balance_adjustment') {
-        adjustments += t.is_credit ? t.amount : -t.amount
-      }
-    }
+    const { purchases, adjustments } = sumWindow(mine, periodStart, statementDate)
 
     return {
       cardId: card.id,
@@ -181,8 +233,7 @@ export function buildStatements(
     if (s.status !== 'paid') s.paidOn = undefined
   }
 
-  // A dormant card should show no filler rows.
-  return statements.filter(s => s.amount > 0 || s.paid > 0).reverse()
+  return statements.reverse()
 }
 
 /**
@@ -195,7 +246,10 @@ export function buildStatements(
  *
  * Bounds match buildStatements exactly — inclusive at both ends.
  */
-export function getStatementTransactions(statement: Statement, txns: Transaction[]): Transaction[] {
+export function getStatementTransactions(
+  statement: Pick<Statement, 'cardId' | 'periodStart' | 'statementDate'>,
+  txns: Transaction[],
+): Transaction[] {
   return txns
     .filter(t =>
       t.credit_card_id === statement.cardId &&
@@ -238,5 +292,47 @@ export function currentStatementPeriod(
     periodStart: localYmd(addDaysLocal(prev, 1)),
     statementDate: localYmd(lastBill),
     dueDate: localYmd(dueDateFor(lastBill, card.due_day)),
+  }
+}
+
+/** The open cycle — spend since the last statement that the next one will bill. Deliberately not a
+ *  `Statement`: it has no payments, status or remaining, because nothing is owed on it yet, and
+ *  typing it as one would let a Pay button read a meaningless `remaining`. */
+export interface UnbilledCycle {
+  cardId: string
+  /** Day after the last generated statement. */
+  periodStart: string
+  /** The upcoming statement date — the window's inclusive end, same convention as `Statement`. */
+  statementDate: string
+  dueDate: string
+  amount: number
+  purchases: number
+  adjustments: number
+}
+
+/** The window directly after `currentStatementPeriod`, so the unbilled cycle and the last statement
+ *  are contiguous and no row lands in both or neither. Summed with the same `sumWindow` as
+ *  `buildStatements`, so `getStatementTransactions` over it reconciles to `purchases`. */
+export function buildUnbilledCycle(
+  card: CreditCard,
+  txns: Transaction[],
+  today: Date = new Date(),
+): UnbilledCycle {
+  const last = currentStatementPeriod(card, today)
+  const [y, m, d] = last.statementDate.split('-').map(Number)
+  const lastBill = new Date(y, m - 1, d)
+  const nextBill = clampedDay(lastBill.getFullYear(), lastBill.getMonth() + 1, card.bill_day)
+  const periodStart = localYmd(addDaysLocal(lastBill, 1))
+  const statementDate = localYmd(nextBill)
+  const mine = txns.filter(t => t.credit_card_id === card.id)
+  const { purchases, adjustments } = sumWindow(mine, periodStart, statementDate)
+  return {
+    cardId: card.id,
+    periodStart,
+    statementDate,
+    dueDate: localYmd(dueDateFor(nextBill, card.due_day)),
+    amount: Math.max(0, round2(purchases + adjustments)),
+    purchases: round2(purchases),
+    adjustments: round2(adjustments),
   }
 }

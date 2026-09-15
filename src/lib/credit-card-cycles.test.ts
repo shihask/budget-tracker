@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildStatements, currentStatementPeriod, getStatementTransactions, clampedDay, localYmd } from './credit-card-cycles'
+import { buildStatements, currentStatementPeriod, getStatementTransactions, buildUnbilledCycle, buildCardCycles, STATEMENT_ARCHIVE_CYCLES, clampedDay, localYmd } from './credit-card-cycles'
 import type { CreditCard, Transaction, TransactionType } from '@/types'
 
 function card(over: Partial<CreditCard> = {}): CreditCard {
@@ -266,5 +266,64 @@ describe('statement breakdown (details page)', () => {
     expect(latest.status).toBe('due')
     expect(latest.paidOn).toBeUndefined()
     expect(latest.payments).toEqual([])
+  })
+})
+
+describe('buildUnbilledCycle', () => {
+  const today = new Date(2026, 8, 30) // 30 Sep 2026 — last statement 25 Sep
+
+  it('opens the day after the last statement, so the two windows are contiguous', () => {
+    const txns = [tx('2026-09-25', 500), tx('2026-09-26', 300), tx('2026-10-02', 200)]
+    const unbilled = buildUnbilledCycle(card(), txns, today)
+    const [latest] = buildStatements(card(), txns, 6, today)
+    expect(unbilled.periodStart).toBe('2026-09-26')
+    expect(unbilled.statementDate).toBe('2026-10-25')
+    expect(unbilled.dueDate).toBe('2026-11-05')
+    expect(unbilled.amount).toBe(500)
+    expect(latest.amount).toBe(500)
+    expect(getStatementTransactions(unbilled, txns).map(t => t.amount)).toEqual([200, 300])
+  })
+
+  it('nets adjustments and ignores payments', () => {
+    const txns = [
+      tx('2026-09-27', 400),
+      tx('2026-09-28', 50, 'cc_balance_adjustment', { is_credit: true }),
+      tx('2026-09-29', 1000, 'credit_card_payment'),
+    ]
+    const u = buildUnbilledCycle(card(), txns, today)
+    expect(u.purchases).toBe(400)
+    expect(u.adjustments).toBe(50)
+    expect(u.amount).toBe(450)
+  })
+})
+
+describe('buildCardCycles', () => {
+  const today = new Date(2026, 8, 30) // 30 Sep 2026 — last statement 25 Sep
+
+  it('lists every cycle back to the earliest transaction, empty ones included', () => {
+    const txns = [tx('2026-05-01', 100), tx('2026-09-10', 500)]
+    const dates = buildCardCycles(card(), txns, today).map(s => s.statementDate)
+    // 1 May sits in the 26 Apr – 25 May window; Jun/Jul/Aug are empty but still listed.
+    expect(dates).toEqual(['2026-09-25', '2026-08-25', '2026-07-25', '2026-06-25', '2026-05-25'])
+  })
+
+  it('treats a row on a statement date as belonging to that statement, not an older one', () => {
+    const dates = buildCardCycles(card(), [tx('2026-08-25', 100)], today).map(s => s.statementDate)
+    expect(dates).toEqual(['2026-09-25', '2026-08-25'])
+  })
+
+  it('yields just the current cycle for a card with no history, or only unbilled spend', () => {
+    expect(buildCardCycles(card(), [], today).map(s => s.statementDate)).toEqual(['2026-09-25'])
+    expect(buildCardCycles(card(), [tx('2026-09-28', 100)], today)).toHaveLength(1)
+  })
+
+  it('caps the archive', () => {
+    expect(buildCardCycles(card(), [tx('2001-01-01', 100)], today)).toHaveLength(STATEMENT_ARCHIVE_CYCLES)
+  })
+
+  it('agrees with buildStatements on every non-empty cycle', () => {
+    const txns = [tx('2026-04-10', 300), tx('2026-06-10', 200), tx('2026-07-02', 500, 'credit_card_payment')]
+    const all = buildCardCycles(card(), txns, today).filter(s => s.amount > 0 || s.paid > 0)
+    expect(all).toEqual(buildStatements(card(), txns, 6, today))
   })
 })
