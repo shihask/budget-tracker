@@ -392,6 +392,7 @@ export function useCreditCardSheets(p: Params): FullApi {
         const adjustBilledVal = evaluateAmountExpression(adjustBilled)
         const totalChanged = adjustTarget && adjustAmount !== '' && adjustAmountVal !== null && Math.abs(adjustAmountVal - adjustTarget.current_balance) > 0.01
         const billedChanged = billing && adjustBilled !== '' && adjustBilledVal !== null && Math.abs(adjustBilledVal - billing.billedAmount) > 0.01
+        const billedExceedsTotal = adjustBilled !== '' && adjustBilledVal !== null && adjustAmountVal !== null && adjustBilledVal > adjustAmountVal + 0.01
         const hasChange = totalChanged || billedChanged
         return <>
           <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Adjust Balance</div>
@@ -423,35 +424,27 @@ export function useCreditCardSheets(p: Params): FullApi {
                 onBlur={e => {
                   setAdjustBilledFocused(false)
                   const r = evaluateAmountExpression(e.target.value)
-                  if (r === null) { setAdjustBilled(''); return }
-                  const total = adjustAmountVal ?? 0
-                  if (r > total) return
-                  setAdjustBilled(String(round2(r)))
+                  setAdjustBilled(r === null ? '' : String(round2(r)))
                 }}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   const r = evaluateAmountExpression(e.currentTarget.value)
-                  if (r === null) { setAdjustBilled(''); return }
-                  const total = adjustAmountVal ?? 0
-                  if (r > total) return
-                  setAdjustBilled(String(round2(r)))
+                  setAdjustBilled(r === null ? '' : String(round2(r)))
                 }}
-                value={adjustBilled} onChange={e => {
-                const val = sanitizeAmountInput(e.target.value)
-                const total = adjustAmountVal ?? 0
-                const parsedVal = evaluateAmountExpression(val)
-                if (val !== '' && parsedVal !== null && parsedVal > total) return
-                setAdjustBilled(val)
-              }} placeholder="0" style={inp} />
+                value={adjustBilled} onChange={e => setAdjustBilled(sanitizeAmountInput(e.target.value))} placeholder="0" style={inp} />
               {adjustBilledFocused && <AmountOperatorRow inputRef={adjustBilledRef} onChange={setAdjustBilled} />}
-              {adjustAmount && adjustBilled !== '' && (
+              {billedExceedsTotal ? (
+                <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.bad, marginTop: 4 }}>
+                  Billed can't exceed total outstanding ({fmt(adjustAmountVal!)}). Update Total Outstanding first.
+                </div>
+              ) : adjustAmount && adjustBilled !== '' && (
                 <div style={{ font: '600 10.5px Plus Jakarta Sans', color: c.muted, marginTop: 4 }}>
                   Unbilled: {fmt(Math.max(0, (adjustAmountVal ?? 0) - (adjustBilledVal ?? 0)))}
                 </div>
               )}
             </div>
           </div>
-          {hasChange && (
+          {hasChange && !billedExceedsTotal && (
             <div style={{ marginTop: 10, background: c.surface2, borderRadius: 10, padding: '8px 12px', font: '600 12px Plus Jakarta Sans', color: c.muted, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {totalChanged && (() => {
                 const diff = adjustAmountVal! - adjustTarget!.current_balance
@@ -467,8 +460,8 @@ export function useCreditCardSheets(p: Params): FullApi {
             <button onClick={() => setAdjustTarget(null)} style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Cancel</button>
             <button
               onClick={handleAdjustBalance}
-              disabled={adjusting || !hasChange}
-              style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: adjusting ? 0.7 : 1 }}
+              disabled={adjusting || !hasChange || billedExceedsTotal}
+              style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer', opacity: adjusting || billedExceedsTotal ? 0.5 : 1 }}
             >
               {adjusting ? 'Adjusting...' : 'Adjust Balance'}
             </button>
