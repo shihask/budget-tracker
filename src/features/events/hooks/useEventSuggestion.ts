@@ -31,6 +31,9 @@ interface CachedEventSuggestion {
 
 const cacheKey = (userId: string) => `mp_event_suggest_${userId}`
 const dismissedKey = (userId: string) => `mp_event_suggest_dismissed_${userId}`
+/** Suggestions that already had their one toast — after that, the bell and
+ *  the dashboard card are where they live. Same tx-id majority rule as dismissal. */
+const toastSeenKey = (userId: string) => `mp_event_suggest_toast_seen_${userId}`
 
 function readCache(userId: string): CachedEventSuggestion | null {
   try {
@@ -49,17 +52,17 @@ function writeCache(userId: string, entry: CachedEventSuggestion) {
   try { localStorage.setItem(cacheKey(userId), JSON.stringify(entry)) } catch { /* storage unavailable — AI is simply asked again next session */ }
 }
 
-function readDismissed(userId: string): Set<string> {
+function readIdSet(key: string): Set<string> {
   try {
-    const ids = JSON.parse(localStorage.getItem(dismissedKey(userId)) || '[]')
+    const ids = JSON.parse(localStorage.getItem(key) || '[]')
     return new Set(Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [])
   } catch {
     return new Set()
   }
 }
 
-function writeDismissed(userId: string, ids: Set<string>) {
-  try { localStorage.setItem(dismissedKey(userId), JSON.stringify([...ids])) } catch { /* storage unavailable — dismissal lasts this session only */ }
+function writeIdSet(key: string, ids: Set<string>) {
+  try { localStorage.setItem(key, JSON.stringify([...ids])) } catch { /* storage unavailable — remembered for this session only */ }
 }
 
 /** Expense descriptions in [from, to] — only when the loaded 200 rows don't reach
@@ -210,7 +213,7 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
   }, [autopilotEnabled, signalKey, aiEntry, userId])
 
   // ── Dismissal ─────────────────────────────────────────────────────────────
-  const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissed(userId))
+  const [dismissed, setDismissed] = useState<Set<string>>(() => readIdSet(dismissedKey(userId)))
   const lastDismissed = useRef<string[]>([])
 
   // ── Result ────────────────────────────────────────────────────────────────
@@ -245,7 +248,7 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
     const poolIds = new Set(pool.map(t => t.id))
     const next = new Set([...dismissed].filter(id => poolIds.has(id)))
     for (const id of suggestion.txIds) next.add(id)
-    writeDismissed(userId, next)
+    writeIdSet(dismissedKey(userId), next)
     setDismissed(next)
   }, [suggestion, pool, dismissed, userId])
 
@@ -254,9 +257,24 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
     if (ids.size === 0) return
     lastDismissed.current = []
     const next = new Set([...dismissed].filter(id => !ids.has(id)))
-    writeDismissed(userId, next)
+    writeIdSet(dismissedKey(userId), next)
     setDismissed(next)
   }, [dismissed, userId])
 
-  return { suggestion, dismiss, undoDismiss }
+  // ── Toast: once per suggestion ────────────────────────────────────────────
+  const [toastSeen, setToastSeen] = useState<Set<string>>(() => readIdSet(toastSeenKey(userId)))
+  const shouldToast = !!suggestion && !isSuppressed(suggestion, toastSeen)
+
+  /** Called when the toast finishes (landed in the bell, closed, or acted on) —
+   *  not when it starts, so a reload mid-toast shows it again rather than never. */
+  const markToastSeen = useCallback(() => {
+    if (!suggestion) return
+    const poolIds = new Set(pool.map(t => t.id))
+    const next = new Set([...toastSeen].filter(id => poolIds.has(id)))
+    for (const id of suggestion.txIds) next.add(id)
+    writeIdSet(toastSeenKey(userId), next)
+    setToastSeen(next)
+  }, [suggestion, pool, toastSeen, userId])
+
+  return { suggestion, dismiss, undoDismiss, shouldToast, markToastSeen }
 }

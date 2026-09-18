@@ -6,6 +6,10 @@ import type { Project } from '../types'
 import type { PendingInvite } from '../hooks/useProjectsSummary'
 import type { AppNotification, NotificationTone, NotificationTarget } from '@/types'
 import type { SnoozeDuration } from '@/lib/notification-engine'
+import type { EventSuggestion } from '@/lib/event-suggestions'
+import { fmt } from '@/lib/utils'
+import { EventIcon } from '@/features/events/lib/eventIcons'
+import { EVENT_COLOR } from '@/features/events/components/EventTile'
 
 interface Props {
   open: boolean
@@ -28,6 +32,10 @@ interface Props {
   onSnoozeNotification: (id: string, duration: SnoozeDuration) => void
   onNavigate?: (target: NotificationTarget) => void
   onClearAll?: () => void
+  /** Mint's life-event suggestion — where its toast files itself. */
+  eventSuggestion?: EventSuggestion | null
+  onEventSuggestion?: () => void
+  onDismissEventSuggestion?: () => void
 }
 
 const TONE_KEY: Record<NotificationTone, ToneKey> = {
@@ -59,6 +67,7 @@ export function NotificationsSheet({
   showReflection, onReflection, showYesterdayRecap, onYesterdayRecap, onDismissBanner,
   yesterdayRecapAlertId, reflectionAlertId,
   notifications, onSnoozeNotification, onNavigate, onClearAll,
+  eventSuggestion, onEventSuggestion, onDismissEventSuggestion,
 }: Props) {
   const c = useTheme()
   const [processing, setProcessing] = useState<string | null>(null)
@@ -70,6 +79,7 @@ export function NotificationsSheet({
     pendingInvites.length > 0 ||
     sharedProjects.length > 0 ||
     notifications.length > 0 ||
+    !!eventSuggestion ||
     !!showReflection ||
     !!showYesterdayRecap
 
@@ -129,6 +139,46 @@ export function NotificationsSheet({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Mint's life-event suggestion — where its toast files itself. Tap
+                to create (or link to) the event; ✕ is "Not an event". */}
+            {eventSuggestion && (
+              <div
+                onClick={() => { onEventSuggestion?.(); onClose() }}
+                style={{
+                  background: EVENT_COLOR + '08', borderRadius: 16, padding: '14px 16px',
+                  border: `1.5px solid ${EVENT_COLOR}30`, cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10, background: EVENT_COLOR,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <EventIcon name={eventSuggestion.icon} size={17} color="#fff" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Mint noticed a life event</div>
+                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {eventSuggestion.name} · {eventSuggestion.txIds.length} expenses · {fmt(eventSuggestion.total)}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                    <button
+                      onClick={e => { e.stopPropagation(); onDismissEventSuggestion?.() }}
+                      aria-label="Not an event"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: c.muted + '80' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Financial notifications — flat, already sorted by priority (most
                 important first). No tier labels/dots: the card order alone

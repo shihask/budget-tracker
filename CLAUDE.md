@@ -170,6 +170,13 @@ The second discovery path: when untagged spending looks like one occasion ("tea 
 `LinkExpensesSheet` with the detected rows ticked (`preselectedIds`), and the user taps Link.
 A match on an existing live event (by `eventSlug`) skips the form: "Link to Ooty Trip".
 
+**Surfaces (v1.72):** a toast (`EventSuggestionToast`) slides down from the top once per
+suggestion, only on a clear dashboard (App's `overlayOpen`), stays 12 s (paused while touched),
+then shrinks into the header bell (`[data-notification-bell]`) — where the suggestion waits as a
+NotificationsSheet item and adds 1 to the badge. The dashboard card stays too. "Seen" is
+`mp_event_suggest_toast_seen_<uid>`, same tx-id majority rule as dismissal, stamped when the toast
+*finishes* so a reload mid-toast replays it.
+
 | File | Purpose |
 |---|---|
 | `src/lib/event-suggestions.ts` | Pure detection: pool, tokenizer, phrase clusters, novelty, merchant rejection, burst, `validateAiResult`, `isSuppressed`. Constants documented at the top |

@@ -92,6 +92,7 @@ import { EventsCard } from '@/features/events/components/EventsCard'
 import { EventFormSheet } from '@/features/events/components/EventFormSheet'
 import { LinkExpensesSheet } from '@/features/events/components/LinkExpensesSheet'
 import { EventSuggestionCard } from '@/features/events/components/EventSuggestionCard'
+import { EventSuggestionToast } from '@/features/events/components/EventSuggestionToast'
 import { useEventSuggestion } from '@/features/events/hooks/useEventSuggestion'
 import type { EventSuggestion } from '@/lib/event-suggestions'
 import type { EventFormValues } from '@/features/events/components/EventFormSheet'
@@ -164,6 +165,9 @@ export default function App() {
 
   return <AppContent session={session} />
 }
+
+/** Delay before a Life Event suggestion toast slides in on a clear dashboard. */
+const SUGGESTION_TOAST_DELAY_MS = 1200
 
 // ── AppContent: all hooks live here, no early returns before them ─────────────
 function AppContent({ session }: { session: Session }) {
@@ -486,7 +490,27 @@ function AppContent({ session }: { session: Session }) {
     userId: session.user.id, userName, onUpdateSettings: updateSettings, fetchHabitConsistency,
   })
 
-  const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount
+  // The suggestion joins the count only once its toast has landed in the bell,
+  // so the badge ticks up at the moment the toast visibly arrives there.
+  const suggestionInBell = !!eventSuggestion.suggestion && !eventSuggestion.shouldToast
+  const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount + (suggestionInBell ? 1 : 0)
+
+  // The toast only starts on a clear dashboard — never over a sheet or page
+  // the user is in the middle of. Once started it plays out even if one opens.
+  const overlayOpen = sheetOpen || chatOpen || txnsOpen || settingsOpen || eventFormOpen || eventsListOpen ||
+    !!linkExpensesForId || notificationsOpen || createMenuOpen || commitmentsOpen || borrowingOpen || savingsOpen ||
+    creditCardsOpen || catsOpen || mastersOpen || analyticsOpen || cashflowOpen || projectsOpen || growOpen ||
+    achievementsOpen || habitsOpen || reflectionOpen || aaSyncOpen || importStatementOpen || tourOpen || adminOpen ||
+    layoutOpen || budgetEditOpen || emergencyEditOpen || !!challengeWin
+  const toastKey = eventSuggestion.shouldToast && eventSuggestion.suggestion ? eventSuggestion.suggestion.txIds.join(',') : null
+  const [toastStartedFor, setToastStartedFor] = useState<string | null>(null)
+  useEffect(() => {
+    if (!toastKey || overlayOpen || toastStartedFor === toastKey) return
+    // A beat after the dashboard settles, so it reads as news rather than load noise.
+    const t = window.setTimeout(() => setToastStartedFor(toastKey), SUGGESTION_TOAST_DELAY_MS)
+    return () => window.clearTimeout(t)
+  }, [toastKey, overlayOpen, toastStartedFor])
+  const showSuggestionToast = toastKey !== null && toastStartedFor === toastKey
     + notifications.filter(n => n.priority !== 'positive').length
     + (showReflectionBanner && !isSnoozed(reflectionAlertId, snoozeMap) ? 1 : 0)
     + (showYesterdayRecap ? 1 : 0)
@@ -624,6 +648,14 @@ function AppContent({ session }: { session: Session }) {
   return (
     <ThemeContext.Provider value={c}>
       <UpdateToast />
+      {showSuggestionToast && eventSuggestion.suggestion && (
+        <EventSuggestionToast
+          key={toastKey!}
+          suggestion={eventSuggestion.suggestion}
+          onCreate={() => acceptEventSuggestion(eventSuggestion.suggestion!)}
+          onDone={eventSuggestion.markToastSeen}
+        />
+      )}
       <UndoSnackbar
         open={suggestionUndoOpen}
         message="Suggestion dismissed"
@@ -1177,6 +1209,9 @@ function AppContent({ session }: { session: Session }) {
           onSnoozeNotification={snoozeNotif}
           onNavigate={onNavigateNotification}
           onClearAll={clearAllAlerts}
+          eventSuggestion={suggestionInBell ? eventSuggestion.suggestion : null}
+          onEventSuggestion={() => eventSuggestion.suggestion && acceptEventSuggestion(eventSuggestion.suggestion)}
+          onDismissEventSuggestion={() => { eventSuggestion.dismiss(); setSuggestionUndoOpen(true) }}
         />
 
         {settingsOpen && (
