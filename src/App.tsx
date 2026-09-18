@@ -492,7 +492,11 @@ function AppContent({ session }: { session: Session }) {
   // The suggestion joins the count only once its toast has landed in the bell,
   // so the badge ticks up at the moment the toast visibly arrives there.
   const suggestionInBell = !!eventSuggestion.suggestion && !eventSuggestion.shouldToast
-  const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount + (suggestionInBell ? 1 : 0)
+  const notificationCount = projectsSummary.pendingInvites.length + unseenSharedCount
+    + notifications.filter(n => n.priority !== 'positive').length
+    + (showReflectionBanner && !isSnoozed(reflectionAlertId, snoozeMap) ? 1 : 0)
+    + (showYesterdayRecap ? 1 : 0)
+    + (suggestionInBell ? 1 : 0)
 
   // The toast only starts on a clear dashboard — never over a sheet or page
   // the user is in the middle of. Once started it plays out even if one opens.
@@ -510,9 +514,6 @@ function AppContent({ session }: { session: Session }) {
     return () => window.clearTimeout(t)
   }, [toastKey, overlayOpen, toastStartedFor])
   const showSuggestionToast = toastKey !== null && toastStartedFor === toastKey
-    + notifications.filter(n => n.priority !== 'positive').length
-    + (showReflectionBanner && !isSnoozed(reflectionAlertId, snoozeMap) ? 1 : 0)
-    + (showYesterdayRecap ? 1 : 0)
 
   const clearAllAlerts = () => {
     for (const n of notifications) {
