@@ -16,14 +16,15 @@ interface Props {
   state: AppState
   event: LifeEvent | null
   onLink: (ids: string[], eventId: string) => Promise<void>
+  /** Rows Mint detected for this event — start ticked, stay untickable, and are
+   *  always listed even if the event's dates were edited to exclude them. */
+  preselectedIds?: string[] | null
 }
 
-export function LinkExpensesSheet({ open, onClose, state, event, onLink }: Props) {
+export function LinkExpensesSheet({ open, onClose, state, event, onLink, preselectedIds }: Props) {
   const c = useTheme()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => { if (open) setSelected(new Set()) }, [open, event?.id])
 
   const catMap = useMemo(() => catById(state.categories), [state.categories])
   const acctById = useMemo(() => Object.fromEntries([
@@ -34,6 +35,8 @@ export function LinkExpensesSheet({ open, onClose, state, event, onLink }: Props
     () => Object.fromEntries(state.events.map(e => [e.id, e] as const)),
     [state.events])
 
+  const preselected = useMemo(() => new Set(preselectedIds ?? []), [preselectedIds])
+
   const candidates = useMemo(() => {
     if (!event) return []
     const from = event.start_date || iso(addDays(TODAY, -LOOKBACK_DAYS))
@@ -41,13 +44,21 @@ export function LinkExpensesSheet({ open, onClose, state, event, onLink }: Props
     return state.transactions
       .filter(t =>
         t.transaction_type === 'expense' &&
-        t.transaction_date >= from && t.transaction_date <= to &&
+        (preselected.has(t.id) || (t.transaction_date >= from && t.transaction_date <= to)) &&
         !isSystemTx(t, catMap) &&
         // Legs of one split payment must not be individually taggable — same
         // reasoning as the daily-challenge exclusion toast.
         !t.split_group_id)
       .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
-  }, [state.transactions, event, catMap])
+  }, [state.transactions, event, catMap, preselected])
+
+  // Ticks only what's still selectable: a row tagged elsewhere since detection
+  // stays visible (greyed, with its event) but is never silently re-linked.
+  useEffect(() => {
+    if (!open) return
+    setSelected(new Set(candidates.filter(t => preselected.has(t.id) && !t.event_id).map(t => t.id)))
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open/event only, not on every candidates change
+  }, [open, event?.id, preselected])
 
   const toggle = (id: string) => setSelected(prev => {
     const next = new Set(prev)
@@ -80,7 +91,9 @@ export function LinkExpensesSheet({ open, onClose, state, event, onLink }: Props
           Link recent expenses
         </div>
         <div style={{ font: '600 12.5px Plus Jakarta Sans', color: c.muted, marginBottom: 18, lineHeight: 1.5 }}>
-          {event ? <>Money you already spent on <strong style={{ color: c.ink }}>{event.name}</strong>. Tick what belongs — you can do this again later.</> : null}
+          {!event ? null : preselected.size > 0
+            ? <>Mint found these — untick anything that doesn't belong.</>
+            : <>Money you already spent on <strong style={{ color: c.ink }}>{event.name}</strong>. Tick what belongs — you can do this again later.</>}
         </div>
 
         {candidates.length === 0 ? (

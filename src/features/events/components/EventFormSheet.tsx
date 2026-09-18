@@ -20,12 +20,14 @@ interface Props {
   onSave: (form: EventFormValues) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
   editEvent?: LifeEvent | null
+  /** Starting values for a NEW event — from a Mint suggestion. Ignored when editing. */
+  prefill?: Partial<EventFormValues> | null
 }
 
-export function EventFormSheet({ open, onClose, state, onSave, onAddCategory, editEvent }: Props) {
+export function EventFormSheet({ open, onClose, state, onSave, onAddCategory, editEvent, prefill }: Props) {
   const c = useTheme()
   const [step, setStep] = useState<1 | 2>(1)
-  const [icon, setIcon] = useState(DEFAULT_EVENT_ICON)
+  const [icon, setIcon] = useState<string>(DEFAULT_EVENT_ICON)
   const [name, setName] = useState('')
   const [target, setTarget] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -52,16 +54,16 @@ export function EventFormSheet({ open, onClose, state, onSave, onAddCategory, ed
       setCategoryId(editEvent.default_category_id ?? '')
       setExcluded(editEvent.excluded_from_budget)
     } else {
-      setIcon(DEFAULT_EVENT_ICON)
-      setName('')
+      setIcon(prefill?.icon ?? DEFAULT_EVENT_ICON)
+      setName(prefill?.name ?? '')
       setTarget('')
-      setStartDate(iso(TODAY))
-      setEndDate('')
-      setAccountId(state.accounts.find(a => a.is_active)?.id ?? '')
-      setCategoryId('')
+      setStartDate(prefill?.start_date ?? iso(TODAY))
+      setEndDate(prefill?.end_date ?? '')
+      setAccountId(prefill?.default_account_id ?? state.accounts.find(a => a.is_active)?.id ?? '')
+      setCategoryId(prefill?.default_category_id ?? '')
       setExcluded(true)
     }
-  }, [open, editEvent, state.accounts])
+  }, [open, editEvent, prefill, state.accounts])
 
   const handleSave = async () => {
     if (saving) return

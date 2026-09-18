@@ -22,7 +22,7 @@ const ENFORCE_TOKEN_LIMIT = false
 // invent categories and pollute the data the budget is set from.
 const KNOWN_FEATURES = new Set([
   'chat', 'affordability', 'analytics', 'goal-plan', 'goal-progress', 'coach',
-  'categorize', 'parse', 'receipt-extract', 'statement-extract',
+  'categorize', 'parse', 'receipt-extract', 'statement-extract', 'event-detect',
 ])
 
 const cors = {
@@ -403,7 +403,7 @@ Deno.serve(async (req) => {
     const used = start.requests - 1
 
     const body = await req.json()
-    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType, images, feature } = body
+    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType, images, feature, expenses, eventNames, iconKeys } = body
 
     // ── Token accounting for this request ──────────────────────────────────
     // One HTTP request can make up to TEN upstream Groq calls: the chat tool
@@ -892,6 +892,98 @@ Rules:
           amount: typeof parsed.amount === 'number' ? parsed.amount : null,
           account: validAccount,
           category: validCategory,
+          used: used + 1,
+          usage_pct: await currentUsagePct(),
+          enforcing: ENFORCE_TOKEN_LIMIT,
+        }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ── Event-detect mode: does recent untagged spending form one real-life occasion? ──
+    // Only called after the client's free local detector has found a signal, and
+    // cached per signal there, so this runs rarely. The client validates every
+    // index against the rows it sent — nothing here is trusted to link anything,
+    // and the user confirms each row before it's tagged.
+    if (mode === 'event-detect') {
+      if (!Array.isArray(expenses) || expenses.length < 2) {
+        return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
+      }
+
+      // Same caps the client applies (MAX_AI_ROWS, 60-char descriptions) — enforced
+      // here too because the prompt size is this function's cost, not the client's.
+      const rows = expenses.slice(0, 60).map((e: Record<string, unknown>, i: number) => {
+        const d = String(e?.d ?? '').replace(/\s+/g, ' ').slice(0, 60)
+        const c = String(e?.c ?? '').slice(0, 30)
+        const a = Math.round(Number(e?.a) || 0)
+        const dt = String(e?.dt ?? '').slice(0, 10)
+        return `${i} | ${dt} | ${a} | ${c || '-'} | ${d}`
+      })
+      const knownEvents = (Array.isArray(eventNames) ? eventNames : []).slice(0, 30).map((n: unknown) => String(n).slice(0, 40))
+      const icons = (Array.isArray(iconKeys) ? iconKeys : []).slice(0, 20).map((k: unknown) => String(k).slice(0, 20))
+
+      const prompt = `You look at a person's recent expenses and decide whether some of them belong to ONE real-life occasion. Return JSON only. No markdown, no explanation.
+Descriptions may be in broken English, Hinglish or Manglish (Malayalam+English) — understand the intent.
+
+Expenses (index | date | amount | category | description):
+${rows.join('\n')}
+
+Existing events: ${knownEvents.join(', ') || 'none'}
+Icons: ${icons.join(', ') || 'ring'}
+
+An occasion is something like: a trip or tour, a wedding or engagement, a hospital stay, a festival, a house shift or renovation, a family function.
+Expenses can belong to one occasion without sharing words (hospital admission + pharmacy + scan; wedding gift + bus ticket + dinner).
+NEVER call these an occasion: grocery or daily habits, chai/coffee/snacks, recurring bills or rent, subscriptions, repeated shopping at the same shop or mall.
+
+Return exactly this JSON shape:
+{"is_event":false,"name":"","icon":"","indices":[],"confidence":0}
+
+Rules:
+- is_event: true only if at least 2 expenses clearly belong to the same occasion.
+- indices: the index numbers of ONLY the expenses that belong to that occasion.
+- name: short, 2-4 words, title case, e.g. "Ooty Trip", "Anu's Wedding", "Hospital Stay". If it is one of the Existing events, use that exact name.
+- icon: one value from Icons.
+- confidence: 0-100, how sure you are this is a real occasion.`
+
+      const groqRes = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: MODEL_TEXT_SMALL,
+          messages: [{ role: 'user', content: prompt }],
+          ...LOW_REASONING,
+          // Reasoning models spend part of the budget thinking even at low effort;
+          // a truncated completion returns empty rather than erroring (see parse mode).
+          max_tokens: 600,
+          temperature: 0,
+        }),
+      })
+
+      if (!groqRes.ok) {
+        return groqFailure(groqRes.status, await groqRes.text())
+      }
+
+      const groqData = await groqRes.json()
+      recordUsage('event-detect', MODEL_TEXT_SMALL, groqData?.usage)
+      const raw = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
+
+      let parsed: { is_event?: unknown; name?: unknown; icon?: unknown; indices?: unknown; confidence?: unknown } = { is_event: false }
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/)
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0])
+      } catch {
+        parsed = { is_event: false }
+      }
+
+      await flushUsage()
+
+      return new Response(
+        JSON.stringify({
+          is_event: parsed.is_event === true,
+          name: typeof parsed.name === 'string' ? parsed.name : '',
+          icon: typeof parsed.icon === 'string' ? parsed.icon : '',
+          indices: Array.isArray(parsed.indices) ? parsed.indices : [],
+          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
           used: used + 1,
           usage_pct: await currentUsagePct(),
           enforcing: ENFORCE_TOKEN_LIMIT,

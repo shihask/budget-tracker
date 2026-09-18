@@ -81,6 +81,59 @@ export async function parseExpenseWithAI(
   }
 }
 
+/** One row sent to event detection: index, description, category name, amount,
+ *  date. Short keys because up to 60 of these go into every prompt. */
+export type AIEventDetectRow = { i: number; d: string; c: string; a: number; dt: string }
+
+export type AIEventDetection = {
+  is_event: boolean
+  name: string
+  icon: string
+  indices: unknown[]
+  confidence: number
+}
+
+/** Asks whether recent untagged spending forms one real-life occasion. The raw
+ *  answer is returned unvalidated — `validateAiResult` in event-suggestions.ts
+ *  maps indices back to rows and applies every threshold. */
+export async function detectLifeEventWithAI(
+  expenses: AIEventDetectRow[],
+  eventNames: string[],
+  iconKeys: string[],
+  onUsed?: OnAiUsed
+): Promise<AIEventDetection | null> {
+  if (expenses.length < 2) return null
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ mode: 'event-detect', feature: 'event-detect', expenses, eventNames, iconKeys }),
+    })
+
+    if (res.status === 429) { console.warn('Mint AI usage limit reached'); return null }
+    if (!res.ok) return null
+
+    const data = await res.json()
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
+    return {
+      is_event: data.is_event === true,
+      name: typeof data.name === 'string' ? data.name : '',
+      icon: typeof data.icon === 'string' ? data.icon : '',
+      indices: Array.isArray(data.indices) ? data.indices : [],
+      confidence: typeof data.confidence === 'number' ? data.confidence : 0,
+    }
+  } catch (e) {
+    console.error('[AI] event detect failed:', e)
+    return null
+  }
+}
+
 export type AIReceiptExtraction = {
   description: string | null
   merchant: string | null   // same value as description today — kept distinct for future use, not read anywhere yet

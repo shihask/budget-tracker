@@ -163,6 +163,42 @@ next render — no backfill, no recompute.
   live names a `23505`; `addEvent`/`updateEvent` translate it into a readable message.
 - `LinkExpensesSheet` skips split legs — same reasoning as the daily-challenge exclusion toast.
 
+### Suggestions — "Mint noticed a life event" (v1.71)
+The second discovery path: when untagged spending looks like one occasion ("tea ooty trip",
+"lunch ooty trip", "petrol ooty trip"), a card in the dashboard's `events` slot proposes it.
+**Nothing is ever auto-linked** — Create opens `EventFormSheet` prefilled, then
+`LinkExpensesSheet` with the detected rows ticked (`preselectedIds`), and the user taps Link.
+A match on an existing live event (by `eventSlug`) skips the form: "Link to Ooty Trip".
+
+| File | Purpose |
+|---|---|
+| `src/lib/event-suggestions.ts` | Pure detection: pool, tokenizer, phrase clusters, novelty, merchant rejection, burst, `validateAiResult`, `isSuppressed`. Constants documented at the top |
+| `src/features/events/hooks/useEventSuggestion.ts` | Novelty-history fetch, AI call, cache, dismissals |
+| `src/features/events/components/EventSuggestionCard.tsx` | The card |
+| `src/components/UndoSnackbar.tsx` | "Suggestion dismissed · Undo" |
+
+Pipeline: pool (30d, untagged, unsplit, non-system, ≤60) → phrase clusters → novelty (90d) →
+merchant rejection. **Autopilot off** → local suggestion only (phrase, ≥3 rows, ≥2 categories,
+≥₹500). **Autopilot on** → AI (`event-detect` mode) only when a signal fires:
+- **Phrase** — novel, non-merchant phrase in ≥2 rows across ≥2 categories within 21 days.
+- **Burst** — ≥3 rows in 5 days, ≥₹500 and ≥3× the trailing 90-day *median* day. Catches
+  hospital/wedding clusters that share no words. Never a local suggestion on its own.
+
+Gotchas:
+- **Novelty is token-based on both sides, never `ILIKE`** — "goa" must not match "goal". When the
+  200 loaded rows don't reach 90 days back, the hook fetches just descriptions for that range.
+- The burst baseline is `null` (no burst) when history doesn't reach 90 days: an unknown day is
+  not a zero-spend day, or every new user's ordinary week reads as a burst.
+- The phrase signal needs ≥2 categories too — otherwise a new user (no history → everything
+  novel) re-asks AI about their chai every time they log one.
+- The AI cache (`mp_event_suggest_<uid>`) is keyed on the **signal rows'** fingerprint
+  (`id:date:tokens`), not the whole pool, so an unrelated coffee doesn't re-ask. "Not an event"
+  is cached too; an AI failure is not (falls back to the local suggestion).
+- Merchant rule C (shared first word) only rejects when that word is written as a shop somewhere
+  in the cluster ("Lulu Hypermarket", "Hotel Maharaja") — "Ooty entry fee / Ooty boating" is a trip.
+- Dismissal (`mp_event_suggest_dismissed_<uid>`) is by tx id with a majority rule, not by name —
+  AI may rename the same trip.
+
 ## Expense Reimbursement — linked recovery
 When someone pays you back, the money is **not income** — it reduces the expense it repays.
 `transactions.reimbursement_for` is a nullable self-FK on an ordinary `income` row, so the
@@ -261,6 +297,7 @@ Two limits, neither shown to the user — the card says only `Mint AI · 23% use
 - `mp_ai_usage_today()` is authoritative. `settings.ai_usage_pct` / `ai_usage_enforcing` are display caches that go stale across midnight — apply the `isToday` guard before reading.
 - `usageDate` is stamped once per request and reused for every write, so a stream crossing midnight can't corrupt the new day (`mp_bump_ai_usage` drops late flushes).
 - `ai_call_log` records every upstream call with `feature` (allowlisted) and the model that *actually* answered — six features share `mode: 'chat'`, so `feature` is what makes calibration possible. 30-day retention via pg_cron.
+- `event-detect` (`MODEL_TEXT_SMALL`) — Life Event suggestion; client-gated by a local signal and cached per signal fingerprint, so it runs rarely. Output is untrusted: `validateAiResult` maps indices back to the rows sent.
 - `categorizeWithAI` in `src/lib/gemini.ts` is **dead code** — exported, never imported. QuickAdd's autopilot uses `parseExpenseWithAI`.
 
 ## Statement import — storage protection

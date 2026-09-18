@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 
 import { version as APP_VERSION } from '../package.json'
 import type { Session } from '@supabase/supabase-js'
@@ -7,7 +7,7 @@ import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import { fmt, iso, TODAY, localIso, round2, TimeoutError, selectOnFocus } from '@/lib/utils'
+import { fmt, iso, TODAY, addDays, localIso, round2, TimeoutError, selectOnFocus } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import type { Transaction, LifeEvent } from '@/types'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
@@ -91,6 +91,12 @@ import { ProjectsDashboardCard } from '@/features/shared-projects/components/Pro
 import { EventsCard } from '@/features/events/components/EventsCard'
 import { EventFormSheet } from '@/features/events/components/EventFormSheet'
 import { LinkExpensesSheet } from '@/features/events/components/LinkExpensesSheet'
+import { EventSuggestionCard } from '@/features/events/components/EventSuggestionCard'
+import { useEventSuggestion } from '@/features/events/hooks/useEventSuggestion'
+import type { EventSuggestion } from '@/lib/event-suggestions'
+import type { EventFormValues } from '@/features/events/components/EventFormSheet'
+import { UndoSnackbar } from '@/components/UndoSnackbar'
+import { aiUsagePatch } from '@/lib/gemini'
 import { EventsListPage } from '@/features/events/components/EventsListPage'
 import { CreateMenuSheet } from '@/components/CreateMenuSheet'
 import { ProjectsListPage } from '@/features/shared-projects/components/ProjectsListPage'
@@ -223,6 +229,12 @@ function AppContent({ session }: { session: Session }) {
   const [eventsAddOnOpen, setEventsAddOnOpen] = useState(false)
   const [eventDetailId, setEventDetailId] = useState<string | null>(null)
   const [linkExpensesForId, setLinkExpensesForId] = useState<string | null>(null)
+  // Mint's event suggestion: what the form starts with, which rows to tick once
+  // the event exists, and which rows the Link sheet is currently ticking.
+  const [eventPrefill, setEventPrefill] = useState<Partial<EventFormValues> | null>(null)
+  const [pendingLinkIds, setPendingLinkIds] = useState<string[] | null>(null)
+  const [linkPreselect, setLinkPreselect] = useState<string[] | null>(null)
+  const [suggestionUndoOpen, setSuggestionUndoOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [seenSharedIds, setSeenSharedIds] = useState<Set<string>>(() => {
     try { const ids = JSON.parse(localStorage.getItem('mp_seen_shared_' + session.user.id) || '[]'); return new Set(ids) } catch { return new Set() }
@@ -407,6 +419,41 @@ function AppContent({ session }: { session: Session }) {
   // useDailyChallenge/useAchievements above.
   useHabitEvaluation(state.habits, applyHabitCatchUp, fetchHabitCompletions)
 
+  const eventSuggestion = useEventSuggestion({
+    state,
+    userId: session.user.id,
+    autopilotEnabled: state.settings.autopilot_enabled ?? false,
+    allTransactionsLoaded,
+    onAiUsed: (n, pct, enf) => updateSettings(aiUsagePatch(n, pct, enf)),
+  })
+
+  // Never links anything itself — both paths end in LinkExpensesSheet with the
+  // detected rows ticked, and the user confirms.
+  const acceptEventSuggestion = (s: EventSuggestion) => {
+    if (s.existingEventId) {
+      setEventDetailId(s.existingEventId)
+      setEventsListOpen(true)
+      setLinkPreselect(s.txIds)
+      setLinkExpensesForId(s.existingEventId)
+      return
+    }
+    setEventEditing(null)
+    setEventPrefill({
+      name: s.name,
+      icon: s.icon,
+      start_date: s.startDate,
+      // Left open while the spending may still be going on, so the Link sheet's
+      // date window doesn't stop at yesterday's last expense.
+      end_date: s.endDate < iso(addDays(TODAY, -1)) ? s.endDate : null,
+      default_category_id: s.defaultCategoryId ?? null,
+      default_account_id: s.defaultAccountId ?? null,
+    })
+    setPendingLinkIds(s.txIds)
+    setEventFormOpen(true)
+  }
+  // Stable, because UndoSnackbar's auto-close timer restarts whenever onClose changes.
+  const closeSuggestionUndo = useCallback(() => setSuggestionUndoOpen(false), [])
+
   const todayStr = iso(TODAY)
   const yesterdayStr = iso(new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - 1))
   const hourNow = TODAY.getHours()
@@ -577,6 +624,12 @@ function AppContent({ session }: { session: Session }) {
   return (
     <ThemeContext.Provider value={c}>
       <UpdateToast />
+      <UndoSnackbar
+        open={suggestionUndoOpen}
+        message="Suggestion dismissed"
+        onUndo={eventSuggestion.undoDismiss}
+        onClose={closeSuggestionUndo}
+      />
       <div style={{
         minHeight: '100svh', width: '100%',
         background: dark ? '#0C0A07' : '#EDE7DD',
@@ -717,8 +770,15 @@ function AppContent({ session }: { session: Session }) {
                     case 'credit_cards':
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onPayBill={payCreditCardBill} onViewDetails={() => setCreditCardsOpen(true)} /> : null
                       break
-                    case 'events':
-                      el = state.events.some(e => e.status === 'active') ? <EventsCard
+                    case 'events': {
+                      // The suggestion shares the Life Events slot rather than taking a
+                      // new section id, so existing saved layouts need no migration.
+                      const suggestionCard = eventSuggestion.suggestion ? <EventSuggestionCard
+                        suggestion={eventSuggestion.suggestion}
+                        onAccept={() => acceptEventSuggestion(eventSuggestion.suggestion!)}
+                        onDismiss={() => { eventSuggestion.dismiss(); setSuggestionUndoOpen(true) }}
+                      /> : null
+                      const eventsCard = state.events.some(e => e.status === 'active') ? <EventsCard
                         state={state}
                         onAdd={() => { setEventEditing(null); setEventFormOpen(true) }}
                         onSeeAll={() => { setEventDetailId(null); setEventsListOpen(true) }}
@@ -726,7 +786,11 @@ function AppContent({ session }: { session: Session }) {
                         onAddCategory={addCategory}
                         onSave={handleSave}
                       /> : null
+                      el = suggestionCard && eventsCard
+                        ? <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{suggestionCard}{eventsCard}</div>
+                        : suggestionCard ?? eventsCard
                       break
+                    }
                     case 'projects':
                       el = (state.settings.track_projects ?? false) ? <ProjectsDashboardCard projects={projectsSummary.activeProjects} sharedProjects={projectsSummary.sharedProjects} onSeeAll={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }} onAdd={() => { setProjectsAddOnOpen(true); setProjectsOpen(true) }} /> : null
                       break
@@ -880,24 +944,27 @@ function AppContent({ session }: { session: Session }) {
               back stack reads Dashboard → List → Detail however you entered. */}
           <EventFormSheet
             open={eventFormOpen}
-            onClose={() => { setEventFormOpen(false); setEventEditing(null) }}
+            onClose={() => { setEventFormOpen(false); setEventEditing(null); setEventPrefill(null); setPendingLinkIds(null) }}
             state={state}
             onAddCategory={addCategory}
             editEvent={eventEditing}
+            prefill={eventPrefill}
             onSave={async form => {
               if (eventEditing) { await updateEvent(eventEditing.id, form); return }
               const created = await addEvent(form)
               // Straight into the backfill step — the event is almost always
-              // created after the spending has already happened.
-              if (created) { setEventsListOpen(true); setLinkExpensesForId(created.id) }
+              // created after the spending has already happened. From a Mint
+              // suggestion, the detected rows arrive ticked.
+              if (created) { setEventsListOpen(true); setLinkPreselect(pendingLinkIds); setLinkExpensesForId(created.id) }
             }}
           />
           <LinkExpensesSheet
             open={!!linkExpensesForId}
-            onClose={() => setLinkExpensesForId(null)}
+            onClose={() => { setLinkExpensesForId(null); setLinkPreselect(null) }}
             state={state}
             event={state.events.find(e => e.id === linkExpensesForId) ?? null}
             onLink={linkTransactionsToEvent}
+            preselectedIds={linkPreselect}
           />
 
           {/* AI Assist FAB + Chat */}
