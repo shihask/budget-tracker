@@ -165,7 +165,7 @@ next render — no backfill, no recompute.
 
 ### Suggestions — "Mint noticed a life event" (v1.71)
 The second discovery path: when untagged spending looks like one occasion ("tea ooty trip",
-"lunch ooty trip", "petrol ooty trip"), a card in the dashboard's `events` slot proposes it.
+"lunch ooty trip", "petrol ooty trip"), Mint proposes it with a toast that then waits in the notification bell.
 **Nothing is ever auto-linked** — Create opens `EventFormSheet` prefilled, then
 `LinkExpensesSheet` with the detected rows ticked (`preselectedIds`), and the user taps Link.
 A match on an existing live event (by `eventSlug`) skips the form: "Link to Ooty Trip".
@@ -173,7 +173,7 @@ A match on an existing live event (by `eventSlug`) skips the form: "Link to Ooty
 **Surfaces (v1.72):** a toast (`EventSuggestionToast`) slides down from the top once per
 suggestion, only on a clear dashboard (App's `overlayOpen`), stays 12 s (paused while touched),
 then shrinks into the header bell (`[data-notification-bell]`) — where the suggestion waits as a
-NotificationsSheet item and adds 1 to the badge. The dashboard card stays too. "Seen" is
+NotificationsSheet item and adds 1 to the badge. There is no dashboard card (removed in v1.72.1 — it was easy to scroll past and duplicated the bell). "Seen" is
 `mp_event_suggest_toast_seen_<uid>`, same tx-id majority rule as dismissal, stamped when the toast
 *finishes* so a reload mid-toast replays it.
 
@@ -181,7 +181,7 @@ NotificationsSheet item and adds 1 to the badge. The dashboard card stays too. "
 |---|---|
 | `src/lib/event-suggestions.ts` | Pure detection: pool, tokenizer, phrase clusters, novelty, merchant rejection, burst, `validateAiResult`, `isSuppressed`. Constants documented at the top |
 | `src/features/events/hooks/useEventSuggestion.ts` | Novelty-history fetch, AI call, cache, dismissals |
-| `src/features/events/components/EventSuggestionCard.tsx` | The card |
+| `src/features/events/components/EventSuggestionToast.tsx` | The top toast that flies into the bell |
 | `src/components/UndoSnackbar.tsx` | "Suggestion dismissed · Undo" |
 
 Pipeline: pool (30d, untagged, unsplit, non-system, ≤60) → phrase clusters → novelty (90d) →

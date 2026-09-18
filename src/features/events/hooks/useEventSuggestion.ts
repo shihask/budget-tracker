@@ -31,8 +31,8 @@ interface CachedEventSuggestion {
 
 const cacheKey = (userId: string) => `mp_event_suggest_${userId}`
 const dismissedKey = (userId: string) => `mp_event_suggest_dismissed_${userId}`
-/** Suggestions that already had their one toast — after that, the bell and
- *  the dashboard card are where they live. Same tx-id majority rule as dismissal. */
+/** Suggestions that already had their one toast — after that, the
+ *  notification bell is where they live. Same tx-id majority rule as dismissal. */
 const toastSeenKey = (userId: string) => `mp_event_suggest_toast_seen_${userId}`
 
 function readCache(userId: string): CachedEventSuggestion | null {

@@ -91,7 +91,6 @@ import { ProjectsDashboardCard } from '@/features/shared-projects/components/Pro
 import { EventsCard } from '@/features/events/components/EventsCard'
 import { EventFormSheet } from '@/features/events/components/EventFormSheet'
 import { LinkExpensesSheet } from '@/features/events/components/LinkExpensesSheet'
-import { EventSuggestionCard } from '@/features/events/components/EventSuggestionCard'
 import { EventSuggestionToast } from '@/features/events/components/EventSuggestionToast'
 import { useEventSuggestion } from '@/features/events/hooks/useEventSuggestion'
 import type { EventSuggestion } from '@/lib/event-suggestions'
@@ -802,15 +801,8 @@ function AppContent({ session }: { session: Session }) {
                     case 'credit_cards':
                       el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onPayBill={payCreditCardBill} onViewDetails={() => setCreditCardsOpen(true)} /> : null
                       break
-                    case 'events': {
-                      // The suggestion shares the Life Events slot rather than taking a
-                      // new section id, so existing saved layouts need no migration.
-                      const suggestionCard = eventSuggestion.suggestion ? <EventSuggestionCard
-                        suggestion={eventSuggestion.suggestion}
-                        onAccept={() => acceptEventSuggestion(eventSuggestion.suggestion!)}
-                        onDismiss={() => { eventSuggestion.dismiss(); setSuggestionUndoOpen(true) }}
-                      /> : null
-                      const eventsCard = state.events.some(e => e.status === 'active') ? <EventsCard
+                    case 'events':
+                      el = state.events.some(e => e.status === 'active') ? <EventsCard
                         state={state}
                         onAdd={() => { setEventEditing(null); setEventFormOpen(true) }}
                         onSeeAll={() => { setEventDetailId(null); setEventsListOpen(true) }}
@@ -818,11 +810,7 @@ function AppContent({ session }: { session: Session }) {
                         onAddCategory={addCategory}
                         onSave={handleSave}
                       /> : null
-                      el = suggestionCard && eventsCard
-                        ? <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{suggestionCard}{eventsCard}</div>
-                        : suggestionCard ?? eventsCard
                       break
-                    }
                     case 'projects':
                       el = (state.settings.track_projects ?? false) ? <ProjectsDashboardCard projects={projectsSummary.activeProjects} sharedProjects={projectsSummary.sharedProjects} onSeeAll={() => { setProjectsAddOnOpen(false); setProjectsOpen(true) }} onAdd={() => { setProjectsAddOnOpen(true); setProjectsOpen(true) }} /> : null
                       break
