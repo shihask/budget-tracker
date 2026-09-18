@@ -166,9 +166,17 @@ next render — no backfill, no recompute.
 ### Suggestions — "Mint noticed a life event" (v1.71)
 The second discovery path: when untagged spending looks like one occasion ("tea ooty trip",
 "lunch ooty trip", "petrol ooty trip"), Mint proposes it with a toast that then waits in the notification bell.
-**Nothing is ever auto-linked** — Create opens `EventFormSheet` prefilled, then
-`LinkExpensesSheet` with the detected rows ticked (`preselectedIds`), and the user taps Link.
+**Nothing is ever auto-linked.** Flow (v1.73): toast/bell → **Review** (`EventSuggestionSheet`:
+name, dates, total, the detected expenses) → Create Event → `EventFormSheet` prefilled →
+`LinkExpensesSheet` with the rows ticked (`preselectedIds`) → the user taps Link.
 A match on an existing live event (by `eventSlug`) skips the form: "Link to Ooty Trip".
+
+**AI runs on Review, never in the background.** The toast comes from the free local check; AI
+(`analyze()`) is called only when the user opens a suggestion and the cache misses
+(`needsAnalysis`). That is the only time `public/mint-thinking-loop.svg` (Mint's breathing leaf)
+shows — for at least 1.2 s so a fast answer doesn't flicker, 15 s timeout then the local result.
+A cache hit or Autopilot off opens straight to the result. Don't reuse the animation as
+decoration — its meaning is "AI is running right now".
 
 **Surfaces (v1.72):** a toast (`EventSuggestionToast`) slides down from the top once per
 suggestion, only on a clear dashboard (App's `overlayOpen`), stays 12 s (paused while touched),
@@ -181,15 +189,19 @@ NotificationsSheet item and adds 1 to the badge. There is no dashboard card (rem
 |---|---|
 | `src/lib/event-suggestions.ts` | Pure detection: pool, tokenizer, phrase clusters, novelty, merchant rejection, burst, `validateAiResult`, `isSuppressed`. Constants documented at the top |
 | `src/features/events/hooks/useEventSuggestion.ts` | Novelty-history fetch, AI call, cache, dismissals |
-| `src/features/events/components/EventSuggestionToast.tsx` | The top toast that flies into the bell |
+| `src/features/events/components/EventSuggestionToast.tsx` | The top toast that flies into the bell; its button is **Review** |
+| `src/features/events/components/EventSuggestionSheet.tsx` | Review: Mint thinking (AI running) → result or "Looks like everyday spending" |
 | `src/components/UndoSnackbar.tsx` | "Suggestion dismissed · Undo" |
 
 Pipeline: pool (30d, untagged, unsplit, non-system, ≤60) → phrase clusters → novelty (90d) →
 merchant rejection. **Autopilot off** → local suggestion only (phrase, ≥3 rows, ≥2 categories,
-≥₹500). **Autopilot on** → AI (`event-detect` mode) only when a signal fires:
+≥₹500). **Autopilot on** → the same local suggestion, plus a **burst** offered as generic
+"Mint noticed unusual spending" (`burstSuggestion`, `generic: true`) for AI to name on Review.
+The AI signal (what the cache is keyed on):
 - **Phrase** — novel, non-merchant phrase in ≥2 rows across ≥2 categories within 21 days.
 - **Burst** — ≥3 rows in 5 days, ≥₹500 and ≥3× the trailing 90-day *median* day. Catches
-  hospital/wedding clusters that share no words. Never a local suggestion on its own.
+  hospital/wedding clusters that share no words. Never named locally; if AI says it's everyday
+  spending, the generic suggestion retires and Review says so.
 
 Gotchas:
 - **Novelty is token-based on both sides, never `ILIKE`** — "goa" must not match "goal". When the
@@ -306,7 +318,7 @@ Two limits, neither shown to the user — the card says only `Mint AI · 23% use
 - `mp_ai_usage_today()` is authoritative. `settings.ai_usage_pct` / `ai_usage_enforcing` are display caches that go stale across midnight — apply the `isToday` guard before reading.
 - `usageDate` is stamped once per request and reused for every write, so a stream crossing midnight can't corrupt the new day (`mp_bump_ai_usage` drops late flushes).
 - `ai_call_log` records every upstream call with `feature` (allowlisted) and the model that *actually* answered — six features share `mode: 'chat'`, so `feature` is what makes calibration possible. 30-day retention via pg_cron.
-- `event-detect` (`MODEL_TEXT_SMALL`) — Life Event suggestion; client-gated by a local signal and cached per signal fingerprint, so it runs rarely. Output is untrusted: `validateAiResult` maps indices back to the rows sent.
+- `event-detect` (`MODEL_TEXT_SMALL`) — Life Event suggestion; runs only when the user opens Review on a cache miss (cached per signal fingerprint), so it runs rarely. Output is untrusted: `validateAiResult` maps indices back to the rows sent.
 - `categorizeWithAI` in `src/lib/gemini.ts` is **dead code** — exported, never imported. QuickAdd's autopilot uses `parseExpenseWithAI`.
 
 ## Statement import — storage protection

@@ -7,7 +7,7 @@ import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import { fmt, iso, TODAY, addDays, localIso, round2, TimeoutError, selectOnFocus } from '@/lib/utils'
+import { fmt, iso, TODAY, addDays, localIso, round2, TimeoutError, selectOnFocus, withTimeout } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import type { Transaction, LifeEvent } from '@/types'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
@@ -92,6 +92,7 @@ import { EventsCard } from '@/features/events/components/EventsCard'
 import { EventFormSheet } from '@/features/events/components/EventFormSheet'
 import { LinkExpensesSheet } from '@/features/events/components/LinkExpensesSheet'
 import { EventSuggestionToast } from '@/features/events/components/EventSuggestionToast'
+import { EventSuggestionSheet } from '@/features/events/components/EventSuggestionSheet'
 import { useEventSuggestion } from '@/features/events/hooks/useEventSuggestion'
 import type { EventSuggestion } from '@/lib/event-suggestions'
 import type { EventFormValues } from '@/features/events/components/EventFormSheet'
@@ -167,6 +168,12 @@ export default function App() {
 
 /** Delay before a Life Event suggestion toast slides in on a clear dashboard. */
 const SUGGESTION_TOAST_DELAY_MS = 1200
+/** Mint's thinking leaf stays at least this long, so a fast AI answer reads as analysis, not a flicker. */
+const SUGGESTION_MIN_ANALYZING_MS = 1200
+/** Give up waiting on AI and show the local result. */
+const SUGGESTION_ANALYZE_TIMEOUT_MS = 15_000
+/** BottomSheet unmounts 340 ms after closing; wait that out before emptying one. */
+const SHEET_CLOSE_MS = 350
 
 // ── AppContent: all hooks live here, no early returns before them ─────────────
 function AppContent({ session }: { session: Session }) {
@@ -238,6 +245,10 @@ function AppContent({ session }: { session: Session }) {
   const [pendingLinkIds, setPendingLinkIds] = useState<string[] | null>(null)
   const [linkPreselect, setLinkPreselect] = useState<string[] | null>(null)
   const [suggestionUndoOpen, setSuggestionUndoOpen] = useState(false)
+  // Review sheet between the toast/bell and the event form; `analyzing` is the
+  // only time Mint's thinking animation shows (AI running on a cache miss).
+  const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false)
+  const [suggestionAnalyzing, setSuggestionAnalyzing] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [seenSharedIds, setSeenSharedIds] = useState<Set<string>>(() => {
     try { const ids = JSON.parse(localStorage.getItem('mp_seen_shared_' + session.user.id) || '[]'); return new Set(ids) } catch { return new Set() }
@@ -442,7 +453,8 @@ function AppContent({ session }: { session: Session }) {
     }
     setEventEditing(null)
     setEventPrefill({
-      name: s.name,
+      // A nameless burst (AI unavailable) leaves the name for the user to type.
+      name: s.generic ? '' : s.name,
       icon: s.icon,
       start_date: s.startDate,
       // Left open while the spending may still be going on, so the Link sheet's
@@ -453,6 +465,18 @@ function AppContent({ session }: { session: Session }) {
     })
     setPendingLinkIds(s.txIds)
     setEventFormOpen(true)
+  }
+  // Opens Review. On a cache miss AI runs now — never in the background — and
+  // Mint's thinking leaf shows for at least SUGGESTION_MIN_ANALYZING_MS so a fast
+  // answer doesn't flicker. On a hit (or without AI) the result shows at once.
+  const openSuggestionReview = () => {
+    setSuggestionReviewOpen(true)
+    if (!eventSuggestion.needsAnalysis) return
+    setSuggestionAnalyzing(true)
+    Promise.all([
+      withTimeout(eventSuggestion.analyze(), SUGGESTION_ANALYZE_TIMEOUT_MS, 'Event analysis timed out').catch(() => {}),
+      new Promise(resolve => window.setTimeout(resolve, SUGGESTION_MIN_ANALYZING_MS)),
+    ]).finally(() => setSuggestionAnalyzing(false))
   }
   // Stable, because UndoSnackbar's auto-close timer restarts whenever onClose changes.
   const closeSuggestionUndo = useCallback(() => setSuggestionUndoOpen(false), [])
@@ -504,7 +528,7 @@ function AppContent({ session }: { session: Session }) {
     !!linkExpensesForId || notificationsOpen || createMenuOpen || commitmentsOpen || borrowingOpen || savingsOpen ||
     creditCardsOpen || catsOpen || mastersOpen || analyticsOpen || cashflowOpen || projectsOpen || growOpen ||
     achievementsOpen || habitsOpen || reflectionOpen || aaSyncOpen || importStatementOpen || tourOpen || adminOpen ||
-    layoutOpen || budgetEditOpen || emergencyEditOpen || !!challengeWin
+    layoutOpen || budgetEditOpen || emergencyEditOpen || suggestionReviewOpen || !!challengeWin
   const toastKey = eventSuggestion.shouldToast && eventSuggestion.suggestion ? eventSuggestion.suggestion.txIds.join(',') : null
   const [toastStartedFor, setToastStartedFor] = useState<string | null>(null)
   useEffect(() => {
@@ -652,7 +676,7 @@ function AppContent({ session }: { session: Session }) {
         <EventSuggestionToast
           key={toastKey!}
           suggestion={eventSuggestion.suggestion}
-          onCreate={() => acceptEventSuggestion(eventSuggestion.suggestion!)}
+          onReview={openSuggestionReview}
           onDone={eventSuggestion.markToastSeen}
         />
       )}
@@ -979,6 +1003,20 @@ function AppContent({ session }: { session: Session }) {
               if (created) { setEventsListOpen(true); setLinkPreselect(pendingLinkIds); setLinkExpensesForId(created.id) }
             }}
           />
+          <EventSuggestionSheet
+            open={suggestionReviewOpen}
+            onClose={() => setSuggestionReviewOpen(false)}
+            state={state}
+            suggestion={eventSuggestion.suggestion}
+            analyzing={suggestionAnalyzing}
+            onCreate={s => { setSuggestionReviewOpen(false); acceptEventSuggestion(s) }}
+            onDismiss={() => {
+              setSuggestionReviewOpen(false)
+              // After the sheet has slid away — dismissing first would empty it
+              // mid-close and flash "Looks like everyday spending".
+              window.setTimeout(() => { eventSuggestion.dismiss(); setSuggestionUndoOpen(true) }, SHEET_CLOSE_MS)
+            }}
+          />
           <LinkExpensesSheet
             open={!!linkExpensesForId}
             onClose={() => { setLinkExpensesForId(null); setLinkPreselect(null) }}
@@ -1199,7 +1237,7 @@ function AppContent({ session }: { session: Session }) {
           onNavigate={onNavigateNotification}
           onClearAll={clearAllAlerts}
           eventSuggestion={suggestionInBell ? eventSuggestion.suggestion : null}
-          onEventSuggestion={() => eventSuggestion.suggestion && acceptEventSuggestion(eventSuggestion.suggestion)}
+          onEventSuggestion={openSuggestionReview}
           onDismissEventSuggestion={() => { eventSuggestion.dismiss(); setSuggestionUndoOpen(true) }}
         />
 

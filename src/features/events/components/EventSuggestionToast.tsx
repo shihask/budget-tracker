@@ -21,7 +21,7 @@ type Phase = 'entering' | 'shown' | 'flying' | 'leaving'
 
 interface Props {
   suggestion: EventSuggestion
-  onCreate: () => void
+  onReview: () => void
   /** The toast has finished — landed in the bell, or acted on. */
   onDone: () => void
 }
@@ -32,7 +32,7 @@ const prefersReducedMotion = () =>
 /** Slides down from the top, stays TOAST_VISIBLE_MS, then shrinks into the
  *  notification bell — where the suggestion is waiting in the Notifications
  *  sheet. The fly-in is the explanation of where it went. */
-export function EventSuggestionToast({ suggestion: s, onCreate, onDone }: Props) {
+export function EventSuggestionToast({ suggestion: s, onReview, onDone }: Props) {
   const c = useTheme()
   const ref = useRef<HTMLDivElement>(null)
   const [phase, setPhase] = useState<Phase>('entering')
@@ -123,7 +123,7 @@ export function EventSuggestionToast({ suggestion: s, onCreate, onDone }: Props)
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: '700 11.5px Plus Jakarta Sans', color: c.muted }}>
-            <Sparkles size={12} color={EVENT_COLOR} /> Mint noticed a life event
+            <Sparkles size={12} color={EVENT_COLOR} /> {s.generic ? 'Mint noticed unusual spending' : 'Mint noticed a life event'}
           </div>
           <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {s.name}
@@ -133,13 +133,13 @@ export function EventSuggestionToast({ suggestion: s, onCreate, onDone }: Props)
           </div>
         </div>
         <button
-          onClick={() => { onCreate(); done.current() }}
+          onClick={() => { onReview(); done.current() }}
           style={{
             padding: '9px 12px', borderRadius: 12, border: 'none', flexShrink: 0,
             background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer',
           }}
         >
-          {s.existingEventId ? 'Link' : 'Create'}
+          Review
         </button>
         <button
           onClick={fileIntoBell}

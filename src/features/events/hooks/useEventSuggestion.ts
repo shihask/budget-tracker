@@ -8,7 +8,7 @@ import { detectLifeEventWithAI } from '@/lib/gemini'
 import type { OnAiUsed } from '@/lib/gemini'
 import {
   suggestionPool, suggestionFingerprint, detectEventSignals, hasEventSignal, signalRows,
-  buildSuggestion, validateAiResult, isSuppressed, shiftIso, NOVELTY_LOOKBACK_DAYS,
+  buildSuggestion, burstSuggestion, validateAiResult, isSuppressed, shiftIso, NOVELTY_LOOKBACK_DAYS,
 } from '@/lib/event-suggestions'
 import type { EventSuggestion, HistoryRow } from '@/lib/event-suggestions'
 import { EVENT_ICON_KEYS, DEFAULT_EVENT_ICON, isEventIconKey } from '../lib/eventIcons'
@@ -173,23 +173,28 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
     ? suggestionFingerprint(signalRows(detection))
     : null
 
-  // ── AI ────────────────────────────────────────────────────────────────────
+  // ── AI: on demand, when the user opens Review ─────────────────────────────
+  // Never in the background. The toast comes from the free local check; AI runs
+  // only for suggestions the user actually opens, which is also the one moment
+  // Mint's thinking animation means something.
   const [aiEntry, setAiEntry] = useState<CachedEventSuggestion | null>(() => readCache(userId))
   const [failedKeys, setFailedKeys] = useState<Set<string>>(() => new Set())
-  const attempted = useRef(new Set<string>())
-  // Read inside the effect without re-running it: only the signal changing
-  // should ever cause an AI call.
-  const latest = useRef({ pool, state, onAiUsed })
-  // Declared before the AI effect, so it has run by the time that one reads it.
-  useEffect(() => { latest.current = { pool, state, onAiUsed } })
+  const inFlight = useRef(new Map<string, Promise<void>>())
+  const latest = useRef({ pool, state, onAiUsed, signalKey, autopilotEnabled, aiEntry, failedKeys })
+  useEffect(() => { latest.current = { pool, state, onAiUsed, signalKey, autopilotEnabled, aiEntry, failedKeys } })
 
-  useEffect(() => {
-    if (!autopilotEnabled || !signalKey) return
-    if (aiEntry?.fingerprint === signalKey) return
-    if (attempted.current.has(signalKey)) return
-    attempted.current.add(signalKey)
+  const cacheHit = !!signalKey && aiEntry?.fingerprint === signalKey
+  /** True when opening Review will call AI — the only time the thinking animation shows. */
+  const needsAnalysis = autopilotEnabled && !!signalKey && !cacheHit && !failedKeys.has(signalKey)
 
-    const { pool: sent, state: s, onAiUsed: report } = latest.current
+  /** Resolves once the current signal has an AI answer (or AI isn't available).
+   *  Concurrent callers share one request, so double-taps don't double-bill. */
+  const analyze = useCallback((): Promise<void> => {
+    const { pool: sent, state: s, onAiUsed: report, signalKey: key, autopilotEnabled: on, aiEntry: entry, failedKeys: failed } = latest.current
+    if (!on || !key || entry?.fingerprint === key || failed.has(key)) return Promise.resolve()
+    const pending = inFlight.current.get(key)
+    if (pending) return pending
+
     const catMap = catById(s.categories)
     const rows = sent.map((t, i) => ({
       i,
@@ -200,20 +205,22 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
     }))
     const eventNames = s.events.filter(e => e.status !== 'archived').map(e => e.name)
 
-    detectLifeEventWithAI(rows, eventNames, EVENT_ICON_KEYS, report).then(raw => {
-      // Failure or quota: fall back to the local suggestion, and don't cache —
-      // it isn't an answer, and the next signal change may succeed.
-      if (!raw) { setFailedKeys(prev => new Set(prev).add(signalKey)); return }
+    const request = detectLifeEventWithAI(rows, eventNames, EVENT_ICON_KEYS, report).then(raw => {
+      // Failure or quota: keep the local result, and don't cache — it isn't an
+      // answer, and the next signal change may succeed.
+      if (!raw) { setFailedKeys(prev => new Set(prev).add(key)); return }
       const v = validateAiResult(raw, sent)
-      const entry: CachedEventSuggestion = {
+      const next: CachedEventSuggestion = {
         version: CACHE_VERSION,
-        fingerprint: signalKey,
+        fingerprint: key,
         result: v ? { name: v.name, icon: v.icon, txIds: v.transactions.map(t => t.id) } : null,
       }
-      writeCache(userId, entry)
-      setAiEntry(entry)
-    })
-  }, [autopilotEnabled, signalKey, aiEntry, userId])
+      writeCache(userId, next)
+      setAiEntry(next)
+    }).finally(() => { inFlight.current.delete(key) })
+    inFlight.current.set(key, request)
+    return request
+  }, [userId])
 
   // ── Dismissal ─────────────────────────────────────────────────────────────
   const [dismissed, setDismissed] = useState<Set<string>>(() => readIdSet(dismissedKey(userId)))
@@ -223,28 +230,24 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
   const suggestion = useMemo<EventSuggestion | null>(() => {
     if (!detection) return null
     let s: EventSuggestion | null
-    if (autopilotEnabled && signalKey) {
-      if (aiEntry?.fingerprint === signalKey) {
-        const r = aiEntry.result
-        const byId = new Map(pool.map(t => [t.id, t]))
-        // Rebuilt from current rows: a row tagged since the answer drops out.
-        const txs = r ? r.txIds.map(id => byId.get(id)).filter((t): t is NonNullable<typeof t> => !!t) : []
-        // AI only ever adds to detection — a better name, extra rows, a burst
-        // the phrase detector can't see. Its "no" never hides a suggestion the
-        // local detector already stands behind on its own thresholds.
-        s = r && txs.length >= 2
-          ? buildSuggestion('ai', r.name, isEventIconKey(r.icon) ? r.icon : DEFAULT_EVENT_ICON, txs, state.categories, state.events)
-          : detection.local
-      } else if (failedKeys.has(signalKey)) {
-        s = detection.local
-      } else {
-        s = null // AI pending — show nothing rather than flash the local card
-      }
+    if (autopilotEnabled && cacheHit) {
+      const r = aiEntry!.result
+      const byId = new Map(pool.map(t => [t.id, t]))
+      // Rebuilt from current rows: a row tagged since the answer drops out.
+      const txs = r ? r.txIds.map(id => byId.get(id)).filter((t): t is NonNullable<typeof t> => !!t) : []
+      // AI only ever adds to detection — a better name, extra rows, a burst
+      // the phrase detector can't see. Its "no" never hides a suggestion the
+      // local detector already stands behind; it does retire a nameless burst.
+      s = r && txs.length >= 2
+        ? buildSuggestion('ai', r.name, isEventIconKey(r.icon) ? r.icon : DEFAULT_EVENT_ICON, txs, state.categories, state.events)
+        : detection.local
     } else {
-      s = detection.local
+      // Before AI (or without it): the local suggestion, else — only when AI can
+      // name it on Review — the burst as "unusual spending".
+      s = detection.local ?? (autopilotEnabled && detection.burst ? burstSuggestion(detection.burst, state.categories) : null)
     }
     return s && !isSuppressed(s, dismissed) ? s : null
-  }, [detection, autopilotEnabled, signalKey, aiEntry, failedKeys, pool, state.categories, state.events, dismissed])
+  }, [detection, autopilotEnabled, cacheHit, aiEntry, pool, state.categories, state.events, dismissed])
 
   const dismiss = useCallback(() => {
     if (!suggestion) return
@@ -282,5 +285,5 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
     setToastSeen(next)
   }, [suggestion, pool, toastSeen, userId])
 
-  return { suggestion, dismiss, undoDismiss, shouldToast, markToastSeen }
+  return { suggestion, needsAnalysis, analyze, dismiss, undoDismiss, shouldToast, markToastSeen }
 }

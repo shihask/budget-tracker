@@ -141,7 +141,7 @@ export function NotificationsSheet({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* Mint's life-event suggestion — where its toast files itself. Tap
-                to create (or link to) the event; ✕ is "Not an event". */}
+                to review it; ✕ is "Not an event". */}
             {eventSuggestion && (
               <div
                 onClick={() => { onEventSuggestion?.(); onClose() }}
@@ -158,7 +158,7 @@ export function NotificationsSheet({
                     <EventIcon name={eventSuggestion.icon} size={17} color="#fff" />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Mint noticed a life event</div>
+                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{eventSuggestion.generic ? 'Mint noticed unusual spending' : 'Mint noticed a life event'}</div>
                     <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {eventSuggestion.name} · {eventSuggestion.txIds.length} expenses · {fmt(eventSuggestion.total)}
                     </div>

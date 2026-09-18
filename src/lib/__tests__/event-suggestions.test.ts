@@ -4,6 +4,7 @@ import {
   firstMeaningfulToken, isMerchantCluster, baselineDailySpend, suggestionPool,
   suggestionFingerprint, detectEventSignals, hasEventSignal, signalRows,
   validateAiResult, isSuppressed, matchExistingEvent, shiftIso, MAX_AI_ROWS,
+  burstSuggestion, UNUSUAL_SPENDING_NAME,
 } from '@/lib/event-suggestions'
 import type { HistoryRow } from '@/lib/event-suggestions'
 import type { Category, LifeEvent, Master, Transaction } from '@/types'
@@ -458,5 +459,19 @@ describe('pool and signal rows', () => {
     const d2 = detect([...trip, tx('coffee', TODAY, 50, 'food')])
     expect(suggestionFingerprint(signalRows(d2))).toBe(suggestionFingerprint(signalRows(d1)))
     expect(signalRows(d2).map(t => t.description)).not.toContain('coffee')
+  })
+})
+
+describe('burstSuggestion', () => {
+  it('offers a nameless burst as generic unusual spending for AI to name on Review', () => {
+    const rows = [
+      tx('City hospital admission', '2026-09-15', 8000, 'medical'),
+      tx('Pharmacy', '2026-09-16', 1200, 'medical'),
+      tx('MRI scan', '2026-09-17', 3500, 'medical'),
+    ]
+    const d = detect(rows, { history: dailyHistory('2026-09-15', 120, 300) })
+    const s = burstSuggestion(d.burst!, categories)
+    expect(s).toMatchObject({ generic: true, name: UNUSUAL_SPENDING_NAME, total: 12700, startDate: '2026-09-15', endDate: '2026-09-17' })
+    expect(s.existingEventId).toBeUndefined()
   })
 })
