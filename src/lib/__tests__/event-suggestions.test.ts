@@ -95,6 +95,18 @@ describe('positive detection', () => {
     expect(hasEventSignal(d)).toBe(true)
   })
 
+  it('suggests the Kodai trip exactly as it was entered on the test account', () => {
+    const d = detect([
+      tx('tea and snacks - Kodai trip', TODAY, 100, 'food'),
+      tx('Diesel - Kodai trip', TODAY, 2000, 'fuel'),
+      tx('Food - Kodai trip', TODAY, 200, 'food'),
+      tx('Boating ticket - Kodai trip', TODAY, 100, 'fun'),
+      tx('coffee', '2026-07-17', 500, 'food'),
+    ], { history: [{ id: 'h', description: 'Petrol', transaction_date: '2026-06-24', amount: 1000 }] })
+    expect(d.local).toMatchObject({ name: 'Kodai Trip', total: 2400, icon: 'plane' })
+    expect(d.local!.txIds).toHaveLength(4)
+  })
+
   it('names the cluster from the longest phrase used by half its rows', () => {
     const d = detect([
       tx('Tea Ooty Trip', '2026-09-12', 100, 'food'),
@@ -389,8 +401,18 @@ describe('validateAiResult', () => {
   it('drops duplicate, invalid and already-tagged indices', () => {
     const sent = rows()
     sent[1] = { ...sent[1], event_id: 'ev-x' }
-    const v = validateAiResult({ ...ok, indices: [0, 0, 1, 2, 99, -1, 1.5, '3'] }, sent)
+    const v = validateAiResult({ ...ok, indices: [0, 0, 1, 2, 99, -1, 1.5, 'x'] }, sent)
     expect(v?.transactions.map(t => t.id)).toEqual([sent[0].id, sent[2].id])
+  })
+
+  it('accepts the shapes small models actually write', () => {
+    const sent = rows()
+    expect(validateAiResult({ ...ok, confidence: 0.9 }, sent)).not.toBeNull()
+    expect(validateAiResult({ ...ok, confidence: '85' }, sent)).not.toBeNull()
+    expect(validateAiResult({ ...ok, is_event: 'true' }, sent)).not.toBeNull()
+    expect(validateAiResult({ ...ok, indices: ['0', '2'] }, sent)?.transactions).toHaveLength(2)
+    expect(validateAiResult({ ...ok, confidence: 0.4 }, sent)).toBeNull()
+    expect(validateAiResult({ ...ok, confidence: 'high' }, sent)).toBeNull()
   })
 
   it('rejects fewer than two expenses, low confidence, bad names and non-events', () => {

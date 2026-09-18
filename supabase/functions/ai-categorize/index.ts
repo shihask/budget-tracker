@@ -978,12 +978,14 @@ Rules:
       await flushUsage()
 
       return new Response(
+        // Passed through loosely — the model writes 85, "85" or 0.85 — and
+        // normalised by the client's validateAiResult, the one place thresholds live.
         JSON.stringify({
-          is_event: parsed.is_event === true,
+          is_event: parsed.is_event === true || parsed.is_event === 'true',
           name: typeof parsed.name === 'string' ? parsed.name : '',
           icon: typeof parsed.icon === 'string' ? parsed.icon : '',
           indices: Array.isArray(parsed.indices) ? parsed.indices : [],
-          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
+          confidence: typeof parsed.confidence === 'number' || typeof parsed.confidence === 'string' ? parsed.confidence : 0,
           used: used + 1,
           usage_pct: await currentUsagePct(),
           enforcing: ENFORCE_TOKEN_LIMIT,

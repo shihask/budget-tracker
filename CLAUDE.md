@@ -200,7 +200,9 @@ Gotchas:
   novel) re-asks AI about their chai every time they log one.
 - The AI cache (`mp_event_suggest_<uid>`) is keyed on the **signal rows'** fingerprint
   (`id:date:tokens`), not the whole pool, so an unrelated coffee doesn't re-ask. "Not an event"
-  is cached too; an AI failure is not (falls back to the local suggestion).
+  is cached too; an AI failure is not. **AI never vetoes** — on "no", failure or an invalid
+  answer the local suggestion still shows. `validateAiResult` accepts confidence as 85, "85" or
+  0.85: small models write all three, and a strict integer check hid real suggestions (v1.72.2).
 - Merchant rule C (shared first word) only rejects when that word is written as a shop somewhere
   in the cluster ("Lulu Hypermarket", "Hotel Maharaja") — "Ooty entry fee / Ooty boating" is a trip.
 - Dismissal (`mp_event_suggest_dismissed_<uid>`) is by tx id with a majority rule, not by name —

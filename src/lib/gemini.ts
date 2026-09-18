@@ -90,7 +90,8 @@ export type AIEventDetection = {
   name: string
   icon: string
   indices: unknown[]
-  confidence: number
+  /** 85, "85" or 0.85 — normalised by validateAiResult. */
+  confidence: number | string
 }
 
 /** Asks whether recent untagged spending forms one real-life occasion. The raw
@@ -126,7 +127,7 @@ export async function detectLifeEventWithAI(
       name: typeof data.name === 'string' ? data.name : '',
       icon: typeof data.icon === 'string' ? data.icon : '',
       indices: Array.isArray(data.indices) ? data.indices : [],
-      confidence: typeof data.confidence === 'number' ? data.confidence : 0,
+      confidence: typeof data.confidence === 'number' || typeof data.confidence === 'string' ? data.confidence : 0,
     }
   } catch (e) {
     console.error('[AI] event detect failed:', e)

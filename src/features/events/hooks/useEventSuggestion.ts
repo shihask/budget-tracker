@@ -18,14 +18,17 @@ import type { AppState } from '@/types'
 // the AI call, the cache and dismissals. Same mp_<feature>_<userId> +
 // embedded-fingerprint convention as mint-coach-cache.ts.
 
-const CACHE_VERSION = 1
+// 2: v1.72.2 — answers cached under v1 were judged by a validator that rejected
+// fractional/string confidence, so their "not an event" can't be trusted.
+const CACHE_VERSION = 2
 const NOVELTY_PAGE_SIZE = 1000
 
 interface CachedAiResult { name: string; icon: string; txIds: string[] }
 interface CachedEventSuggestion {
   version: number
   fingerprint: string
-  /** null = AI said "not an event" — cached too, so it isn't asked again. */
+  /** null = AI said "not an event" — cached too, so it isn't asked again. The local
+   *  suggestion (if any) still shows: AI can add to detection, never veto it. */
   result: CachedAiResult | null
 }
 
@@ -226,9 +229,12 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
         const byId = new Map(pool.map(t => [t.id, t]))
         // Rebuilt from current rows: a row tagged since the answer drops out.
         const txs = r ? r.txIds.map(id => byId.get(id)).filter((t): t is NonNullable<typeof t> => !!t) : []
+        // AI only ever adds to detection — a better name, extra rows, a burst
+        // the phrase detector can't see. Its "no" never hides a suggestion the
+        // local detector already stands behind on its own thresholds.
         s = r && txs.length >= 2
           ? buildSuggestion('ai', r.name, isEventIconKey(r.icon) ? r.icon : DEFAULT_EVENT_ICON, txs, state.categories, state.events)
-          : null
+          : detection.local
       } else if (failedKeys.has(signalKey)) {
         s = detection.local
       } else {

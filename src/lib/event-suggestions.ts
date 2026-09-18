@@ -527,20 +527,31 @@ export interface ValidatedAiEvent {
   transactions: AnalyticsTransaction[]
 }
 
+/** A number, or a numeric string; NaN for anything else. */
+const toNumber = (v: unknown): number =>
+  typeof v === 'number' ? v
+  : typeof v === 'string' && v.trim() !== '' ? Number(v)
+  : NaN
+
 /** AI output is untrusted. Indices are mapped back to the rows that were sent;
  *  duplicates, out-of-range and already-tagged rows are dropped. Returns null
  *  unless it's a confident, named occasion over at least two real expenses. */
 export function validateAiResult(raw: AiEventDetection | null | undefined, sentRows: AnalyticsTransaction[]): ValidatedAiEvent | null {
-  if (!raw || raw.is_event !== true) return null
-  if (typeof raw.confidence !== 'number' || raw.confidence < MIN_AI_CONFIDENCE) return null
+  if (!raw || (raw.is_event !== true && raw.is_event !== 'true')) return null
+  // Small models write confidence as 85, "85" or 0.85 interchangeably — a strict
+  // integer check silently turned real answers into "not an event".
+  let confidence = toNumber(raw.confidence)
+  if (confidence > 0 && confidence <= 1) confidence *= 100
+  if (!(confidence >= MIN_AI_CONFIDENCE)) return null
   const name = typeof raw.name === 'string' ? raw.name.trim() : ''
   if (!name || name.length > MAX_EVENT_NAME_LENGTH) return null
   if (!Array.isArray(raw.indices)) return null
 
   const picked = new Map<string, AnalyticsTransaction>()
-  for (const i of raw.indices) {
+  for (const rawIndex of raw.indices) {
+    const i = toNumber(rawIndex)
     if (!Number.isInteger(i)) continue
-    const t = sentRows[i as number]
+    const t = sentRows[i]
     if (!t || t.event_id || picked.has(t.id)) continue
     picked.set(t.id, t)
   }
