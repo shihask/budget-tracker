@@ -173,13 +173,15 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
     ? suggestionFingerprint(signalRows(detection))
     : null
 
-  // ── AI: on demand, when the user opens Review ─────────────────────────────
-  // Never in the background. The toast comes from the free local check; AI runs
-  // only for suggestions the user actually opens, which is also the one moment
-  // Mint's thinking animation means something.
+  // ── AI: starts when the toast appears, answers before Review ─────────────
+  // Never on a timer or on every change: App calls analyze() once the toast is
+  // shown (or Review is opened from the bell), so by the time the user taps
+  // Review the answer is usually cached. One request per signal, deduplicated.
   const [aiEntry, setAiEntry] = useState<CachedEventSuggestion | null>(() => readCache(userId))
   const [failedKeys, setFailedKeys] = useState<Set<string>>(() => new Set())
   const inFlight = useRef(new Map<string, Promise<void>>())
+  /** The signal AI is running for right now — drives Mint's thinking leaf. */
+  const [analyzingKey, setAnalyzingKey] = useState<string | null>(null)
   const latest = useRef({ pool, state, onAiUsed, signalKey, autopilotEnabled, aiEntry, failedKeys })
   useEffect(() => { latest.current = { pool, state, onAiUsed, signalKey, autopilotEnabled, aiEntry, failedKeys } })
 
@@ -217,8 +219,12 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
       }
       writeCache(userId, next)
       setAiEntry(next)
-    }).finally(() => { inFlight.current.delete(key) })
+    }).finally(() => {
+      inFlight.current.delete(key)
+      setAnalyzingKey(k => (k === key ? null : k))
+    })
     inFlight.current.set(key, request)
+    setAnalyzingKey(key)
     return request
   }, [userId])
 
@@ -243,7 +249,7 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
         : detection.local
     } else {
       // Before AI (or without it): the local suggestion, else — only when AI can
-      // name it on Review — the burst as "unusual spending".
+      // name it — the burst as "related expenses".
       s = detection.local ?? (autopilotEnabled && detection.burst ? burstSuggestion(detection.burst, state.categories) : null)
     }
     return s && !isSuppressed(s, dismissed) ? s : null
@@ -285,5 +291,10 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
     setToastSeen(next)
   }, [suggestion, pool, toastSeen, userId])
 
-  return { suggestion, needsAnalysis, analyze, dismiss, undoDismiss, shouldToast, markToastSeen }
+  const analyzing = !!signalKey && analyzingKey === signalKey
+  // Stable across the AI answer arriving: AI may rename the suggestion and change
+  // its rows, but it answers the same signal — so the toast keeps playing.
+  const toastId = suggestion ? (signalKey ?? suggestion.txIds.join(',')) : null
+
+  return { suggestion, needsAnalysis, analyze, analyzing, toastId, dismiss, undoDismiss, shouldToast, markToastSeen }
 }

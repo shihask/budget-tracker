@@ -7,7 +7,7 @@ import { ThemeContext } from '@/lib/theme-context'
 import { makeColors } from '@/lib/tokens'
 import { useSupabaseData } from '@/hooks/useSupabaseData'
 import { derive } from '@/lib/data'
-import { fmt, iso, TODAY, addDays, localIso, round2, TimeoutError, selectOnFocus, withTimeout } from '@/lib/utils'
+import { fmt, iso, TODAY, addDays, localIso, round2, TimeoutError, selectOnFocus } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import type { Transaction, LifeEvent } from '@/types'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
@@ -168,10 +168,8 @@ export default function App() {
 
 /** Delay before a Life Event suggestion toast slides in on a clear dashboard. */
 const SUGGESTION_TOAST_DELAY_MS = 1200
-/** Mint's thinking leaf stays at least this long, so a fast AI answer reads as analysis, not a flicker. */
-const SUGGESTION_MIN_ANALYZING_MS = 1200
-/** Give up waiting on AI and show the local result. */
-const SUGGESTION_ANALYZE_TIMEOUT_MS = 15_000
+/** Mint's thinking leaf stays in the toast at least this long, so a fast AI answer reads as analysis, not a flicker. */
+const SUGGESTION_MIN_LEAF_MS = 800
 /** BottomSheet unmounts 340 ms after closing; wait that out before emptying one. */
 const SHEET_CLOSE_MS = 350
 
@@ -245,10 +243,11 @@ function AppContent({ session }: { session: Session }) {
   const [pendingLinkIds, setPendingLinkIds] = useState<string[] | null>(null)
   const [linkPreselect, setLinkPreselect] = useState<string[] | null>(null)
   const [suggestionUndoOpen, setSuggestionUndoOpen] = useState(false)
-  // Review sheet between the toast/bell and the event form; `analyzing` is the
-  // only time Mint's thinking animation shows (AI running on a cache miss).
+  // Review sheet between the toast/bell and the event form. AI starts when the
+  // toast appears, so Review usually opens on a cached answer.
   const [suggestionReviewOpen, setSuggestionReviewOpen] = useState(false)
-  const [suggestionAnalyzing, setSuggestionAnalyzing] = useState(false)
+  // Keeps the toast's leaf up for SUGGESTION_MIN_LEAF_MS even when AI answers faster.
+  const [toastLeafHold, setToastLeafHold] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [seenSharedIds, setSeenSharedIds] = useState<Set<string>>(() => {
     try { const ids = JSON.parse(localStorage.getItem('mp_seen_shared_' + session.user.id) || '[]'); return new Set(ids) } catch { return new Set() }
@@ -466,17 +465,12 @@ function AppContent({ session }: { session: Session }) {
     setPendingLinkIds(s.txIds)
     setEventFormOpen(true)
   }
-  // Opens Review. On a cache miss AI runs now — never in the background — and
-  // Mint's thinking leaf shows for at least SUGGESTION_MIN_ANALYZING_MS so a fast
-  // answer doesn't flicker. On a hit (or without AI) the result shows at once.
+  // Opens Review instantly — never waits on AI. The toast normally started AI
+  // already; from the bell (no toast this time) it starts here, and the sheet
+  // shows the local result with Mint's leaf in its header until AI answers.
   const openSuggestionReview = () => {
     setSuggestionReviewOpen(true)
-    if (!eventSuggestion.needsAnalysis) return
-    setSuggestionAnalyzing(true)
-    Promise.all([
-      withTimeout(eventSuggestion.analyze(), SUGGESTION_ANALYZE_TIMEOUT_MS, 'Event analysis timed out').catch(() => {}),
-      new Promise(resolve => window.setTimeout(resolve, SUGGESTION_MIN_ANALYZING_MS)),
-    ]).finally(() => setSuggestionAnalyzing(false))
+    if (eventSuggestion.needsAnalysis) void eventSuggestion.analyze()
   }
   // Stable, because UndoSnackbar's auto-close timer restarts whenever onClose changes.
   const closeSuggestionUndo = useCallback(() => setSuggestionUndoOpen(false), [])
@@ -529,14 +523,24 @@ function AppContent({ session }: { session: Session }) {
     creditCardsOpen || catsOpen || mastersOpen || analyticsOpen || cashflowOpen || projectsOpen || growOpen ||
     achievementsOpen || habitsOpen || reflectionOpen || aaSyncOpen || importStatementOpen || tourOpen || adminOpen ||
     layoutOpen || budgetEditOpen || emergencyEditOpen || suggestionReviewOpen || !!challengeWin
-  const toastKey = eventSuggestion.shouldToast && eventSuggestion.suggestion ? eventSuggestion.suggestion.txIds.join(',') : null
+  // toastId stays the same when the AI answer arrives and renames the suggestion,
+  // so the toast updates in place instead of restarting.
+  const toastKey = eventSuggestion.shouldToast ? eventSuggestion.toastId : null
   const [toastStartedFor, setToastStartedFor] = useState<string | null>(null)
+  const { needsAnalysis: suggestionNeedsAnalysis, analyze: analyzeSuggestion } = eventSuggestion
   useEffect(() => {
     if (!toastKey || overlayOpen || toastStartedFor === toastKey) return
     // A beat after the dashboard settles, so it reads as news rather than load noise.
-    const t = window.setTimeout(() => setToastStartedFor(toastKey), SUGGESTION_TOAST_DELAY_MS)
+    const t = window.setTimeout(() => {
+      setToastStartedFor(toastKey)
+      // AI starts with the toast, so Review opens on an answer instead of a wait.
+      if (!suggestionNeedsAnalysis) return
+      setToastLeafHold(true)
+      window.setTimeout(() => setToastLeafHold(false), SUGGESTION_MIN_LEAF_MS)
+      void analyzeSuggestion()
+    }, SUGGESTION_TOAST_DELAY_MS)
     return () => window.clearTimeout(t)
-  }, [toastKey, overlayOpen, toastStartedFor])
+  }, [toastKey, overlayOpen, toastStartedFor, suggestionNeedsAnalysis, analyzeSuggestion])
   const showSuggestionToast = toastKey !== null && toastStartedFor === toastKey
 
   const clearAllAlerts = () => {
@@ -677,6 +681,7 @@ function AppContent({ session }: { session: Session }) {
           key={toastKey!}
           suggestion={eventSuggestion.suggestion}
           onReview={openSuggestionReview}
+          analyzing={eventSuggestion.analyzing || toastLeafHold}
           onDone={eventSuggestion.markToastSeen}
         />
       )}
@@ -1008,7 +1013,7 @@ function AppContent({ session }: { session: Session }) {
             onClose={() => setSuggestionReviewOpen(false)}
             state={state}
             suggestion={eventSuggestion.suggestion}
-            analyzing={suggestionAnalyzing}
+            analyzing={eventSuggestion.analyzing}
             onCreate={s => { setSuggestionReviewOpen(false); acceptEventSuggestion(s) }}
             onDismiss={() => {
               setSuggestionReviewOpen(false)

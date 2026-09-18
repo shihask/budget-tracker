@@ -351,16 +351,16 @@ export interface EventSuggestion {
   defaultAccountId?: string
   existingEventId?: string
   /** A spending burst with no shared words (hospital, wedding) — no local name
-   *  exists, so it's shown as "unusual spending" until AI names it. */
+   *  exists, so it's shown as "related expenses" until AI names it. */
   generic?: boolean
 }
 
-export const UNUSUAL_SPENDING_NAME = 'Unusual spending'
+export const RELATED_EXPENSES_NAME = 'Related expenses'
 
 /** The toast/Review candidate for a burst. Only offered when AI is available to
  *  name it — without AI there is nothing to tell the user about it. */
 export function burstSuggestion(rows: AnalyticsTransaction[], categories: Category[]): EventSuggestion {
-  return { ...buildSuggestion('local', UNUSUAL_SPENDING_NAME, DEFAULT_EVENT_ICON, rows, categories, []), generic: true }
+  return { ...buildSuggestion('local', RELATED_EXPENSES_NAME, DEFAULT_EVENT_ICON, rows, categories, []), generic: true }
 }
 
 /** Matches a live (non-archived) event by slug, so "OOTY TRIP" finds "Ooty Trip". */

@@ -171,12 +171,18 @@ name, dates, total, the detected expenses) → Create Event → `EventFormSheet`
 `LinkExpensesSheet` with the rows ticked (`preselectedIds`) → the user taps Link.
 A match on an existing live event (by `eventSlug`) skips the form: "Link to Ooty Trip".
 
-**AI runs on Review, never in the background.** The toast comes from the free local check; AI
-(`analyze()`) is called only when the user opens a suggestion and the cache misses
-(`needsAnalysis`). That is the only time `public/mint-thinking-loop.svg` (Mint's breathing leaf)
-shows — for at least 1.2 s so a fast answer doesn't flicker, 15 s timeout then the local result.
-A cache hit or Autopilot off opens straight to the result. Don't reuse the animation as
-decoration — its meaning is "AI is running right now".
+**AI starts with the toast; Review never waits (v1.74).** The toast comes from the free local
+check. When it appears (Autopilot on, cache miss — `needsAnalysis`), App calls `analyze()` in the
+background, so Review normally opens on a cached answer. Opening from the bell (no toast that
+time) starts it there instead; the sheet shows the local result immediately and updates in place.
+`analyze()` dedupes per signal, so it is still one request per fingerprint — but note it now runs
+for every *toasted* suggestion, not only opened ones.
+
+`public/mint-thinking-loop.svg` (Mint's breathing leaf) means exactly "AI is running right now":
+in the toast label (held ≥ 0.8 s, `SUGGESTION_MIN_LEAF_MS`, so a fast answer doesn't flicker)
+and in the Review header while AI is still going. Otherwise the static `mint-ai-logo.svg`. Never
+a blocking loader, never decoration. The toast's identity is `toastId` (the signal key), which
+stays stable when the AI answer renames the suggestion — keying it on `txIds` restarts the toast.
 
 **Surfaces (v1.72):** a toast (`EventSuggestionToast`) slides down from the top once per
 suggestion, only on a clear dashboard (App's `overlayOpen`), stays 12 s (paused while touched),
@@ -196,7 +202,9 @@ NotificationsSheet item and adds 1 to the badge. There is no dashboard card (rem
 Pipeline: pool (30d, untagged, unsplit, non-system, ≤60) → phrase clusters → novelty (90d) →
 merchant rejection. **Autopilot off** → local suggestion only (phrase, ≥3 rows, ≥2 categories,
 ≥₹500). **Autopilot on** → the same local suggestion, plus a **burst** offered as generic
-"Mint noticed unusual spending" (`burstSuggestion`, `generic: true`) for AI to name on Review.
+"Mint found related expenses" (`burstSuggestion`, `generic: true`) for AI to name. Toast wording:
+phrase → "Mint noticed a possible life event"; burst → "Mint found related expenses" — never
+"hospital"/"wedding" before AI has actually read the expenses.
 The AI signal (what the cache is keyed on):
 - **Phrase** — novel, non-merchant phrase in ≥2 rows across ≥2 categories within 21 days.
 - **Burst** — ≥3 rows in 5 days, ≥₹500 and ≥3× the trailing 90-day *median* day. Catches

@@ -9,8 +9,9 @@ import type { EventSuggestion } from '@/lib/event-suggestions'
 import type { AppState } from '@/types'
 
 /** Mint's thinking loop — a breathing leaf. Shown only while AI is actually
- *  running (a cache miss), never as decoration. */
+ *  running, never as decoration; otherwise the static Mint mark. */
 const MINT_THINKING_SVG = '/mint-thinking-loop.svg'
+const MINT_MARK_SVG = '/mint-ai-logo.svg'
 
 interface Props {
   open: boolean
@@ -18,7 +19,7 @@ interface Props {
   state: AppState
   /** Current suggestion; null once AI has judged a nameless burst to be everyday spending. */
   suggestion: EventSuggestion | null
-  /** AI is running for this review — show Mint thinking instead of the result. */
+  /** AI is still reading these expenses — the header leaf breathes; nothing blocks. */
   analyzing: boolean
   onCreate: (s: EventSuggestion) => void
   onDismiss: () => void
@@ -53,17 +54,7 @@ export function EventSuggestionSheet({ open, onClose, state, suggestion: s, anal
   return (
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
       <div style={{ padding: '0 4px 16px' }}>
-        {analyzing ? (
-          <div style={{ textAlign: 'center', padding: '12px 8px 20px' }} role="status" aria-live="polite">
-            <img src={MINT_THINKING_SVG} alt="" width={96} height={96} style={{ display: 'block', margin: '0 auto 14px' }} />
-            <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>
-              Mint is analyzing your recent expenses
-            </div>
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
-              Looking for trips, weddings, hospital visits and other life events…
-            </div>
-          </div>
-        ) : !s ? (
+        {!s ? (
           <div style={{ textAlign: 'center', padding: '12px 8px 8px' }}>
             <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>
               Looks like everyday spending
@@ -83,10 +74,14 @@ export function EventSuggestionSheet({ open, onClose, state, suggestion: s, anal
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-              <img src={MINT_THINKING_SVG} alt="" width={20} height={20} />
+            {/* Never blocks: the result below is usable while AI finishes, and the
+                breathing leaf is the only sign it's still running. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }} role="status" aria-live="polite">
+              <img src={analyzing ? MINT_THINKING_SVG : MINT_MARK_SVG} alt="" width={20} height={20} />
               <span style={{ font: '700 12.5px Plus Jakarta Sans', color: c.muted }}>
-                {s.generic ? 'Mint noticed unusual spending' : 'Mint noticed a life event'}
+                {analyzing
+                  ? 'Mint is still checking these expenses…'
+                  : s.generic ? 'Mint found related expenses' : 'Mint noticed a possible life event'}
               </span>
             </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Sparkles, X } from 'lucide-react'
+
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { EventIcon } from '../lib/eventIcons'
@@ -17,11 +17,16 @@ const FLY_MS = 650
 /** Header's bell carries this attribute; the toast measures it to fly there. */
 const NOTIFICATION_BELL_SELECTOR = '[data-notification-bell]'
 
+const MINT_THINKING_SVG = '/mint-thinking-loop.svg'
+const MINT_MARK_SVG = '/mint-ai-logo.svg'
+
 type Phase = 'entering' | 'shown' | 'flying' | 'leaving'
 
 interface Props {
   suggestion: EventSuggestion
   onReview: () => void
+  /** AI is reading the expenses right now — Mint's leaf breathes in the label. */
+  analyzing: boolean
   /** The toast has finished — landed in the bell, or acted on. */
   onDone: () => void
 }
@@ -32,7 +37,7 @@ const prefersReducedMotion = () =>
 /** Slides down from the top, stays TOAST_VISIBLE_MS, then shrinks into the
  *  notification bell — where the suggestion is waiting in the Notifications
  *  sheet. The fly-in is the explanation of where it went. */
-export function EventSuggestionToast({ suggestion: s, onReview, onDone }: Props) {
+export function EventSuggestionToast({ suggestion: s, onReview, analyzing, onDone }: Props) {
   const c = useTheme()
   const ref = useRef<HTMLDivElement>(null)
   const [phase, setPhase] = useState<Phase>('entering')
@@ -123,34 +128,43 @@ export function EventSuggestionToast({ suggestion: s, onReview, onDone }: Props)
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: '700 11.5px Plus Jakarta Sans', color: c.muted }}>
-            <Sparkles size={12} color={EVENT_COLOR} /> {s.generic ? 'Mint noticed unusual spending' : 'Mint noticed a life event'}
+            {/* The breathing leaf means "AI is reading these right now" — only
+                then. Otherwise the static Mint mark. */}
+            <img src={analyzing ? MINT_THINKING_SVG : MINT_MARK_SVG} alt="" width={14} height={14} style={{ flexShrink: 0 }} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {s.generic ? 'Mint found related expenses' : 'Mint noticed a possible life event'}
+            </span>
           </div>
-          <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {s.name}
-          </div>
-          <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+          {!s.generic && (
+            <div style={{ font: '800 15px Plus Jakarta Sans', color: c.ink, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {s.name}
+            </div>
+          )}
+          <div style={{ font: s.generic ? '800 15px Plus Jakarta Sans' : '600 12px Plus Jakarta Sans', color: s.generic ? c.ink : c.muted, marginTop: s.generic ? 1 : 0 }}>
             {count} expense{count === 1 ? '' : 's'} · {fmt(s.total)}
           </div>
         </div>
-        <button
-          onClick={() => { onReview(); done.current() }}
-          style={{
-            padding: '9px 12px', borderRadius: 12, border: 'none', flexShrink: 0,
-            background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer',
-          }}
-        >
-          Review
-        </button>
-        <button
-          onClick={fileIntoBell}
-          aria-label="Close — keep in notifications"
-          style={{
-            background: 'none', border: 'none', padding: 4, cursor: 'pointer',
-            color: c.muted, display: 'flex', flexShrink: 0,
-          }}
-        >
-          <X size={16} />
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 2, flexShrink: 0 }}>
+          <button
+            onClick={() => { onReview(); done.current() }}
+            style={{
+              padding: '8px 14px', borderRadius: 12, border: 'none',
+              background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer',
+            }}
+          >
+            Review
+          </button>
+          <button
+            onClick={fileIntoBell}
+            aria-label="Later — keep in notifications"
+            style={{
+              padding: '4px 0', border: 'none', background: 'none',
+              color: c.muted, font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+            }}
+          >
+            Later
+          </button>
+        </div>
       </div>
     </div>,
     document.body,
