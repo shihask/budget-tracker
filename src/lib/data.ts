@@ -35,7 +35,9 @@ export const MONTH_START = getMonthStart(TODAY)
 const isLifestyle = (t: AppState['transactions'][0], catMap: ReturnType<typeof catById>) =>
   t.transaction_type === 'expense' && catMap[t.category_id!]?.group_name === 'Lifestyle'
 
-function makeScopeFilter(state: AppState) {
+// Exported for Mint's weekly breakdown, which must count exactly what the
+// Spending Budget counts.
+export function makeScopeFilter(state: AppState) {
   const scope = state.settings.weekly_budget_scope
   const hasGroupOrCat = scope && (scope.groups.length > 0 || scope.categoryIds.length > 0)
   const hasTxn = scope && scope.transactionIds && scope.transactionIds.length > 0
@@ -60,6 +62,17 @@ function makeScopeFilter(state: AppState) {
   }
 }
 
+// Start of the current Spending Budget period (daily / weekly / monthly) — the
+// window weeklySpent is measured over. Shared so Mint measures the same window.
+export function budgetPeriodStart(state: AppState): Date {
+  const period = state.settings.budget_period ?? 'weekly'
+  return period === 'daily'
+    ? new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate())
+    : period === 'monthly'
+    ? getMonthStart(TODAY, state.settings.monthly_start_date ?? 1)
+    : getWeekStart(TODAY, state.settings.weekly_start_day ?? 1)
+}
+
 export function derive(state: AppState): DerivedMetrics {
   const catMap = catById(state.categories)
   const actualBalance = getCurrentBalance(state)
@@ -80,12 +93,7 @@ export function derive(state: AppState): DerivedMetrics {
 
   const weeklyBudget = state.settings.weekly_budget
   const matchesScope = makeScopeFilter(state)
-  const period = state.settings.budget_period ?? 'weekly'
-  const periodStart = period === 'daily'
-    ? new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate())
-    : period === 'monthly'
-    ? getMonthStart(TODAY, state.settings.monthly_start_date ?? 1)
-    : getWeekStart(TODAY, state.settings.weekly_start_day ?? 1)
+  const periodStart = budgetPeriodStart(state)
   // Reimbursed spend is netted off here and at every other sum below. Note the
   // discipline line: getCurrentBalance() and buildCashFlowForecast() above keep
   // receiving the RAW state, because the money really did leave the account and

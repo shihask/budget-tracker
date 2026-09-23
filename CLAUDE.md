@@ -301,6 +301,45 @@ per-account breakdown still balances.
 - The two Edge Functions (`push-evening-recap`, `ai-categorize`) re-implement this math
   server-side and each carry their own copy of the netting.
 
+## Mint CFO answers (v1.75)
+Eight core money questions get a **deterministic card** instead of free-form prose. Code owns
+every number and the decision; the AI only adds a ≤ 3-sentence insight underneath.
+
+| File | Purpose |
+|---|---|
+| `src/lib/cfo-snapshot.ts` | `buildCfoSnapshot`, `obligationTier`, `billRunway`, `pickDecision`, `affordVerdict`, `buildMonthStory`, `equationFacts` |
+| `src/lib/cfo-intent.ts` | `classifyCfoIntent` — status, gap, liquid, balances, upcoming, free, weekly, afford, changed. Advice/plan/"why"/story questions return `null` and keep the free-form path |
+| `src/lib/cfo-history.ts` | "What changed" — per-device localStorage `mp_cfo_snapshots_<uid>` |
+| `src/components/mint/CfoCard.tsx` | The card (+ `cfoCardText.ts` for `CfoCardData` / `cfoHeadline`) |
+
+### Mint's equation is not `d.realFreeMoney`
+```
+Free Money    = Liquid − Emergency − Mandatory bills due before next income
+Funding Gap   = max(0, −Free Money)
+After savings = Free Money − Flexible savings due before next income
+```
+`d.realFreeMoney` (forecast low point) still drives the dashboard, challenge, safe-daily and
+notifications — **unchanged, by decision**. Mint used to send it as a bare `FreeMoney:₹-109123`,
+which the model read as "spending ₹1,09,123 a week". Mint now reads the forecast only for its
+dated events, plus `postIncomeRisk` (the low point falls after income and below after-savings).
+Before income the two agree; `afterSavings` equals the forecast balance on the eve of income.
+
+- **`obligationTier` is the only home of the mandatory/flexible rule.** card → card; commitment,
+  borrowing, **prized** chit → fixed; saving (SIP/gold/RD/unprized chit) and planned → flexible.
+  Flexible items never enter Free Money, the bill runway or the decision.
+- **Bill runway** walks mandatory bills in due order from `liquid − emergency`; it deliberately
+  ignores day-to-day spend, and the UI always says so ("Bill runway", never "Cash runway").
+- **Today's Decision** is never AI: earliest due mandatory bill, ties card → borrowing →
+  commitment → prized chit. The insight prompt receives it and must support, not replace, it.
+- **This month's story** states facts, never causes — code can't know a loan *funded* a fee.
+- Affordability cushion = `max(₹2,000, 10% of free money)`.
+- "What changed": baseline = newest check ≥ 6 h old; a burst of checks within 6 h collapses into
+  one, so quick repeats can't evict yesterday's baseline. Per device in v1, and labelled so.
+- Local-only intents (liquid, balances, changed, afford-without-amount) make **no AI request**.
+  Insight intents send `[CFO-INSIGHT:<kind>]` + compact facts; the Edge Function switches to
+  "CFO INSIGHT MODE" on that marker. Keep the marker string in sync on both sides.
+- No budget % above 100 anywhere Mint speaks: `budgetStatus()` says "₹X over".
+
 ## Auto-categorize in QuickAdd (four-tier)
 0. **History match** (`findHistoricalCategory`) — same description used before (exact, case-insensitive) → same category as the most recent matching transaction
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  

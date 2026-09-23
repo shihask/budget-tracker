@@ -32,6 +32,12 @@ import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { computeChallenge } from '@/lib/challenge'
 import { getStrategyPcts, getCategoryBucket } from './BudgetStrategyCard'
 import { getCreditCardBilling } from '@/lib/credit-card'
+import { getMovementClass, type MovementClass } from '@/lib/money-movement'
+import { classifyCfoIntent, LOCAL_ONLY_INTENTS, type CfoIntent, type CfoIntentKind } from '@/lib/cfo-intent'
+import { buildCfoSnapshot, pickDecision, buildMonthStory, affordVerdict, snapshotFacts, equationFacts, inr, type CfoSnapshot } from '@/lib/cfo-snapshot'
+import { loadChecks, saveCheck, pickBaseline, computeDeltas } from '@/lib/cfo-history'
+import { CfoCard } from './mint/CfoCard'
+import { cfoHeadline, type CfoCardData } from './mint/cfoCardText'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -77,7 +83,9 @@ type ReceiptPrompt = {
   masterId: string | null
   confidence: 'high' | 'low'
 }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: string[]; receiptPrompt?: ReceiptPrompt; imagePreviewUrl?: string; actionCard?: MintAction }
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: FollowUpChip[]; receiptPrompt?: ReceiptPrompt; imagePreviewUrl?: string; actionCard?: MintAction; cfoCard?: CfoCardData; cfoInsight?: boolean }
+// prefill: the chip needs more from the user (an amount), so it fills the input instead of sending.
+type FollowUpChip = { label: string; q: string; prefill?: boolean }
 
 function shouldShowChart(question: string): 'categories' | 'budget' | 'monthly' | null {
   const q = question.toLowerCase()
@@ -132,31 +140,19 @@ function buildMonthlyChart(state: AppState): ChartData {
   return { type: 'monthly', thisMonth, lastMonth, income }
 }
 
-// Movement class classifier — maps raw transaction_type + is_credit to a semantic role.
-// Add new transaction types here (e.g. 'cashback', 'emi') as the platform grows.
-type MovementClass = 'recurring-income' | 'temporary-cash' | 'one-time-source' | 'recoverable-realized' | 'lent-out' | 'debt-payment' | 'savings-contributed' | 'savings-withdrawn' | 'expense' | 'transfer' | 'other'
-function getMovementClass(t: Transaction): MovementClass {
-  // Money back for an expense already recorded — not earnings. 'recoverable-realized'
-  // is exactly this shape (something you were owed, now received), and it keeps Mint
-  // from describing a refund as income.
-  if (t.reimbursement_for)                                                      return 'recoverable-realized'
-  if (t.transaction_type === 'income')                                          return 'recurring-income'
-  if (t.transaction_type === 'borrowing'           &&  t.is_credit)            return 'temporary-cash'
-  if (t.transaction_type === 'borrowing'           && !t.is_credit)            return 'lent-out'
-  if (t.transaction_type === 'borrowing_repayment' &&  t.is_credit)            return 'recoverable-realized'
-  if (t.transaction_type === 'borrowing_repayment' && !t.is_credit)            return 'debt-payment'
-  if (t.transaction_type === 'savings_withdrawal')                              return 'one-time-source'
-  if (t.transaction_type === 'savings_contribution')                            return 'savings-contributed'
-  if (t.transaction_type === 'transfer')                                        return 'transfer'
-  if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') return 'expense'
-  return 'other'
+// Mint's equation, never d.realFreeMoney's bare low point — shown as "Short by"
+// when there's a gap, so no tile ever reads "₹-109,123".
+function freeMoneyCard(state: AppState, d: DerivedMetrics): SummaryCard {
+  const s = buildCfoSnapshot(state, d)
+  return s.fundingGap > 0
+    ? { icon: <Wallet size={11} />, label: 'Short by', value: inr(s.fundingGap), sub: 'before income', tone: 'bad' }
+    : { icon: <Wallet size={11} />, label: 'Free Money', value: inr(s.freeMoney), tone: s.freeMoney < 2000 ? 'warn' : 'good' }
 }
 
 function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string): SummaryCard[] | null {
   const q = question.toLowerCase()
 
   if (/chart|story|this week|what happened|financial story/i.test(q)) {
-    const freeMoney = d.realFreeMoney ?? 0
     const daysLeft  = d.cycleDaysLeft ?? 0
     const nowD = new Date()
     const mStart = new Date(nowD.getFullYear(), nowD.getMonth(), 1)
@@ -165,21 +161,16 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
       .reduce((s, t) => s + spendAmount(t), 0)
     return [
       { icon: <TrendingDown size={11} />, label: 'Month Spend', value: `₹${monthSpend.toLocaleString()}`, tone: 'neutral' },
-      { icon: <Wallet size={11} />,       label: 'Free Money',  value: `₹${freeMoney.toLocaleString()}`,  tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good' },
+      freeMoneyCard(state, d),
       { icon: <Calendar size={11} />,     label: 'Days Left',   value: `${daysLeft}`,                     tone: daysLeft <= 3 ? 'warn' : 'neutral' },
     ]
   }
 
   if (/survive|afford|enough|make it|tight|last until/i.test(q)) {
     const daysLeft = d.cycleDaysLeft ?? 0
-    const dailySafe = Math.round(d.safeDailySpend ?? 0)
-    const freeMoney = d.realFreeMoney ?? 0
+    const dailySafe = Math.max(0, Math.round(d.safeDailySpend ?? 0))
     return [
-      {
-        icon: <Wallet size={11} />, label: 'Free Money',
-        value: `₹${freeMoney.toLocaleString()}`,
-        tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good',
-      },
+      freeMoneyCard(state, d),
       {
         icon: <Calendar size={11} />, label: 'Days Left',
         value: `${daysLeft}`,
@@ -197,6 +188,7 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
   if (/budget|overspend|weekly spend/i.test(q)) {
     const pct = d.weeklyBudget > 0 ? Math.round((d.weeklySpent / d.weeklyBudget) * 100) : 0
     const remaining = d.weeklyBudget - d.weeklySpent
+    const over = d.weeklySpent - d.weeklyBudget
     return [
       {
         icon: <Target size={11} />, label: 'Weekly Budget',
@@ -206,7 +198,7 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
       {
         icon: <ShoppingBag size={11} />, label: 'Spent',
         value: `₹${d.weeklySpent.toLocaleString()}`,
-        sub: `${pct}% used`,
+        sub: over > 0 ? `${inr(over)} over` : `${pct}% used`,
         tone: pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'good',
       },
       {
@@ -225,22 +217,86 @@ function buildSummaryCards(state: AppState, d: DerivedMetrics, question: string)
     const monthlySpend = forSpendAnalytics(state.transactions)
       .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'expense')
       .reduce((s, t) => s + spendAmount(t), 0)
-    const freeMoney = d.realFreeMoney ?? 0
     return [
       { icon: <Building2 size={11} />, label: 'Balance', value: `₹${totalBalance.toLocaleString()}`, tone: 'neutral' },
       { icon: <TrendingDown size={11} />, label: 'Month Spend', value: `₹${monthlySpend.toLocaleString()}`, tone: 'neutral' },
-      { icon: <Wallet size={11} />, label: 'Free Money', value: `₹${freeMoney.toLocaleString()}`, tone: freeMoney < 0 ? 'bad' : freeMoney < 2000 ? 'warn' : 'good' },
+      freeMoneyCard(state, d),
     ]
   }
 
   return null
 }
 
-function buildActionChips(question: string): string[] {
-  const q = question.toLowerCase()
-  if (/survive|afford|enough|make it/i.test(q)) return ['View Spending', 'Recovery Plan', 'Show Forecast']
-  if (/budget|overspend/i.test(q)) return ['View Budget', 'Show Spending', 'Show Chart']
-  return []
+// The questions behind the follow-up chips — each one routes to a CFO card.
+const CFO_QUESTIONS = {
+  gap: "What's my funding gap?",
+  free: "What's my real free money?",
+  upcoming: 'What payments are coming before my next salary?',
+  weekly: 'How much have I spent this week?',
+  afford: 'Can I afford ₹',
+} as const
+
+// Shown after every AI / CFO answer so the conversation keeps moving without
+// retyping. The chip for the question just answered is dropped.
+function followUpChips(answered: CfoIntentKind | null, snap: CfoSnapshot): FollowUpChip[] {
+  const chips: (FollowUpChip & { kind: CfoIntentKind })[] = [
+    snap.fundingGap > 0
+      ? { kind: 'gap', label: 'Funding gap', q: CFO_QUESTIONS.gap }
+      : { kind: 'free', label: 'Free money', q: CFO_QUESTIONS.free },
+    { kind: 'upcoming', label: 'Upcoming bills', q: CFO_QUESTIONS.upcoming },
+    { kind: 'weekly', label: 'Weekly budget', q: CFO_QUESTIONS.weekly },
+    { kind: 'afford', label: 'Affordability', q: CFO_QUESTIONS.afford, prefill: true },
+  ]
+  return chips.filter(ch => ch.kind !== answered).map(({ label, q, prefill }) => ({ label, q, prefill }))
+}
+
+// Builds the deterministic card for a CFO question. Code owns every number and
+// the decision; the AI (when used) only adds a short insight underneath.
+function buildCfoAnswer(intent: CfoIntent, state: AppState, d: DerivedMetrics, userId: string): {
+  card: CfoCardData; snap: CfoSnapshot; localOnly: boolean; context: string
+} {
+  const snap = buildCfoSnapshot(state, d)
+  const decision = pickDecision(snap)
+  const deltasNow = () => {
+    const base = pickBaseline(loadChecks(userId))
+    return base ? computeDeltas(base, snap, state) : null
+  }
+
+  let card: CfoCardData
+  let extra = ''
+  switch (intent.kind) {
+    case 'status':
+      card = { kind: 'status', snap, decision, story: buildMonthStory(state, d, decision), deltas: deltasNow() }
+      break
+    case 'gap':
+      card = { kind: 'gap', snap, decision }
+      break
+    case 'changed':
+      card = { kind: 'changed', snap, deltas: deltasNow() }
+      break
+    case 'afford': {
+      const verdict = intent.amount != null ? affordVerdict(snap, intent.amount) : null
+      card = { kind: 'afford', snap, amount: intent.amount, verdict }
+      if (verdict && intent.amount != null) {
+        extra = `\nPurchase: ${inr(intent.amount)} → verdict ${verdict.verdict}, free money after ${inr(verdict.after)}, safety cushion ${inr(verdict.buffer)}` +
+          (verdict.pausesSavings ? ', only works by skipping flexible savings' : '')
+      }
+      break
+    }
+    default:
+      card = { kind: intent.kind, snap }
+  }
+
+  // Deltas are read BEFORE saving, so a check is never compared with itself.
+  if (intent.kind === 'status' || intent.kind === 'gap' || intent.kind === 'free' || intent.kind === 'changed') {
+    saveCheck(userId, snap)
+  }
+
+  return {
+    card, snap,
+    localOnly: LOCAL_ONLY_INTENTS.has(intent.kind) || (intent.kind === 'afford' && intent.amount == null),
+    context: `[CFO-INSIGHT:${intent.kind}]\n${snapshotFacts(snap, decision)}${extra}`,
+  }
 }
 
 function guessTransactionType(text: string): 'income' | 'expense' {
@@ -306,6 +362,17 @@ function classifyContextIntent(text: string): ContextIntent {
   if (/\b(budget|weekly|overspend|daily limit|challenge|on track|recovery|free money|free cash|strategy|needs|wants|50.30|60.20|allocation)\b/.test(q)) return 'budget'
   if (/\b(spend|spent|spending|categor|summary|where did|breakdown|expense|this month|last month|compare|story|happened|balance low)\b/.test(q)) return 'spending'
   return 'general'
+}
+
+// "spent ₹21,296 of ₹1,100 weekly budget (₹20,196 over)" — never a % above 100,
+// which is correct but reads as nonsense ("1936% used").
+function budgetStatus(d: DerivedMetrics): string {
+  const spent = Math.round(d.weeklySpent)
+  const budget = Math.round(d.weeklyBudget)
+  if (budget <= 0) return `spent ${inr(spent)} (no budget set)`
+  return spent > budget
+    ? `spent ${inr(spent)} of ${inr(budget)} budget (${inr(spent - budget)} over)`
+    : `spent ${inr(spent)} of ${inr(budget)} budget (${inr(budget - spent)} left, ${Math.round(spent / budget * 100)}% used)`
 }
 
 function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent = 'general'): string {
@@ -375,16 +442,22 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     : ''
 
   // ── MODULE: Core (always sent) ──
+  // Free money is sent as its equation, never as a bare number: a lone
+  // "FreeMoney:₹-109123" was read by the model as "spending ₹1,09,123 a week".
+  const cfo = buildCfoSnapshot(state, d)
+  const safeDailyStr = d.safeDailySpend > 0 ? `₹${Math.round(d.safeDailySpend).toLocaleString()}` : 'none (funding gap)'
+  const safeWeeklyStr = d.safeWeeklySpend > 0 ? `₹${Math.round(d.safeWeeklySpend).toLocaleString()}` : 'none (funding gap)'
   const parts: string[] = []
   parts.push(
-    `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()} FreeMoney:₹${d.realFreeMoney.toLocaleString()}` +
+    `Date:${localDateStr} Balance:₹${totalBalance.toLocaleString()} MonthStartBalance(approx):₹${monthStartBalance.toLocaleString()} Emergency:₹${d.emergencyFund.toLocaleString()}` +
+    `\n${equationFacts(cfo)}` +
     `\nAccounts: ${activeAccs.map(a => `${a.name}:₹${a.current_balance.toLocaleString()}`).join(' | ')}` +
     `\nSpend: this-month ₹${monthlySpend.toLocaleString()}${eventSpendNote} | income ₹${thisMonthIncome.toLocaleString()} | last-month ₹${lastMonthSpend.toLocaleString()}${transferNote}${savingsNote}` +
     `\nTracking: ${trackingCount} transactions across ${trackingDays} days this month` +
     (d.isWaitingForIncome
       ? `\nFinancial-Cycle: WAITING for income (expected ${d.expectedIncomeDate ? new Date(d.expectedIncomeDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'unknown'}). Current cycle started ${d.financialCycle?.startLabel ?? 'unknown'}. Salary/income has NOT been received yet. Safe daily spend: ₹0 until income is recorded.`
       : d.financialCycle
-      ? `\nFinancial-Cycle: active since ${d.financialCycle.startLabel}, ${d.cycleDaysLeft}d left, safe-daily:₹${Math.round(d.safeDailySpend).toLocaleString()} safe-weekly:₹${Math.round(d.safeWeeklySpend).toLocaleString()}`
+      ? `\nFinancial-Cycle: active since ${d.financialCycle.startLabel}, ${d.cycleDaysLeft}d left, safe-daily:${safeDailyStr} safe-weekly:${safeWeeklyStr}`
       : '')
   )
 
@@ -557,8 +630,9 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     const largestIn  = biggestCashIn  ? `${biggestCashIn.transaction_date} +₹${biggestCashIn.amount.toLocaleString()} [${getMovementClass(biggestCashIn)}] ${biggestCashIn.description}` : ''
     const largestOut = biggestExpense ? `${biggestExpense.transaction_date} -₹${biggestExpense.amount.toLocaleString()} [expense] ${biggestExpense.description}` : ''
 
-    // Derived: Financial Pressure
-    const freeMoney   = d.realFreeMoney ?? 0
+    // Derived: Financial Pressure — from Mint's equation (cfo), the same free
+    // money the user sees on every CFO card.
+    const freeMoney   = cfo.freeMoney
     const daysLeft    = d.cycleDaysLeft ?? 99
     const budgetPct   = d.weeklyBudget > 0 ? Math.round(d.weeklySpent / d.weeklyBudget * 100) : 0
 
@@ -571,10 +645,10 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
       : freeMoney < 2000 || (daysLeft <= 7 && freeMoney < 3000) || budgetPct > 90 ? 'medium'
       : 'low'
     const pressureReason =
-      freeMoney < 0             ? 'Free money is negative'
+      freeMoney < 0             ? `Short by ${inr(cfo.fundingGap)} before next income`
       : hasOverdue              ? 'Overdue repayment obligation'
-      : daysLeft <= 3 && freeMoney < 1000 ? `Only ₹${freeMoney.toLocaleString()} with ${daysLeft} days left`
-      : budgetPct > 90          ? `Budget ${budgetPct}% used`
+      : daysLeft <= 3 && freeMoney < 1000 ? `Only ${inr(freeMoney)} with ${daysLeft} days left`
+      : budgetPct > 90          ? budgetStatus(d)
       : freeMoney < 2000        ? 'Low free money buffer'
       : 'Sufficient buffer for remaining cycle'
 
@@ -621,10 +695,10 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
       (assetLines ? `\nRecoverableAssets(owed-to-you): ${assetLines}` : '') +
       // ── Current position ──
       `\n[CurrentPosition]` +
-      `\nFreeMoney: ₹${freeMoney.toLocaleString()}` +
-      `\nBudgetUsed: ${budgetPct}%` +
+      `\n${cfo.fundingGap > 0 ? `FundingGap: ${inr(cfo.fundingGap)} (see CashFlow)` : `FreeMoney: ${inr(freeMoney)} (see CashFlow)`}` +
+      `\nBudget: ${budgetStatus(d)}` +
       (d.cycleDaysLeft  != null ? `\nDaysLeftInCycle: ${d.cycleDaysLeft}` : '') +
-      (d.safeDailySpend != null ? `\nSafeDailySpend: ₹${Math.round(d.safeDailySpend).toLocaleString()}` : '') +
+      `\nSafeDailySpend: ${safeDailyStr}` +
       `\nStoryConfidence: ${storyConfidence}`
     )
   }
@@ -633,8 +707,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   // spending gets just the budget line (no challenge detail — not relevant to category analysis)
   // budget / financial_health / general get the full challenge block
   if (['budget', 'spending', 'financial_health', 'general'].includes(intent)) {
-    const pct = Math.round(d.weeklySpent / d.weeklyBudget * 100)
-    parts.push(`Budget: weekly ₹${d.weeklyBudget.toLocaleString()} spent ₹${d.weeklySpent.toLocaleString()} (${pct}% used)`)
+    parts.push(`Budget: ${budgetStatus(d)}`)
 
     if (state.settings.challenge_enabled && intent !== 'spending') {
       const diff = state.settings.challenge_difficulty ?? 'medium'
@@ -1217,7 +1290,7 @@ function renderRichText(
 
 async function streamChat(
   message: string,
-  history: Message[],
+  history: { role: Message['role']; text: string }[],
   context: string,
   signal: AbortSignal,
   onToken: (token: string) => void,
@@ -1394,7 +1467,8 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
 
           let greeting = "Hey! I'm Mint, your finance coach. Ask me anything — or tap a suggestion below to get started."
           if (pct >= 100) {
-            greeting = `You've used ${pct}% of your weekly budget this week. That happens — let's look at what drove it and find a way forward. Try "help me recover my budget" or ask me anything.`
+            // Never a percentage above 100 — "1936%" is correct and meaningless.
+            greeting = `You're ${inr(weeklySpent - weeklyBudget)} over your ${inr(weeklyBudget)} weekly budget. That happens — let's look at what drove it and find a way forward. Try "help me recover my budget" or ask me anything.`
           } else if (pct >= 80) {
             greeting = `You've used ${pct}% of your weekly budget. You're still in control — ask me where you can ease up, or anything else about your finances.`
           }
@@ -1782,19 +1856,35 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
       return
     }
 
-    // No amount found — treat as Q&A (streamed)
-    const contextIntent = classifyContextIntent(text)
-    const context = buildContext(state, d, contextIntent)
+    // Core money questions → a deterministic CFO card. Balances, liquid cash and
+    // "what changed" are answered entirely locally (no AI request, no quota).
+    const cfoIntent = classifyCfoIntent(text)
+    let context: string
+    let placeholder: Message
+    if (cfoIntent) {
+      const cfo = buildCfoAnswer(cfoIntent, state, d, userId)
+      const chips = followUpChips(cfoIntent.kind, cfo.snap)
+      if (cfo.localOnly) {
+        setMessages(m => [...m, { role: 'ai', text: '', cfoCard: cfo.card, actionChips: chips }])
+        setLoading(false); onBusyChange?.(false)
+        return
+      }
+      context = cfo.context
+      placeholder = { role: 'ai', text: '', cfoCard: cfo.card, cfoInsight: true, actionChips: chips }
+    } else {
+      // No amount found — treat as Q&A (streamed)
+      context = buildContext(state, d, classifyContextIntent(text))
+      // Cards/chips generated immediately from local data; tokens fill the text in.
+      placeholder = {
+        role: 'ai', text: '',
+        summaryCards: buildSummaryCards(state, d, text) ?? undefined,
+        actionChips: followUpChips(null, buildCfoSnapshot(state, d)),
+      }
+    }
     abortRef.current = new AbortController()
-
-    // Insert empty placeholder that tokens will fill in (cards/chips generated immediately from local data)
-    const summaryCards = buildSummaryCards(state, d, text) ?? undefined
-    const actionChipsArr = buildActionChips(text)
-    setMessages(m => [...m, {
-      role: 'ai', text: '',
-      summaryCards,
-      actionChips: actionChipsArr.length ? actionChipsArr : undefined,
-    }])
+    setMessages(m => [...m, placeholder])
+    // The card itself is content — don't also show the "Mint is thinking…" row under it.
+    if (placeholder.cfoCard) setHasContent(true)
 
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
     if (!reducedMotion) {
@@ -1812,7 +1902,9 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
     try {
       const { used, usagePct, enforcing } = await streamChat(
         text,
-        next.slice(-6),
+        // Only role + text reach the model. A local CFO answer has no text, so
+        // its headline stands in — the model then knows what was already said.
+        next.slice(-6).map(m => ({ role: m.role, text: m.text || (m.cfoCard ? cfoHeadline(m.cfoCard) : '') })),
         context,
         abortRef.current.signal,
         reducedMotion
@@ -1828,7 +1920,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
       )
       if (used != null) onUpdateSettings?.(aiUsagePatch(used, usagePct ?? undefined, enforcing ?? undefined))
 
-      const chartType = shouldShowChart(text)
+      const chartType = cfoIntent ? null : shouldShowChart(text)
       if (chartType) {
         const chartData = chartType === 'categories' ? buildCategoryChart(state)
           : chartType === 'budget' ? buildBudgetChart(d)
@@ -2065,8 +2157,11 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
                   <span style={{ font: '500 13px Plus Jakarta Sans', color: '#92400E', lineHeight: 1.6 }}>{m.text}</span>
                 </div>
               ) : (
-              m.role === 'ai' && !m.text ? null : <div style={{
+              m.role === 'ai' && !m.text && !m.cfoCard ? null : <div style={{
                 maxWidth: m.role === 'user' ? '82%' : 'min(90%, 640px)',
+                // A CFO card is a structured panel — let it use the full bubble width.
+                width: m.cfoCard ? 'min(92%, 640px)' : undefined,
+                boxSizing: 'border-box',
                 background: m.role === 'user' ? c.accent : c.surface2,
                 color: m.role === 'user' ? '#fff' : c.ink,
                 borderRadius: m.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
@@ -2080,6 +2175,15 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
                     )}
                     <span style={{ font: '500 14px Plus Jakarta Sans', lineHeight: 1.5 }}>{m.text}</span>
                   </div>
+                ) : m.cfoCard ? (
+                  <CfoCard
+                    card={m.cfoCard}
+                    c={c}
+                    insight={m.text}
+                    insightPending={i === messages.length - 1 && loading}
+                    withInsight={!!m.cfoInsight}
+                    cursor={i === messages.length - 1 && cursorOn && hasContent && m.text ? renderCursor(loading, c) : undefined}
+                  />
                 ) : (
                   <>
                     {renderRichText(
@@ -2094,16 +2198,28 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
               </div>
               )
               }
-              {/* Action chips — shown below the AI bubble */}
-              {m.role === 'ai' && !m.warning && m.actionChips && m.actionChips.length > 0 && (
+              {/* Follow-up chips — below the AI bubble, once the answer has finished */}
+              {m.role === 'ai' && !m.warning && m.actionChips && m.actionChips.length > 0 && !(i === messages.length - 1 && loading) && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: 'min(92%, 640px)' }}>
-                  {m.actionChips.map((chip, ci) => (
-                    <div key={ci} style={{
-                      height: 30, padding: '0 12px', borderRadius: 999,
-                      background: c.surface2, border: `1px solid ${c.faint}`,
-                      font: '500 12px Plus Jakarta Sans', color: c.sub,
-                      display: 'flex', alignItems: 'center',
-                    }}>{chip}</div>
+                  {m.actionChips.map(chip => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={() => {
+                        if (chip.prefill) {
+                          setInput(chip.q)
+                          setTimeout(() => inputRef.current?.focus(), 50)
+                        } else {
+                          send(chip.q)
+                        }
+                      }}
+                      style={{
+                        height: 30, padding: '0 12px', borderRadius: 999,
+                        background: c.surface2, border: `1px solid ${c.faint}`,
+                        font: '500 12px Plus Jakarta Sans', color: c.sub,
+                        display: 'flex', alignItems: 'center', cursor: 'pointer',
+                      }}
+                    >{chip.label}</button>
                   ))}
                 </div>
               )}
@@ -2374,14 +2490,16 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
         {messages.length <= 1 && (
           <div style={{ padding: '8px 14px 4px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
-              { label: 'Why is balance low?', q: 'My balance feels low this month. Help me understand what happened — what was real spending vs transfers vs money I lent out?' },
+              // The core CFO questions first — each answers with a deterministic card.
+              { label: 'Financial status', q: "What's my current financial status?" },
+              { label: 'Funding gap', q: CFO_QUESTIONS.gap },
+              { label: 'Money I have', q: 'How much money do I actually have?' },
+              { label: 'Upcoming bills', q: CFO_QUESTIONS.upcoming },
+              { label: 'Free money', q: CFO_QUESTIONS.free },
+              { label: 'This week', q: CFO_QUESTIONS.weekly },
+              { label: 'Affordability', q: CFO_QUESTIONS.afford },
+              { label: 'What changed?', q: 'What changed since my last check?' },
               { label: 'My financial story', q: "Give me my financial story this month — where did my money go, what's recoverable, and how am I actually doing?" },
-              { label: 'Quick savings wins', q: 'Based on my actual spending, what are 3 quick ways I can save money this week without feeling it too much?' },
-              { label: 'Budget recovery', q: "I've been over my weekly budget. Give me a realistic recovery plan with specific steps." },
-              { label: 'Monthly summary', q: 'Give me a full summary of my spending this month — categories, totals, and how I compare to last month.' },
-              { label: 'Am I on track?', q: 'Am I really overspending, or does it just feel that way? Give me an honest assessment.' },
-              { label: 'Save ₹5,000', q: 'Create a personalized plan for me to save ₹5,000 in the next 3 months based on my actual spending.' },
-              { label: 'Free money', q: "What's my real free money right now after emergency fund and bills?" },
               { label: 'Who owes me?', q: 'Who owes me money and how much in total? When might I get it back?' },
               { label: 'My investments', q: 'Show me a summary of my savings and investments and how they are progressing.' },
             ].map(({ label, q }) => (
