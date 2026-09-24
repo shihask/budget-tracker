@@ -75,19 +75,23 @@ function nextDueDate(dueDay: number, from: Date): Date {
   return mk(from.getFullYear(), from.getMonth() + 1)
 }
 
-export type SalarySource = 'override' | 'avg' | 'recent' | null
+export type SalarySource = 'override' | 'avg' | 'recent' | 'settings' | null
 
 export const SALARY_SOURCE_LABEL: Record<NonNullable<SalarySource>, string> = {
   override: 'Custom Estimate',
   avg: 'Salary History',
   recent: 'Recent Salary',
+  settings: 'Your Monthly Salary',
 }
 
 // Estimate the next salary amount. Priority:
 //   1. forecast_settings.salary_override  (user explicitly set a custom estimate)
-//   2. average of recent "Salary"-category transactions (last ~190 days, up to 3)
-//   3. most recent "Salary"-category transaction
-//   4. null  → salary event is hidden
+//   2. average of recent salary transactions (last ~190 days, up to 3)
+//   3. most recent salary transaction
+//   4. settings.monthly_salary  (what the user entered in Settings / onboarding)
+//   5. null  → salary event is hidden
+// A salary transaction is one in primary_income_category_id when set — the same
+// category the financial cycle anchors on — else one in a category named "Salary".
 export function estimateForecastSalary(state: AppState): { amount: number | null; source: SalarySource } {
   const override = state.forecast_settings.salary_override
   if (override != null && override > 0) {
@@ -95,6 +99,8 @@ export function estimateForecastSalary(state: AppState): { amount: number | null
   }
 
   const catName = new Map(state.categories.map(c => [c.id, c.name.toLowerCase()]))
+  const primaryId = state.settings.primary_income_category_id
+  const isSalaryCategory = (id: string) => primaryId ? id === primaryId : catName.get(id) === 'salary'
   const today = midnight(new Date())
   const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 190)
 
@@ -103,7 +109,7 @@ export function estimateForecastSalary(state: AppState): { amount: number | null
       if (t.transaction_type !== 'income') return false
       // A reimbursement is never a salary payment, whatever it is categorised as.
       if (isReimbursement(t)) return false
-      if (t.category_id == null || catName.get(t.category_id) !== 'salary') return false
+      if (t.category_id == null || !isSalaryCategory(t.category_id)) return false
       if (!(t.amount > 0)) return false
       const [y, m, dd] = t.transaction_date.split('-').map(Number)
       return new Date(y, m - 1, dd) >= cutoff
@@ -117,6 +123,10 @@ export function estimateForecastSalary(state: AppState): { amount: number | null
   }
   if (salaryTxns.length === 1) {
     return { amount: Math.round(salaryTxns[0].amount), source: 'recent' }
+  }
+  const configured = state.settings.monthly_salary
+  if (configured != null && configured > 0) {
+    return { amount: Math.round(configured), source: 'settings' }
   }
   return { amount: null, source: null }
 }
