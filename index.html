@@ -29,6 +29,29 @@
 
     <title>MoneyPlant – Personal Finance, Budget & Cash Flow Forecast App</title>
 
+    <!-- Stale-build recovery. A page from a previous deploy asks for hashed
+         /assets files that no longer exist; the entry script then fails before
+         any app code runs, leaving a blank screen. Reload once (guarded, so a
+         real outage can't loop) to fetch the current index.html. Must be a
+         classic inline script so it runs even when the module bundle can't. -->
+    <script>
+      window.__mpReloadForNewBuild = function () {
+        try {
+          var key = 'mp_stale_build_reload_at'
+          var last = Number(sessionStorage.getItem(key) || 0)
+          if (Date.now() - last < 30000) return
+          sessionStorage.setItem(key, String(Date.now()))
+        } catch (e) { /* storage blocked — still reload once */ }
+        window.location.reload()
+      }
+      window.addEventListener('error', function (e) {
+        var t = e.target
+        if (!t || (t.tagName !== 'SCRIPT' && t.tagName !== 'LINK')) return
+        var url = t.src || t.href || ''
+        if (url.indexOf('/assets/') !== -1) window.__mpReloadForNewBuild()
+      }, true)
+    </script>
+
     <!-- Structured Data -->
     <script type="application/ld+json">
     {

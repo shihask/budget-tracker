@@ -13,6 +13,13 @@ Sentry.init({
   tracesSampleRate: 0.2,
 })
 
+// A lazy chunk from the previous deploy is gone — reload onto the current build
+// (same once-per-30s guard as the inline handler in index.html).
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  ;(window as Window & { __mpReloadForNewBuild?: () => void }).__mpReloadForNewBuild?.()
+})
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Sentry.ErrorBoundary fallback={<SentryFallback />}>
