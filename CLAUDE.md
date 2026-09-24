@@ -339,6 +339,9 @@ Before income the two agree; `afterSavings` equals the forecast balance on the e
   Insight intents send `[CFO-INSIGHT:<kind>]` + compact facts; the Edge Function switches to
   "CFO INSIGHT MODE" on that marker. Keep the marker string in sync on both sides.
 - No budget % above 100 anywhere Mint speaks: `budgetStatus()` says "₹X over".
+- **Scope:** the chat system prompt opens with a SCOPE rule — personal finance and MoneyPlant
+  only; anything else gets one fixed decline line. It is prompt-only (no client keyword filter,
+  which would block real money questions), and it is shared by all six `mode: 'chat'` features.
 
 ## Auto-categorize in QuickAdd (four-tier)
 0. **History match** (`findHistoricalCategory`) — same description used before (exact, case-insensitive) → same category as the most recent matching transaction
