@@ -268,7 +268,10 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   // ── Budget baseline drift (frozen envelope vs. what it'd be if opened today) ──
   const liveBaseline = round2(d.realFreeMoney + d.cycleSpent)
   const baselineDrift = round2(liveBaseline - d.cycleStartFreeMoney)
-  const driftThreshold = Math.min(100, d.cycleStartFreeMoney * 0.01)
+  // Floor of ₹1: when the envelope is ≤ 0 (cash shortfall) the 1% term goes
+  // to ≤ 0, and a zero drift would pass `>=` forever — "+₹0 isn't reflected"
+  // with an Update button that writes the same value back.
+  const driftThreshold = Math.max(1, Math.min(100, Math.abs(d.cycleStartFreeMoney) * 0.01))
   const hasDrift = d.cycleTrackingReady && Math.abs(baselineDrift) >= driftThreshold
 
   // ── Shared chip row ───────────────────────────────────────────────────────────
