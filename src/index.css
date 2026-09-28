@@ -56,9 +56,25 @@ input, select, button, textarea {
 input[type="text"],
 input[type="number"],
 input[type="date"],
+input[type="time"],
 input[type="email"] {
   -webkit-appearance: none;
   appearance: none;
+}
+
+/* iOS Safari gives date/time inputs an intrinsic min-width that ignores
+   width:100%, so side by side in a flex row they spill past the screen edge.
+   It also centres the value; keep it left like every other field. */
+input[type="date"],
+input[type="time"] {
+  min-width: 0;
+  max-width: 100%;
+  display: block;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.2em;
 }
 
 /* Faster button response on touch (no 300ms delay) */
@@ -96,7 +112,8 @@ input[type=number]::-webkit-outer-spin-button {
 input[type=number] { -moz-appearance: textfield; }
 
 /* ── Date input calendar icon color ───────────────────────────────────────── */
-input[type="date"]::-webkit-calendar-picker-indicator {
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
   opacity: 0.5;
   cursor: pointer;
 }
