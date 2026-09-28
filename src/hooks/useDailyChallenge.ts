@@ -2,7 +2,7 @@ import { useMemo, useEffect, useRef } from 'react'
 import { computeChallenge, type ChallengeCalc } from '@/lib/challenge'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { loadFrozenSnapshot, saveFrozenSnapshot, freezeFromCalc } from '@/lib/challenge-snapshot'
-import { iso, addDays, TODAY } from '@/lib/utils'
+import { iso, parseIso, addDays, TODAY } from '@/lib/utils'
 import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
 import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 import type { AppState, DerivedMetrics } from '@/types'
@@ -97,9 +97,9 @@ export function useDailyChallenge(
         return
       }
 
-      let cursor = new Date(lastDate)
+      let cursor = parseIso(lastDate)
       cursor.setDate(cursor.getDate() + 1)
-      const yesterday = new Date(yesterdayStr)
+      const yesterday = parseIso(yesterdayStr)
 
       while (cursor <= yesterday) {
         const dateStr = iso(cursor)

@@ -70,16 +70,24 @@ export function round2(n: number): number {
 
 export const TODAY = new Date()
 
+// Calendar date (YYYY-MM-DD) in the device's local timezone — the same as
+// localIso(). Transaction, habit and "today" dates are all local calendar days.
+// This used to be toISOString() (UTC), which returned yesterday between 00:00
+// and 05:30 IST, and was always a day early on a local-midnight Date
+// (getWeekStart, financial cycle starts).
 export function iso(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  return localIso(d)
 }
 
-// Local-calendar-date ISO string (YYYY-MM-DD) — unlike iso(), which uses
-// toISOString() and can shift by a day near midnight depending on timezone.
-// Use this when comparing against calendar dates built from local
-// `new Date(y, m, d)` values (e.g. financial cycle boundaries).
 export function localIso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Inverse of iso(): 'YYYY-MM-DD' → local midnight. `new Date('YYYY-MM-DD')`
+// parses as UTC midnight, which is the previous local day west of UTC.
+export function parseIso(s: string): Date {
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d)
 }
 
 export function addDays(d: Date, n: number): Date {

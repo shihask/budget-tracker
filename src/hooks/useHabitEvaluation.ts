@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { computeHabitCatchUp, type HabitCounters, type HabitSchedule } from '@/lib/habit-engine'
-import { iso, addDays, TODAY } from '@/lib/utils'
+import { iso, parseIso, addDays, TODAY } from '@/lib/utils'
 import type { Habit, HabitCompletion } from '@/types'
 
 // Called once in App.tsx — same lesson as useDailyChallenge/useAchievements: one
@@ -27,7 +27,7 @@ export function useHabitEvaluation(
         if (habit.status !== 'active') continue
         if (!habit.last_evaluated_date || habit.last_evaluated_date >= yesterdayStr) continue
 
-        const gapStart = new Date(habit.last_evaluated_date)
+        const gapStart = parseIso(habit.last_evaluated_date)
         gapStart.setDate(gapStart.getDate() + 1)
 
         // One bounded read for the whole gap, not one query per day. Existing rows are
@@ -53,7 +53,7 @@ export function useHabitEvaluation(
           missed: habit.total_missed,
         }
 
-        const { missedDates, counters } = computeHabitCatchUp(schedule, initialCounters, gapStart, new Date(yesterdayStr), existingDates)
+        const { missedDates, counters } = computeHabitCatchUp(schedule, initialCounters, gapStart, parseIso(yesterdayStr), existingDates)
 
         // Always advances last_evaluated_date to yesterday, even when nothing was due
         // in the gap (missedDates empty) — otherwise a habit with no due days in a long

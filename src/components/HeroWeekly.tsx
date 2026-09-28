@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { X, BarChart3 } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, iso, localIso, TODAY, addDays, getWeekStart, getMonthStart, round2, selectOnFocus } from '@/lib/utils'
+import { fmt, iso, localIso, parseIso, TODAY, addDays, getWeekStart, getMonthStart, round2, selectOnFocus } from '@/lib/utils'
 import { ProgressRing } from './ProgressRing'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -219,7 +219,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     const startStr = dates.has(todayStr) ? todayStr : dates.has(yesterStr) ? yesterStr : null
     if (!startStr) return 0
     let count = 0
-    let check = new Date(startStr)
+    let check = parseIso(startStr)
     while (dates.has(iso(check))) {
       count++
       check = addDays(check, -1)
@@ -1189,7 +1189,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                         {t.description || '—'}
                       </div>
                       <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1, display: 'flex', gap: 6 }}>
-                        <span>{iso(new Date(t.transaction_date)).slice(5).replace('-', '/')}</span>
+                        <span>{t.transaction_date.slice(5, 10).replace('-', '/')}</span>
                         {cat && <span style={{ background: covered ? c.surface2 : c.accentSoft, color: covered ? c.muted : c.accent, borderRadius: 4, padding: '0 5px' }}>{cat.name}</span>}
                         {covered && <span style={{ color: c.muted }}>· via {cat?.group_name ?? 'scope'}</span>}
                       </div>
