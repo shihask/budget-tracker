@@ -1032,21 +1032,25 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     />
                   )}
                 </div>
-                <div style={{ flex: 1 }}>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1.4, minWidth: 0 }}>
                   <Label>Date</Label>
-                  <HelpText>When this transaction occurred.</HelpText>
                   <input
                     type="date"
                     value={editForm.transaction_date}
                     onChange={e => setEditForm(f => f ? { ...f, transaction_date: e.target.value } : f)}
                     style={inp}
                   />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Label>Time</Label>
                   <input
                     type="time"
-                    aria-label="Time"
                     value={editForm.transaction_time}
                     onChange={e => setEditForm(f => f ? { ...f, transaction_time: e.target.value } : f)}
-                    style={{ ...inp, marginTop: 8 }}
+                    style={inp}
                   />
                 </div>
               </div>
