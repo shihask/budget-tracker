@@ -7,7 +7,7 @@ import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
 import { normalizeMasterName, duplicateMasterMessage, ensurePersonMaster, masterPaid, masterReceived, masterActivity } from '@/lib/masters'
-import { withTimeout, iso, localIso, TODAY, fmt, round2 } from '@/lib/utils'
+import { withTimeout, iso, localIso, txTime, TODAY, fmt, round2 } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
 const RECEIPT_NETWORK_TIMEOUT_MS = 20_000
@@ -468,11 +468,13 @@ export function useSupabaseData(userId: string) {
       // rather than sent.
       //
       // Both in ONE update: they have identical failure semantics, so a second
-      // round trip would buy nothing.
-      if (form.event_id || form.master_id) {
-        const tag: { event_id?: string; master_id?: string } = {}
+      // round trip would buy nothing. A user-chosen time rides along too — only
+      // sent when it differs from "now", so an ordinary save stays one request.
+      if (form.event_id || form.master_id || form.transaction_time) {
+        const tag: { event_id?: string; master_id?: string; transaction_time?: string } = {}
         if (form.event_id) tag.event_id = form.event_id
         if (form.master_id) tag.master_id = form.master_id
+        if (form.transaction_time) tag.transaction_time = form.transaction_time
         const { data: tagged, error: tagErr } = await supabase
           .from('transactions').update(tag).eq('id', row.id).select('*').single()
         // A failed tag must not lose the transaction — it's already saved and the
@@ -480,7 +482,7 @@ export function useSupabaseData(userId: string) {
         // Deliberately NOT thrown, unlike the reimbursement link below: a missing
         // label is cosmetic, and blocking expense capture over one would be the
         // worse bug.
-        if (tagErr) console.error('Failed to tag transaction (event/master):', tagErr)
+        if (tagErr) console.error('Failed to tag transaction (event/master/time):', tagErr)
         else if (tagged) row = tagged as Transaction
       }
 
@@ -630,7 +632,7 @@ export function useSupabaseData(userId: string) {
   }, [userId])
 
   const addSplitTransaction = useCallback(async (
-    form: { transaction_date: string; description: string; amount: number; category_id: string | null; notes?: string; master_id?: string | null },
+    form: { transaction_date: string; transaction_time?: string | null; description: string; amount: number; category_id: string | null; notes?: string; master_id?: string | null },
     legs: SplitLegInput[],
   ): Promise<Transaction[]> => {
     try {
@@ -656,11 +658,15 @@ export function useSupabaseData(userId: string) {
       //
       // It must run BEFORE applySplitRows, or local state is seeded with untagged
       // rows and the UI shows no master until a reload.
-      if (form.master_id && rows.length > 0) {
+      // A user-chosen time rides in the same update, on every leg — they are one purchase.
+      if ((form.master_id || form.transaction_time) && rows.length > 0) {
+        const tag: { master_id?: string; transaction_time?: string } = {}
+        if (form.master_id) tag.master_id = form.master_id
+        if (form.transaction_time) tag.transaction_time = form.transaction_time
         const { data: tagged, error: tagErr } = await supabase
-          .from('transactions').update({ master_id: form.master_id })
+          .from('transactions').update(tag)
           .in('id', rows.map(r => r.id)).select('*')
-        if (tagErr) console.error('Failed to tag split transaction to master:', tagErr)
+        if (tagErr) console.error('Failed to tag split transaction (master/time):', tagErr)
         else if (tagged && tagged.length > 0) rows = tagged as Transaction[]
       }
 
@@ -909,6 +915,18 @@ export function useSupabaseData(userId: string) {
           .eq('id', old.id).select('*').single()
         if (linkErr) throw linkErr
         if (linked) row = linked as Transaction
+      }
+
+      // Same tri-state rule for the time: absent = leave it alone (the AI chat
+      // editor and quick-category popup don't know about it). Cosmetic, so a
+      // failure is logged, not thrown — the edit itself already saved. Compared
+      // against the time the sheet showed, so an untouched field writes nothing.
+      const nextTime = form.transaction_time === undefined ? undefined : (form.transaction_time || null)
+      if (nextTime !== undefined && nextTime !== txTime(old)) {
+        const { data: timed, error: timeErr } = await supabase
+          .from('transactions').update({ transaction_time: nextTime }).eq('id', old.id).select('*').single()
+        if (timeErr) console.error('Failed to update transaction time:', timeErr)
+        else if (timed) row = timed as Transaction
       }
 
       const updated: Transaction = {

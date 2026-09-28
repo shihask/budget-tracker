@@ -58,6 +58,9 @@ export interface Transaction {
   to_account_id: string | null
   notes: string | null
   created_at: string
+  // Local clock time the user chose ('HH:MM' or 'HH:MM:SS'). null = when it was
+  // recorded — read through txTime(), which falls back to created_at.
+  transaction_time?: string | null
   borrowing_id?: string | null
   credit_card_id?: string | null
   // Direction for borrowing/borrowing_repayment: true = account credited, false = debited

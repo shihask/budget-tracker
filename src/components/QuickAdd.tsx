@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, localIso, round2, selectOnFocus } from '@/lib/utils'
+import { fmt, localIso, localTime, round2, selectOnFocus } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { MasterSelect } from './MasterSelect'
@@ -11,7 +11,7 @@ import { matchMasterByName, normalizeMasterName, isMasterTaggable, MASTER_TYPE_L
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { QuickAmountBody } from './QuickAmountSheet'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
-import { Camera, Sparkles, Undo2 } from 'lucide-react'
+import { Camera, Clock, Sparkles, Undo2 } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { SplitLegsEditor } from './SplitLegsEditor'
 import { isSplitValid, splitHint } from '@/lib/splitGroups'
@@ -26,6 +26,7 @@ import { LinkReimbursementSheet } from './LinkReimbursementSheet'
 
 const schema = z.object({
   date: z.string().min(1),
+  time: z.string(),
   description: z.string().min(1, 'Description required'),
   amount: z.number().positive('Amount must be positive'),
   category_id: z.string(),
@@ -99,7 +100,7 @@ interface QuickAddSheetProps {
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => Promise<Transaction | undefined>
   /** Saves one expense funded by several accounts. Absent = split mode unavailable. */
   onSaveSplit?: (
-    form: { transaction_date: string; description: string; amount: number; category_id: string | null; master_id?: string | null },
+    form: { transaction_date: string; transaction_time?: string | null; description: string; amount: number; category_id: string | null; master_id?: string | null },
     legs: SplitLegInput[],
   ) => Promise<Transaction[]>
   state: AppState
@@ -176,6 +177,8 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   const receiptFieldRef = useRef<ReceiptFieldHandle | null>(null)
   const initialCategoryIdRef = useRef('')
   const initialDateRef = useRef('')
+  // The time field opens on "now"; only a changed value is saved (see pickedTime).
+  const initialTimeRef = useRef('')
   const enterSubmittedRef = useRef(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
@@ -278,6 +281,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
     mode: 'onChange',
     defaultValues: {
       date: localIso(new Date()),
+      time: localTime(new Date()),
       description: '',
       amount: 0,
       category_id: '',
@@ -316,15 +320,18 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       const target = defaultReimbursement
         ? state.transactions.find(t => t.id === defaultReimbursement.targetId)
         : undefined
+      const now = new Date()
       reset({
-        date: localIso(new Date()),
+        date: localIso(now),
+        time: localTime(now),
         description: target ? `Reimbursement · ${target.description}` : '',
         amount: defaultReimbursement?.remaining ?? 0,
         category_id: defaultReimbursement ? '' : firstCat,
         from_account_id: firstAccount,
       })
       initialCategoryIdRef.current = firstCat
-      initialDateRef.current = localIso(new Date())
+      initialDateRef.current = localIso(now)
+      initialTimeRef.current = localTime(now)
       setTxType(initType)
       setTransferToAccountId(secondAccount)
       setSplitLegs(null)
@@ -594,10 +601,14 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
 
   const onSubmit = (data: FormValues) => {
     const receiptToUpload = pendingReceipt
+    // Untouched = "when it was recorded" (null), which created_at already says —
+    // saves a follow-up write on every ordinary entry.
+    const pickedTime = data.time && data.time !== initialTimeRef.current ? data.time : undefined
     setSaveError(null)
     if (txType === 'transfer') {
       onSave({
         transaction_date: data.date,
+        transaction_time: pickedTime,
         description: data.description.trim() || 'Transfer',
         amount: data.amount,
         transaction_type: 'transfer',
@@ -611,6 +622,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       if (!isSplitValid(splitLegs, data.amount)) return
       onSaveSplit({
         transaction_date: data.date,
+        transaction_time: pickedTime,
         description: data.description,
         amount: data.amount,
         category_id: data.category_id || null,
@@ -627,6 +639,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
     } else {
       const saved = onSave({
         transaction_date: data.date,
+        transaction_time: pickedTime,
         description: data.description,
         amount: data.amount,
         transaction_type: txType as TransactionType,
@@ -1343,9 +1356,17 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
               </div>
             )}
 
-            <div>
-              <label style={labelStyle}>Date</label>
-              <input type="date" {...register('date')} style={inputStyle} />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1.4, minWidth: 0 }}>
+                <label style={labelStyle}>Date</label>
+                <input type="date" {...register('date')} style={inputStyle} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Clock size={12} strokeWidth={2.5} /> Time
+                </label>
+                <input type="time" {...register('time')} style={inputStyle} />
+              </div>
             </div>
 
             {hasAdvancedFields && (

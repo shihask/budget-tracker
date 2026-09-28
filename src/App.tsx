@@ -630,7 +630,7 @@ function AppContent({ session }: { session: Session }) {
   }
 
   const handleSaveSplit = async (
-    form: { transaction_date: string; description: string; amount: number; category_id: string | null },
+    form: Parameters<typeof addSplitTransaction>[0],
     legs: Parameters<typeof addSplitTransaction>[1],
   ) => {
     const prevPct = d.weeklyPct

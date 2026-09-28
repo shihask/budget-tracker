@@ -1,4 +1,5 @@
 import { catById } from '@/lib/data'
+import { txTime } from '@/lib/utils'
 import type { Category, Transaction } from '@/types'
 
 export type TxnSortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
@@ -18,9 +19,16 @@ export const DEFAULT_TXN_FILTERS: TransactionFilterState = {
   search: '', account: 'all', category: 'all', group: 'all', event: 'all', dateFrom: '', dateTo: '', showSystemTxns: false,
 }
 
+// Oldest first: date, then the time the user chose (else when it was recorded),
+// then insert order so same-minute entries stay stable.
+const chronological = (a: Transaction, b: Transaction): number =>
+  a.transaction_date.localeCompare(b.transaction_date)
+  || txTime(a).localeCompare(txTime(b))
+  || a.created_at.localeCompare(b.created_at)
+
 const SORT_COMPARATORS: Record<TxnSortKey, (a: Transaction, b: Transaction) => number> = {
-  date_desc: (a, b) => a.transaction_date !== b.transaction_date ? (a.transaction_date < b.transaction_date ? 1 : -1) : (a.created_at < b.created_at ? 1 : -1),
-  date_asc: (a, b) => a.transaction_date !== b.transaction_date ? (a.transaction_date > b.transaction_date ? 1 : -1) : (a.created_at > b.created_at ? 1 : -1),
+  date_desc: (a, b) => chronological(b, a),
+  date_asc: chronological,
   amount_desc: (a, b) => b.amount - a.amount,
   amount_asc: (a, b) => a.amount - b.amount,
 }

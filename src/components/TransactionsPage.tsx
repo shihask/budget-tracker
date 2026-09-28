@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { CAT_COLORS, ACCOUNT_PALETTE } from '@/lib/tokens'
-import { fmt, fmtDate, fmtTime, round2, TimeoutError, openDatePicker, selectOnFocus } from '@/lib/utils'
+import { fmt, fmtDate, fmtTxTime, txTime, round2, TimeoutError, openDatePicker, selectOnFocus } from '@/lib/utils'
 import { catById as buildCatById } from '@/lib/data'
 import { EventIcon } from '@/features/events/lib/eventIcons'
 import { masterById, isMasterTaggable, MASTER_ACCENTS } from '@/lib/masters'
@@ -29,6 +29,7 @@ type EditForm = {
   description: string
   amount: string
   transaction_date: string
+  transaction_time: string
   transaction_type: TransactionType
   category_id: string
   from_account_id: string
@@ -44,6 +45,7 @@ type SavedFormSnapshot = {
   description: string
   amount: number
   transaction_date: string
+  transaction_time: string
   transaction_type: TransactionType
   category_id: string | null
   from_account_id: string | null
@@ -447,6 +449,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       description: t.description,
       amount: String(t.amount),
       transaction_date: t.transaction_date,
+      transaction_time: txTime(t),
       transaction_type: t.transaction_type,
       category_id: t.category_id || '',
       from_account_id: t.from_account_id || (t as any).credit_card_id || '',
@@ -503,6 +506,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       description: editForm.description.trim(),
       amount,
       transaction_date: editForm.transaction_date,
+      // Always the value shown — updateTransaction writes it only if it changed.
+      transaction_time: editForm.transaction_time,
       transaction_type: editForm.transaction_type,
       category_id: editForm.category_id || null,
       from_account_id: editForm.from_account_id || null,
@@ -530,6 +535,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       && lastSavedForm.description === form.description
       && lastSavedForm.amount === form.amount
       && lastSavedForm.transaction_date === form.transaction_date
+      && lastSavedForm.transaction_time === form.transaction_time
       && lastSavedForm.transaction_type === form.transaction_type
       && lastSavedForm.category_id === form.category_id
       && lastSavedForm.from_account_id === form.from_account_id
@@ -915,7 +921,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                              ? (t.is_credit ? '+' : '−')
                              : '−'}{fmt(g.total, { decimals: g.total % 1 ? 2 : 0 })}
                         </div>
-                        <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{fmtTime(t.created_at)}</div>
+                        <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{fmtTxTime(t)}</div>
                       </div>
                       <button
                         onClick={e => { e.stopPropagation(); onDeleteClick() }}
@@ -1034,6 +1040,13 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     value={editForm.transaction_date}
                     onChange={e => setEditForm(f => f ? { ...f, transaction_date: e.target.value } : f)}
                     style={inp}
+                  />
+                  <input
+                    type="time"
+                    aria-label="Time"
+                    value={editForm.transaction_time}
+                    onChange={e => setEditForm(f => f ? { ...f, transaction_time: e.target.value } : f)}
+                    style={{ ...inp, marginTop: 8 }}
                   />
                 </div>
               </div>

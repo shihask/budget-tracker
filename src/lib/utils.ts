@@ -123,6 +123,24 @@ export function fmtTime(s: string): string {
   return new Date(s).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase()
 }
 
+// Local clock time 'HH:MM' — the value an <input type="time"> takes.
+export function localTime(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// A transaction's time of day as 'HH:MM': the one the user chose, else when it
+// was recorded. The single reader for display and within-day ordering.
+export function txTime(t: { transaction_time?: string | null; created_at?: string | null }): string {
+  if (t.transaction_time) return t.transaction_time.slice(0, 5)
+  return t.created_at ? localTime(new Date(t.created_at)) : '00:00'
+}
+
+// txTime() formatted for display — '1:55 PM'.
+export function fmtTxTime(t: { transaction_time?: string | null; created_at?: string | null }): string {
+  const [h, m] = txTime(t).split(':').map(Number)
+  return new Date(2000, 0, 1, h, m).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase()
+}
+
 export function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)

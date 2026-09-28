@@ -1,0 +1,13 @@
+-- User-chosen time of day for a transaction ("I bought this at 7:30 PM").
+--
+-- NULL means "when it was recorded" — the UI falls back to created_at's local
+-- time, which is right for the common case of logging as you spend, so an
+-- ordinary save needs no extra write.
+--
+-- Deliberately NOT created_at: that is the insert timestamp, and it has a
+-- job — reimbursements.ts anchors a split group on its earliest created_at
+-- leg. Letting the user edit it would silently move stored links.
+--
+-- A plain `time` (no zone): transaction_date is already a local calendar day,
+-- and this is the local clock time on it.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_time time DEFAULT NULL;
