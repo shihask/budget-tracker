@@ -1,4 +1,5 @@
 import type { AppState } from '@/types'
+import { localIso } from '@/lib/utils'
 
 export interface ParsedBankSms {
   amount: number
@@ -59,7 +60,7 @@ export function parseBankSms(text: string, state: AppState): ParsedBankSms | nul
   if (!amount || amount <= 0) return null
 
   // ── Date ──────────────────────────────────────────────────────────────────
-  let transactionDate = new Date().toISOString().slice(0, 10)
+  let transactionDate = localIso(new Date())
   // DD-MM-YY HH:MM (Axis Bank: "24-07-26 08:16:07 IST")
   const axisDate = text.match(/\b(\d{2})-(\d{2})-(\d{2})\s+\d{2}:\d{2}/)
   if (axisDate) {

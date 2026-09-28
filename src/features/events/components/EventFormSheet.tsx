@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { iso, TODAY, round2, selectOnFocus } from '@/lib/utils'
+import { localIso, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
@@ -57,7 +57,7 @@ export function EventFormSheet({ open, onClose, state, onSave, onAddCategory, ed
       setIcon(prefill?.icon ?? DEFAULT_EVENT_ICON)
       setName(prefill?.name ?? '')
       setTarget('')
-      setStartDate(prefill?.start_date ?? iso(TODAY))
+      setStartDate(prefill?.start_date ?? localIso(new Date()))
       setEndDate(prefill?.end_date ?? '')
       setAccountId(prefill?.default_account_id ?? state.accounts.find(a => a.is_active)?.id ?? '')
       setCategoryId(prefill?.default_category_id ?? '')

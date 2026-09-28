@@ -6,7 +6,7 @@ import type { ColorTokens } from '@/lib/tokens'
 import { parseExpenseWithAI, extractReceiptWithAI, aiUsagePatch, type AIReceiptExtraction } from '@/lib/gemini'
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
 import { buildCashFlowForecast } from '@/lib/cashflow'
-import { round2 } from '@/lib/utils'
+import { localIso, round2 } from '@/lib/utils'
 import { matchMasterByName, masterById } from '@/lib/masters'
 import { forSpendAnalytics, spendAmount, isReimbursement } from '@/lib/reimbursements'
 import { ringFencedEventIds, countsTowardBudget, eventSpent } from '@/lib/events'
@@ -1613,7 +1613,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
           receipt,
           description: result.description ?? 'Receipt',
           amount,
-          transactionDate: result.transaction_date ?? new Date().toISOString().split('T')[0],
+          transactionDate: result.transaction_date ?? localIso(new Date()),
           categoryId: category?.id ?? null,
           categorySuggestion: !category ? (result.suggestion ?? null) : null,
           accountId: allAccObjs[0]?.id ?? '',
@@ -1727,7 +1727,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
 
       const account = matchedAccount ?? allAccObjs[0]
       const category = state.categories.find(c => c.name.toLowerCase() === (parsed.category ?? '').toLowerCase())
-      const today = new Date().toISOString().split('T')[0]
+      const today = localIso(new Date())
 
       try {
         const tx = await onSave({

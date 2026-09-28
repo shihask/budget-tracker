@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, TODAY, iso, round2, selectOnFocus } from '@/lib/utils'
+import { fmt, localIso, round2, selectOnFocus } from '@/lib/utils'
 import { Glyph } from './Glyph'
 import { CategorySelect } from './CategorySelect'
 import { MasterSelect } from './MasterSelect'
@@ -262,7 +262,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
     if (amt === null || amt <= 0 || !longPressChip) return
     const catId = longPressChip.category_id || guessCategory(longPressChip.label, cats) || null
     onSave({
-      transaction_date: iso(TODAY),
+      transaction_date: localIso(new Date()),
       description: longPressChip.label,
       amount: round2(amt),
       transaction_type: 'expense',
@@ -277,7 +277,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
     resolver: zodResolver(schema),
     mode: 'onChange',
     defaultValues: {
-      date: iso(TODAY),
+      date: localIso(new Date()),
       description: '',
       amount: 0,
       category_id: '',
@@ -317,14 +317,14 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         ? state.transactions.find(t => t.id === defaultReimbursement.targetId)
         : undefined
       reset({
-        date: iso(TODAY),
+        date: localIso(new Date()),
         description: target ? `Reimbursement · ${target.description}` : '',
         amount: defaultReimbursement?.remaining ?? 0,
         category_id: defaultReimbursement ? '' : firstCat,
         from_account_id: firstAccount,
       })
       initialCategoryIdRef.current = firstCat
-      initialDateRef.current = iso(TODAY)
+      initialDateRef.current = localIso(new Date())
       setTxType(initType)
       setTransferToAccountId(secondAccount)
       setSplitLegs(null)

@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt, fmtDate, round2, selectOnFocus } from '@/lib/utils'
+import { fmt, fmtDate, localIso, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
@@ -28,7 +28,7 @@ type PayForm = {
 
 type SortKey = 'remaining_desc' | 'remaining_asc' | 'amount_desc' | 'amount_asc' | 'name_asc' | 'name_desc'
 
-const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent', account_id: '', transaction_date: new Date().toISOString().slice(0, 10), repayment_date: '' }
+const EMPTY_BFORM: BForm = { person_name: '', total_amount: '', paid_amount: '0', notes: '', direction: 'lent', account_id: '', transaction_date: localIso(new Date()), repayment_date: '' }
 const EMPTY_PAY: PayForm = { amount: '', account_id: '', incoming: true }
 
 interface BorrowingPageProps {
@@ -190,10 +190,10 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
   const clearFilters = () => { setSearch(''); setFilterDirection('all'); setFilterStatus('active') }
 
   // ── Add / Edit handlers ───────────────────────────────────────────────────────
-  const openAdd = () => { setEditingId(null); setForm({ ...EMPTY_BFORM, account_id: accounts[0]?.id || '', transaction_date: new Date().toISOString().slice(0, 10) }); setSheetOpen(true) }
+  const openAdd = () => { setEditingId(null); setForm({ ...EMPTY_BFORM, account_id: accounts[0]?.id || '', transaction_date: localIso(new Date()) }); setSheetOpen(true) }
   const openEdit = (b: Borrowing) => {
     setEditingId(b.id)
-    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent', account_id: accounts[0]?.id || '', transaction_date: new Date().toISOString().slice(0, 10), repayment_date: b.repayment_date || '' })
+    setForm({ person_name: b.person_name, total_amount: String(b.total_amount), paid_amount: String(b.paid_amount), notes: b.notes || '', direction: b.direction || 'lent', account_id: accounts[0]?.id || '', transaction_date: localIso(new Date()), repayment_date: b.repayment_date || '' })
     setSheetOpen(true)
   }
   const closeSheet = () => { setSheetOpen(false); setEditingId(null); setForm(EMPTY_BFORM); setAddInfoOpen(false) }
@@ -209,7 +209,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
     const total = rawTotal === null ? NaN : round2(rawTotal)
     const paid = round2(evaluateAmountExpression(form.paid_amount) ?? 0)
     if (!form.person_name.trim() || isNaN(total) || total <= 0) return
-    const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction, transaction_date: form.transaction_date || new Date().toISOString().slice(0, 10), repayment_date: form.direction === 'borrowed' ? (form.repayment_date || null) : null }
+    const payload = { person_name: form.person_name.trim(), total_amount: total, paid_amount: paid, notes: form.notes || null, direction: form.direction, transaction_date: form.transaction_date || localIso(new Date()), repayment_date: form.direction === 'borrowed' ? (form.repayment_date || null) : null }
     if (!editingId) {
       setPendingAddForm(payload)
       setAddConfirm(true)

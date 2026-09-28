@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { iso, TODAY, round2, selectOnFocus } from '@/lib/utils'
+import { localIso, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
@@ -35,7 +35,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('')
   const [notes, setNotes] = useState('')
-  const [date, setDate] = useState(iso(TODAY))
+  const [date, setDate] = useState(localIso(new Date()))
   const [saving, setSaving] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const amountRef = useRef<HTMLInputElement>(null)
@@ -56,7 +56,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
       setDescription('')
       setCategory('')
       setNotes('')
-      setDate(iso(TODAY))
+      setDate(localIso(new Date()))
       setFiles([])
     }
   }, [open, editTxn, members])

@@ -7,7 +7,7 @@ import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, SAVINGS_GROUP, ADJUSTMENT_GROUP } from '@/lib/constants'
 import { getCreditCardBilling } from '@/lib/credit-card'
 import { normalizeMasterName, duplicateMasterMessage, ensurePersonMaster, masterPaid, masterReceived, masterActivity } from '@/lib/masters'
-import { withTimeout, iso, TODAY, fmt, round2 } from '@/lib/utils'
+import { withTimeout, iso, localIso, TODAY, fmt, round2 } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
 const RECEIPT_NETWORK_TIMEOUT_MS = 20_000
@@ -947,7 +947,7 @@ export function useSupabaseData(userId: string) {
 
     let openingTx = null
     if (form.current_balance !== 0) {
-      const today = new Date().toISOString().slice(0, 10)
+      const today = localIso(new Date())
       const { data: tx } = await supabase.from('transactions').insert({
         transaction_date: today,
         description: 'Opening Balance',
@@ -987,7 +987,7 @@ export function useSupabaseData(userId: string) {
     const difference = round2(actualBalance - round2(account.current_balance))
     if (difference === 0) return
 
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localIso(new Date())
     const isCredit = difference > 0
 
     await supabase.from('accounts').update({ current_balance: actualBalance }).eq('id', accountId)
@@ -1133,7 +1133,7 @@ export function useSupabaseData(userId: string) {
     addTransaction: boolean,
     accountId: string | null,
   ) => {
-    const today = form.transaction_date || new Date().toISOString().slice(0, 10)
+    const today = form.transaction_date || localIso(new Date())
     let borrowingId: string
 
     if (addTransaction && accountId) {
@@ -1289,7 +1289,7 @@ export function useSupabaseData(userId: string) {
     borrowing: AppState['borrowings'][0], payment: number, accountId: string | null,
     incoming: boolean, _categoryId: string | null = null, addTransaction: boolean = true,
   ) => {
-    const today          = new Date().toISOString().slice(0, 10)
+    const today          = localIso(new Date())
     const newPaid        = Math.min(borrowing.total_amount, borrowing.paid_amount + payment)
     const catName        = incoming ? 'Lent Repayment' : 'Borrow Repayment'
     const repaymentCatId = stateRef.current.categories.find(c => c.name === catName && c.group_name === BORROWING_GROUP)?.id ?? null
@@ -1353,7 +1353,7 @@ export function useSupabaseData(userId: string) {
   }, [])
 
   const markCommitmentPaid = useCallback(async (cm: Commitment, recordExpense: boolean = false, accountId: string | null = null) => {
-    const today          = new Date().toISOString().slice(0, 10)
+    const today          = localIso(new Date())
     const payAmount      = cm.amount || cm.remaining || 0
     const isCreditCard   = state.credit_cards.some(c => c.id === cm.from_account_id)
     const newInstallment = (cm.current_installment || 0) + 1
@@ -1610,7 +1610,7 @@ export function useSupabaseData(userId: string) {
     if (debitAccountId) {
       // Create savings + debit account + create transaction atomically.
       // Replaces the faulty application-level rollback that existed here before.
-      const today = new Date().toISOString().split('T')[0]
+      const today = localIso(new Date())
       const { data: rpcData, error } = await supabase.rpc('mp_add_savings_with_contribution', {
         p_user_id:      userId,
         p_savings_data: JSON.parse(JSON.stringify(form)),  // serialise to plain object for jsonb param
@@ -1669,7 +1669,7 @@ export function useSupabaseData(userId: string) {
     recordExpense: boolean,
     accountId: string | null
   ) => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = localIso(new Date())
     const newInstallment = sv.current_installment + 1
     const patch: Partial<Savings> = {
       current_installment: newInstallment,
@@ -1730,7 +1730,7 @@ export function useSupabaseData(userId: string) {
   }, [])
 
   const recordSavingsPayout = useCallback(async (sv: Savings, amount: number, accountId: string) => {
-    const today    = new Date().toISOString().split('T')[0]
+    const today    = localIso(new Date())
     const label    = sv.type === 'chit' ? `${sv.name} — Chit Prize` : `${sv.name} — Redemption`
     const newValue = sv.type === 'chit' ? 0 : Math.max(0, sv.current_value - amount)
 
@@ -2107,7 +2107,7 @@ export function useSupabaseData(userId: string) {
     const card = data as CreditCard
 
     if (openingBalance > 0) {
-      const today = new Date().toISOString().slice(0, 10)
+      const today = localIso(new Date())
       const { data: txData, error: txErr } = await supabase.rpc('mp_execute_transaction', {
         p_user_id: userId, p_transaction_date: today,
         p_description: `${card.name} Opening Balance`, p_amount: openingBalance,
@@ -2140,7 +2140,7 @@ export function useSupabaseData(userId: string) {
   }, [])
 
   const payCreditCardBill = useCallback(async (card: CreditCard, amount: number, accountId: string) => {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localIso(new Date())
     const { data, error } = await supabase.rpc('mp_execute_transaction', {
       p_user_id:          userId,
       p_transaction_date: today,
@@ -2207,7 +2207,7 @@ export function useSupabaseData(userId: string) {
     const card = stateRef.current.credit_cards.find(c => c.id === cardId)
     if (!card) return
 
-    const today = new Date().toISOString().slice(0, 10)
+    const today = localIso(new Date())
     const totalDiff = actualBalance - card.current_balance
     const newTxns: Transaction[] = []
 

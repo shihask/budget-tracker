@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CalendarHeart } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { iso, TODAY, round2 } from '@/lib/utils'
+import { localIso, round2 } from '@/lib/utils'
 import { evaluateAmountExpression } from '@/lib/amountExpression'
 import { Card } from '@/components/Card'
 import { QuickAmountSheet } from '@/components/QuickAmountSheet'
@@ -60,7 +60,7 @@ export function EventsCard({ state, onAdd, onSeeAll, onOpenEvent, onSave, onAddC
         // The event name always leads so the row is self-describing in the main
         // transaction list, where there's no event column to give it context.
         description: description.trim() ? `${quickFor.name} - ${description.trim()}` : quickFor.name,
-        transaction_date: iso(TODAY),
+        transaction_date: localIso(new Date()),
         amount: round2(amt),
         transaction_type: 'expense',
         category_id: categoryId || null,
