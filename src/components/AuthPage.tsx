@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   BarChart3, Bell, Bot, Briefcase, CalendarCheck, Check,
-  ChevronDown, Cloud, CloudOff, CreditCard, Flame, FolderOpen, GraduationCap,
+  ChevronDown, Cloud, CloudOff, CreditCard, Flame, FolderOpen, Gem, GraduationCap, HandCoins,
   LayoutDashboard, LineChart, Lock, PiggyBank, Receipt, Repeat, Shield,
   ShieldCheck, Sprout, Star, Target, TrendingUp, Trophy, Users, Wallet,
   X as XIcon, Zap,
@@ -66,9 +66,15 @@ const tourFeatures = [
     mock: 'goals',
   },
   {
+    id: 'events', icon: Gem,
+    title: 'Life Events',
+    desc: 'Tag spending for a wedding, trip or house build. See what it really cost, without it skewing your everyday budget. Mint can spot a trip in your spending and suggest it.',
+    mock: 'events',
+  },
+  {
     id: 'projects', icon: FolderOpen,
     title: 'Shared Projects',
-    desc: 'Split expenses for trips, events or shared households. Track contributions, manage budgets, see who owes whom, and settle up — all in one place.',
+    desc: 'Split costs with friends and family for trips or shared households. Track contributions, manage budgets, see who owes whom, and settle up — all in one place.',
     mock: 'projects',
   },
   {
@@ -101,9 +107,11 @@ const badges = [
   { icon: Flame, label: 'Daily Challenge' },
   { icon: Sprout, label: 'Plant Growth' },
   { icon: Trophy, label: 'Goal Tracking' },
+  { icon: Gem, label: 'Life Events' },
   { icon: FolderOpen, label: 'Shared Projects' },
   { icon: Receipt, label: 'Expense Tracking' },
   { icon: TrendingUp, label: 'Income Tracking' },
+  { icon: HandCoins, label: 'Reimbursements' },
   { icon: LineChart, label: 'Cash Flow Forecast' },
   { icon: Target, label: 'Budget Planning' },
   { icon: CalendarCheck, label: 'Planned Expenses' },
@@ -926,6 +934,22 @@ function MockScreen({ type }: { type: string }) {
           <div><span>Needs</span><div className="mp-mock__bar"><div style={{ width: '72%', background: '#3B82F6' }} /></div><span>72%</span></div>
           <div><span>Wants</span><div className="mp-mock__bar"><div style={{ width: '45%', background: '#F59E0B' }} /></div><span>45%</span></div>
           <div><span>Savings</span><div className="mp-mock__bar"><div style={{ width: '90%', background: accent }} /></div><span>90%</span></div>
+        </div>
+      </div>
+    )
+    case 'events': return (
+      <div className="mp-mock">
+        {hdr}
+        <div className="mp-mock__card mp-mock__card--amber">
+          <small>Ooty Trip</small>
+          <strong>₹18,650</strong>
+        </div>
+        <div style={{ fontSize: 7, fontWeight: 700, color: '#9c938a', margin: '4px 0 2px' }}>Kept out of your budget</div>
+        <div className="mp-mock__label">Tagged expenses</div>
+        <div className="mp-mock__rows">
+          <div><span className="mp-mock__dot" style={{ background: '#3B82F6' }} /><span className="mp-mock__text">Hotel stay</span><span className="mp-mock__amt">₹9,800</span></div>
+          <div><span className="mp-mock__dot" style={{ background: '#F59E0B' }} /><span className="mp-mock__text">Petrol</span><span className="mp-mock__amt">₹3,200</span></div>
+          <div><span className="mp-mock__dot" style={{ background: '#EF4444' }} /><span className="mp-mock__text">Lunch</span><span className="mp-mock__amt">₹1,450</span></div>
         </div>
       </div>
     )
