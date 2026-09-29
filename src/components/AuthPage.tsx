@@ -166,7 +166,7 @@ const faqItems = [
   { q: 'Can I manage credit cards?', a: 'Yes. MoneyPlant lets you track billed and unbilled amounts for your credit cards and see exactly what is due.' },
   { q: 'Can I track recurring bills?', a: 'Yes. Add your EMIs, subscriptions, rent, school fees, and other recurring payments as commitments. MoneyPlant factors them into your cash flow forecast.' },
   { q: 'Can I track savings goals?', a: 'Yes. Track SIPs, gold schemes, recurring deposits, chit funds, and custom savings goals with progress tracking.' },
-  { q: 'Is my data secure?', a: 'Yes. MoneyPlant uses authenticated accounts with Supabase, a trusted open-source platform. Your data is encrypted in transit and at rest, and only you can access it.' },
+  { q: 'Is my data secure?', a: 'Yes. MoneyPlant uses authenticated accounts with Supabase, a trusted open-source platform. Your data is encrypted in transit and at rest, and access rules in the database stop other users from seeing it. Only what you add to a shared project is visible to its members.' },
 ] as const
 
 // ── Scroll reveal hook ────────────────────────────────────────────────────────
