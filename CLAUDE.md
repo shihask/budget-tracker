@@ -112,7 +112,8 @@ or Clothing and needs both labels.
 | `src/features/events/lib/eventIcons.tsx` | `EVENT_ICONS` map + `EventIcon`. `events.icon` stores a **key string** (`'ring'`), never a glyph — no emoji anywhere in the UI |
 | `src/features/events/components/` | `EventsCard` (dashboard), `EventsListPage` (the feature's home), `EventDetailPage` (a full **page**, nested in the list), `EventFormSheet` (2-step create), `LinkExpensesSheet` (retroactive bulk-link) |
 | `src/components/QuickAmountSheet.tsx` | The one-tap amount+account+category+description capture, shared by the event card and QuickAdd's long-press chip |
-| `src/features/events/components/EventTile.tsx` | The one tile the dashboard card and the list page both render; past events take a variant that drops the progress bar |
+| `src/features/events/components/EventTile.tsx` | The one tile the dashboard card and the list page both render; past events take a variant that drops the progress bar and shrinks quick-add to a header `+` |
+| `src/features/events/components/EventExpenseSheet.tsx` | Add-an-expense-to-this-event sheet (wraps `QuickAmountSheet`), shared by the dashboard card, list page tiles and the detail page's "+ Add expense" |
 | `src/components/CreateMenuSheet.tsx` | NavMenu → Create new — the feature's discovery surface |
 
 
@@ -149,6 +150,13 @@ transactions and must never consult it.
 
 Totals are always **derived** by summing tagged rows, so toggling exclusion takes effect on the
 next render — no backfill, no recompute.
+
+**Event totals never read `state.transactions` directly.** That is only the latest 200 rows; a
+wedding's spend scrolls out of it within weeks and the event reads as its last expense. App builds
+`eventLedger = useEventLedger(...)` (loaded window + every event-tagged row and every
+reimbursement from `fetchEventLedger`, merged by `mergeEventLedger`, loaded row wins) and passes
+it to `EventsCard`, `EventsListPage` → `EventDetailPage` / `exportEventCsv`, and Mint's context.
+Any new event total must take `eventLedger` too.
 
 ### Gotchas
 - `updateTransaction` treats an **absent** `event_id` as "leave unchanged"; only an explicit

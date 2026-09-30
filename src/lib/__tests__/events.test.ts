@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ringFencedEventIds, countsTowardBudget, eventSpent, eventTransactions } from '@/lib/events'
+import { ringFencedEventIds, countsTowardBudget, eventSpent, eventTransactions, mergeEventLedger } from '@/lib/events'
 import type { LifeEvent, Transaction } from '@/types'
 
 const ev = (id: string, excluded: boolean): LifeEvent => ({
@@ -84,5 +84,39 @@ describe('eventSpent / eventTransactions', () => {
 
   it('is zero for an event with nothing linked', () => {
     expect(eventSpent(txns, 'unknown')).toBe(0)
+  })
+})
+
+describe('mergeEventLedger', () => {
+  it('adds tagged rows older than the loaded window', () => {
+    const loaded = [tx({ id: 'recent', event_id: 'wedding', amount: 9500 })]
+    const fetched = [
+      tx({ id: 'recent', event_id: 'wedding', amount: 9500 }),
+      tx({ id: 'old1', event_id: 'wedding', amount: 80000, transaction_date: '2026-01-10' }),
+      tx({ id: 'old2', event_id: 'wedding', amount: 60500, transaction_date: '2026-01-12' }),
+    ]
+    const merged = mergeEventLedger(loaded, fetched)
+    expect(eventSpent(merged, 'wedding')).toBe(150000)
+    expect(eventTransactions(merged, 'wedding')).toHaveLength(3)
+  })
+
+  it('lets the loaded row win, so an untag made this session shows before the refetch', () => {
+    const loaded = [tx({ id: 'a', event_id: null, amount: 500 })]
+    const fetched = [tx({ id: 'a', event_id: 'wedding', amount: 500 })]
+    expect(eventSpent(mergeEventLedger(loaded, fetched), 'wedding')).toBe(0)
+  })
+
+  it('nets an old reimbursement against an old expense', () => {
+    const fetched = [
+      tx({ id: 'cater', event_id: 'wedding', amount: 40000, transaction_date: '2026-01-10' }),
+      tx({ id: 'back', transaction_type: 'income', amount: 10000, reimbursement_for: 'cater' }),
+    ]
+    expect(eventSpent(mergeEventLedger([], fetched), 'wedding')).toBe(30000)
+  })
+
+  it('returns the loaded array untouched when there is nothing extra', () => {
+    const loaded = [tx({ id: 'a' })]
+    expect(mergeEventLedger(loaded, [])).toBe(loaded)
+    expect(mergeEventLedger(loaded, [tx({ id: 'a' })])).toBe(loaded)
   })
 })

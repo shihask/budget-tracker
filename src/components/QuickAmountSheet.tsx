@@ -123,12 +123,14 @@ export function QuickAmountBody({
 interface SheetProps extends Omit<BodyProps, 'autoFocus'> {
   open: boolean
   subtitle?: string
+  /** Raise above a full page that hosts it (EventDetailPage sits at 210). */
+  zIndex?: number
 }
 
-export function QuickAmountSheet({ open, subtitle, ...body }: SheetProps) {
+export function QuickAmountSheet({ open, subtitle, zIndex, ...body }: SheetProps) {
   const c = useTheme()
   return (
-    <BottomSheet open={open} onClose={body.onCancel} showHelpButton={false}>
+    <BottomSheet open={open} onClose={body.onCancel} showHelpButton={false} zIndex={zIndex}>
       <div style={{ padding: '0 4px 16px' }}>
         {subtitle && (
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 12 }}>{subtitle}</div>

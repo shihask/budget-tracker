@@ -1,7 +1,7 @@
 import { toCsv } from '@/lib/csvUtils'
 import { catById } from '@/lib/data'
 import { eventTransactions } from '@/lib/events'
-import type { AppState, LifeEvent } from '@/types'
+import type { AppState, LifeEvent, Transaction } from '@/types'
 
 const EVENT_EXPORT_COLUMNS = [
   'Date', 'Description', 'Amount', 'Category', 'Group', 'Account',
@@ -17,9 +17,9 @@ function buildFilename(event: LifeEvent): string {
 
 /** Downloads the expenses tagged to one life event. Reads the rows already in
  *  state — the event total is derived the same way, so the file always matches
- *  what the detail sheet shows. Returns the row count. */
-export function exportEventCsv(state: AppState, event: LifeEvent): number {
-  const txns = eventTransactions(state.transactions, event.id)
+ *  what the detail page shows (both read the event ledger). Returns the row count. */
+export function exportEventCsv(state: AppState, event: LifeEvent, eventLedger: Transaction[]): number {
+  const txns = eventTransactions(eventLedger, event.id)
   const catMap = catById(state.categories)
   const accountNames = Object.fromEntries(state.accounts.map(a => [a.id, a.name]))
   const cardNames = Object.fromEntries(state.credit_cards.map(cc => [cc.id, cc.name]))

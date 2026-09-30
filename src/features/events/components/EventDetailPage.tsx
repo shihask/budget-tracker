@@ -19,6 +19,9 @@ interface Props {
   onEditTransaction: (t: Transaction) => void
   onUpdateEvent: (id: string, patch: Partial<LifeEvent>) => Promise<void>
   onDeleteEvent: (id: string) => Promise<void>
+  onAddExpense: () => void
+  /** Loaded window + every event-tagged row from the DB — see useEventLedger. */
+  eventLedger: Transaction[]
 }
 
 /** A full page, not a sheet: a wedding can carry 100+ transactions, and the
@@ -30,7 +33,7 @@ ProjectDetailPage.
  *  list page beneath, not the dashboard, so dimming App's scrim would be wrong. */
 export function EventDetailPage({
   onClose, state, event, onEdit, onLinkMore,
-  onEditTransaction, onUpdateEvent, onDeleteEvent,
+  onEditTransaction, onUpdateEvent, onDeleteEvent, onAddExpense, eventLedger,
 }: Props) {
   const c = useTheme()
   const { confirm, dialogNode } = useAppDialog()
@@ -38,9 +41,9 @@ export function EventDetailPage({
 
   const catMap = useMemo(() => catById(state.categories), [state.categories])
   const txns = useMemo(
-    () => event ? eventTransactions(state.transactions, event.id) : [],
-    [state.transactions, event])
-  const spent = event ? eventSpent(state.transactions, event.id) : 0
+    () => event ? eventTransactions(eventLedger, event.id) : [],
+    [eventLedger, event])
+  const spent = event ? eventSpent(eventLedger, event.id) : 0
 
   const byCategory = useMemo(() => {
     const totals = new Map<string, number>()
@@ -229,13 +232,18 @@ export function EventDetailPage({
           <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             {txns.length} expense{txns.length === 1 ? '' : 's'}
           </div>
-          <span onClick={onLinkMore} style={{ font: '600 12.5px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>
-            Link more
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span onClick={onLinkMore} style={{ font: '600 12.5px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>
+              Link more
+            </span>
+            <span onClick={onAddExpense} style={{ font: '700 12.5px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>
+              + Add expense
+            </span>
+          </div>
         </div>
         {txns.length === 0 ? (
           <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, padding: '12px 0 20px' }}>
-            Nothing linked yet. Use <strong style={{ color: c.ink }}>Link more</strong> to attach expenses you've already recorded.
+            Nothing linked yet. Use <strong style={{ color: c.ink }}>+ Add expense</strong> to record a new one, or <strong style={{ color: c.ink }}>Link more</strong> to attach expenses you've already recorded.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
@@ -258,7 +266,7 @@ export function EventDetailPage({
           <ActionButton label="Edit event" onClick={onEdit} disabled={busy} />
           <ActionButton
             label="Download CSV"
-            onClick={() => exportEventCsv(state, event)}
+            onClick={() => exportEventCsv(state, event, eventLedger)}
             disabled={busy || txns.length === 0}
           />
           {event.status === 'active'

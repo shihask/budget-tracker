@@ -34,3 +34,19 @@ export const eventSpent = (transactions: Transaction[], eventId: string): number
   forSpendAnalytics(transactions)
     .filter(t => t.event_id === eventId && t.transaction_type === 'expense')
     .reduce((s, t) => s + spendAmount(t), 0)
+
+/** The rows every event total must be derived from.
+ *
+ *  `state.transactions` is only the most recent TXN_PAGE_SIZE rows, so an event
+ *  whose spending has scrolled past that window silently loses it — a ₹1.5L
+ *  wedding read as its one recent ₹9,500 expense. `fetched` is every event-tagged
+ *  row (plus reimbursements, which net them) read from the database.
+ *
+ *  The loaded row wins on an id clash: it reflects edits made this session
+ *  (untag, re-amount, delete) before the next background fetch lands. */
+export const mergeEventLedger = (loaded: Transaction[], fetched: Transaction[]): Transaction[] => {
+  if (fetched.length === 0) return loaded
+  const seen = new Set(loaded.map(t => t.id))
+  const extra = fetched.filter(t => !seen.has(t.id))
+  return extra.length === 0 ? loaded : [...loaded, ...extra]
+}

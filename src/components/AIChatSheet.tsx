@@ -375,7 +375,7 @@ function budgetStatus(d: DerivedMetrics): string {
     : `spent ${inr(spent)} of ${inr(budget)} budget (${inr(budget - spent)} left, ${Math.round(spent / budget * 100)}% used)`
 }
 
-function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent = 'general'): string {
+function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent = 'general', eventLedger: Transaction[] = state.transactions): string {
   const activeAccs = state.accounts.filter(a => a.is_active)
   const totalBalance = activeAccs.reduce((s, a) => s + a.current_balance, 0)
 
@@ -471,11 +471,13 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
         || (b.start_date ?? b.created_at ?? '').localeCompare(a.start_date ?? a.created_at ?? ''))
       .slice(0, CTX_LIMITS.events)
     if (live.length > 0) {
+      // Tagged rows older than the 200-row window still belong to the event.
+      const eventSpendTxns = forSpendAnalytics(eventLedger)
       const lines = live.map(e => {
-        const txns = spendTxns
+        const txns = eventSpendTxns
           .filter(t => t.event_id === e.id && t.transaction_type === 'expense')
           .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
-        const spent = eventSpent(state.transactions, e.id)
+        const spent = eventSpent(eventLedger, e.id)
         const byCat: Record<string, number> = {}
         for (const t of txns) {
           const name = state.categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized'
@@ -1359,6 +1361,8 @@ interface AIChatSheetProps {
   onClose: () => void
   state: AppState
   d: DerivedMetrics
+  /** Loaded window + every event-tagged row from the DB — see useEventLedger. */
+  eventLedger?: Transaction[]
   userId: string
   onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<Transaction | undefined>
   onUpdate: (old: Transaction, form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<void>
@@ -1375,7 +1379,7 @@ interface AIChatSheetProps {
   onInitialMessageConsumed?: () => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip, initialMessage, onInitialMessageConsumed }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip, initialMessage, onInitialMessageConsumed }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -1873,7 +1877,7 @@ export function AIChatSheet({ open, onClose, state, d, userId, onSave, onUpdate,
       placeholder = { role: 'ai', text: '', cfoCard: cfo.card, cfoInsight: true, actionChips: chips }
     } else {
       // No amount found — treat as Q&A (streamed)
-      context = buildContext(state, d, classifyContextIntent(text))
+      context = buildContext(state, d, classifyContextIntent(text), eventLedger)
       // Cards/chips generated immediately from local data; tokens fill the text in.
       placeholder = {
         role: 'ai', text: '',

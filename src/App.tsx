@@ -94,6 +94,7 @@ import { LinkExpensesSheet } from '@/features/events/components/LinkExpensesShee
 import { EventSuggestionToast } from '@/features/events/components/EventSuggestionToast'
 import { EventSuggestionSheet } from '@/features/events/components/EventSuggestionSheet'
 import { useEventSuggestion } from '@/features/events/hooks/useEventSuggestion'
+import { useEventLedger } from '@/features/events/hooks/useEventLedger'
 import type { EventSuggestion } from '@/lib/event-suggestions'
 import type { EventFormValues } from '@/features/events/components/EventFormSheet'
 import { UndoSnackbar } from '@/components/UndoSnackbar'
@@ -325,7 +326,7 @@ function AppContent({ session }: { session: Session }) {
     return () => { cancelled = true }
   }, [session.user.id])
 
-  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, offlineQueue, saveOfflineTransactions, discardOfflineTransaction, addTransaction, deleteTransaction, updateTransaction, addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, addEvent, updateEvent, deleteEvent, linkTransactionsToEvent, addMaster, updateMaster, deleteMaster, fetchMasterSpend, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, offlineQueue, saveOfflineTransactions, discardOfflineTransaction, addTransaction, deleteTransaction, updateTransaction, addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, fetchEventLedger, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, addEvent, updateEvent, deleteEvent, linkTransactionsToEvent, addMaster, updateMaster, deleteMaster, fetchMasterSpend, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
 
   // Stages pending sync_events for review — every transaction event lands
   // in needs_review (DedupReviewSheet decides insert/merge/ignore from
@@ -366,6 +367,8 @@ function AppContent({ session }: { session: Session }) {
   }, [loading, state.accounts.length])
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
+  // Event totals must see tagged rows older than the 200-row window.
+  const eventLedger = useEventLedger(state.transactions, state.events, fetchEventLedger)
 
   // Auto Budget: freeze/refresh the "Cycle Start Free Money" snapshot whenever a
   // new financial cycle begins, so the hero card's % used stays stable within a
@@ -849,6 +852,7 @@ function AppContent({ session }: { session: Session }) {
                         onOpenEvent={e => { setEventDetailId(e.id); setEventsListOpen(true) }}
                         onAddCategory={addCategory}
                         onSave={handleSave}
+                        eventLedger={eventLedger}
                       /> : null
                       break
                     case 'projects':
@@ -1044,7 +1048,7 @@ function AppContent({ session }: { session: Session }) {
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
             {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} windowWidth={windowW} busy={aiProcessing} tourHighlight={tourTarget === 'ai-fab'} />}
-            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} initialMessage={pendingChatMessage} onInitialMessageConsumed={() => setPendingChatMessage(null)} />
+            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} eventLedger={eventLedger} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} initialMessage={pendingChatMessage} onInitialMessageConsumed={() => setPendingChatMessage(null)} />
           </>)}
 
           {showOnboardingFlow && (
@@ -1155,6 +1159,9 @@ function AppContent({ session }: { session: Session }) {
               onEditTransaction={t => { setEventsListOpen(false); setEventDetailId(null); setDashEditTx(t); setTxnsOpen(true) }}
               onUpdateEvent={updateEvent}
               onDeleteEvent={deleteEvent}
+              onSave={handleSave}
+              onAddCategory={addCategory}
+              eventLedger={eventLedger}
             />
           )}
 

@@ -1967,9 +1967,10 @@ export function useSupabaseData(userId: string) {
 
   /** Per-master spend, read from the DATABASE rather than state.transactions.
    *
-   *  state.transactions holds only the most recent TXN_PAGE_SIZE (200) rows. For
-   *  a life event that barely matters — an event is recent and short-lived. For a
-   *  merchant it is fatal: "how much have I spent at Lulu?" is inherently a
+   *  state.transactions holds only the most recent TXN_PAGE_SIZE (200) rows. That
+   *  once looked harmless for life events ("recent and short-lived") — it wasn't: a
+   *  wedding scrolled out and read as one expense; see fetchEventLedger. For a
+   *  merchant it is equally fatal: "how much have I spent at Lulu?" is inherently a
    *  question about a long span, and summing the in-memory window would report a
    *  fraction of the truth while looking authoritative. A wrong number here is
    *  worse than no number. Same reasoning as CategoriesPage's delete-check count.
@@ -2269,6 +2270,28 @@ export function useSupabaseData(userId: string) {
     }
   }, [userId])
 
+  /** Every event-tagged row, plus every reimbursement (they net those rows), read from the
+   *  DATABASE rather than state.transactions — same reasoning as fetchMasterSpend. A wedding's
+   *  spending scrolls out of the 200-row window within weeks, and the event total then reads as a
+   *  fraction of the truth. Merged over the loaded window by `mergeEventLedger`. Paged past
+   *  PostgREST's 1000-row cap; `id` ordering keeps pages from overlapping. */
+  const fetchEventLedger = useCallback(async (): Promise<Transaction[]> => {
+    const PAGE = 1000
+    const rows: Transaction[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*, category:categories(*)')
+        .eq('user_id', userId)
+        .or('event_id.not.is.null,reimbursement_for.not.is.null')
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (error) throw error
+      rows.push(...((data as Transaction[]) ?? []))
+      if (!data || data.length < PAGE) return rows
+    }
+  }, [userId])
+
   const adjustCreditCardBalance = useCallback(async (cardId: string, actualBalance: number, newBilled?: number) => {
     const card = stateRef.current.credit_cards.find(c => c.id === cardId)
     if (!card) return
@@ -2554,7 +2577,7 @@ export function useSupabaseData(userId: string) {
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
     addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,
-    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory,
+    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, fetchEventLedger,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addPlannedExpense, updatePlannedExpense, deletePlannedExpense,

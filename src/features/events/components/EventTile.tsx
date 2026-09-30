@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, fmtDate } from '@/lib/utils'
 import { EventIcon } from '../lib/eventIcons'
@@ -12,7 +13,9 @@ interface Props {
    *  where vertical space is scarcer. */
   txnCount?: number
   onOpen: () => void
-  /** Renders the dashed one-tap capture button. Past events don't get one. */
+  /** One-tap capture. Active events get the dashed button; past events get a
+   *  compact `+` in the header — late bills still arrive after a trip ends, but
+   *  a full-width call to action on a finished event would be noise. */
   onQuickAdd?: () => void
 }
 
@@ -47,6 +50,19 @@ export function EventTile({ event, spent, txnCount, onOpen, onQuickAdd }: Props)
           {showProgress && (
             <div style={{ font: '700 11px Plus Jakarta Sans', color: over ? '#EF4444' : c.muted, flexShrink: 0 }}>{pct}%</div>
           )}
+          {isPast && onQuickAdd && (
+            <button
+              onClick={e => { e.stopPropagation(); onQuickAdd() }}
+              aria-label={`Add expense to ${event.name}`}
+              style={{
+                width: 28, height: 28, borderRadius: 9, border: 'none', flexShrink: 0,
+                background: c.accentSoft, color: c.accent, cursor: 'pointer', padding: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Plus size={16} strokeWidth={2.5} />
+            </button>
+          )}
         </div>
 
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>
@@ -68,7 +84,7 @@ export function EventTile({ event, spent, txnCount, onOpen, onQuickAdd }: Props)
         )}
       </div>
 
-      {onQuickAdd && (
+      {!isPast && onQuickAdd && (
         <button
           onClick={onQuickAdd}
           style={{

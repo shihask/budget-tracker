@@ -5,6 +5,7 @@ import { fmt } from '@/lib/utils'
 import { eventSpent, eventTransactions } from '@/lib/events'
 import { EventTile, EVENT_COLOR } from './EventTile'
 import { EventDetailPage } from './EventDetailPage'
+import { EventExpenseSheet } from './EventExpenseSheet'
 import type { AppState, LifeEvent, Transaction } from '@/types'
 
 /** Below this a search box is noise — most people carry one or two events.
@@ -26,15 +27,21 @@ interface Props {
   onEditTransaction: (t: Transaction) => void
   onUpdateEvent: (id: string, patch: Partial<LifeEvent>) => Promise<void>
   onDeleteEvent: (id: string) => Promise<void>
+  onSave: (form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'>) => Promise<unknown>
+  onAddCategory: (name: string, group_name: string) => Promise<string>
+  /** Loaded window + every event-tagged row from the DB — see useEventLedger. */
+  eventLedger: Transaction[]
 }
 
 export function EventsListPage({
   state, onClose, onSwipeProgress, initialAddOpen, initialEventId,
   onAddEvent, onEditEvent, onLinkMore, onEditTransaction, onUpdateEvent, onDeleteEvent,
+  onSave, onAddCategory, eventLedger,
 }: Props) {
   const c = useTheme()
   const [search, setSearch] = useState('')
   const [detailId, setDetailId] = useState<string | null>(initialEventId ?? null)
+  const [quickFor, setQuickFor] = useState<LifeEvent | null>(null)
 
   // The dashboard `+` opens the page with the form already up. Init-only, like
   // CommitmentsPage/ProjectsListPage — a later flag change is deliberately ignored.
@@ -133,7 +140,7 @@ export function EventsListPage({
     .filter(e => e.status !== 'active')
     .sort((a, b) => (b.end_date ?? '').localeCompare(a.end_date ?? ''))
 
-  const activeTracked = active.reduce((s, e) => s + eventSpent(state.transactions, e.id), 0)
+  const activeTracked = active.reduce((s, e) => s + eventSpent(eventLedger, e.id), 0)
   const detailEvent = state.events.find(e => e.id === detailId) ?? null
 
   const renderSection = (title: string, events: LifeEvent[]) => events.length === 0 ? null : (
@@ -146,9 +153,10 @@ export function EventsListPage({
           <EventTile
             key={e.id}
             event={e}
-            spent={eventSpent(state.transactions, e.id)}
-            txnCount={eventTransactions(state.transactions, e.id).length}
+            spent={eventSpent(eventLedger, e.id)}
+            txnCount={eventTransactions(eventLedger, e.id).length}
             onOpen={() => setDetailId(e.id)}
+            onQuickAdd={() => setQuickFor(e)}
           />
         ))}
       </div>
@@ -243,6 +251,7 @@ export function EventsListPage({
       {detailEvent && (
         <EventDetailPage
           state={state}
+          eventLedger={eventLedger}
           event={detailEvent}
           onClose={() => setDetailId(null)}
           onEdit={() => onEditEvent(detailEvent)}
@@ -250,8 +259,19 @@ export function EventsListPage({
           onEditTransaction={onEditTransaction}
           onUpdateEvent={onUpdateEvent}
           onDeleteEvent={onDeleteEvent}
+          onAddExpense={() => setQuickFor(detailEvent)}
         />
       )}
+
+      {/* Above the detail page (z 210), which can open it too. */}
+      <EventExpenseSheet
+        event={quickFor}
+        onClose={() => setQuickFor(null)}
+        state={state}
+        onSave={onSave}
+        onAddCategory={onAddCategory}
+        zIndex={220}
+      />
     </>
   )
 }
