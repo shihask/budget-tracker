@@ -3,7 +3,7 @@ import { getCreditCardBilling } from '@/lib/credit-card'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getExpectedNextPrimaryIncome } from '@/lib/financial-cycle'
-import { isRecurringCompleted } from '@/lib/recurring'
+import { isDueCovered } from '@/lib/recurring'
 import { isReimbursement } from '@/lib/reimbursements'
 
 /* ============================================================================
@@ -294,10 +294,8 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics, 
       let count = 0
       for (const due of allDueDates(c.due_day, today, horizon)) {
         if (totalInstallments != null && installmentsDone + count >= totalInstallments) break
-        // Same fix as the savings loop above: skip a candidate due date already
-        // covered by last_paid_date, so a commitment paid this period isn't
-        // reserved again on its own due date.
-        if (isRecurringCompleted(c.last_paid_date, c.frequency, due)) continue
+        // Same as the savings loop below: skip a due date already paid.
+        if (isDueCovered(c, c.last_paid_date, due)) continue
         const payAmt = Math.round(Math.min(c.amount, remainingAmt))
         if (!(payAmt > 0)) break
         events.push({ date: isoOf(due), title: c.name, amount: payAmt, type: 'expense', source: 'commitment', category_id: c.category_id })
@@ -332,11 +330,10 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics, 
     let count = 0
     for (const due of allDueDates(dueDay, today, horizon)) {
       if (s.total_installments != null && installmentsDone + count >= s.total_installments) break
-      // Skip a candidate due date if last_contribution_date already falls within
-      // that same recurrence period — otherwise a contribution just recorded this
-      // period gets reserved again on its own due date (e.g. paid 1 Jul, due 27
-      // Jul: without this check the 27 Jul event fires anyway).
-      if (isRecurringCompleted(s.last_contribution_date, s.frequency, due)) continue
+      // Skip a due date already paid — otherwise a contribution just recorded is
+      // reserved again on its own due date (paid 1 Jul, due 27 Jul), or one paid
+      // ahead on payday (paid 29 Sep for 10 Oct) is reserved a second time.
+      if (isDueCovered(s, s.last_contribution_date, due)) continue
       events.push({ date: isoOf(due), title: s.name, amount, type: 'expense', source: 'saving', category_id: s.category_id, is_prized: s.is_prized || undefined })
       count++
     }

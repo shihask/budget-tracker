@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     // Get all active recurring commitments due on the target day
     const { data: commitments, error } = await supabase
       .from('commitments')
-      .select('id, name, amount, due_day, last_paid_date, user_id')
+      .select('id, name, amount, due_day, last_paid_date, paid_through, user_id')
       .eq('is_active', true)
       .eq('is_recurring', true)
       .eq('due_day', targetDay)
@@ -39,8 +39,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Filter out commitments already paid this month
+    // Filter out commitments already paid for the target due date. paid_through
+    // (the latest due date paid — see src/lib/recurring.ts) covers a payment made
+    // ahead on payday; rows without it keep the calendar-month rule.
+    const targetIso = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`
     const unpaid = commitments.filter((cm: any) => {
+      if (cm.paid_through) return targetIso > cm.paid_through
       if (!cm.last_paid_date) return true
       const paid = new Date(cm.last_paid_date)
       return !(paid.getMonth() === currentMonth && paid.getFullYear() === currentYear)

@@ -228,7 +228,7 @@ describe('buildMintCoachContext', () => {
       commitments: [{
         id: 'c1', name: 'Rent', amount: 8000, remaining: 8000, category_id: null,
         is_recurring: false, frequency: null, due_day: null,
-        from_account_id: null, is_active: true, last_paid_date: null,
+        from_account_id: null, is_active: true, last_paid_date: null, paid_through: null,
         total_installments: null, current_installment: null, due_date: tomorrowStr,
       }],
     })

@@ -4,7 +4,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { getCreditCardBilling } from '@/lib/credit-card'
 import type { AppState, Commitment } from '@/types'
-import { isRecurringCompleted } from '@/lib/recurring'
+import { isRecurringCompleted, isDueCovered } from '@/lib/recurring'
 
 interface Props {
   state: AppState
@@ -73,9 +73,13 @@ export function buildReminders(state: AppState): Reminder[] {
   for (const cm of state.commitments) {
     if (!cm.is_active || !cm.is_recurring || !cm.due_day) continue
 
-    if (isRecurringCompleted(cm.last_paid_date, cm.frequency)) continue
-
     const daysUntilDue = getDaysUntil(cm.due_day)
+    if (cm.paid_through) {
+      // Paid ahead (payday for next month's due) counts — compare the actual due date.
+      const due = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysUntilDue)
+      if (isDueCovered(cm, cm.last_paid_date, due)) continue
+    } else if (isRecurringCompleted(cm.last_paid_date, cm.frequency)) continue
+
     if (daysUntilDue <= 5) {
       reminders.push({
         id: `cm-${cm.id}-${monthKey}`,

@@ -1,6 +1,6 @@
 import type { AppState } from '@/types'
 import { getCurrentFinancialCycle, getExpectedNextPrimaryIncome, type FinancialCycle } from '@/lib/financial-cycle'
-import { getNextRecurringDueDate } from '@/lib/recurring'
+import { getNextRecurringDueDate, isPaidForCycle } from '@/lib/recurring'
 import { getCreditCardBilling } from '@/lib/credit-card'
 
 export interface ObligationItem { name: string; amount: number }
@@ -30,7 +30,9 @@ export function getRemainingObligations(
   const commitmentItems: ObligationItem[] = []
   for (const c of state.commitments) {
     if (!c.is_active) continue
-    if (c.is_recurring && c.last_paid_date) {
+    if (c.is_recurring && c.paid_through) {
+      if (isPaidForCycle(c, c.last_paid_date, new Date(), cycle.cycleEnd)) continue
+    } else if (c.is_recurring && c.last_paid_date) {
       if (new Date(c.last_paid_date) >= cycle.cycleStart) continue
     }
     const amount = c.is_recurring ? c.amount : c.remaining

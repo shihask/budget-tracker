@@ -207,7 +207,7 @@ function commitment(o: Partial<Commitment>): Commitment {
   return {
     id: `c-${Math.random()}`, name: 'Home Loan EMI', amount: 12000, remaining: 12000, category_id: null,
     is_recurring: true, frequency: 'monthly', due_day: 10, from_account_id: null, is_active: true,
-    last_paid_date: null, total_installments: null, current_installment: null, due_date: null, ...o,
+    last_paid_date: null, paid_through: null, total_installments: null, current_installment: null, due_date: null, ...o,
   }
 }
 
@@ -216,7 +216,7 @@ function saving(o: Partial<Savings>): Savings {
     id: `s-${Math.random()}`, name: 'SIP', type: 'sip', amount: 2500, is_recurring: true, frequency: 'monthly',
     due_day: 5, total_installments: null, current_installment: 1, total_target: null, current_value: 0,
     maturity_date: null, interest_rate: null, from_account_id: null, category_id: null,
-    last_contribution_date: null, paid_date: null, notes: null, is_active: true, is_prized: false, prize_month: null, ...o,
+    last_contribution_date: null, paid_date: null, paid_through: null, notes: null, is_active: true, is_prized: false, prize_month: null, ...o,
   }
 }
 

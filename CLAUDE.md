@@ -309,6 +309,24 @@ per-account breakdown still balances.
 - The two Edge Functions (`push-evening-recap`, `ai-categorize`) re-implement this math
   server-side and each carry their own copy of the netting.
 
+## Recurring payments — which due a payment is for (`paid_through`)
+A payment date doesn't say which installment it pays: due 27th, paid 30 Sep is late for 27 Sep
+*or* early for 27 Oct, and someone paid on the 29th pays next month's dues on payday. So Record
+Contribution / Mark Paid ask "Paying for" (chips), and `savings.paid_through` /
+`commitments.paid_through` store the latest due date paid. **Every due ≤ `paid_through` is paid;
+nothing after is.** `NULL` = recorded before v1.79 → the old calendar-period rule on
+`last_contribution_date` / `last_paid_date`. No backfill, by design.
+
+All in `src/lib/recurring.ts` — don't re-derive "paid this month" anywhere else:
+- `isDueCovered(item, lastPaid, due)` — the one rule. Used by the forecast (both loops) and reminders.
+- `isPaidForCycle` — hides Record/Mark Paid. Monthly looks to the **salary cycle end**, weekly to the week end.
+- `paidForChoices` — picker options + default: earliest unpaid due; with no known `paid_through`, a
+  due before the cycle began is assumed paid from last cycle's money (payday → this cycle's due).
+- Callers that don't ask (RemindersBar) pass `paidFor` undefined → the hook applies the same default.
+- Edit sheets must **never** send `last_paid_date` / `last_contribution_date` / `paid_date` /
+  `paid_through` — before v1.79 they sent `null` and silently un-paid the item.
+- The two push Edge Functions carry their own copy of the rule (string compare on ISO dates).
+
 ## Mint CFO answers (v1.75)
 Eight core money questions get a **deterministic card** instead of free-form prose. Code owns
 every number and the decision; the AI only adds a ≤ 3-sentence insight underneath.

@@ -41,6 +41,7 @@ function makeCommitment(overrides: Partial<Commitment> = {}): Commitment {
     from_account_id: null,
     is_active: true,
     last_paid_date: null,
+    paid_through: null,
     total_installments: null,
     current_installment: null,
     due_date: null,

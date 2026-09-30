@@ -2,13 +2,15 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt, round2, openDatePicker, selectOnFocus } from '@/lib/utils'
+import { fmt, round2, openDatePicker, selectOnFocus, localIso } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { CategorySelect } from './CategorySelect'
 import { SAVINGS_GROUP } from '@/lib/constants'
-import { isRecurringCompleted, getRecurringPeriodLabel, getNextRecurringDueDate } from '@/lib/recurring'
+import { getRecurringPeriodLabel, getNextRecurringDueDate, isPaidForCycle, paidForChoices, coveredDue, scheduledDuesAround, parseIsoDate, supportsPaidFor, type PaidForChoice, fmtDue } from '@/lib/recurring'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
+import { PaidForPicker, PaidForSheet } from './PaidForPicker'
 import type { AppState, Savings, SavingsType, SavingsFrequency } from '@/types'
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -114,6 +116,7 @@ function payloadFromForm(form: SForm): Omit<Savings, 'id' | 'created_at'> {
     prize_month: (isChit && form.is_prized && form.prize_month) ? parseInt(form.prize_month) : null,
     last_contribution_date: null,
     paid_date: null,
+    paid_through: null,
     investment_source: form.investment_source,
   }
 }
@@ -131,7 +134,7 @@ interface Props {
   onAdd: (form: Omit<Savings, 'id' | 'created_at'>, debitAccountId?: string) => Promise<void>
   onUpdate: (id: string, patch: Partial<Omit<Savings, 'id' | 'user_id' | 'created_at'>>) => Promise<void>
   onDelete: (id: string) => Promise<void>
-  onRecordContribution: (sv: Savings, recordExpense: boolean, accountId: string | null) => Promise<void>
+  onRecordContribution: (sv: Savings, recordExpense: boolean, accountId: string | null, paidFor?: string | null) => Promise<void>
   onUpdateValue: (id: string, currentValue: number) => Promise<void>
   onRecordPayout: (sv: Savings, amount: number, accountId: string) => Promise<void>
   onRevertPayout: (sv: Savings) => Promise<void>
@@ -153,6 +156,10 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
   const [contributing, setContributing] = useState<string | null>(null)
   const [confirmContrib, setConfirmContrib] = useState<Savings | null>(null)
   const [confirmAccountId, setConfirmAccountId] = useState('')
+  const [contribChoices, setContribChoices] = useState<PaidForChoice | null>(null)
+  const [contribFor, setContribFor] = useState('')
+  const [fixPaidFor, setFixPaidFor] = useState<Savings | null>(null)
+  const cycle = useMemo(() => getCurrentFinancialCycle(state), [state])
   const [updateValueId, setUpdateValueId] = useState<string | null>(null)
   const [newValueInput, setNewValueInput] = useState('')
   const [confirmPayout, setConfirmPayout] = useState<Savings | null>(null)
@@ -251,7 +258,11 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
     if (!form.name.trim() || !parseFloat(form.amount)) return
     if (editingId) {
       setSaving(true)
-      try { await onUpdate(editingId, payloadFromForm(form)); closeSheet() } catch (_) {}
+      // Editing details must not un-pay the item: payment history is written only
+      // by recordContribution and the "which due" correction.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { last_contribution_date, paid_date, paid_through, ...patch } = payloadFromForm(form)
+      try { await onUpdate(editingId, patch); closeSheet() } catch (_) {}
       setSaving(false)
       return
     }
@@ -306,6 +317,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
 
   const handleContribute = (sv: Savings) => {
     setConfirmAccountId(sv.from_account_id || accounts[0]?.id || '')
+    const choices = paidForChoices(sv, sv.last_contribution_date, new Date(), cycle.cycleStart)
+    setContribChoices(choices)
+    setContribFor(choices ? localIso(choices.defaultDue) : '')
     setConfirmContrib(sv)
   }
 
@@ -634,8 +648,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           const isDel   = deleting === sv.id
           const isCont  = contributing === sv.id
 
-          const contributedThisPeriod = isRecurringCompleted(sv.last_contribution_date, sv.frequency)
+          const contributedThisPeriod = isPaidForCycle(sv, sv.last_contribution_date, new Date(), cycle.cycleEnd)
           const periodLabel = getRecurringPeriodLabel(sv.frequency)
+          const paidFor = coveredDue(sv, sv.last_contribution_date)
           const nextDue = sv.is_recurring ? getNextRecurringDueDate(sv) : null
 
           return (
@@ -670,7 +685,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 3 }}>
                     {sv.is_recurring && sv.due_day
                       ? contributedThisPeriod
-                        ? `Paid on ${new Date((sv.paid_date ?? sv.last_contribution_date)!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · Due ${ord(sv.due_day)}`
+                        ? `Paid on ${new Date((sv.paid_date ?? sv.last_contribution_date)!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ${paidFor ? `for ${fmtDue(paidFor)}` : `Due ${ord(sv.due_day)}`}`
                         : `Due by ${ord(sv.due_day)} every month`
                       : sv.maturity_date
                         ? `Matures ${new Date(sv.maturity_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -784,11 +799,18 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                     {isCont ? '...' : '+ Record Contribution'}
                   </button>
                 )}
-                {sv.is_active && sv.is_recurring && contributedThisPeriod && (
+                {sv.is_active && sv.is_recurring && contributedThisPeriod && (paidFor ? (
+                  <button
+                    onClick={e => { e.stopPropagation(); setFixPaidFor(sv) }}
+                    style={{ font: '600 12px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', border: 'none', borderRadius: 10, padding: '7px 12px', flex: 1, textAlign: 'center', cursor: 'pointer' }}
+                  >
+                    Paid for {fmtDue(paidFor)}
+                  </button>
+                ) : (
                   <span style={{ font: '600 12px Plus Jakarta Sans', color: '#10B981', background: 'rgba(16,185,129,0.1)', borderRadius: 10, padding: '7px 12px', flex: 1, textAlign: 'center' }}>
                     Invested {periodLabel}
                   </span>
-                )}
+                ))}
                 {sv.is_active && tcfg.showCurrentValue && (
                   <button
                     onClick={e => { e.stopPropagation(); setUpdateValueId(sv.id); setNewValueInput(sv.current_value > 0 ? String(sv.current_value) : '') }}
@@ -984,6 +1006,19 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
               <label style={lbl}>Last paid</label>
               <div style={{ ...inp, color: c.muted, background: c.faint, display: 'flex', alignItems: 'center' }}>
                 {new Date(editingSv.paid_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {(() => {
+                  const due = coveredDue(editingSv, editingSv.last_contribution_date)
+                  return due ? <span style={{ marginLeft: 6 }}>· for due {fmtDue(due)}</span> : null
+                })()}
+                {editingSv.is_recurring && editingSv.due_day != null && editingSv.last_contribution_date && supportsPaidFor(editingSv.frequency) && (
+                  <button
+                    type="button"
+                    onClick={() => setFixPaidFor(editingSv)}
+                    style={{ marginLeft: 'auto', background: 'none', border: 'none', color: c.accent, font: '700 12px Plus Jakarta Sans', cursor: 'pointer', padding: 0 }}
+                  >
+                    Change
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1214,6 +1249,9 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
             <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 16 }}>
               Record <strong style={{ color: c.ink }}>{confirmContrib.name}</strong> ({fmt(confirmContrib.amount)}) contribution. Deduct from your account?
             </div>
+            {contribChoices && (
+              <PaidForPicker options={contribChoices.options} value={contribFor} onChange={setContribFor} />
+            )}
             <div style={{ marginBottom: 16 }}>
               <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Debit from</label>
               <select value={confirmAccountId} onChange={e => setConfirmAccountId(e.target.value)}
@@ -1226,7 +1264,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 onClick={async () => {
                   const sv = confirmContrib; setConfirmContrib(null)
                   setContributing(sv.id)
-                  try { await onRecordContribution(sv, true, confirmAccountId) } catch (_) {}
+                  try { await onRecordContribution(sv, true, confirmAccountId, contribChoices ? contribFor : undefined) } catch (_) {}
                   setContributing(null)
                 }}
                 style={{ width: '100%', background: '#10B981', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
@@ -1237,7 +1275,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 onClick={async () => {
                   const sv = confirmContrib; setConfirmContrib(null)
                   setContributing(sv.id)
-                  try { await onRecordContribution(sv, false, null) } catch (_) {}
+                  try { await onRecordContribution(sv, false, null, contribChoices ? contribFor : undefined) } catch (_) {}
                   setContributing(null)
                 }}
                 style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
@@ -1248,6 +1286,18 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
           </>
         )}
       </BottomSheet>
+
+      {/* ── Correct which due the last contribution was for ───────────────────── */}
+      <PaidForSheet
+        open={!!fixPaidFor}
+        name={fixPaidFor?.name ?? ''}
+        options={fixPaidFor?.due_day != null && fixPaidFor.last_contribution_date
+          ? scheduledDuesAround(fixPaidFor.frequency, fixPaidFor.due_day, parseIsoDate(fixPaidFor.last_contribution_date), 1, 2)
+          : []}
+        current={fixPaidFor ? coveredDue(fixPaidFor, fixPaidFor.last_contribution_date) : null}
+        onClose={() => setFixPaidFor(null)}
+        onSave={iso => onUpdate(fixPaidFor!.id, { paid_through: iso })}
+      />
 
       {/* ── Record payout / redemption (portal — escapes the transformed page container) ── */}
       {confirmPayout && createPortal(

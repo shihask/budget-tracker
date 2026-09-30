@@ -1128,7 +1128,7 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {commitmentsOpen && (
-            <CommitmentsPage state={state} d={d} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} onPayCCBill={payCreditCardBill} onClose={() => { setCommitmentsOpen(false); setCommitmentsAddOnOpen(false) }} initialAddOpen={commitmentsAddOnOpen} />
+            <CommitmentsPage state={state} d={d} onMarkPaid={(cm, recordExpense, accountId, paidFor) => markCommitmentPaid(cm, recordExpense, accountId, paidFor)} onAdd={addCommitment} onUpdate={updateCommitment} onDelete={deleteCommitment} onAddCategory={addCategory} onPayCCBill={payCreditCardBill} onClose={() => { setCommitmentsOpen(false); setCommitmentsAddOnOpen(false) }} initialAddOpen={commitmentsAddOnOpen} />
           )}
 
           {creditCardsOpen && (

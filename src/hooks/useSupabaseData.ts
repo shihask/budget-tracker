@@ -11,6 +11,8 @@ import { withTimeout, iso, localIso, txTime, TODAY, fmt, round2 } from '@/lib/ut
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { delta, txDeltas, applyDeltas } from '@/lib/transaction-deltas'
 import { executeTransaction } from '@/lib/execute-transaction'
+import { paidForChoices, type PaidSchedule } from '@/lib/recurring'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { amountBounds, escapeIlike, SEARCH_MAX_ROWS, type TransactionFilterState } from '@/lib/transactionFilters'
 import {
   readQueue, updateQueue, buildQueueItem, toPendingTransaction, applyQueuedDeltas, reconcileQueue,
@@ -214,6 +216,19 @@ const SAVINGS_TYPE_LABEL: Record<string, string> = {
   chit:    'Chit Fund',
   custom:  'Savings',
 }
+// Which due date a recorded payment is for. undefined = the caller didn't ask the
+// user (RemindersBar) → the same default the picker would show; null = leave it.
+function resolvePaidThrough(
+  state: AppState,
+  item: PaidSchedule,
+  lastPaidDate: string | null,
+  paidFor: string | null | undefined,
+): string | null {
+  if (paidFor !== undefined) return paidFor
+  const choice = paidForChoices(item, lastPaidDate, new Date(), getCurrentFinancialCycle(state).cycleStart)
+  return choice ? localIso(choice.defaultDue) : null
+}
+
 const savingsContribNote = (type: string) => `${SAVINGS_TYPE_LABEL[type] ?? 'Savings'} Contribution`
 const savingsWithdrawNote = (type: string, isChit: boolean) =>
   isChit ? 'Chit Fund Payout' : `${SAVINGS_TYPE_LABEL[type] ?? 'Savings'} Redemption`
@@ -1408,7 +1423,7 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, commitments: [...s.commitments, data as Commitment] }))
   }, [userId])
 
-  const updateCommitment = useCallback(async (id: string, form: Omit<Commitment, 'id'>) => {
+  const updateCommitment = useCallback(async (id: string, form: Partial<Omit<Commitment, 'id'>>) => {
     const { data, error } = await supabase.from('commitments').update(form).eq('id', id).select('*').single()
     if (error) throw error
     setState(s => ({ ...s, commitments: s.commitments.map(c => c.id === id ? data as Commitment : c) }))
@@ -1419,8 +1434,9 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, commitments: s.commitments.filter(c => c.id !== id) }))
   }, [])
 
-  const markCommitmentPaid = useCallback(async (cm: Commitment, recordExpense: boolean = false, accountId: string | null = null) => {
+  const markCommitmentPaid = useCallback(async (cm: Commitment, recordExpense: boolean = false, accountId: string | null = null, paidFor?: string | null) => {
     const today          = localIso(new Date())
+    const paidThrough    = cm.is_recurring ? resolvePaidThrough(stateRef.current, cm, cm.last_paid_date, paidFor) : null
     const payAmount      = cm.amount || cm.remaining || 0
     const isCreditCard   = state.credit_cards.some(c => c.id === cm.from_account_id)
     const newInstallment = (cm.current_installment || 0) + 1
@@ -1428,9 +1444,10 @@ export function useSupabaseData(userId: string) {
     const newRemaining   = !cm.is_recurring ? Math.max(0, cm.remaining - payAmount) : undefined
     const effectiveAccountId = isCreditCard ? cm.from_account_id : (accountId ?? cm.from_account_id)
 
-    const commitmentStateUpdate = (s: AppState) =>
+    const commitmentStateUpdate = (s: AppState, paidThroughSaved: boolean) =>
       s.commitments.map(c => c.id === cm.id ? {
         ...c, last_paid_date: today, current_installment: newInstallment,
+        ...(paidThrough && paidThroughSaved ? { paid_through: paidThrough } : {}),
         remaining: newRemaining ?? c.remaining,
         is_active: isComplete ? false : c.is_active,
         from_account_id: effectiveAccountId ?? c.from_account_id,
@@ -1438,13 +1455,15 @@ export function useSupabaseData(userId: string) {
 
     // Path A: no balance effects — just update the commitment record
     if (!isCreditCard && !recordExpense) {
-      await supabase.from('commitments').update({
+      const { error } = await supabase.from('commitments').update({
         last_paid_date: today, current_installment: newInstallment,
+        ...(paidThrough ? { paid_through: paidThrough } : {}),
         ...(newRemaining !== undefined ? { remaining: newRemaining } : {}),
         ...(isComplete ? { is_active: false } : {}),
         ...(accountId && accountId !== cm.from_account_id ? { from_account_id: accountId } : {}),
       }).eq('id', cm.id)
-      setState(s => ({ ...s, commitments: commitmentStateUpdate(s) }))
+      if (error) throw error
+      setState(s => ({ ...s, commitments: commitmentStateUpdate(s, true) }))
       return
     }
 
@@ -1467,6 +1486,16 @@ export function useSupabaseData(userId: string) {
     })
     if (error) throw error
 
+    // The RPC owns the atomic balance deltas; which due this paid is a follow-up
+    // update (same shape as the event tag). A failure leaves the calendar rule in
+    // charge rather than undoing a payment that really happened.
+    let paidThroughSaved = false
+    if (paidThrough) {
+      const { error: ptErr } = await supabase.from('commitments').update({ paid_through: paidThrough }).eq('id', cm.id)
+      if (ptErr) console.error('[markCommitmentPaid] paid_through update failed', ptErr)
+      paidThroughSaved = !ptErr
+    }
+
     const newTx: Transaction = {
       ...(data as Transaction),
       category: stateRef.current.categories.find(c => c.id === cm.category_id),
@@ -1474,7 +1503,7 @@ export function useSupabaseData(userId: string) {
     setState(s => ({
       ...s,
       transactions: [newTx, ...s.transactions],
-      commitments: commitmentStateUpdate(s),
+      commitments: commitmentStateUpdate(s, paidThroughSaved),
       accounts: accountId && !isCreditCard
         ? s.accounts.map(a => a.id === accountId ? { ...a, current_balance: a.current_balance - payAmount } : a)
         : s.accounts,
@@ -1734,14 +1763,17 @@ export function useSupabaseData(userId: string) {
   const recordContribution = useCallback(async (
     sv: Savings,
     recordExpense: boolean,
-    accountId: string | null
+    accountId: string | null,
+    paidFor?: string | null,
   ) => {
     const today = localIso(new Date())
     const newInstallment = sv.current_installment + 1
+    const paidThrough = resolvePaidThrough(stateRef.current, sv, sv.last_contribution_date, paidFor)
     const patch: Partial<Savings> = {
       current_installment: newInstallment,
       last_contribution_date: today,
       paid_date: today,
+      ...(paidThrough ? { paid_through: paidThrough } : {}),
       ...(accountId && accountId !== sv.from_account_id ? { from_account_id: accountId } : {}),
     }
 
@@ -1766,8 +1798,15 @@ export function useSupabaseData(userId: string) {
         p_mark_complete:          patch.is_active === false,
       })
       if (error) throw error
-      // RPC doesn't handle paid_date — update it separately
-      await supabase.from('savings').update({ paid_date: today }).eq('id', sv.id)
+      // RPC doesn't handle paid_date / paid_through — update them separately. A
+      // failure leaves the calendar rule in charge rather than undoing the payment.
+      const { error: followErr } = await supabase.from('savings')
+        .update({ paid_date: today, ...(paidThrough ? { paid_through: paidThrough } : {}) })
+        .eq('id', sv.id)
+      if (followErr) {
+        console.error('[recordContribution] paid_date/paid_through update failed', followErr)
+        delete patch.paid_through
+      }
 
       const newTx: Transaction = {
         ...(data as Transaction),
@@ -1783,7 +1822,8 @@ export function useSupabaseData(userId: string) {
       }))
     } else {
       // No balance effects — direct savings update is safe without RPC
-      await supabase.from('savings').update(patch).eq('id', sv.id)
+      const { error } = await supabase.from('savings').update(patch).eq('id', sv.id)
+      if (error) throw error
       setState(s => ({
         ...s,
         savings: s.savings.map(item => item.id === sv.id ? { ...item, ...patch } : item),

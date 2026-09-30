@@ -145,6 +145,7 @@ export function getNextRecurringDueDate(
     frequency: RecurringFrequency | null
     due_day?: number | null
     last_contribution_date?: string | null
+    paid_through?: string | null
   },
   referenceDate?: Date,
 ): Date | null {
@@ -154,6 +155,11 @@ export function getNextRecurringDueDate(
 
   if (freq === 'yearly' || freq === 'custom') return null
   if (dueDay == null) return null
+
+  if (item.paid_through && supportsPaidFor(freq)) {
+    const through = parseIsoDate(item.paid_through)
+    return scheduledDuesAround(freq, dueDay, ref, 0, MAX_SCAN_PERIODS).find(d => d >= ref && d > through) ?? null
+  }
 
   const completed = isRecurringCompleted(item.last_contribution_date ?? null, freq, ref)
   const currentPeriod = getCurrentRecurringPeriod(freq, ref)
@@ -174,6 +180,129 @@ export function getNextRecurringDueDate(
   }
 
   return thisPeriodDue
+}
+
+// ── Which due date a payment is for ─────────────────────────────────────────
+// A payment's date doesn't say which installment it pays: Regal Gold (due 27th)
+// paid on 30 Sep is either late for 27 Sep or early for 27 Oct, and someone paid
+// on the 29th routinely pays ahead. So the user picks it, and `paid_through` stores
+// the latest due date paid. Every due on or before it is paid; nothing after is.
+// Rows recorded before `paid_through` existed keep the calendar-period rule.
+
+// Periods scanned forward when looking for the next unpaid due (two years monthly).
+const MAX_SCAN_PERIODS = 24
+
+export interface PaidSchedule {
+  frequency: RecurringFrequency | null
+  due_day?: number | null
+  paid_through?: string | null
+}
+
+// Only schedules with a computable due date per period can say which one was paid.
+export function supportsPaidFor(frequency: RecurringFrequency | null): boolean {
+  const f = frequency ?? 'monthly'
+  return f === 'monthly' || f === 'weekly'
+}
+
+export function parseIsoDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function shiftPeriods(freq: RecurringFrequency, date: Date, n: number): Date {
+  let d = midnight(date)
+  for (let i = 0; i < Math.abs(n); i++) {
+    const p = getCurrentRecurringPeriod(freq, d)
+    d = n > 0
+      ? new Date(p.periodEnd.getFullYear(), p.periodEnd.getMonth(), p.periodEnd.getDate() + 1)
+      : new Date(p.periodStart.getFullYear(), p.periodStart.getMonth(), p.periodStart.getDate() - 1)
+  }
+  return d
+}
+
+// Scheduled due dates from `back` periods before `anchor`'s period to `ahead` after, oldest first.
+export function scheduledDuesAround(
+  frequency: RecurringFrequency | null,
+  dueDay: number,
+  anchor: Date,
+  back: number,
+  ahead: number,
+): Date[] {
+  const freq = frequency ?? 'monthly'
+  const out: Date[] = []
+  for (let i = -back; i <= ahead; i++) {
+    const p = getCurrentRecurringPeriod(freq, shiftPeriods(freq, anchor, i))
+    out.push(dueDateInPeriod(freq, dueDay, p.periodStart))
+  }
+  return out
+}
+
+// The one rule for "is this due date already paid?".
+export function isDueCovered(item: PaidSchedule, lastPaidDate: string | null, due: Date): boolean {
+  if (item.paid_through) return midnight(due) <= parseIsoDate(item.paid_through)
+  return isRecurringCompleted(lastPaidDate, item.frequency, due)
+}
+
+// The due date the latest payment covered — for display and as the correction
+// sheet's starting value. Legacy rows: the due in the last payment's calendar period.
+export function coveredDue(item: PaidSchedule, lastPaidDate: string | null): Date | null {
+  if (item.paid_through) return parseIsoDate(item.paid_through)
+  if (!lastPaidDate || item.due_day == null || !supportsPaidFor(item.frequency)) return null
+  return scheduledDuesAround(item.frequency, item.due_day, parseIsoDate(lastPaidDate), 0, 0)[0]
+}
+
+// Is nothing left to pay until the next cycle? Monthly items look to the end of the
+// salary cycle — paid on payday for the 10th is done for this cycle, even though the
+// 10th is next calendar month. Weekly items look to the end of the week.
+export function isPaidForCycle(
+  item: PaidSchedule,
+  lastPaidDate: string | null,
+  today: Date,
+  cycleEnd: Date,
+): boolean {
+  const freq = item.frequency ?? 'monthly'
+  if (!item.paid_through || item.due_day == null || !supportsPaidFor(freq)) {
+    return isRecurringCompleted(lastPaidDate, freq, today)
+  }
+  const through = parseIsoDate(item.paid_through)
+  const next = scheduledDuesAround(freq, item.due_day, through, 0, 2).find(d => d > through)
+  const ref = midnight(today)
+  const periodEnd = freq === 'weekly' ? getCurrentRecurringPeriod(freq, ref).periodEnd : midnight(cycleEnd)
+  const horizon = periodEnd > ref ? periodEnd : ref
+  return !next || next > horizon
+}
+
+export interface PaidForChoice {
+  options: Date[]
+  defaultDue: Date
+}
+
+// Offered when recording a payment: unpaid dues, oldest first, at most three.
+// Default = the earliest unpaid due. Without a known paid_through (legacy rows,
+// first payment) a due before the salary cycle began is assumed to belong to
+// last cycle's money, so a payday payment defaults to this cycle's due.
+export function paidForChoices(
+  item: PaidSchedule,
+  lastPaidDate: string | null,
+  today: Date,
+  cycleStart: Date,
+): PaidForChoice | null {
+  const freq = item.frequency ?? 'monthly'
+  if (item.due_day == null || !supportsPaidFor(freq)) return null
+  const ref = midnight(today)
+  const unpaid = scheduledDuesAround(freq, item.due_day, ref, 2, 3).filter(d => !isDueCovered(item, lastPaidDate, d))
+  const known = !!item.paid_through
+  const late = unpaid.filter(d => d < ref).slice(known ? -2 : -1)
+  const options = [...late, ...unpaid.filter(d => d >= ref)].slice(0, 3)
+  if (options.length === 0) return null
+  const start = midnight(cycleStart)
+  const defaultDue = known ? options[0] : (options.find(d => d >= start) ?? options[0])
+  return { options, defaultDue }
+}
+
+export function fmtDue(d: Date): string {
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) })
 }
 
 export function getRecurringPeriodLabel(frequency: RecurringFrequency | null): string {

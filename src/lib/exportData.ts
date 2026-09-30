@@ -18,10 +18,10 @@ const CATEGORY_COLUMNS = ['id', 'name', 'group_name', 'is_visible', 'is_system',
 const GROUP_COLUMNS = ['id', 'name', 'is_visible', 'is_system', 'is_editable', 'is_deletable', 'type']
 const CREDIT_CARD_COLUMNS = ['id', 'name', 'last_four', 'credit_limit', 'cycle_start_day', 'bill_day', 'due_day', 'current_balance', 'is_active']
 const BORROWING_COLUMNS = ['id', 'person_name', 'total_amount', 'paid_amount', 'remaining_amount', 'notes', 'direction', 'repayment_date']
-const COMMITMENT_COLUMNS = ['id', 'name', 'amount', 'remaining', 'category_id', 'is_recurring', 'frequency', 'due_day', 'from_account_id', 'is_active', 'last_paid_date', 'total_installments', 'current_installment', 'due_date']
+const COMMITMENT_COLUMNS = ['id', 'name', 'amount', 'remaining', 'category_id', 'is_recurring', 'frequency', 'due_day', 'from_account_id', 'is_active', 'last_paid_date', 'paid_through', 'total_installments', 'current_installment', 'due_date']
 const GOAL_COLUMNS = ['id', 'name', 'goal_type', 'goal_amount', 'current_saved', 'monthly_target', 'target_date', 'created_at', 'is_active']
 const GOAL_CONTRIBUTION_COLUMNS = ['id', 'goal_id', 'amount', 'source', 'note', 'created_at']
-const SAVINGS_COLUMNS = ['id', 'name', 'type', 'amount', 'is_recurring', 'frequency', 'due_day', 'total_installments', 'current_installment', 'total_target', 'current_value', 'maturity_date', 'interest_rate', 'from_account_id', 'category_id', 'last_contribution_date', 'paid_date', 'notes', 'is_active', 'is_prized', 'prize_month', 'investment_source', 'created_at']
+const SAVINGS_COLUMNS = ['id', 'name', 'type', 'amount', 'is_recurring', 'frequency', 'due_day', 'total_installments', 'current_installment', 'total_target', 'current_value', 'maturity_date', 'interest_rate', 'from_account_id', 'category_id', 'last_contribution_date', 'paid_date', 'paid_through', 'notes', 'is_active', 'is_prized', 'prize_month', 'investment_source', 'created_at']
 const PLANNED_EXPENSE_COLUMNS = ['id', 'title', 'amount', 'planned_date', 'category_id', 'notes', 'is_completed', 'created_at']
 
 const README = `# MoneyPlant Data Export

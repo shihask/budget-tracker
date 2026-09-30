@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Check } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
-import { fmt, round2, selectOnFocus } from '@/lib/utils'
+import { fmt, round2, selectOnFocus, localIso } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { CAT_COLORS } from '@/lib/tokens'
 import { catById as buildCatById } from '@/lib/data'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
-import { isRecurringCompleted, getRecurringPeriodLabel } from '@/lib/recurring'
+import { getRecurringPeriodLabel, isPaidForCycle, paidForChoices, coveredDue, scheduledDuesAround, parseIsoDate, type PaidForChoice, fmtDue } from '@/lib/recurring'
+import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
+import { PaidForPicker, PaidForSheet } from './PaidForPicker'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { getCreditCardBilling, type CreditCardBilling } from '@/lib/credit-card'
 import { colorFor } from '@/lib/credit-card-colors'
@@ -71,9 +73,9 @@ type UnifiedItem =
 interface Props {
   state: AppState
   d: DerivedMetrics
-  onMarkPaid: (c: Commitment, recordExpense: boolean, accountId: string | null) => Promise<void>
+  onMarkPaid: (c: Commitment, recordExpense: boolean, accountId: string | null, paidFor?: string | null) => Promise<void>
   onAdd: (form: Omit<Commitment, 'id'>) => Promise<void>
-  onUpdate: (id: string, form: Omit<Commitment, 'id'>) => Promise<void>
+  onUpdate: (id: string, form: Partial<Omit<Commitment, 'id'>>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onAddCategory: (name: string, group_name: string) => Promise<string>
   onPayCCBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
@@ -95,6 +97,10 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmPay, setConfirmPay] = useState<Commitment | null>(null)
   const [confirmAccountId, setConfirmAccountId] = useState('')
+  const [payChoices, setPayChoices] = useState<PaidForChoice | null>(null)
+  const [payFor, setPayFor] = useState('')
+  const [fixPaidFor, setFixPaidFor] = useState<Commitment | null>(null)
+  const cycle = useMemo(() => getCurrentFinancialCycle(state), [state])
   const [ccPayTarget, setCCPayTarget] = useState<{ cc: CreditCard; billing: CreditCardBilling } | null>(null)
   const [ccPayAccountId, setCCPayAccountId] = useState('')
   const [ccPaying, setCCPaying] = useState(false)
@@ -235,7 +241,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
     const remaining = form.is_recurring
       ? amount
       : Math.max(0, amount - round2(evaluateAmountExpression(form.paid_amount) ?? 0))
-    const payload: Omit<Commitment, 'id'> = {
+    const payload: Omit<Commitment, 'id' | 'last_paid_date' | 'paid_through'> = {
       name: form.name.trim(), amount, remaining,
       category_id: form.category_id || null,
       is_recurring: form.is_recurring,
@@ -243,14 +249,16 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
       due_day: (form.is_recurring && form.frequency === 'monthly' && form.due_day) ? parseInt(form.due_day) : null,
       due_date: (!form.is_recurring && form.due_date) ? form.due_date : null,
       from_account_id: form.from_account_id || null,
-      is_active: true, last_paid_date: null,
+      is_active: true,
       total_installments: form.total_installments ? parseInt(form.total_installments) : null,
       current_installment: parseInt(form.current_installment) || 0,
     }
     setSaving(true)
     try {
+      // Editing details must not un-pay the bill: payment history is written only
+      // by Mark Paid and the "which due" correction.
       if (editingId) await onUpdate(editingId, payload)
-      else await onAdd(payload)
+      else await onAdd({ ...payload, last_paid_date: null, paid_through: null })
       closeSheet()
     } catch (_) {}
     setSaving(false)
@@ -259,6 +267,9 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const handleMarkPaid = (cm: Commitment) => {
     const isCreditCard = (state.credit_cards || []).some(cc => cc.id === cm.from_account_id)
     if (!isCreditCard) setConfirmAccountId(cm.from_account_id || accounts[0]?.id || '')
+    const choices = cm.is_recurring ? paidForChoices(cm, cm.last_paid_date, new Date(), cycle.cycleStart) : null
+    setPayChoices(choices)
+    setPayFor(choices ? localIso(choices.defaultDue) : '')
     setConfirmPay(cm)
   }
 
@@ -447,9 +458,10 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                 const isDeleting = deleting === cm.id
 
                 const paidThisPeriod = cm.is_recurring
-                  ? isRecurringCompleted(cm.last_paid_date, cm.frequency)
+                  ? isPaidForCycle(cm, cm.last_paid_date, new Date(), cycle.cycleEnd)
                   : false
                 const periodLabel = getRecurringPeriodLabel(cm.frequency)
+                const paidFor = cm.is_recurring ? coveredDue(cm, cm.last_paid_date) : null
 
                 return (
                   <div
@@ -505,7 +517,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
                         {cm.is_recurring
                           ? paidThisPeriod
-                            ? `Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                            ? `Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${paidFor ? ` · for ${fmtDue(paidFor)}` : ''}`
                             : (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
                           : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}${cm.due_date ? ` · Due ${new Date(cm.due_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}`
                         }
@@ -536,10 +548,25 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                             {isPaying ? '...' : <><Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Mark Paid</>}
                           </button>
                         )}
-                        {paidThisPeriod && (
+                        {paidThisPeriod && (paidFor ? (
+                          <button
+                            onClick={e => { e.stopPropagation(); setFixPaidFor(cm) }}
+                            style={{ font: '600 11px Plus Jakarta Sans', color: c.good, background: c.goodSoft, border: 'none', borderRadius: 8, padding: '5px 10px', cursor: 'pointer' }}
+                          >
+                            <Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Paid for {fmtDue(paidFor)}
+                          </button>
+                        ) : (
                           <span style={{ font: '600 11px Plus Jakarta Sans', color: c.good, background: c.goodSoft, borderRadius: 8, padding: '5px 10px' }}>
                             <Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Paid {periodLabel}
                           </span>
+                        ))}
+                        {!paidThisPeriod && paidFor && cm.last_paid_date && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setFixPaidFor(cm) }}
+                            style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, border: 'none', borderRadius: 8, padding: '5px 10px', cursor: 'pointer' }}
+                          >
+                            Last paid for {fmtDue(paidFor)}
+                          </button>
                         )}
                       </div>
                     </div>
@@ -810,6 +837,10 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                   }
                 </div>
 
+                {payChoices && (
+                  <PaidForPicker options={payChoices.options} value={payFor} onChange={setPayFor} />
+                )}
+
                 {!isCreditCard && (
                   <div style={{ marginBottom: 16 }}>
                     <label style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Pay from account</label>
@@ -825,7 +856,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                     onClick={async () => {
                       const cm = confirmPay; setConfirmPay(null)
                       setPaying(cm.id)
-                      try { await onMarkPaid(cm, true, isCreditCard ? null : confirmAccountId) } catch (_) {}
+                      try { await onMarkPaid(cm, true, isCreditCard ? null : confirmAccountId, payChoices ? payFor : undefined) } catch (_) {}
                       setPaying(null)
                     }}
                     style={{ width: '100%', background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
@@ -836,7 +867,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                     onClick={async () => {
                       const cm = confirmPay; setConfirmPay(null)
                       setPaying(cm.id)
-                      try { await onMarkPaid(cm, false, null) } catch (_) {}
+                      try { await onMarkPaid(cm, false, null, payChoices ? payFor : undefined) } catch (_) {}
                       setPaying(null)
                     }}
                     style={{ width: '100%', background: c.surface2, color: c.muted, border: 'none', borderRadius: 12, padding: '13px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
@@ -848,6 +879,18 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
             </div>
           )
         })()}
+
+        {/* Correct which due the last payment was for */}
+        <PaidForSheet
+          open={!!fixPaidFor}
+          name={fixPaidFor?.name ?? ''}
+          options={fixPaidFor?.due_day != null && fixPaidFor.last_paid_date
+            ? scheduledDuesAround(fixPaidFor.frequency, fixPaidFor.due_day, parseIsoDate(fixPaidFor.last_paid_date), 1, 2)
+            : []}
+          current={fixPaidFor ? coveredDue(fixPaidFor, fixPaidFor.last_paid_date) : null}
+          onClose={() => setFixPaidFor(null)}
+          onSave={iso => onUpdate(fixPaidFor!.id, { paid_through: iso })}
+        />
 
         {/* Pay CC Bill confirmation */}
         {ccPayTarget && (

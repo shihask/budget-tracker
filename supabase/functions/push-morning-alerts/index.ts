@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     // Fetch commitments for all users
     const { data: allCommitments } = await supabase
       .from('commitments')
-      .select('id, name, amount, due_day, last_paid_date, is_active, is_recurring, user_id')
+      .select('id, name, amount, due_day, last_paid_date, paid_through, is_active, is_recurring, user_id')
       .in('user_id', enabledUserIds)
       .eq('is_active', true)
       .eq('is_recurring', true)
@@ -122,11 +122,17 @@ Deno.serve(async (req) => {
       if (settings?.notify_commitments !== false) {
         const cms = (allCommitments ?? []).filter((c: any) => c.user_id === uid && c.due_day)
         for (const cm of cms) {
-          if (cm.last_paid_date) {
+          const daysLeft = getDaysUntil(cm.due_day)
+          if (cm.paid_through) {
+            // paid_through = the latest due date paid (see src/lib/recurring.ts). A
+            // payment made ahead on payday for next month's due must not nag.
+            const due = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysLeft)
+            const dueIso = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`
+            if (dueIso <= cm.paid_through) continue
+          } else if (cm.last_paid_date) {
             const paid = new Date(cm.last_paid_date)
             if (paid.getMonth() === now.getMonth() && paid.getFullYear() === now.getFullYear()) continue
           }
-          const daysLeft = getDaysUntil(cm.due_day)
           if (daysLeft <= 5) {
             alerts.push(`${cm.name} (${fmt(cm.amount)}) due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`)
           }

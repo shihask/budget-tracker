@@ -255,6 +255,7 @@ export interface Commitment {
   from_account_id: string | null
   is_active: boolean
   last_paid_date: string | null
+  paid_through: string | null         // latest due date paid (see recurring.ts); null = legacy calendar rule
   total_installments: number | null
   current_installment: number | null
   due_date: string | null
@@ -282,6 +283,7 @@ export interface Savings {
   category_id: string | null
   last_contribution_date: string | null
   paid_date: string | null              // actual date payment was made (set by recordContribution)
+  paid_through: string | null           // latest due date paid (see recurring.ts); null = legacy calendar rule
   notes: string | null
   is_active: boolean
   is_prized: boolean                  // chit: have you received the prize pot yet?
