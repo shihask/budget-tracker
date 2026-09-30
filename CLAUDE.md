@@ -207,7 +207,7 @@ NotificationsSheet item and adds 1 to the badge. There is no dashboard card (rem
 | `src/features/events/components/EventSuggestionSheet.tsx` | Review: Mint thinking (AI running) → result or "Looks like everyday spending" |
 | `src/components/UndoSnackbar.tsx` | "Suggestion dismissed · Undo" |
 
-Pipeline: pool (30d, untagged, unsplit, non-system, ≤60) → phrase clusters → novelty (90d) →
+Pipeline: pool (30d, untagged, unsplit, non-system, day-to-day spending groups only, ≤60) → phrase clusters → novelty (90d) →
 merchant rejection. **Autopilot off** → local suggestion only (phrase, ≥3 rows, ≥2 categories,
 ≥₹500). **Autopilot on** → the same local suggestion, plus a **burst** offered as generic
 "Mint found related expenses" (`burstSuggestion`, `generic: true`) for AI to name. Toast wording:

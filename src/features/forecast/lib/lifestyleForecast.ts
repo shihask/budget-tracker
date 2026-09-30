@@ -6,6 +6,7 @@ import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
 import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
 import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
+import { BEHAVIORAL_GROUP_TYPES } from '@/lib/constants'
 
 export type { ForecastMode }
 
@@ -137,7 +138,6 @@ function estimateFromBudgetStrategy(state: AppState, d: DerivedMetrics): DailySp
   }
 }
 
-const BEHAVIORAL_GROUP_TYPES = new Set(['discretionary', 'essential'])
 const EMPTY_RING_FENCE: Set<string> = new Set()
 
 export function isBehavioralSpending(

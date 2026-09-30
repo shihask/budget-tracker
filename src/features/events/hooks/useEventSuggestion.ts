@@ -9,6 +9,7 @@ import type { OnAiUsed } from '@/lib/gemini'
 import {
   suggestionPool, suggestionFingerprint, detectEventSignals, hasEventSignal, signalRows,
   buildSuggestion, burstSuggestion, validateAiResult, isSuppressed, shiftIso, NOVELTY_LOOKBACK_DAYS,
+  isOccasionSpendCategory, groupByName,
 } from '@/lib/event-suggestions'
 import type { EventSuggestion, HistoryRow } from '@/lib/event-suggestions'
 import { EVENT_ICON_KEYS, DEFAULT_EVENT_ICON, isEventIconKey } from '../lib/eventIcons'
@@ -102,19 +103,23 @@ interface Args {
 
 export function useEventSuggestion({ state, userId, autopilotEnabled, allTransactionsLoaded, onAiUsed }: Args) {
   const today = iso(TODAY)
-  const { transactions, categories } = state
-  const pool = useMemo(() => suggestionPool({ transactions, categories }, today), [transactions, categories, today])
+  const { transactions, categories, groups } = state
+  const pool = useMemo(() => suggestionPool({ transactions, categories, groups }, today), [transactions, categories, groups, today])
 
   // ── History for novelty and the burst baseline ────────────────────────────
+  // Same spending rule as the pool: a baseline that counts EMIs and card draws
+  // would be judging the pool against days it can never contain.
   const loadedHistory = useMemo<HistoryRow[]>(() => {
-    const catMap = catById(state.categories)
-    return state.transactions
-      .filter(t => t.transaction_type === 'expense' && !isSystemTx(t, catMap))
+    const catMap = catById(categories)
+    const groupsByName = groupByName(groups)
+    return transactions
+      .filter(t => t.transaction_type === 'expense' && !isSystemTx(t, catMap) &&
+        isOccasionSpendCategory(t.category_id, catMap, groupsByName))
       .map(t => ({
         id: t.id, description: t.description, transaction_date: t.transaction_date,
         amount: t.amount, category_id: t.category_id, event_id: t.event_id,
       }))
-  }, [state.transactions, state.categories])
+  }, [transactions, categories, groups])
 
   // Pool is newest-first, so its last row is the oldest the detector will judge.
   const poolStart = pool.length ? pool[pool.length - 1].transaction_date : today
@@ -146,17 +151,19 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
 
   const history = useMemo<HistoryRow[]>(() => {
     if (!fetched?.rows.length) return loadedHistory
-    const catMap = catById(state.categories)
+    const catMap = catById(categories)
+    const groupsByName = groupByName(groups)
     const byId = new Map(loadedHistory.map(r => [r.id, r]))
     for (const r of fetched.rows) {
       if (byId.has(r.id)) continue
       // Fetched rows are already type 'expense'; the only system rows left are
       // legacy adjustments filed under the Adjustment group.
       if (catMap[r.category_id ?? '']?.group_name === ADJUSTMENT_GROUP) continue
+      if (!isOccasionSpendCategory(r.category_id, catMap, groupsByName)) continue
       byId.set(r.id, r)
     }
     return [...byId.values()]
-  }, [loadedHistory, fetched, state.categories])
+  }, [loadedHistory, fetched, categories, groups])
 
   // ── Detection ─────────────────────────────────────────────────────────────
   const detection = useMemo(() => ready

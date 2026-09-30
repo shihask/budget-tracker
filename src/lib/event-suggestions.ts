@@ -1,6 +1,7 @@
-import type { AppState, Category, LifeEvent, Master, Transaction } from '@/types'
+import type { AppState, Category, Group, LifeEvent, Master, Transaction } from '@/types'
 import { MASTER_TYPES } from '@/types'
 import { isSystemTx, catById } from '@/lib/data'
+import { BEHAVIORAL_GROUP_TYPES } from '@/lib/constants'
 import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
 import type { AnalyticsTransaction } from '@/lib/reimbursements'
 import { DEFAULT_EVENT_ICON, isEventIconKey } from '@/features/events/lib/eventIcons'
@@ -110,14 +111,32 @@ const wordCount = (phrase: string): number => phrase.split(' ').length
 
 // ── Pool ────────────────────────────────────────────────────────────────────
 
+export const groupByName = (groups: Group[]): Record<string, Group> =>
+  Object.fromEntries(groups.map(g => [g.name, g]))
+
+/** False when the row's group is known to hold something other than day-to-day
+ *  spending: a credit-card cash draw filed as Borrowed Money, an EMI, a SIP. An
+ *  occasion is spent, not borrowed or committed — and one such row can be ten
+ *  times an ordinary day, enough to fake a burst on its own. An uncategorised
+ *  row, or a group with no type, is kept: it may well be trip spending. */
+export function isOccasionSpendCategory(
+  categoryId: string | null | undefined,
+  catMap: Record<string, Category>,
+  groupsByName: Record<string, Group>,
+): boolean {
+  const type = groupsByName[catMap[categoryId ?? '']?.group_name ?? '']?.type
+  return !type || BEHAVIORAL_GROUP_TYPES.has(type)
+}
+
 /** Untagged, unsplit, non-system expenses from the last SUGGESTION_WINDOW_DAYS,
  *  newest first, capped at MAX_AI_ROWS. Reimbursed expenses carry their net
  *  amount, so a suggested total matches what the event will show. */
 export function suggestionPool(
-  state: Pick<AppState, 'transactions' | 'categories'>,
+  state: Pick<AppState, 'transactions' | 'categories' | 'groups'>,
   today: string,
 ): AnalyticsTransaction[] {
   const catMap = catById(state.categories)
+  const groupsByName = groupByName(state.groups)
   const from = shiftIso(today, -(SUGGESTION_WINDOW_DAYS - 1))
   return forSpendAnalytics(state.transactions)
     .filter(t =>
@@ -126,6 +145,7 @@ export function suggestionPool(
       // Split legs can't be tagged individually — same rule as LinkExpensesSheet.
       !t.split_group_id &&
       !isSystemTx(t, catMap) &&
+      isOccasionSpendCategory(t.category_id, catMap, groupsByName) &&
       t.transaction_date >= from && t.transaction_date <= today)
     .sort((a, b) =>
       b.transaction_date.localeCompare(a.transaction_date) ||

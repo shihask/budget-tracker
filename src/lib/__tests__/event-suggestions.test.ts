@@ -7,7 +7,7 @@ import {
   burstSuggestion, RELATED_EXPENSES_NAME,
 } from '@/lib/event-suggestions'
 import type { HistoryRow } from '@/lib/event-suggestions'
-import type { Category, LifeEvent, Master, Transaction } from '@/types'
+import type { Category, Group, LifeEvent, Master, Transaction } from '@/types'
 
 const TODAY = '2026-09-18'
 
@@ -21,6 +21,18 @@ const categories: Category[] = [
   { id: 'gift', name: 'Gifts', group_name: 'Lifestyle' },
   { id: 'groceries', name: 'Groceries', group_name: 'Essential' },
   { id: 'adj', name: 'Balance Adjustment', group_name: 'Adjustment' },
+  { id: 'borrowed', name: 'Borrowed Money', group_name: 'Borrowing' },
+  { id: 'emi', name: 'Bike EMI', group_name: 'Commitments' },
+  { id: 'misc', name: 'Misc', group_name: 'Untyped' },
+]
+
+const groups: Group[] = [
+  { id: 'g-life', name: 'Lifestyle', type: 'discretionary' },
+  { id: 'g-ess', name: 'Essential', type: 'essential' },
+  { id: 'g-adj', name: 'Adjustment', type: 'adjustment' },
+  { id: 'g-borrow', name: 'Borrowing', type: 'borrowing' },
+  { id: 'g-commit', name: 'Commitments', type: 'commitment' },
+  { id: 'g-untyped', name: 'Untyped' },
 ]
 
 let seq = 0
@@ -59,7 +71,7 @@ const dailyHistory = (before: string, days: number, amount: number, description 
   }))
 
 const detect = (transactions: Transaction[], opts: { history?: HistoryRow[]; masters?: Master[]; events?: LifeEvent[] } = {}) => {
-  const pool = suggestionPool({ transactions, categories }, TODAY)
+  const pool = suggestionPool({ transactions, categories, groups }, TODAY)
   return detectEventSignals({
     pool,
     history: opts.history ?? [],
@@ -253,6 +265,21 @@ describe('negative detection', () => {
     expect(d.local).toBeNull()
   })
 
+  // A credit-card cash draw is filed as Borrowed Money, type 'expense'. On a
+  // ₹300-a-day history it alone was 30× an ordinary day and turned tea, lunch
+  // and petrol into "Bike Trip Accessories".
+  it('never lets a borrowing row fake a burst out of an ordinary day', () => {
+    const d = detect([
+      tx('Helmet + bike oil', '2026-09-17', 1440, 'fuel'),
+      tx('Lunch', '2026-09-17', 250, 'food'),
+      tx('Morning tea', '2026-09-17', 40, 'food'),
+      tx('Petrol', '2026-09-17', 1011, 'fuel'),
+      tx('Axis visa cc to account', '2026-09-17', 10152, 'borrowed'),
+    ], { history: dailyHistory('2026-09-17', 120, 1000) })
+    expect(d.burst).toBeNull()
+    expect(hasEventSignal(d)).toBe(false)
+  })
+
   it('does not call ordinary spending a burst when history is too short to know', () => {
     const d = detect([
       tx('Groceries', '2026-09-15', 1500, 'groceries'),
@@ -285,7 +312,7 @@ describe('tokenize', () => {
 
 describe('findPhraseClusters', () => {
   it('keeps the longest phrase for the same set of rows', () => {
-    const clusters = findPhraseClusters(suggestionPool({ transactions: ootyTrip(), categories }, TODAY))
+    const clusters = findPhraseClusters(suggestionPool({ transactions: ootyTrip(), categories, groups }, TODAY))
     expect(clusters[0].phrase).toBe('ooty trip')
     expect(clusters.map(c => c.phrase)).not.toContain('ooty')
     expect(clusters.map(c => c.phrase)).not.toContain('trip')
@@ -296,7 +323,7 @@ describe('findPhraseClusters', () => {
       tx('Ooty hotel', '2026-09-12', 1, 'stay'),
       tx('Ooty boating', '2026-09-12', 1, 'fun'),
       tx('Tea ooty trip', '2026-09-13', 1, 'food'),
-    ], categories }, TODAY)
+    ], categories, groups }, TODAY)
     const cluster = findPhraseClusters(pool).find(c => c.phrase === 'ooty')!
     expect(clusterDisplayPhrase(cluster)).toBe('ooty')
   })
@@ -389,7 +416,7 @@ describe('baselineDailySpend', () => {
 })
 
 describe('validateAiResult', () => {
-  const rows = () => suggestionPool({ transactions: ootyTrip(), categories }, TODAY)
+  const rows = () => suggestionPool({ transactions: ootyTrip(), categories, groups }, TODAY)
   const ok = { is_event: true, name: 'Ooty Trip', icon: 'plane', indices: [0, 1, 2, 3], confidence: 85 }
 
   it('maps indices back to rows', () => {
@@ -441,7 +468,7 @@ describe('isSuppressed', () => {
 describe('pool and signal rows', () => {
   it('caps the pool at MAX_AI_ROWS, newest first', () => {
     const many = Array.from({ length: 80 }, (_, i) => tx(`item ${i}`, shiftIso(TODAY, -(i % 29)), 10))
-    const pool = suggestionPool({ transactions: many, categories }, TODAY)
+    const pool = suggestionPool({ transactions: many, categories, groups }, TODAY)
     expect(pool).toHaveLength(MAX_AI_ROWS)
     expect(pool[0].transaction_date >= pool[pool.length - 1].transaction_date).toBe(true)
   })
@@ -449,8 +476,19 @@ describe('pool and signal rows', () => {
   it('includes a day-28 expense and excludes a day-31 one', () => {
     const pool = suggestionPool({ transactions: [
       tx('in', shiftIso(TODAY, -28), 10), tx('out', shiftIso(TODAY, -31), 10),
-    ], categories }, TODAY)
+    ], categories, groups }, TODAY)
     expect(pool.map(t => t.description)).toEqual(['in'])
+  })
+
+  it('keeps borrowing and commitment rows out, and uncategorised or untyped ones in', () => {
+    const pool = suggestionPool({ transactions: [
+      tx('cc to account', TODAY, 10000, 'borrowed'),
+      tx('bike emi', TODAY, 4000, 'emi'),
+      tx('toll', TODAY, 60, 'misc'),
+      tx('snacks', TODAY, 80, 'food', { category_id: null }),
+      tx('dinner', TODAY, 300, 'food'),
+    ], categories, groups }, TODAY)
+    expect(pool.map(t => t.description).sort()).toEqual(['dinner', 'snacks', 'toll'])
   })
 
   it('keys the AI signal on the signal rows only', () => {
