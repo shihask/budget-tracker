@@ -11,6 +11,9 @@ export async function fetchAllPages<T>(table: string, userId: string, orderCol: 
       .select('*')
       .eq('user_id', userId)
       .order(orderCol, { ascending: false })
+      // Without a unique tie-breaker, rows sharing orderCol (many per transaction_date) have no
+      // stable order, so a page boundary can repeat some and skip others.
+      .order('id', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1)
     if (error) throw error
     const page = (data as T[]) || []

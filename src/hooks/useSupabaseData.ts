@@ -11,6 +11,7 @@ import { withTimeout, iso, localIso, txTime, TODAY, fmt, round2 } from '@/lib/ut
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { delta, txDeltas, applyDeltas } from '@/lib/transaction-deltas'
 import { executeTransaction } from '@/lib/execute-transaction'
+import { escapeIlike, SEARCH_MAX_ROWS, type TransactionFilterState } from '@/lib/transactionFilters'
 import {
   readQueue, updateQueue, buildQueueItem, toPendingTransaction, applyQueuedDeltas, reconcileQueue,
   removeQueuedFromState, isOnline, toQueueError, type QueuedTransaction,
@@ -2292,6 +2293,45 @@ export function useSupabaseData(userId: string) {
     }
   }, [userId])
 
+  /** Every row that COULD match the Transactions page filters, read from the DATABASE — the page
+   *  otherwise searches only the loaded window, so "petrol" found this month's fill-ups and its
+   *  "N entries · ₹X" header read as the year's total. Deliberately a superset: the page runs the
+   *  same filterAndSortTransactions over the result, so transactionFilters.ts stays the one
+   *  definition of a match. `groupCategoryIds` is the group filter resolved to category ids
+   *  (null = no group filter). Stops at SEARCH_MAX_ROWS and says so rather than hanging on a
+   *  broad date range. */
+  const searchTransactions = useCallback(async (
+    filters: TransactionFilterState,
+    groupCategoryIds: string[] | null,
+  ): Promise<{ rows: Transaction[]; truncated: boolean }> => {
+    if (groupCategoryIds && groupCategoryIds.length === 0) return { rows: [], truncated: false }
+    const PAGE = 1000
+    const rows: Transaction[] = []
+    for (let from = 0; from < SEARCH_MAX_ROWS; from += PAGE) {
+      let q = supabase
+        .from('transactions')
+        .select('*, category:categories(*)')
+        .eq('user_id', userId)
+      const term = filters.search.trim()
+      if (term) q = q.ilike('description', `%${escapeIlike(term)}%`)
+      if (filters.account !== 'all') q = q.or(`from_account_id.eq.${filters.account},credit_card_id.eq.${filters.account}`)
+      if (filters.category !== 'all') q = q.eq('category_id', filters.category)
+      if (groupCategoryIds) q = q.in('category_id', groupCategoryIds)
+      if (filters.event === 'none') q = q.is('event_id', null)
+      else if (filters.event !== 'all') q = q.eq('event_id', filters.event)
+      if (filters.dateFrom) q = q.gte('transaction_date', filters.dateFrom)
+      if (filters.dateTo) q = q.lte('transaction_date', filters.dateTo)
+      const { data, error } = await q
+        .order('transaction_date', { ascending: false })
+        .order('id', { ascending: true })   // ties never straddle pages
+        .range(from, from + PAGE - 1)
+      if (error) throw error
+      rows.push(...((data as Transaction[]) ?? []))
+      if (!data || data.length < PAGE) return { rows, truncated: false }
+    }
+    return { rows, truncated: true }
+  }, [userId])
+
   const adjustCreditCardBalance = useCallback(async (cardId: string, actualBalance: number, newBilled?: number) => {
     const card = stateRef.current.credit_cards.find(c => c.id === cardId)
     if (!card) return
@@ -2577,7 +2617,7 @@ export function useSupabaseData(userId: string) {
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
     addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,
-    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, fetchEventLedger,
+    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, fetchEventLedger, searchTransactions,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addPlannedExpense, updatePlannedExpense, deletePlannedExpense,

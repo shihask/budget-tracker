@@ -54,3 +54,35 @@ export function filterAndSortTransactions(
   txns.sort(SORT_COMPARATORS[sortKey])
   return txns
 }
+
+// ── Searching past the loaded window ────────────────────────────────────────
+// state.transactions is only the most recent pages. With a filter active, the
+// Transactions page asks the database for every candidate row, then runs the
+// SAME filterAndSortTransactions above over loaded ∪ fetched. The server query
+// only has to be a superset — this file stays the one definition of a match.
+
+/** Cap on one filtered search of the full history. Well past what anyone scans
+ *  in one search; a broad date range that hits it is labelled "first N" rather
+ *  than fetched without bound. */
+export const SEARCH_MAX_ROWS = 5000
+
+/** True when a filter narrows the list, so matches may sit outside the loaded
+ *  window. `showSystemTxns` widens rather than narrows, and sorting reorders
+ *  only, so neither needs the database. */
+export const narrowsTransactions = (f: TransactionFilterState): boolean =>
+  !!f.search.trim() || f.account !== 'all' || f.category !== 'all' || f.group !== 'all'
+  || f.event !== 'all' || !!f.dateFrom || !!f.dateTo
+
+/** Escapes ILIKE's wildcards so "50%" or "a_b" match literally — the client
+ *  check is a plain substring, and the server must never be narrower than it. */
+export const escapeIlike = (s: string): string => s.replace(/[\\%_]/g, ch => `\\${ch}`)
+
+/** Loaded ∪ fetched, loaded row winning on an id clash — it carries edits made
+ *  this session that a slower fetch may predate. Returns `loaded` itself when
+ *  nothing is added, so memoised consumers don't recompute. */
+export const mergeLoadedWins = (loaded: Transaction[], fetched: Transaction[]): Transaction[] => {
+  if (fetched.length === 0) return loaded
+  const seen = new Set(loaded.map(t => t.id))
+  const extra = fetched.filter(t => !seen.has(t.id))
+  return extra.length === 0 ? loaded : [...loaded, ...extra]
+}

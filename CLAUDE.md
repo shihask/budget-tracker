@@ -351,6 +351,16 @@ Before income the two agree; `afterSavings` equals the forecast balance on the e
   only; anything else gets one fixed decline line. It is prompt-only (no client keyword filter,
   which would block real money questions), and it is shared by all six `mode: 'chat'` features.
 
+## Transactions page search — beyond the loaded window
+`state.transactions` is only the latest 200 rows (more on scroll). With any narrowing filter
+(`narrowsTransactions`) and history not fully loaded, `useTransactionSearch` calls
+`searchTransactions` (useSupabaseData), which asks the DB for a **superset** of matches (ILIKE on
+description, account/category/group/event/date), capped at `SEARCH_MAX_ROWS`. The page then runs
+the same `filterAndSortTransactions` over loaded ∪ fetched (`mergeLoadedWins`, loaded row wins),
+so `transactionFilters.ts` stays the one definition of a match — the SQL may be looser, never
+stricter. The header says "searching all…" / "first 5,000 matches" / "latest N only" (failed);
+load-more hides once the DB has answered. Export is separate — it fetches everything itself.
+
 ## Auto-categorize in QuickAdd (four-tier)
 0. **History match** (`findHistoricalCategory`) — same description used before (exact, case-insensitive) → same category as the most recent matching transaction
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  

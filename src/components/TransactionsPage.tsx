@@ -23,6 +23,8 @@ import { SplitLegsEditor } from './SplitLegsEditor'
 import type { Master, AppState, Transaction, TransactionType, SplitLegInput, LifeEvent } from '@/types'
 import { reimbursementsFor, reimbursementSummary, remainingReimbursable, reimbursedTotals } from '@/lib/reimbursements'
 import { LinkReimbursementSheet } from './LinkReimbursementSheet'
+import { useTransactionSearch, type SearchTransactionsFn } from '@/hooks/useTransactionSearch'
+import { SEARCH_MAX_ROWS } from '@/lib/transactionFilters'
 import type { PickedReceipt } from '@/lib/imageCompress'
 
 type EditForm = {
@@ -80,6 +82,8 @@ interface TransactionsPageProps {
   allTransactionsLoaded?: boolean
   loadingMore?: boolean
   onLoadMore?: () => void
+  /** Database search behind the filters — see useTransactionSearch. */
+  onSearchTransactions?: SearchTransactionsFn
   onUploadReceipt?: (transactionId: string, receipt: PickedReceipt) => Promise<void>
   onRemoveReceipt?: (t: Transaction) => Promise<void>
   getReceiptUrl?: (path: string) => Promise<string | null>
@@ -108,7 +112,7 @@ type SplitEditState = {
   originalLegIds: string[]
 }
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddMaster, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddMaster, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onSearchTransactions, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, alert, dialogNode } = useAppDialog()
   // A queued offline row isn't on the server: no edit, no quick-category write.
@@ -212,17 +216,6 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     return () => clearTimeout(t)
   }, [])
 
-  useEffect(() => {
-    if (!onLoadMore || allTransactionsLoaded) return
-    const el = sentinelRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting) onLoadMore()
-    }, { rootMargin: '200px' })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [onLoadMore, allTransactionsLoaded])
-
   const triggerClose = () => {
     setClosing(true)
     onSwipeProgress?.(1)
@@ -266,12 +259,18 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const accounts = state.accounts.filter(a => a.is_active)
   const groups = state.groups
 
-  const filtered = useMemo(() => filterAndSortTransactions(
-    state.transactions,
-    state.categories,
-    { search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns },
-    sortKey,
-  ), [state.transactions, state.categories, search, filterAccount, filterCategory, filterGroup, filterEvent, filterDateFrom, filterDateTo, sortKey, showSystemTxns])
+  const filters = useMemo(
+    () => ({ search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns }),
+    [search, filterAccount, filterCategory, filterGroup, filterEvent, filterDateFrom, filterDateTo, showSystemTxns])
+  // With a filter on, the loaded window plus every database candidate — so a search
+  // finds last year's rows and the header total is the real total, not the window's.
+  const { rows: searchRows, status: searchStatus } = useTransactionSearch(
+    state.transactions, state.categories, filters, !!allTransactionsLoaded, onSearchTransactions)
+  const serverAnswered = searchStatus === 'complete' || searchStatus === 'truncated'
+
+  const filtered = useMemo(
+    () => filterAndSortTransactions(searchRows, state.categories, filters, sortKey),
+    [searchRows, state.categories, filters, sortKey])
 
   // Sums the raw legs, not the group entries — correct as-is because it runs
   // before grouping, where a split is still N ordinary rows.
@@ -281,9 +280,23 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   // account that only funded ₹10,000 of it, so the legs stay separate there instead.
   const collapseSplits = filterAccount === 'all'
   const txnGroups = useMemo(
-    () => groupSplitTransactions(filtered, state.transactions, { collapse: collapseSplits }),
-    [filtered, state.transactions, collapseSplits],
+    () => groupSplitTransactions(filtered, searchRows, { collapse: collapseSplits }),
+    [filtered, searchRows, collapseSplits],
   )
+
+  // The sentinel unmounts while a filter has no matches or the database has
+  // answered it; `sentinelShown` re-attaches the observer when it comes back.
+  const sentinelShown = !allTransactionsLoaded && !serverAnswered && filtered.length > 0
+  useEffect(() => {
+    if (!onLoadMore || !sentinelShown) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) onLoadMore()
+    }, { rootMargin: '200px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onLoadMore, sentinelShown])
 
   const [borrowingDeleteTarget, setBorrowingDeleteTarget] = useState<Transaction | null>(null)
   const [savingsDeleteTarget, setSavingsDeleteTarget] = useState<Transaction | null>(null)
@@ -623,7 +636,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>All Transactions</div>
-            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{filtered.length} entries · {fmt(totalFiltered)}</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{filtered.length} entries · {fmt(totalFiltered)}
+              {searchStatus === 'searching' && ' · searching all…'}
+              {searchStatus === 'truncated' && ` · first ${SEARCH_MAX_ROWS.toLocaleString('en-IN')} matches`}
+              {searchStatus === 'failed' && ` · latest ${state.transactions.length} only`}
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {hasFilters && (
@@ -946,7 +963,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 </div>
               )
             })}
-            {!allTransactionsLoaded && onLoadMore && (
+            {/* Once the database has answered a filter, every match is already listed —
+                paging the unfiltered window further would add nothing but load. */}
+            {!allTransactionsLoaded && onLoadMore && !serverAnswered && (
               <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
                 {loadingMore ? (
                   <span style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Loading more...</span>

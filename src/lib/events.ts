@@ -1,5 +1,6 @@
 import type { LifeEvent, Transaction } from '@/types'
 import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
+import { mergeLoadedWins } from '@/lib/transactionFilters'
 
 /** Event ids whose spend is kept out of budget/pacing/forecast maths.
  *
@@ -44,9 +45,5 @@ export const eventSpent = (transactions: Transaction[], eventId: string): number
  *
  *  The loaded row wins on an id clash: it reflects edits made this session
  *  (untag, re-amount, delete) before the next background fetch lands. */
-export const mergeEventLedger = (loaded: Transaction[], fetched: Transaction[]): Transaction[] => {
-  if (fetched.length === 0) return loaded
-  const seen = new Set(loaded.map(t => t.id))
-  const extra = fetched.filter(t => !seen.has(t.id))
-  return extra.length === 0 ? loaded : [...loaded, ...extra]
-}
+export const mergeEventLedger = (loaded: Transaction[], fetched: Transaction[]): Transaction[] =>
+  mergeLoadedWins(loaded, fetched)
