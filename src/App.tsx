@@ -97,6 +97,9 @@ import { useEventSuggestion } from '@/features/events/hooks/useEventSuggestion'
 import type { EventSuggestion } from '@/lib/event-suggestions'
 import type { EventFormValues } from '@/features/events/components/EventFormSheet'
 import { UndoSnackbar } from '@/components/UndoSnackbar'
+import { OfflineReviewBanner } from '@/components/OfflineReviewBanner'
+import { OfflineReviewSheet } from '@/components/OfflineReviewSheet'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { aiUsagePatch } from '@/lib/gemini'
 import { EventsListPage } from '@/features/events/components/EventsListPage'
 import { CreateMenuSheet } from '@/components/CreateMenuSheet'
@@ -306,6 +309,9 @@ function AppContent({ session }: { session: Session }) {
   const [aaSyncOpen, setAaSyncOpen] = useState(() => window.location.pathname === '/aa/redirect')
   const [accountLinkReviewOpen, setAccountLinkReviewOpen] = useState(false)
   const [dedupReviewOpen, setDedupReviewOpen] = useState(false)
+  // Offline entry: review-first. Reconnecting never opens this or uploads anything.
+  const online = useOnlineStatus()
+  const [offlineReviewOpen, setOfflineReviewOpen] = useState(false)
   const [importStatementOpen, setImportStatementOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
   const [tourTarget, setTourTarget] = useState<string | null>(null)
@@ -319,7 +325,7 @@ function AppContent({ session }: { session: Session }) {
     return () => { cancelled = true }
   }, [session.user.id])
 
-  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, addTransaction, deleteTransaction, updateTransaction, addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, addEvent, updateEvent, deleteEvent, linkTransactionsToEvent, addMaster, updateMaster, deleteMaster, fetchMasterSpend, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, offlineQueue, saveOfflineTransactions, discardOfflineTransaction, addTransaction, deleteTransaction, updateTransaction, addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, addEvent, updateEvent, deleteEvent, linkTransactionsToEvent, addMaster, updateMaster, deleteMaster, fetchMasterSpend, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
 
   // Stages pending sync_events for review — every transaction event lands
   // in needs_review (DedupReviewSheet decides insert/merge/ignore from
@@ -589,6 +595,9 @@ function AppContent({ session }: { session: Session }) {
     // Challenge: flag large expenses for optional exclusion
     if (
       newTx &&
+      // A queued (offline) row isn't on the server yet, and the exclusion prompt
+      // writes to it — skip it; Save all handles pending rows.
+      !newTx.pending_sync &&
       form.transaction_type === 'expense' &&
       (state.settings.challenge_enabled ?? false) &&
       safeDailyLimit > 0 &&
@@ -778,6 +787,7 @@ function AppContent({ session }: { session: Session }) {
                   </button>
                 </div>
               )}
+              <OfflineReviewBanner online={online} count={offlineQueue.length} onOpen={() => setOfflineReviewOpen(true)} />
               <InsightCard notification={notifications[0] ?? null} onDismiss={id => snoozeNotif(id, 'permanent')} />
               <AaReviewBanner count={aaReviewCount} onOpen={() => setDedupReviewOpen(true)} />
               {dashboardSections
@@ -971,7 +981,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet onAddMaster={addMaster} open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultReimbursement={sheetReimbursement} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} showReimbursementTip={!reimbursementTipSeen} onDismissReimbursementTip={dismissReimbursementTip} />
+            <QuickAddSheet offline={!online} onAddMaster={addMaster} open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultReimbursement={sheetReimbursement} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} showReimbursementTip={!reimbursementTipSeen} onDismissReimbursementTip={dismissReimbursementTip} />
           </div>
 
           <CreateMenuSheet
@@ -1329,6 +1339,16 @@ function AppContent({ session }: { session: Session }) {
           userId={session.user.id}
           categories={state.categories}
           onResolved={refetchAccountsAndRecentTransactions}
+        />
+
+        <OfflineReviewSheet
+          open={offlineReviewOpen}
+          onClose={() => setOfflineReviewOpen(false)}
+          queue={offlineQueue}
+          state={state}
+          online={online}
+          onSaveAll={saveOfflineTransactions}
+          onDiscard={discardOfflineTransaction}
         />
 
         <ImportStatementSheet

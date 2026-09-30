@@ -14,9 +14,11 @@ interface Props {
   filterGroup?: string
   excludeGroups?: string[]
   trackBorrowings?: boolean
+  /** false hides "+ Add category" (e.g. offline, where creating one needs the server). */
+  allowAdd?: boolean
 }
 
-export function CategorySelect({ value, onChange, state, onAddCategory, style, includeEmpty, emptyLabel = 'No category', filterGroup, excludeGroups, trackBorrowings = true }: Props) {
+export function CategorySelect({ value, onChange, state, onAddCategory, style, includeEmpty, emptyLabel = 'No category', filterGroup, excludeGroups, trackBorrowings = true, allowAdd = true }: Props) {
   const c = useTheme()
   const [showAddModal, setShowAddModal] = useState(false)
   const [newName, setNewName] = useState('')
@@ -92,9 +94,9 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
     <>
       {filterGroup && categories.length === 0 ? (
         <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-          onClick={() => setShowAddModal(true)}>
+          onClick={() => allowAdd && setShowAddModal(true)}>
           <span style={{ color: c.muted, font: '500 14px Plus Jakarta Sans' }}>No {filterGroup} categories</span>
-          <span style={{ color: c.accent, font: '700 13px Plus Jakarta Sans' }}>+ Add</span>
+          {allowAdd && <span style={{ color: c.accent, font: '700 13px Plus Jakarta Sans' }}>+ Add</span>}
         </div>
       ) : (
       <select value={value} onChange={handleChange} style={style}>
@@ -109,7 +111,7 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
         {categories.filter(cat => !groups.find(g => g.name === cat.group_name)).map(cat => (
           <option key={cat.id} value={cat.id}>{cat.name}</option>
         ))}
-        <option value="__add__">+ Add category</option>
+        {allowAdd && <option value="__add__">+ Add category</option>}
       </select>
       )}
 

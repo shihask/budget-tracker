@@ -44,9 +44,12 @@ interface BottomSheetProps {
   maxHeight?: string
   zIndex?: number
   showHelpButton?: boolean
+  /** false = backdrop tap and swipe-down do nothing (a swipe snaps back), for a
+   *  sheet mid-operation that must not be closed — e.g. Save all in progress. */
+  dismissible?: boolean
 }
 
-export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zIndex = 200, showHelpButton = true }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zIndex = 200, showHelpButton = true, dismissible = true }: BottomSheetProps) {
   const c = useTheme()
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -85,7 +88,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
   const finishDrag = (endY: number) => {
     dragging.current = false
     const dy = endY - dragStartY.current
-    if (dy > 100) {
+    if (dy > 100 && dismissible) {
       if (sheetRef.current) {
         sheetRef.current.style.transition = 'transform 0.28s ease-in'
         sheetRef.current.style.transform = 'translateY(110%)'
@@ -141,7 +144,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
 
   return createPortal(
     <div
-      onClick={onClose}
+      onClick={() => { if (dismissible) onClose() }}
       style={{
         position: 'fixed', inset: 0, zIndex,
         background: visible ? 'rgba(0,0,0,0.6)' : 'transparent',

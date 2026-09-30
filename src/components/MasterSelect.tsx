@@ -15,6 +15,8 @@ interface Props {
   style?: React.CSSProperties
   includeEmpty?: boolean
   emptyLabel?: string
+  /** false hides "+ Add master" (e.g. offline, where creating one needs the server). */
+  allowAdd?: boolean
 }
 
 /** Pick a person or merchant, or create one inline.
@@ -24,7 +26,7 @@ interface Props {
  *  and it costs a fraction of a bespoke sheet. If a directory ever grows past a few
  *  dozen entries, a searchable variant is the follow-up — `searchMasters` exists. */
 export function MasterSelect({
-  value, onChange, state, onAddMaster, style, includeEmpty, emptyLabel = 'None',
+  value, onChange, state, onAddMaster, style, includeEmpty, emptyLabel = 'None', allowAdd = true,
 }: Props) {
   const [showAdd, setShowAdd] = useState(false)
 
@@ -51,7 +53,7 @@ export function MasterSelect({
             {merchants.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </optgroup>
         )}
-        <option value={ADD}>+ Add master</option>
+        {allowAdd && <option value={ADD}>+ Add master</option>}
       </select>
 
       <MasterFormSheet

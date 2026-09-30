@@ -156,8 +156,9 @@ export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
         <div style={h2}>7. Cookies & Local Storage</div>
         <div style={p}>
           We use local storage on your device for your sign-in session, app preferences, offline app
-          files and a few small caches (for example, recent AI answers so they don't need to be requested
-          again). We do not use advertising or tracking cookies.
+          files, recently loaded data so the app can open offline, transactions you add while offline
+          (until you save them to your account), and a few small caches (for example, recent AI answers
+          so they don't need to be requested again). We do not use advertising or tracking cookies.
         </div>
 
         <div style={h2}>8. Analytics</div>

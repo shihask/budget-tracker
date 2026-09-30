@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { AppState, Account, Transaction, Commitment, TransactionType, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, SplitLegInput, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency, LifeEvent, Master } from '@/types'
+import type { AppState, Account, Transaction, Commitment, Group, Category, CreditCard, Goal, GoalContribution, Savings, PlannedExpense, BudgetBucket, ForecastSettings, BudgetStrategySettings, SplitLegInput, UserAchievement, AchievementMetadata, Habit, HabitCompletion, HabitStatus, HabitCompletionStatus, HabitCompletionMetadata, HabitFrequency, LifeEvent, Master } from '@/types'
 import { evaluateEvent } from '@/lib/achievement-engine'
 import { computeChallengeResultUpdate } from '@/lib/challenge'
 import { computeHabitUpdate, type HabitCounters } from '@/lib/habit-engine'
@@ -9,16 +9,85 @@ import { getCreditCardBilling } from '@/lib/credit-card'
 import { normalizeMasterName, duplicateMasterMessage, ensurePersonMaster, masterPaid, masterReceived, masterActivity } from '@/lib/masters'
 import { withTimeout, iso, localIso, txTime, TODAY, fmt, round2 } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
+import { delta, txDeltas, applyDeltas } from '@/lib/transaction-deltas'
+import { executeTransaction } from '@/lib/execute-transaction'
+import {
+  readQueue, updateQueue, buildQueueItem, toPendingTransaction, applyQueuedDeltas, reconcileQueue,
+  removeQueuedFromState, isOnline, toQueueError, type QueuedTransaction,
+} from '@/lib/offline-queue'
+import type { NewTransactionInput } from '@/types'
 
 const RECEIPT_NETWORK_TIMEOUT_MS = 20_000
 
-export const delta = (type: TransactionType, amount: number) => {
-  switch (type) {
-    case 'income':
-    case 'opening_balance':
-      return amount    // credits the account
-    default:
-      return -amount   // debits the account (expense, commitment, balance_adjustment-debit, etc.)
+// Lives in lib/transaction-deltas (shared with the offline queue); re-exported
+// here for existing importers.
+export { delta }
+
+/** Thrown by addTransaction when an offline entry could not be written to this
+ *  device's storage — the caller must keep the form open, never report it saved. */
+export class OfflineStoreError extends Error {}
+/** Thrown by addTransaction for input that can't be queued offline (reimbursements). */
+export class OfflineUnsupportedError extends Error {}
+
+export interface SaveOfflineResult {
+  saved: number
+  failed: number
+  /** A network error stopped the run; the rest is still queued. */
+  networkStopped: boolean
+  /** Another Save all was already running; this call did nothing. */
+  skipped: boolean
+}
+
+/** Which queued ids the server already has. `null` = can't know (offline, or
+ *  the lookup itself failed) — and "can't know" must never count as "saved".
+ *  Looks up every queued id, not only 'uncertain' ones: another tab may have
+ *  saved an item this tab still holds as 'offline'. */
+async function lookupServerIds(ids: string[]): Promise<Set<string> | null> {
+  if (ids.length === 0) return new Set()
+  if (!isOnline()) return null
+  try {
+    const { data, error } = await supabase.from('transactions').select('id').in('id', ids)
+    if (error) return null
+    return new Set((data as { id: string }[]).map(r => r.id))
+  } catch {
+    return null
+  }
+}
+
+/** Reads the stored queue and drops what the server already has — ALWAYS before
+ *  any overlay is applied, so a save whose response was lost is never counted
+ *  twice. Offline it changes nothing. */
+async function reconcileStoredQueue(userId: string): Promise<{ remaining: QueuedTransaction[]; alreadySaved: string[] }> {
+  const queue = readQueue(userId)
+  if (queue.length === 0) return { remaining: [], alreadySaved: [] }
+  const { remaining, alreadySaved } = reconcileQueue(queue, await lookupServerIds(queue.map(q => q.id)))
+  if (alreadySaved.length > 0) {
+    const done = new Set(alreadySaved.map(q => q.id))
+    updateQueue(userId, q => q.filter(x => !done.has(x.id)))
+  }
+  return { remaining, alreadySaved: alreadySaved.map(q => q.id) }
+}
+
+/** Displayed state after a server snapshot: the fresh parts plus the queue's
+ *  overlay, applied exactly once. Only parts that were actually fetched are
+ *  overlaid — a part that failed to load keeps its current (already overlaid)
+ *  value, so nothing is ever layered twice. Pending rows are always re-derived
+ *  from the queue, never carried over. */
+function overlaySnapshot(
+  s: AppState,
+  fresh: { accounts?: Account[] | null; credit_cards?: CreditCard[] | null; transactions?: Transaction[] | null },
+  queue: QueuedTransaction[],
+): AppState {
+  const baseTxns = fresh.transactions ?? s.transactions.filter(t => !t.pending_sync)
+  const o = applyQueuedDeltas(
+    { accounts: fresh.accounts ?? [], credit_cards: fresh.credit_cards ?? [], transactions: baseTxns },
+    queue, s.categories,
+  )
+  return {
+    ...s,
+    accounts: fresh.accounts ? o.accounts : s.accounts,
+    credit_cards: fresh.credit_cards ? o.credit_cards : s.credit_cards,
+    transactions: o.transactions,
   }
 }
 
@@ -163,6 +232,14 @@ export function useSupabaseData(userId: string) {
   const [allTransactionsLoaded, setAllTransactionsLoaded] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const receiptUrlCache = useRef(new Map<string, { url: string; expiresAt: number }>())
+  // Display copy of this user's offline queue. localStorage (offline-queue.ts)
+  // is the source of truth; this only drives the banner and review sheet.
+  // Tagged with its owner and exposed only when it matches `userId`, so a
+  // previous user's queue can never render — not even for one frame mid-switch.
+  const [queueView, setQueueView] = useState<{ uid: string; items: QueuedTransaction[] }>({ uid: userId, items: [] })
+  const setOfflineQueue = useCallback((items: QueuedTransaction[]) => setQueueView({ uid: userId, items }), [userId])
+  const offlineQueue = queueView.uid === userId ? queueView.items : []
+  const savingOfflineRef = useRef(false)
 
   useEffect(() => {
     async function load() {
@@ -395,7 +472,7 @@ export function useSupabaseData(userId: string) {
         }
 
         const txnList = (transactions as Transaction[]) || []
-        setState({
+        const snapshot: AppState = {
           accounts: accounts || [],
           categories: userCategories as Category[],
           groups: userGroups as Group[],
@@ -414,7 +491,16 @@ export function useSupabaseData(userId: string) {
           planned_expenses: (plannedExpenses as PlannedExpense[]) || [],
           events: (eventRows as LifeEvent[]) || [],
           masters: (masterRows as Master[]) || [],
-        })
+        }
+        // Offline queue: reconcile against the server FIRST, then overlay what is
+        // still queued onto this fresh snapshot — exactly once. Offline (or served
+        // from the service-worker cache) reconciliation proves nothing and
+        // changes nothing.
+        const { remaining } = await reconcileStoredQueue(userId)
+        setState(overlaySnapshot(snapshot, {
+          accounts: snapshot.accounts, credit_cards: snapshot.credit_cards, transactions: txnList,
+        }, remaining))
+        setOfflineQueue(remaining)
         setAllTransactionsLoaded(txnList.length < TXN_PAGE_SIZE)
         setUsingSupabase(true)
       } catch (err) {
@@ -424,101 +510,61 @@ export function useSupabaseData(userId: string) {
       }
     }
     load()
-  }, [userId])
+  }, [userId, setOfflineQueue])
 
-  const addTransaction = useCallback(async (
-    form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }
-  ): Promise<Transaction | undefined> => {
-    try {
-      const isCreditCard = state.credit_cards.some(c => c.id === form.from_account_id)
-      const toAccountId = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
+  const addTransaction = useCallback(async (form: NewTransactionInput): Promise<Transaction | undefined> => {
+    const s0 = stateRef.current
+    const d = txDeltas(form, new Set(s0.credit_cards.map(c => c.id)))
+    // Generated ONCE, here. It is the queue key, the p_id on every attempt, and the
+    // final server id — never regenerated on retry. That is what makes retries safe.
+    const id = crypto.randomUUID()
 
-      const fromAccountId = isCreditCard ? null : (form.from_account_id ?? null)
-      const creditCardId  = isCreditCard ? form.from_account_id : null
-      const fromDelta     = fromAccountId ? delta(form.transaction_type, form.amount) : null
-      const toDelta       = toAccountId ? form.amount : null
-      const ccDelta       = creditCardId ? form.amount : null  // CC expense: outstanding increases
-
-      const { data, error } = await supabase.rpc('mp_execute_transaction', {
-        p_user_id:          userId,
-        p_transaction_date: form.transaction_date,
-        p_description:      form.description,
-        p_amount:           form.amount,
-        p_transaction_type: form.transaction_type,
-        p_category_id:      form.category_id ?? null,
-        p_from_account_id:  fromAccountId,
-        p_to_account_id:    toAccountId,
-        p_credit_card_id:   creditCardId,
-        p_notes:            '',
-        p_borrowing_id:     (form as any).borrowing_id ?? null,
-        p_savings_id:       null,
-        p_is_credit:        form.is_credit ?? null,
-        p_from_delta:       fromDelta,
-        p_to_delta:         toDelta,
-        p_cc_delta:         ccDelta,
+    // Offline entry: store on this device, show it at once, save later on review.
+    const queueLocally = (syncState: 'offline' | 'uncertain'): Transaction => {
+      const item = buildQueueItem({
+        id, form, deltas: d, now: new Date(), syncState,
+        accounts: s0.accounts, cards: s0.credit_cards, categories: s0.categories,
       })
-      if (error) throw error
+      const { ok, queue } = updateQueue(userId, q => [...q.filter(x => x.id !== id), item])
+      // Local storage is the only copy now. If it didn't take, the transaction is
+      // NOT saved — say so and let the caller keep the form open.
+      if (!ok) throw new OfflineStoreError("Couldn't save this on your device. Free up some storage and try again.")
+      setOfflineQueue(queue)
+      // Incremental: THIS item is new, so its delta is added exactly once. Every
+      // later snapshot re-derives the overlay from scratch (overlaySnapshot).
+      setState(s => s.transactions.some(t => t.id === id)
+        ? s
+        : { ...s, ...applyQueuedDeltas({ accounts: s.accounts, credit_cards: s.credit_cards, transactions: s.transactions }, [item], s.categories) })
+      return toPendingTransaction(item, s0.categories)
+    }
 
-      let row = data as Transaction
+    if (!isOnline()) {
+      // A reimbursement link needs the server's validation; the sheet hides the
+      // option offline, this is the backstop.
+      if (form.reimbursement_for) throw new OfflineUnsupportedError("Reimbursements can't be recorded offline.")
+      return queueLocally('offline')
+    }
 
-      // Life-event tag and master (person/merchant) tag are applied as a
-      // follow-up rather than through mp_execute_transaction, whose signature
-      // owns the atomic balance deltas and shouldn't grow columns that have no
-      // effect on them. event_linked_at is stamped by trigger, so it's read back
-      // rather than sent.
-      //
-      // Both in ONE update: they have identical failure semantics, so a second
-      // round trip would buy nothing. A user-chosen time rides along too — only
-      // sent when it differs from "now", so an ordinary save stays one request.
-      if (form.event_id || form.master_id || form.transaction_time) {
-        const tag: { event_id?: string; master_id?: string; transaction_time?: string } = {}
-        if (form.event_id) tag.event_id = form.event_id
-        if (form.master_id) tag.master_id = form.master_id
-        if (form.transaction_time) tag.transaction_time = form.transaction_time
-        const { data: tagged, error: tagErr } = await supabase
-          .from('transactions').update(tag).eq('id', row.id).select('*').single()
-        // A failed tag must not lose the transaction — it's already saved and the
-        // balance already moved. Leave it untagged and let the user retry.
-        // Deliberately NOT thrown, unlike the reimbursement link below: a missing
-        // label is cosmetic, and blocking expense capture over one would be the
-        // worse bug.
-        if (tagErr) console.error('Failed to tag transaction (event/master/time):', tagErr)
-        else if (tagged) row = tagged as Transaction
-      }
+    const res = await executeTransaction(supabase, userId, form, id, d)
+    if (res.kind === 'network') {
+      // Sent, no answer: it may or may not be saved. Queue it as 'uncertain' —
+      // the next online load or Save all asks the server by id before anything
+      // is counted again. A reimbursement can't be queued; surface the error.
+      if (form.reimbursement_for) { console.error('Failed to save transaction:', res.error); throw res.error }
+      return queueLocally('uncertain')
+    }
+    if (res.kind === 'failed') { console.error('Failed to save transaction:', res.error); throw res.error }
 
-      // Reimbursement link, same follow-up reasoning as the event tag above.
-      // Unlike that one a failure must NOT be swallowed: an unlinked
-      // reimbursement is silently miscounted as income, which is the exact bug
-      // this feature exists to fix. Surface the trigger's message.
-      if (form.reimbursement_for) {
-        const { data: linked, error: linkErr } = await supabase
-          .from('transactions').update({ reimbursement_for: form.reimbursement_for })
-          .eq('id', row.id).select('*').single()
-        if (linkErr) throw linkErr
-        if (linked) row = linked as Transaction
-      }
-
-      const newTx: Transaction = {
-        ...row,
-        category: stateRef.current.categories.find(c => c.id === form.category_id),
-      }
-
-      setState(s => ({
-        ...s,
-        transactions: [newTx, ...s.transactions],
-        accounts: s.accounts.map(a => {
-          let bal = a.current_balance
-          if (a.id === fromAccountId && fromDelta !== null) bal += fromDelta
-          if (a.id === toAccountId  && toDelta  !== null) bal += toDelta
-          return bal !== a.current_balance ? { ...a, current_balance: bal } : a
-        }),
-        credit_cards: creditCardId ? s.credit_cards.map(c =>
-          c.id === creditCardId ? { ...c, current_balance: c.current_balance + (ccDelta ?? 0) } : c
-        ) : s.credit_cards,
-      }))
-      return newTx
-    } catch (err) { console.error('Failed to save transaction:', err); throw err }
-  }, [userId, state.credit_cards])
+    const newTx: Transaction = {
+      ...res.row,
+      category: stateRef.current.categories.find(c => c.id === form.category_id),
+    }
+    setState(s => {
+      const { accounts, cards } = applyDeltas(s.accounts, s.credit_cards, d, 1)
+      return { ...s, transactions: [newTx, ...s.transactions], accounts, credit_cards: cards }
+    })
+    return newTx
+  }, [userId, setOfflineQueue])
 
   const deleteTransaction = useCallback(async (t: Transaction) => {
     try {
@@ -624,12 +670,14 @@ export function useSupabaseData(userId: string) {
       supabase.from('accounts').select('*').eq('is_active', true).eq('user_id', userId).order('name'),
       supabase.from('credit_cards').select('*').eq('user_id', userId).eq('is_active', true).order('name'),
     ])
-    setState(s => ({
-      ...s,
-      accounts: (accounts as Account[]) ?? s.accounts,
-      credit_cards: (cards as CreditCard[]) ?? s.credit_cards,
-    }))
-  }, [userId])
+    // Fresh server balances don't include still-queued offline entries: re-overlay.
+    const { remaining } = await reconcileStoredQueue(userId)
+    setState(s => overlaySnapshot(s, {
+      accounts: accounts as Account[] | null,
+      credit_cards: cards as CreditCard[] | null,
+    }, remaining))
+    setOfflineQueue(remaining)
+  }, [userId, setOfflineQueue])
 
   const addSplitTransaction = useCallback(async (
     form: { transaction_date: string; transaction_time?: string | null; description: string; amount: number; category_id: string | null; notes?: string; master_id?: string | null },
@@ -2394,18 +2442,112 @@ export function useSupabaseData(userId: string) {
 
     const freshTxns = (transactions as Transaction[]) || []
     const freshIds = new Set(freshTxns.map(t => t.id))
-    const olderTxns = stateRef.current.transactions.filter(t => !freshIds.has(t.id))
+    // Pending rows are re-derived from the queue below, never carried over.
+    const olderTxns = stateRef.current.transactions.filter(t => !freshIds.has(t.id) && !t.pending_sync)
 
-    setState(s => ({
-      ...s,
-      accounts: accounts ?? s.accounts,
+    const { remaining } = await reconcileStoredQueue(userId)
+    setState(s => overlaySnapshot(s, {
+      accounts: accounts as Account[] | null,
       transactions: [...freshTxns, ...olderTxns],
-    }))
-  }, [userId])
+    }, remaining))
+    setOfflineQueue(remaining)
+  }, [userId, setOfflineQueue])
+
+  // ── Offline queue: review & Save all ───────────────────────────────────────
+
+  /** Replays the queue, in order, through the same executeTransaction path as a
+   *  live save, with each item's ORIGINAL id — the idempotent RPC turns any
+   *  repeat into a no-op. Never runs on its own: the user taps Save all. */
+  const saveOfflineTransactions = useCallback(async (
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<SaveOfflineResult> => {
+    if (savingOfflineRef.current) return { saved: 0, failed: 0, networkStopped: false, skipped: true }
+    savingOfflineRef.current = true
+    try {
+      await supabase.auth.getSession()   // refreshes an expired token before the first write
+      // Anything the server already has (a save whose response was lost, or one
+      // another tab finished) is simply done — reconcile before replaying.
+      const { remaining: queue, alreadySaved } = await reconcileStoredQueue(userId)
+      if (alreadySaved.length > 0) {
+        // Their delta is already shown once and the server has them: just unflag.
+        const done = new Set(alreadySaved)
+        setState(s => ({ ...s, transactions: s.transactions.map(t => done.has(t.id) ? { ...t, pending_sync: false } : t) }))
+      }
+      let saved = alreadySaved.length
+      let failed = 0
+      let networkStopped = false
+      onProgress?.(0, queue.length)
+
+      for (const [i, q] of queue.entries()) {
+        const res = await executeTransaction(supabase, userId, q.form, q.id, q.deltas)
+        if (res.kind === 'saved' || (res.kind === 'failed' && res.saved)) {
+          // Saved (inserted now, or found already there). Out of the queue at once.
+          // Its delta is already in the displayed balance exactly once and the
+          // server now holds it once — only the row loses its pending flag.
+          updateQueue(userId, qs => qs.filter(x => x.id !== q.id))
+          if (res.kind === 'saved') {
+            const row: Transaction = { ...res.row, category: stateRef.current.categories.find(c => c.id === res.row.category_id) }
+            setState(s => ({ ...s, transactions: s.transactions.map(t => t.id === q.id ? row : t) }))
+          }
+          saved++
+        } else if (res.kind === 'network') {
+          // No answer: it may have committed. Mark it and stop; the rest stay queued.
+          updateQueue(userId, qs => qs.map(x => x.id === q.id ? { ...x, syncState: 'uncertain', error: undefined } : x))
+          networkStopped = true
+          break
+        } else {
+          // A real rejection (23503, 42501, PT409 …): keep it, explain it, move on.
+          updateQueue(userId, qs => qs.map(x => x.id === q.id ? { ...x, error: toQueueError(res.error) } : x))
+          failed++
+        }
+        onProgress?.(i + 1, queue.length)
+        setOfflineQueue(readQueue(userId))
+      }
+
+      // Server is authoritative now; overlaySnapshot re-applies only what is still queued.
+      if (!networkStopped && isOnline()) await refetchAccountsAndRecentTransactions()
+      setOfflineQueue(readQueue(userId))
+      return { saved, failed, networkStopped, skipped: false }
+    } finally {
+      savingOfflineRef.current = false
+    }
+  }, [userId, refetchAccountsAndRecentTransactions, setOfflineQueue])
+
+  /** Removes one entry from the queue before it is saved. An 'uncertain' entry
+   *  may already be on the server, so it is checked first — reversing a delta
+   *  the server owns would make the balance wrong. */
+  const discardOfflineTransaction = useCallback(async (
+    id: string,
+  ): Promise<{ ok: boolean; message?: string }> => {
+    const q = readQueue(userId).find(x => x.id === id)
+    if (!q) { setOfflineQueue(readQueue(userId)); return { ok: true } }
+
+    if (q.syncState === 'uncertain') {
+      const onServer = await lookupServerIds([id])
+      if (onServer === null) {
+        return { ok: false, message: "Can't remove this yet: it may already have been saved. Try again when you're online." }
+      }
+      if (onServer.has(id)) {
+        updateQueue(userId, qs => qs.filter(x => x.id !== id))
+        await refetchAccountsAndRecentTransactions()
+        return { ok: true, message: "This transaction was already saved. Delete it from Transactions if you don't want it." }
+      }
+    }
+
+    const { ok, queue } = updateQueue(userId, qs => qs.filter(x => x.id !== id))
+    if (!ok) return { ok: false, message: "Couldn't update this device's storage. Try again." }
+    // Local-only: reverse its overlay once.
+    setState(s => s.transactions.some(t => t.id === id && t.pending_sync)
+      ? { ...s, ...removeQueuedFromState({ accounts: s.accounts, credit_cards: s.credit_cards, transactions: s.transactions }, q) }
+      : s)
+    setOfflineQueue(queue)
+    return { ok: true }
+  }, [userId, refetchAccountsAndRecentTransactions, setOfflineQueue])
 
   return {
     state, setState, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions,
     refetchAccountsAndRecentTransactions,
+    offlineQueue, saveOfflineTransactions, discardOfflineTransaction,
     addTransaction, deleteTransaction, updateTransaction, updateSettings, updateForecastSettings, updateBudgetStrategySettings,
     addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg,
     uploadReceipt, removeReceipt, getReceiptUrl,

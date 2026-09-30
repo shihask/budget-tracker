@@ -11,7 +11,7 @@ import { matchMasterByName, normalizeMasterName, isMasterTaggable, MASTER_TYPE_L
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { QuickAmountBody } from './QuickAmountSheet'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
-import { Camera, Clock, Sparkles, Undo2 } from 'lucide-react'
+import { Camera, Clock, CloudOff, Sparkles, Undo2 } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { SplitLegsEditor } from './SplitLegsEditor'
 import { isSplitValid, splitHint } from '@/lib/splitGroups'
@@ -124,9 +124,15 @@ interface QuickAddSheetProps {
   showReimbursementTip?: boolean
   onDismissReimbursementTip?: () => void
   onDismissSmartInputTip?: () => void
+  /** No network: the entry is queued on this device (offline-queue.ts). Split,
+   *  receipt, reimbursement, creating categories/masters and AI parsing all need
+   *  the server, so they are hidden — or, if already set, block Save with a reason. */
+  offline?: boolean
 }
 
-export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultMasterId, onAddMaster, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled: autopilotSetting = false, offline = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultMasterId, onAddMaster, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip }: QuickAddSheetProps) {
+  // AI parsing needs the network; offline the local keyword parser takes over.
+  const autopilotEnabled = autopilotSetting && !offline
   const c = useTheme()
   const [txType, setTxType] = useState<'expense' | 'income' | 'transfer'>(defaultTxType ?? 'expense')
   const [transferToAccountId, setTransferToAccountId] = useState('')
@@ -264,7 +270,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
     const amt = evaluateAmountExpression(quickAmount)
     if (amt === null || amt <= 0 || !longPressChip) return
     const catId = longPressChip.category_id || guessCategory(longPressChip.label, cats) || null
-    onSave({
+    const saved = onSave({
       transaction_date: localIso(new Date()),
       description: longPressChip.label,
       amount: round2(amt),
@@ -272,6 +278,13 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       category_id: catId,
       from_account_id: quickAccountId,
     })
+    // Offline, close only once this device has actually stored it.
+    if (offline) {
+      saved
+        .then(() => { setLongPressChip(null); onClose() })
+        .catch(err => setSaveError(err instanceof Error && err.message ? err.message : 'Couldn’t save this on your device. Try again.'))
+      return
+    }
     setLongPressChip(null)
     onClose()
   }
@@ -605,8 +618,21 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
     // saves a follow-up write on every ordinary entry.
     const pickedTime = data.time && data.time !== initialTimeRef.current ? data.time : undefined
     setSaveError(null)
+    // Offline, anything the server has to do can't be queued. Never drop it
+    // silently: say why, and leave the input for the user to change.
+    if (offline) {
+      const blocker = splitLegs
+        ? 'Split payments need a connection. Turn off split, or save this when you’re online.'
+        : receiptToUpload
+          ? 'Receipts can’t be attached offline. Remove the receipt, or save this when you’re online.'
+          : txType === 'income' && incomePurpose === 'reimbursement'
+            ? 'Reimbursements need a connection. Switch to Income, or save this when you’re online.'
+            : null
+      if (blocker) { setSaveError(blocker); return }
+    }
+    let pending: Promise<Transaction | undefined> | null = null
     if (txType === 'transfer') {
-      onSave({
+      pending = onSave({
         transaction_date: data.date,
         transaction_time: pickedTime,
         description: data.description.trim() || 'Transfer',
@@ -656,8 +682,12 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         master_id: isMasterTaggable(txType) && masterId ? masterId : null,
         reimbursement_for: isReimbursing ? reimbursementFor : null,
       })
+      pending = saved
       const withReceipt = (tx: Transaction | undefined) => {
         if (receiptToUpload && tx) {
+          // Queued after a network failure: the row isn't on the server yet, so
+          // there is nothing to attach to. Hand it to the existing retry path.
+          if (tx.pending_sync) { onReceiptFailed?.(tx, receiptToUpload, new Error('Receipt not attached: this transaction is waiting to sync.')); return }
           onUploadReceipt?.(tx.id, receiptToUpload)?.catch(err => onReceiptFailed?.(tx, receiptToUpload, err))
         }
       }
@@ -674,6 +704,14 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         return
       }
       saved.then(withReceipt)
+    }
+    // Offline, this device's storage is the only copy. Close only once it has
+    // actually been written; otherwise keep the sheet and its data, and say why.
+    if (offline && pending) {
+      pending
+        .then(() => onClose())
+        .catch(err => setSaveError(err instanceof Error && err.message ? err.message : 'Couldn’t save this on your device. Try again.'))
+      return
     }
     onClose()
   }
@@ -757,7 +795,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   // Split payment is a rare workflow: the affordance exists only on the Expense tab,
   // and only when there's more than one place the money could have come from.
   const splitSources = [...accs, ...(state.credit_cards || [])]
-  const canSplit = isExpense && !!onSaveSplit && splitSources.length >= 2
+  const canSplit = isExpense && !!onSaveSplit && splitSources.length >= 2 && (!offline || !!splitLegs)
 
   const enableSplit = () => {
     const first = fromAccountId || splitSources[0]?.id || ''
@@ -843,7 +881,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
 
         {/* Income purpose. Only two options, and only on the income tab, so the
             common case (ordinary income) stays one tap away. */}
-        {txType === 'income' && (
+        {txType === 'income' && (!offline || incomePurpose === 'reimbursement') && (
           <div style={{ display: 'flex', background: c.surface2, borderRadius: 14, padding: 4, marginBottom: 16, gap: 4 }}>
             {([['income', 'Income'], ['reimbursement', 'Reimbursement']] as const).map(([p, label]) => {
               const active = incomePurpose === p
@@ -946,7 +984,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 enterKeyHint="done"
                 style={{ ...inputStyle, paddingLeft: 36, paddingRight: SpeechRec ? 80 : 44 }}
               />
-              {isExpense && (
+              {isExpense && !offline && (
                 <button
                   type="button"
                   onClick={() => receiptFieldRef.current?.pick()}
@@ -1265,6 +1303,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                     onChange={v => setValue('category_id', v, { shouldValidate: true })}
                     state={state}
                     onAddCategory={onAddCategory}
+                    allowAdd={!offline}
                     style={inputStyle}
                     includeEmpty={txType === 'income'}
                     emptyLabel="No category"
@@ -1297,7 +1336,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                       })}
                     </div>
                   )}
-                  {aiSuggestion && (
+                  {aiSuggestion && !offline && (
                     <button
                       type="button"
                       onClick={async () => {
@@ -1398,7 +1437,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 {effectiveShowAdvanced && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>
-                      {isExpense ? 'Optional tags and receipt' : 'Optional tags'}
+                      {isExpense && !offline ? 'Optional tags and receipt' : 'Optional tags'}
                     </div>
 
                     {isExpense && activeEvents.length > 0 && (
@@ -1421,6 +1460,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                           onChange={setMasterId}
                           state={state}
                           onAddMaster={onAddMaster}
+                          allowAdd={!offline}
                           includeEmpty
                           emptyLabel="None"
                           style={{ ...inputStyle, cursor: 'pointer' }}
@@ -1431,7 +1471,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                     {/* An AI-extracted name we don't have a master for. Offered,
                         never auto-created: the directory should only hold entities
                         the user chose to track, not every petrol pump on a receipt. */}
-                    {masterOffer && !masterId && (
+                    {masterOffer && !masterId && !offline && (
                       <button
                         type="button"
                         onClick={async () => {
@@ -1456,7 +1496,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                       </button>
                     )}
 
-                    {isExpense && (
+                    {/* Offline: hidden, unless one is already picked — then it stays so
+                        the user can remove it (Save explains why it's blocked). */}
+                    {isExpense && (!offline || !!pendingReceipt) && (
                       <ReceiptField
                         ref={receiptFieldRef}
                         pendingReceipt={pendingReceipt}
@@ -1486,6 +1528,12 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {offline && (
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, textAlign: 'center', lineHeight: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <CloudOff size={13} strokeWidth={2.5} /> Offline. This will be saved when you review it online.
               </div>
             )}
 

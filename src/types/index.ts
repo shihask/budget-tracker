@@ -102,7 +102,16 @@ export interface Transaction {
   // joined
   category?: Category
   from_account?: Account
+  // Client-only display flag: true while this row is in the offline queue and not
+  // yet saved to the server. DERIVED from the queue (src/lib/offline-queue.ts),
+  // which is the only source of truth for sync state — never stored, never sent
+  // to Supabase, never read to make a sync decision.
+  pending_sync?: boolean
 }
+
+/** What a caller hands addTransaction — also what the offline queue stores. */
+export type NewTransactionInput =
+  Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }
 
 /** One funding source in a split payment, as the UI holds it. `accountId` may be an
  *  account id or a credit card id — the same mixed dropdown the single-account field

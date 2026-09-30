@@ -388,6 +388,43 @@ Gotchas worth knowing before touching this:
 - `allowed_mime_types` is checked against the client's declared `Content-Type`. It is a contract control, not a security boundary — `file_size_limit` is the real bound.
 - The sweep must never touch a `completed` batch, at any age.
 
+## Offline transaction entry — queue, review, Save all
+Offline, the user can add an **expense, income or transfer** from an existing account/card with
+an existing category, date, time, life event and person/merchant tag. It is stored on the device,
+shown at once ("Waiting to sync", balances moved), and reaches the server **only when the user
+taps Save all** in `OfflineReviewSheet`. Reconnecting never uploads or opens anything by itself.
+Split, receipt, reimbursement, new category/master and AI parsing need the server: hidden
+offline, or — if already set — Save is blocked with a reason, never silently dropped.
+
+| File | Purpose |
+|---|---|
+| `src/lib/offline-queue.ts` | The queue (`mp_offline_queue_<uid>`), `isNetworkError`, `reconcileQueue`, `applyQueuedDeltas`, error wording |
+| `src/lib/execute-transaction.ts` | The **one** save path — live saves and Save all replays both go through it |
+| `src/lib/transaction-deltas.ts` | `delta` / `txDeltas` / `applyDeltas` — the one balance model (live save, overlay, replay) |
+| `supabase/migrations/20260929000001_idempotent_execute_transaction.sql` | `p_id` on `mp_execute_transaction` |
+
+**Invariant: each queued transaction's balance delta is displayed exactly once** — whether or
+not the server committed it before the connection died.
+- **The queue is the source of truth.** `Transaction.pending_sync` is a derived display flag;
+  never stored, sent, or read for a sync decision.
+- `syncState`: `offline` = never sent (delta locally owned); `uncertain` = sent, no answer — the
+  server **may** have it. Only an online lookup by id decides; a cached list is never proof.
+- **Client UUID = final server id.** Generated once in `addTransaction`, sent as `p_id` on every
+  attempt. `mp_execute_transaction` does `ON CONFLICT (id) DO NOTHING`; an existing row returns
+  with **no** delta, a different user's id or different balance fields is `PT409`. Only the
+  balance fields are compared — description/category/date may have been edited elsewhere since.
+- **Reconcile, then overlay.** Every snapshot (`load`, `refreshBalancesAfterSplit`,
+  `refetchAccountsAndRecentTransactions`) goes through `reconcileStoredQueue` then
+  `overlaySnapshot`, which re-derives the overlay from the fresh snapshot. Never layer it onto
+  already-adjusted state; a new snapshot site that skips this double-counts or drops entries.
+- The tag update (event/master/time) runs on **every** attempt with tags, including a retry that
+  found the row — that's what finishes a save that committed but died before tagging.
+- Queued items always carry `transaction_time` (entry time), or NULL would read as the sync time.
+- Always read-modify-write the queue via `updateQueue` (storage, not memory): another tab may
+  have saved items since.
+- An `uncertain` item can't be discarded offline — it may be on the server.
+- `src/sw.ts` caches Supabase GETs for 7 days so an offline open still has accounts to pick.
+
 ## Git conventions
 - Commit directly to `main` — no feature branches
 - Never `git push` unless the user explicitly says so in that message

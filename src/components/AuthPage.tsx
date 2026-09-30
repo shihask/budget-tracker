@@ -125,7 +125,7 @@ const badges = [
   { icon: Bell, label: 'Recurring Bills' },
   { icon: LineChart, label: 'Analytics' },
   { icon: LayoutDashboard, label: 'Custom Dashboard' },
-  { icon: CloudOff, label: 'Opens Offline' },
+  { icon: CloudOff, label: 'Offline Entry' },
   { icon: Cloud, label: 'Secure Cloud Sync' },
 ] as const
 
@@ -161,7 +161,7 @@ const galleryScreens = [
 
 const faqItems = [
   { q: 'Is MoneyPlant free?', a: 'Yes, MoneyPlant is completely free to use. Create an account and start tracking your finances right away.' },
-  { q: 'Does it work offline?', a: 'Partly. Once installed, MoneyPlant opens without internet and shows the data you last loaded. Adding or editing transactions needs a connection.' },
+  { q: 'Does it work offline?', a: 'Yes, for recording spending. Once installed, MoneyPlant opens without internet, and you can add expenses, income and transfers. They’re kept on your device and saved to your account when you review them back online. Editing other things needs a connection.' },
   { q: 'Can I track multiple accounts?', a: 'Yes. You can create and manage multiple accounts like bank accounts, wallets, and cash to track balances separately.' },
   { q: 'Can I manage credit cards?', a: 'Yes. MoneyPlant lets you track billed and unbilled amounts for your credit cards and see exactly what is due.' },
   { q: 'Can I track recurring bills?', a: 'Yes. Add your EMIs, subscriptions, rent, school fees, and other recurring payments as commitments. MoneyPlant factors them into your cash flow forecast.' },

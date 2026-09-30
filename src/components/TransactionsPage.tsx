@@ -16,7 +16,7 @@ import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { ReceiptField } from './ReceiptField'
 import { ExportTransactionsSheet } from './ExportTransactionsSheet'
-import { Receipt } from 'lucide-react'
+import { CloudOff, Receipt } from 'lucide-react'
 import { filterAndSortTransactions, type TxnSortKey } from '@/lib/transactionFilters'
 import { groupSplitTransactions, splitGroupLegs, isSplitValid, type TransactionGroup } from '@/lib/splitGroups'
 import { SplitLegsEditor } from './SplitLegsEditor'
@@ -110,7 +110,9 @@ type SplitEditState = {
 
 export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddMaster, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
   const c = useTheme()
-  const { confirm, dialogNode } = useAppDialog()
+  const { confirm, alert, dialogNode } = useAppDialog()
+  // A queued offline row isn't on the server: no edit, no quick-category write.
+  const explainPending = () => alert('This transaction is waiting to be saved online. You can remove it from the Offline transactions review.')
   const catMap = buildCatById(state.categories)
   // Built once per render rather than re-scanning the ledger for every row.
   const rowRecovered = useMemo(() => reimbursedTotals(state.transactions), [state.transactions])
@@ -443,6 +445,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const editMoreOpen = showEditMore || editMoreCount > 0
 
   const openEdit = (t: Transaction) => {
+    if (t.pending_sync) { explainPending(); return }
     if (t.split_group_id && onUpdateSplitGroup) { openSplitEdit(t); return }
     setEditingTx(t)
     setEditForm({
@@ -472,6 +475,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
   const openQuickCat = (e: React.MouseEvent, t: Transaction) => {
     e.stopPropagation()
+    if (t.pending_sync) { explainPending(); return }
     setQuickCatTx(t)
     setQuickCatId(t.category_id || '')
   }
@@ -867,6 +871,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                         )}
                         {t.reimbursement_for && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>Reimbursement</span>
+                        )}
+                        {t.pending_sync && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.warn, background: c.warnSoft, borderRadius: 999, padding: '2px 7px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                            <CloudOff size={10} strokeWidth={2.5} /> Waiting to sync
+                          </span>
                         )}
                         {/* Who/where. Display-only in v1.61 — the edit sheet doesn't
                             carry masters yet, and a chip that looks tappable but isn't

@@ -32,7 +32,9 @@ registerRoute(
     cacheName: 'supabase-api',
     networkTimeoutSeconds: 10,
     plugins: [
-      new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 86400 }),
+      // 7 days, not 1: offline entry needs the cached accounts/categories to pick
+      // from, and a weekend without signal is the case it exists for.
+      new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 7 * 86400 }),
       new CacheableResponsePlugin({ statuses: [0, 200] }),
     ],
   })
