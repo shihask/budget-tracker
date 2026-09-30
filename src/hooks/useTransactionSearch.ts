@@ -45,19 +45,19 @@ export function useTransactionSearch(
   const [result, setResult] = useState<SearchResult | null>(null)
   const seq = useRef(0)
 
-  const { search: term, account, category, group, event, dateFrom, dateTo } = filters
+  const { search: term, account, category, group, event, dateFrom, dateTo, amount } = filters
   const groupCategoryIds = useMemo(
     () => (group === 'all' ? null : categories.filter(c => c.group_name === group).map(c => c.id)),
     [categories, group])
   // What the database was asked. Only the server-side inputs — sort and
   // showSystemTxns are applied client-side and don't need a new query.
-  const key = JSON.stringify([term.trim(), account, category, groupCategoryIds, event, dateFrom, dateTo])
+  const key = JSON.stringify([term.trim(), account, category, groupCategoryIds, event, dateFrom, dateTo, amount])
 
   useEffect(() => {
     const mine = ++seq.current
     if (!active || !search) return
     const t = setTimeout(() => {
-      search({ search: term, account, category, group, event, dateFrom, dateTo, showSystemTxns: true }, groupCategoryIds)
+      search({ search: term, account, category, group, event, dateFrom, dateTo, amount, showSystemTxns: true }, groupCategoryIds)
         .then(r => {
           if (mine === seq.current) setResult({ from: search, key, rows: r.rows, truncated: r.truncated, failed: false })
         })

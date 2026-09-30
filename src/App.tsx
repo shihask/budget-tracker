@@ -10,6 +10,7 @@ import { derive } from '@/lib/data'
 import { fmt, iso, TODAY, addDays, localIso, round2, TimeoutError, selectOnFocus } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import type { Transaction, LifeEvent } from '@/types'
+import type { TransactionFilterState } from '@/lib/transactionFilters'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
@@ -300,6 +301,8 @@ function AppContent({ session }: { session: Session }) {
   const [reflectionOpen, setReflectionOpen] = useState(false)
   const [reflectionMode, setReflectionMode] = useState<'today' | 'yesterday'>('today')
   const [dashEditTx, setDashEditTx] = useState<import('@/types').Transaction | null>(null)
+  // Mint's "View all": open Transactions already filtered to what it found.
+  const [txnsInitialFilters, setTxnsInitialFilters] = useState<Partial<TransactionFilterState> | null>(null)
   const [swipePct, setSwipePct] = useState(0)
   const [strategyMapperOpen, setStrategyMapperOpen] = useState(false)
   const [budgetStrategySheetOpen, setBudgetStrategySheetOpen] = useState(false)
@@ -1048,7 +1051,7 @@ function AppContent({ session }: { session: Session }) {
           {/* AI Assist FAB + Chat */}
           {(state.settings.autopilot_enabled ?? false) && (<>
             {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} windowWidth={windowW} busy={aiProcessing} tourHighlight={tourTarget === 'ai-fab'} />}
-            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} eventLedger={eventLedger} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} initialMessage={pendingChatMessage} onInitialMessageConsumed={() => setPendingChatMessage(null)} />
+            <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} eventLedger={eventLedger} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} allTransactionsLoaded={allTransactionsLoaded} onSearchTransactions={searchTransactions} onViewAllTransactions={f => { setChatOpen(false); setTxnsInitialFilters(f); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} initialMessage={pendingChatMessage} onInitialMessageConsumed={() => setPendingChatMessage(null)} />
           </>)}
 
           {showOnboardingFlow && (
@@ -1121,7 +1124,7 @@ function AppContent({ session }: { session: Session }) {
           }} />
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onAddMaster={addMaster} onAddEvent={addEvent} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onSearchTransactions={searchTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} onRecordReimbursement={(expense, remaining) => { setSheetDefaultType('income'); setSheetReimbursement({ targetId: expense.id, remaining }); setSheetOpen(true) }} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null); setTxnsInitialFilters(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onAddMaster={addMaster} onAddEvent={addEvent} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} initialFilters={txnsInitialFilters} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onSearchTransactions={searchTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} onRecordReimbursement={(expense, remaining) => { setSheetDefaultType('income'); setSheetReimbursement({ targetId: expense.id, remaining }); setSheetOpen(true) }} />
           )}
 
           {commitmentsOpen && (

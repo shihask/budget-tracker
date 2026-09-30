@@ -12,11 +12,21 @@ export interface TransactionFilterState {
   event: string     // 'all' | event id | 'none' (untagged)
   dateFrom: string
   dateTo: string
+  /** Exact money amount, or null for any. Compared through `amountBounds`. */
+  amount: number | null
   showSystemTxns: boolean
 }
 
 export const DEFAULT_TXN_FILTERS: TransactionFilterState = {
-  search: '', account: 'all', category: 'all', group: 'all', event: 'all', dateFrom: '', dateTo: '', showSystemTxns: false,
+  search: '', account: 'all', category: 'all', group: 'all', event: 'all', dateFrom: '', dateTo: '', amount: null, showSystemTxns: false,
+}
+
+/** Half-open [lo, hi) range of amounts equal to `x` in whole paise. The ONE
+ *  definition of "same amount": the client check and the server query both use
+ *  it, so 450, 450.00 and a float-stored 449.999999 match on either path. */
+export function amountBounds(x: number): [number, number] {
+  const paise = Math.round(x * 100)
+  return [(paise - 0.5) / 100, (paise + 0.5) / 100]
 }
 
 // Oldest first: date, then the time the user chose (else when it was recorded),
@@ -51,6 +61,10 @@ export function filterAndSortTransactions(
     : txns.filter(t => t.event_id === filters.event)
   if (filters.dateFrom) txns = txns.filter(t => t.transaction_date >= filters.dateFrom)
   if (filters.dateTo) txns = txns.filter(t => t.transaction_date <= filters.dateTo)
+  if (filters.amount != null) {
+    const [lo, hi] = amountBounds(filters.amount)
+    txns = txns.filter(t => t.amount >= lo && t.amount < hi)
+  }
   txns.sort(SORT_COMPARATORS[sortKey])
   return txns
 }
@@ -71,7 +85,7 @@ export const SEARCH_MAX_ROWS = 5000
  *  only, so neither needs the database. */
 export const narrowsTransactions = (f: TransactionFilterState): boolean =>
   !!f.search.trim() || f.account !== 'all' || f.category !== 'all' || f.group !== 'all'
-  || f.event !== 'all' || !!f.dateFrom || !!f.dateTo
+  || f.event !== 'all' || !!f.dateFrom || !!f.dateTo || f.amount != null
 
 /** Escapes ILIKE's wildcards so "50%" or "a_b" match literally — the client
  *  check is a plain substring, and the server must never be narrower than it. */

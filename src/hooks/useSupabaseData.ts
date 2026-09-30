@@ -11,7 +11,7 @@ import { withTimeout, iso, localIso, txTime, TODAY, fmt, round2 } from '@/lib/ut
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { delta, txDeltas, applyDeltas } from '@/lib/transaction-deltas'
 import { executeTransaction } from '@/lib/execute-transaction'
-import { escapeIlike, SEARCH_MAX_ROWS, type TransactionFilterState } from '@/lib/transactionFilters'
+import { amountBounds, escapeIlike, SEARCH_MAX_ROWS, type TransactionFilterState } from '@/lib/transactionFilters'
 import {
   readQueue, updateQueue, buildQueueItem, toPendingTransaction, applyQueuedDeltas, reconcileQueue,
   removeQueuedFromState, isOnline, toQueueError, type QueuedTransaction,
@@ -2321,6 +2321,10 @@ export function useSupabaseData(userId: string) {
       else if (filters.event !== 'all') q = q.eq('event_id', filters.event)
       if (filters.dateFrom) q = q.gte('transaction_date', filters.dateFrom)
       if (filters.dateTo) q = q.lte('transaction_date', filters.dateTo)
+      if (filters.amount != null) {
+        const [lo, hi] = amountBounds(filters.amount)
+        q = q.gte('amount', lo).lt('amount', hi)
+      }
       const { data, error } = await q
         .order('transaction_date', { ascending: false })
         .order('id', { ascending: true })   // ties never straddle pages

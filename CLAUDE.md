@@ -351,6 +351,32 @@ Before income the two agree; `afterSavings` equals the forecast balance on the e
   only; anything else gets one fixed decline line. It is prompt-only (no client keyword filter,
   which would block real money questions), and it is shared by all six `mode: 'chat'` features.
 
+## Mint find — locating a specific transaction (v1.78)
+"When did I pay the plumber?", "find swiggy in August", "find 450" are answered by **code, with
+no AI request**: parse → search → rank → `FindResultCard`. The AI never sees the rows; a later AI
+turn gets only `findSummary`'s one line. Edit/delete ("change fuel 500 to 300", "delete tea 20")
+locate their row with the same finder, and ask "which one?" when several tie at the top.
+
+| File | Purpose |
+|---|---|
+| `src/lib/mint-find.ts` | `classifyFindIntent`, `parseFindQuery`, `rankFindMatches`, `executeFind`, count contract |
+| `src/lib/mintActions/period.ts` | `parsePeriod` — shared with export; **local** dates (`localIso`), never `toISOString()` |
+| `src/components/mint/FindResultCard.tsx` | The card; tap a row → edit, "View all" → Transactions prefilled (`initialFilters`) |
+
+- **One definition of a filter.** Date/account/category/amount/system rows live only in
+  `filterAndSortTransactions`; `rankFindMatches` does text + ranking only. Don't add a
+  structured check to it.
+- **One database word.** `filters.search` is the longest non-stopword token (`FIND_STOPWORDS`
+  holds generic money words too — `%payment%` would drag in the ledger). Other words are searched
+  only when no row contains every word (`WIDEN_MAX_TOKENS`); that's provable, since such a row
+  would contain the first word.
+- **Amount** is money-equal to the paisa via `amountBounds` — the same `[lo, hi)` on the client
+  filter and in `searchTransactions`. It's a real `TransactionFilterState` field.
+- **Count contract:** `complete` = exact, `truncated` = lower bound ("5,000+"), `local` =
+  offline/failed, loaded window only. "View all N" names N only for one strict word.
+- A category name also reads as a word ("find tea" when tea is logged under Food): the
+  `alternate` query runs when the category reading finds nothing.
+
 ## Transactions page search — beyond the loaded window
 `state.transactions` is only the latest 200 rows (more on scroll). With any narrowing filter
 (`narrowsTransactions`) and history not fully loaded, `useTransactionSearch` calls

@@ -21,6 +21,7 @@ describe('narrowsTransactions', () => {
     for (const patch of [
       { search: 'petrol' }, { account: 'a1' }, { category: 'c1' }, { group: 'Food' },
       { event: 'e1' }, { event: 'none' }, { dateFrom: '2026-01-01' }, { dateTo: '2026-01-31' },
+      { amount: 450 },
     ]) expect(narrowsTransactions({ ...DEFAULT_TXN_FILTERS, ...patch })).toBe(true)
   })
 })

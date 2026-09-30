@@ -16,8 +16,8 @@ import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { ReceiptField } from './ReceiptField'
 import { ExportTransactionsSheet } from './ExportTransactionsSheet'
-import { CloudOff, Receipt } from 'lucide-react'
-import { filterAndSortTransactions, type TxnSortKey } from '@/lib/transactionFilters'
+import { CloudOff, Receipt, X } from 'lucide-react'
+import { filterAndSortTransactions, narrowsTransactions, DEFAULT_TXN_FILTERS, type TxnSortKey, type TransactionFilterState } from '@/lib/transactionFilters'
 import { groupSplitTransactions, splitGroupLegs, isSplitValid, type TransactionGroup } from '@/lib/splitGroups'
 import { SplitLegsEditor } from './SplitLegsEditor'
 import type { Master, AppState, Transaction, TransactionType, SplitLegInput, LifeEvent } from '@/types'
@@ -77,6 +77,8 @@ interface TransactionsPageProps {
   onReversePayment: (t: Transaction) => Promise<void>
   onDeleteSavings?: (id: string) => Promise<void>
   initialEditTx?: Transaction | null
+  /** Seeds the filters once, on open — Mint's "View all" opens the same set it found. */
+  initialFilters?: Partial<TransactionFilterState> | null
   onAdd?: () => void
   onToggleChallengeExclusion?: (txnId: string) => Promise<void>
   allTransactionsLoaded?: boolean
@@ -112,7 +114,7 @@ type SplitEditState = {
   originalLegIds: string[]
 }
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddMaster, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onSearchTransactions, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddMaster, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, initialFilters, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onSearchTransactions, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
   const c = useTheme()
   const { confirm, alert, dialogNode } = useAppDialog()
   // A queued offline row isn't on the server: no edit, no quick-category write.
@@ -138,11 +140,14 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     }
   }, [])
 
-  const [search, setSearch] = useState('')
-  const [filterAccount, setFilterAccount] = useState('all')
-  const [filterCategory, setFilterCategory] = useState('all')
-  const [filterGroup, setFilterGroup] = useState('all')
-  const [filterEvent, setFilterEvent] = useState('all')
+  const seed = { ...DEFAULT_TXN_FILTERS, ...initialFilters }
+  const [search, setSearch] = useState(seed.search)
+  const [filterAccount, setFilterAccount] = useState(seed.account)
+  const [filterCategory, setFilterCategory] = useState(seed.category)
+  const [filterGroup, setFilterGroup] = useState(seed.group)
+  const [filterEvent, setFilterEvent] = useState(seed.event)
+  // No control of its own — only Mint sets it, and the chip clears it.
+  const [filterAmount, setFilterAmount] = useState<number | null>(seed.amount)
   const [eventPickerOpen, setEventPickerOpen] = useState(false)
   // Optional-fields disclosure, mirroring QuickAdd's. Its own localStorage key:
   // these are different forms and a preference set while adding shouldn't
@@ -156,8 +161,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     return next
   })
   const [eventFormOpen, setEventFormOpen] = useState(false)
-  const [filterDateFrom, setFilterDateFrom] = useState('')
-  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState(seed.dateFrom)
+  const [filterDateTo, setFilterDateTo] = useState(seed.dateTo)
   const dateToRef = useRef<HTMLInputElement>(null)
   const [sortKey, setSortKey] = useState<TxnSortKey>('date_desc')
   const [exportOpen, setExportOpen] = useState(false)
@@ -173,7 +178,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [quickCatTx, setQuickCatTx] = useState<Transaction | null>(null)
   const [quickCatId, setQuickCatId] = useState('')
   const [quickCatSaving, setQuickCatSaving] = useState(false)
-  const [filtersVisible, setFiltersVisible] = useState(false)
+  // Opened pre-filtered: show the filters so it's clear why the list is short.
+  const [filtersVisible, setFiltersVisible] = useState(() => narrowsTransactions(seed))
   const [dragX, setDragX] = useState(0)
   const [closing, setClosing] = useState(false)
   const [snapping, setSnapping] = useState(false)
@@ -260,8 +266,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const groups = state.groups
 
   const filters = useMemo(
-    () => ({ search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns }),
-    [search, filterAccount, filterCategory, filterGroup, filterEvent, filterDateFrom, filterDateTo, showSystemTxns])
+    () => ({ search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, amount: filterAmount, showSystemTxns }),
+    [search, filterAccount, filterCategory, filterGroup, filterEvent, filterDateFrom, filterDateTo, filterAmount, showSystemTxns])
   // With a filter on, the loaded window plus every database candidate — so a search
   // finds last year's rows and the header total is the real total, not the window's.
   const { rows: searchRows, status: searchStatus } = useTransactionSearch(
@@ -594,10 +600,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
   const clearFilters = () => {
     setSearch(''); setFilterAccount('all'); setFilterCategory('all')
-    setFilterGroup('all'); setFilterEvent('all'); setFilterDateFrom(''); setFilterDateTo('')
+    setFilterGroup('all'); setFilterEvent('all'); setFilterDateFrom(''); setFilterDateTo(''); setFilterAmount(null)
   }
   const hasFilters = search || filterAccount !== 'all' || filterCategory !== 'all' ||
-    filterGroup !== 'all' || filterDateFrom || filterDateTo
+    filterGroup !== 'all' || filterDateFrom || filterDateTo || filterAmount != null
 
   const inp: React.CSSProperties = {
     width: '100%', background: c.surface2, border: `1.5px solid ${c.faint}`,
@@ -705,6 +711,20 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
           willChange: 'max-height, opacity',
         }}>
           <div style={{ padding: '4px 16px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {filterAmount != null && (
+              <button
+                onClick={() => setFilterAmount(null)}
+                aria-label="Clear amount filter"
+                style={{
+                  alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6,
+                  background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 999,
+                  padding: '5px 10px', font: '600 12px Plus Jakarta Sans', color: c.ink, cursor: 'pointer',
+                }}
+              >
+                Amount {fmt(filterAmount)}
+                <X size={12} color={c.muted} />
+              </button>
+            )}
             <input placeholder="Search description..." value={search} onChange={e => setSearch(e.target.value)} style={inp} />
             <div style={{ display: 'flex', gap: 8 }}>
               <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterCategory('all') }} style={{ ...inp, flex: 1 }}>
@@ -1618,7 +1638,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         state={state}
         userId={userId}
         allTransactionsLoaded={!!allTransactionsLoaded}
-        initialFilters={{ search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, showSystemTxns }}
+        initialFilters={{ search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, amount: filterAmount, showSystemTxns }}
         initialSortKey={sortKey}
       />
 

@@ -38,6 +38,12 @@ import { buildCfoSnapshot, pickDecision, buildMonthStory, affordVerdict, snapsho
 import { loadChecks, saveCheck, pickBaseline, computeDeltas } from '@/lib/cfo-history'
 import { CfoCard } from './mint/CfoCard'
 import { cfoHeadline, type CfoCardData } from './mint/cfoCardText'
+import { FindResultCard, type FindResultData } from './mint/FindResultCard'
+import {
+  classifyFindIntent, parseFindQuery, rowQuery, findIn, executeFind, findSummary, editCandidates, pickOutcome,
+} from '@/lib/mint-find'
+import type { TransactionFilterState } from '@/lib/transactionFilters'
+import type { SearchTransactionsFn } from '@/hooks/useTransactionSearch'
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-categorize`
 
@@ -83,7 +89,10 @@ type ReceiptPrompt = {
   masterId: string | null
   confidence: 'high' | 'low'
 }
-type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: FollowUpChip[]; receiptPrompt?: ReceiptPrompt; imagePreviewUrl?: string; actionCard?: MintAction; cfoCard?: CfoCardData; cfoInsight?: boolean }
+// An edit/delete that matched several rows equally well, waiting for the user to
+// pick one. `edit` is everything the edit prompt needs except the row.
+type FindPick = { kind: 'edit'; edit: Omit<EditPrompt, 'transaction'> } | { kind: 'delete' }
+type Message = { role: 'user' | 'ai'; text: string; savedExpense?: SavedExpense; warning?: boolean; editPrompt?: EditPrompt; deletePrompt?: DeletePrompt; chartData?: ChartData; summaryCards?: SummaryCard[]; actionChips?: FollowUpChip[]; receiptPrompt?: ReceiptPrompt; imagePreviewUrl?: string; actionCard?: MintAction; cfoCard?: CfoCardData; cfoInsight?: boolean; findResult?: FindResultData; findId?: number; findPick?: FindPick }
 // prefill: the chip needs more from the user (an amount), so it fills the input instead of sending.
 type FollowUpChip = { label: string; q: string; prefill?: boolean }
 
@@ -940,24 +949,6 @@ function parseDeleteIntent(text: string): { description: string; amount: number 
   return null
 }
 
-function findMatchingTransaction(transactions: Transaction[], description: string, oldAmount: number | null): Transaction | null {
-  const words = description.toLowerCase().replace(/\bthe\b/g, '').trim().split(/\s+/).filter(w => w.length > 1)
-  const scored = transactions
-    .filter(t => t.transaction_type === 'expense' || t.transaction_type === 'income')
-    .map(t => {
-      const td = t.description.toLowerCase()
-      let score = words.filter(w => td.includes(w)).length * 2
-      if (td === description.toLowerCase()) score += 5
-      if (oldAmount !== null && Math.abs(t.amount - oldAmount) < 0.01) score += 3
-      const daysOld = (Date.now() - new Date(t.transaction_date).getTime()) / 86400000
-      score += daysOld < 7 ? 2 : daysOld < 30 ? 1 : 0
-      return { t, score }
-    })
-    .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score)
-  return scored[0]?.t ?? null
-}
-
 // ── Rich text renderer ──────────────────────────────────────────────────────
 
 type Block =
@@ -1377,9 +1368,13 @@ interface AIChatSheetProps {
   onDismissReceiptTip?: () => void
   initialMessage?: string | null
   onInitialMessageConsumed?: () => void
+  /** Find reaches past the loaded window through the Transactions page's search. */
+  allTransactionsLoaded?: boolean
+  onSearchTransactions?: SearchTransactionsFn
+  onViewAllTransactions?: (filters: TransactionFilterState) => void
 }
 
-export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip, initialMessage, onInitialMessageConsumed }: AIChatSheetProps) {
+export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSave, onUpdate, onDelete, onUpdateSettings, onBusyChange, onAddCategory, onUploadReceipt, onReceiptFailed, onEditTransaction, showReceiptTip, onDismissReceiptTip, initialMessage, onInitialMessageConsumed, allTransactionsLoaded, onSearchTransactions, onViewAllTransactions }: AIChatSheetProps) {
   const c = useTheme()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -1705,6 +1700,16 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
     ]
     const allAccNames = allAccObjs.map(a => a.name)
     const intent = classifyIntent(text)
+
+    // Find — located by code, never the AI. Runs before the AI expense parse
+    // ("find 450" has a digit, so classifyIntent calls it a transaction), after
+    // nothing that could claim it except edit/delete and export, which win.
+    if (intent !== 'edit' && intent !== 'delete' && classifyFindIntent(text) && !detectMintAction(text, state, d)) {
+      await runFind(text)
+      setLoading(false); onBusyChange?.(false)
+      return
+    }
+
     const txType = guessTransactionType(text)
     const catNames = txType === 'income'
       ? state.categories.filter(c => c.group_name === INCOME_GROUP).map(c => c.name)
@@ -1765,54 +1770,22 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
       return
     }
 
-    // Edit intent — find matching transaction and show confirmation card
+    // Edit / delete — locate the row over the full history (the same finder as
+    // "find"), then confirm. Several equally good rows → ask which one.
     if (intent === 'edit') {
       const parsed = parseEditIntent(text, state.categories)
-      const allAccs = [...state.accounts, ...(state.credit_cards ?? [])]
-
       if (parsed?.type === 'category_not_found') {
         const available = state.categories.slice(0, 8).map(c => c.name).join(', ')
         setMessages(m => [...m, {
           role: 'ai',
           text: `I couldn't find a category called "${parsed.attempted}". Available categories: ${available}.`,
         }])
-      } else if (parsed?.type === 'amount') {
-        const match = findMatchingTransaction(state.transactions, parsed.description, parsed.oldAmount)
-        if (match) {
-          const acc = allAccs.find(a => a.id === match.from_account_id)
-          setMessages(m => [...m, {
-            role: 'ai',
-            text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'}. Update amount to ₹${parsed.newAmount.toLocaleString()}?`,
-            editPrompt: { transaction: match, field: 'amount', newAmount: parsed.newAmount },
-          }])
-        } else {
-          setMessages(m => [...m, { role: 'ai', text: `I couldn't find a matching "${parsed.description}" transaction.` }])
-        }
-      } else if (parsed?.type === 'description') {
-        const match = findMatchingTransaction(state.transactions, parsed.oldDescription, null)
-        if (match) {
-          const acc = allAccs.find(a => a.id === match.from_account_id)
-          setMessages(m => [...m, {
-            role: 'ai',
-            text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'}. Rename to "${parsed.newDescription}"?`,
-            editPrompt: { transaction: match, field: 'description', newDescription: parsed.newDescription },
-          }])
-        } else {
-          setMessages(m => [...m, { role: 'ai', text: `I couldn't find a matching "${parsed.oldDescription}" transaction.` }])
-        }
-      } else if (parsed?.type === 'category') {
-        const match = findMatchingTransaction(state.transactions, parsed.description, null)
-        if (match) {
-          const acc = allAccs.find(a => a.id === match.from_account_id)
-          const currentCat = state.categories.find(c => c.id === match.category_id)?.name ?? 'Uncategorized'
-          setMessages(m => [...m, {
-            role: 'ai',
-            text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'} (${currentCat}). Move to ${parsed.newCategoryName}?`,
-            editPrompt: { transaction: match, field: 'category', newCategoryId: parsed.newCategoryId, newCategoryName: parsed.newCategoryName },
-          }])
-        } else {
-          setMessages(m => [...m, { role: 'ai', text: `I couldn't find a matching "${parsed.description}" transaction.` }])
-        }
+      } else if (parsed) {
+        const [description, oldAmount, edit]: [string, number | null, Omit<EditPrompt, 'transaction'>] =
+          parsed.type === 'amount' ? [parsed.description, parsed.oldAmount, { field: 'amount', newAmount: parsed.newAmount }]
+          : parsed.type === 'description' ? [parsed.oldDescription, null, { field: 'description', newDescription: parsed.newDescription }]
+          : [parsed.description, null, { field: 'category', newCategoryId: parsed.newCategoryId, newCategoryName: parsed.newCategoryName }]
+        await locateAndConfirm(description, oldAmount, { kind: 'edit', edit })
       } else {
         setMessages(m => [...m, {
           role: 'ai',
@@ -1823,25 +1796,10 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
       return
     }
 
-    // Delete intent — find matching transaction and show confirmation card
     if (intent === 'delete') {
       const parsedDel = parseDeleteIntent(text)
       if (parsedDel) {
-        const match = findMatchingTransaction(state.transactions, parsedDel.description, parsedDel.amount)
-        if (match) {
-          const acc = [...state.accounts, ...(state.credit_cards ?? [])].find(a => a.id === match.from_account_id)
-          const cat = state.categories.find(c => c.id === match.category_id)?.name ?? 'Uncategorized'
-          setMessages(m => [...m, {
-            role: 'ai',
-            text: `Found: "${match.description}" ₹${match.amount.toLocaleString()} · ${match.transaction_date} · ${acc?.name ?? 'Unknown'} · ${cat}. Delete this?`,
-            deletePrompt: { transaction: match },
-          }])
-        } else {
-          setMessages(m => [...m, {
-            role: 'ai',
-            text: `I couldn't find a matching "${parsedDel.description}" transaction. Check the transaction list and try again.`,
-          }])
-        }
+        await locateAndConfirm(parsedDel.description, parsedDel.amount, { kind: 'delete' })
       } else {
         setMessages(m => [...m, {
           role: 'ai',
@@ -1908,7 +1866,11 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
         text,
         // Only role + text reach the model. A local CFO answer has no text, so
         // its headline stands in — the model then knows what was already said.
-        next.slice(-6).map(m => ({ role: m.role, text: m.text || (m.cfoCard ? cfoHeadline(m.cfoCard) : '') })),
+        // A find card sends its one-line summary, never the rows.
+        next.slice(-6).map(m => ({
+          role: m.role,
+          text: m.text || (m.cfoCard ? cfoHeadline(m.cfoCard) : m.findResult ? findSummary(m.findResult.outcome) : ''),
+        })),
         context,
         abortRef.current.signal,
         reducedMotion
@@ -1957,6 +1919,81 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
       streamDoneRef.current = true
       if (reducedMotion) { setLoading(false); onBusyChangeRef.current?.(false) }
     }
+  }
+
+  // ── Find ────────────────────────────────────────────────────────────────
+  const findSeq = useRef(0)
+
+  const txNames = (t: Transaction) => ({
+    account: [...state.accounts, ...(state.credit_cards ?? [])]
+      .find(a => a.id === (t.from_account_id ?? t.credit_card_id))?.name ?? '',
+    category: state.categories.find(cat => cat.id === t.category_id)?.name ?? '',
+  })
+
+  /** Answer from the loaded rows at once, then replace it with the full-history
+   *  answer. The card is addressed by `findId`, not index. */
+  const runFind = async (text: string) => {
+    const query = parseFindQuery(text, state, d.financialCycle?.cycleStart)
+    if (query.empty) {
+      setMessages(m => [...m, {
+        role: 'ai',
+        text: 'Tell me what to look for, like:\n• "when did I pay the plumber"\n• "find swiggy in August"\n• "find 450 last week"',
+      }])
+      return
+    }
+    const loadedCount = state.transactions.length
+    const needsDb = !allTransactionsLoaded && !!onSearchTransactions
+    const findId = ++findSeq.current
+    const local = findIn(state.transactions, state.categories, query, allTransactionsLoaded ? 'complete' : 'local')
+    setMessages(m => [...m, { role: 'ai', text: '', findId, findResult: { outcome: local, searching: needsDb, loadedCount } }])
+    // The card says "Searching all history…" itself; no "Mint is thinking" under it.
+    setHasContent(true)
+    if (!needsDb) return
+    const outcome = await executeFind(query, state.transactions, state.categories, false, onSearchTransactions)
+    setMessages(m => m.map(msg => msg.findId !== findId ? msg : { ...msg, findResult: { outcome, searching: false, loadedCount } }))
+  }
+
+  const editConfirm = (t: Transaction, edit: Omit<EditPrompt, 'transaction'>): Message => {
+    const { account, category } = txNames(t)
+    const found = `Found: "${t.description}" ₹${t.amount.toLocaleString()} · ${t.transaction_date} · ${account || 'Unknown'}`
+    const ask = edit.field === 'amount' ? `. Update amount to ₹${edit.newAmount!.toLocaleString()}?`
+      : edit.field === 'description' ? `. Rename to "${edit.newDescription}"?`
+      : ` (${category || 'Uncategorized'}). Move to ${edit.newCategoryName}?`
+    return { role: 'ai', text: found + ask, editPrompt: { transaction: t, ...edit } }
+  }
+
+  const deleteConfirm = (t: Transaction): Message => {
+    const { account, category } = txNames(t)
+    return {
+      role: 'ai',
+      text: `Found: "${t.description}" ₹${t.amount.toLocaleString()} · ${t.transaction_date} · ${account || 'Unknown'} · ${category || 'Uncategorized'}. Delete this?`,
+      deletePrompt: { transaction: t },
+    }
+  }
+
+  const confirmFor = (t: Transaction, pick: FindPick): Message =>
+    pick.kind === 'edit' ? editConfirm(t, pick.edit) : deleteConfirm(t)
+
+  /** Edit/delete: one best row → the confirm prompt; several tied → "which one?". */
+  const locateAndConfirm = async (description: string, amount: number | null, pick: FindPick) => {
+    const query = rowQuery(description, amount)
+    const outcome = query && await executeFind(query, state.transactions, state.categories, !!allTransactionsLoaded, onSearchTransactions)
+    const candidates = outcome ? editCandidates(outcome) : []
+    if (!outcome || candidates.length === 0) {
+      const scope = outcome?.status === 'local' ? ` in your latest ${state.transactions.length} (couldn't reach full history)` : ''
+      setMessages(m => [...m, { role: 'ai', text: `I couldn't find a matching "${description}" transaction${scope}.` }])
+    } else if (candidates.length === 1) {
+      setMessages(m => [...m, confirmFor(candidates[0], pick)])
+    } else {
+      setMessages(m => [...m, {
+        role: 'ai', text: '', findPick: pick,
+        findResult: { outcome: pickOutcome(outcome, candidates), searching: false, loadedCount: state.transactions.length, pick: pick.kind },
+      }])
+    }
+  }
+
+  const handleFindPick = (msgIndex: number, t: Transaction) => {
+    setMessages(m => m.map((msg, i) => i !== msgIndex || !msg.findPick ? msg : confirmFor(t, msg.findPick)))
   }
 
   const handleEditConfirm = async (msgIndex: number, ep: EditPrompt) => {
@@ -2147,6 +2184,18 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
               {m.actionCard && (
                 <ActionCard action={m.actionCard} onAction={handleMintAction} c={c} />
+              )}
+              {m.findResult && (
+                <div style={{ width: 'min(92%, 640px)' }}>
+                  <FindResultCard
+                    c={c}
+                    data={m.findResult}
+                    names={txNames}
+                    onOpen={t => onEditTransaction?.(t)}
+                    onPick={t => handleFindPick(i, t)}
+                    onViewAll={onViewAllTransactions && (() => onViewAllTransactions(m.findResult!.outcome.query.filters))}
+                  />
+                </div>
               )}
               {m.warning ? (
                 <div style={{
