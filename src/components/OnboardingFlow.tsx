@@ -6,6 +6,7 @@ import type { IncomePattern, Settings } from '@/types'
 import { INCOME_PATTERN_OPTIONS, suggestBudgetByIncomePattern } from '@/lib/income-pattern'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { round2, selectOnFocus } from '@/lib/utils'
+import { getDevice, inAppBrowserName, isStandalone } from '@/lib/browser-env'
 
 type AccountType = 'bank' | 'cash' | 'wallet'
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
@@ -41,18 +42,6 @@ function BackArrow() {
 
 // Steps: 1=Splash, 2=IncomePattern, 3=Accounts, 4=PatternSetup, 5=FeatureOnboarding, 6=InstallApp
 type Step = 1 | 2 | 3 | 4 | 5 | 6
-
-function getDeviceType(): 'ios' | 'android' | 'desktop' {
-  const ua = navigator.userAgent
-  if (/iPhone|iPad|iPod/.test(ua)) return 'ios'
-  if (/Android/.test(ua)) return 'android'
-  return 'desktop'
-}
-
-function isStandalone(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches
-    || (navigator as any).standalone === true
-}
 
 export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, userId }: Props) {
   const [step, setStep]       = useState<Step>(1)
@@ -150,8 +139,10 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
       if (Object.keys(patch).length) await onUpdateSettings(patch)
     } catch (_) {}
     try { localStorage.setItem('mp_onboarded_' + userId, '1') } catch (_) {}
-    const device = getDeviceType()
-    if (device !== 'desktop' && !isStandalone()) {
+    const device = getDevice()
+    // An in-app browser (Instagram & co.) can't install; skip the steps here and
+    // let PWAPrompt's banner send them to a real browser instead.
+    if (device !== 'desktop' && !isStandalone() && !inAppBrowserName()) {
       setSaving(false)
       setStep(6)
     } else {
@@ -784,7 +775,7 @@ function MenuDotsIcon() {
 }
 
 function InstallAppStep({ onComplete }: { onComplete: () => void }) {
-  const device = getDeviceType()
+  const device = getDevice()
   const steps = device === 'ios' ? IOS_STEPS : ANDROID_STEPS
 
   const BG      = '#EDE7DD'

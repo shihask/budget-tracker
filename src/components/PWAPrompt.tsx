@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
+import { getDevice, inAppBrowserName, isStandalone } from '@/lib/browser-env'
+import { OpenInBrowserActions } from './OpenInBrowserNotice'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -10,18 +12,6 @@ interface BeforeInstallPromptEvent extends Event {
 
 const DISMISS_KEY = 'mp_pwa_banner_v2'
 const DISMISS_DAYS = 30
-
-function isStandalone() {
-  return window.matchMedia('(display-mode: standalone)').matches
-    || (navigator as any).standalone === true
-}
-
-function getDevice(): 'ios' | 'android' | 'desktop' {
-  const ua = navigator.userAgent
-  if (/iPhone|iPad|iPod/.test(ua)) return 'ios'
-  if (/Android/.test(ua)) return 'android'
-  return 'desktop'
-}
 
 function wasDismissed() {
   try {
@@ -42,6 +32,9 @@ export function PWAPrompt() {
   const [showBanner, setShowBanner] = useState(false)
   const [showSteps, setShowSteps] = useState(false)
   const device = getDevice()
+  // Inside Instagram & co. there's no install at all, so the banner asks them to
+  // open a real browser instead of showing steps that can't work there.
+  const inAppBrowser = inAppBrowserName()
 
   useEffect(() => {
     const handleInstall = (e: Event) => {
@@ -124,7 +117,7 @@ export function PWAPrompt() {
               Get the MoneyPlant app
             </div>
             <div style={{ font: '500 11px Plus Jakarta Sans', color: 'rgba(255,255,255,0.6)' }}>
-              Install for quick access &amp; offline use
+              {inAppBrowser ? `Open in your browser to install` : <>Install for quick access &amp; offline use</>}
             </div>
           </div>
           <button
@@ -136,7 +129,7 @@ export function PWAPrompt() {
               flexShrink: 0, whiteSpace: 'nowrap',
             }}
           >
-            Install
+            {inAppBrowser ? 'Open' : 'Install'}
           </button>
           <button
             onClick={handleDismiss}
@@ -182,7 +175,14 @@ export function PWAPrompt() {
               </button>
             </div>
 
-            {device === 'ios' ? (
+            {inAppBrowser ? (
+              <div>
+                <div style={{ font: '600 14px Plus Jakarta Sans', color: c.ink, lineHeight: 1.5 }}>
+                  You're in {inAppBrowser}'s browser, which can't install apps. Open MoneyPlant in {device === 'ios' ? 'Safari' : 'your browser'} and install it from there.
+                </div>
+                <OpenInBrowserActions />
+              </div>
+            ) : device === 'ios' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ font: '700 11px Plus Jakarta Sans', color: '#16C98A', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                   In Safari

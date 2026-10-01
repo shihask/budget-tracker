@@ -530,6 +530,21 @@ in Brevo via Cloudflare DNS). The HTML lives in `supabase/templates/`, generated
   `NewEmail`). One the template doesn't provide fails the send, so the security notices use none.
 - Button is `#0A7A56`, not the app's `#16C98A` — white text on the bright green is too low-contrast.
 
+## In-app browsers (Instagram & co.)
+Links from social posts open in the app's own WebView, where Google blocks OAuth
+(`403 disallowed_useragent`) and nothing can be installed. `src/lib/browser-env.ts`
+(`inAppBrowserName`, plus the shared `isStandalone` / `getDevice`) detects it by **named UA
+tokens only** — never Android's generic `; wv)`, since a false positive hides Google sign-in
+from someone who could use it. When detected:
+- AuthPage: `OpenInBrowserNotice` card on the landing page, and the Google button is replaced
+  inline (email sign-up still works)
+- PWAPrompt: banner says "Open", its sheet shows `OpenInBrowserActions` instead of install steps
+- OnboardingFlow: skips the install step (PWAPrompt covers it)
+
+Android escapes with an `intent://…#Intent;scheme=https;end` link (no `package=`, so the
+user's default browser); iOS has no programmatic escape, so it gets the ⋯ → Open in external
+browser step and a copy-link fallback.
+
 ## Git conventions
 - Commit directly to `main` — no feature branches
 - Never `git push` unless the user explicitly says so in that message

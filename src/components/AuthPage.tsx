@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabase'
 import { version } from '../../package.json'
 import { PrivacyPolicy, TermsOfService, AboutPage, ContactPage } from './LegalPages'
 import { MintAnimation } from './MintAnimation'
+import { OpenInBrowserNotice } from './OpenInBrowserNotice'
+import { inAppBrowserName, isStandalone } from '@/lib/browser-env'
 
 type Mode = 'login' | 'signup' | 'check-email' | 'forgot' | 'forgot-sent'
 type LegalPage = 'privacy' | 'terms' | 'about' | 'contact' | null
@@ -208,10 +210,9 @@ export function AuthPage() {
 
   const clearError = () => setError(null)
 
-  const isPwa = typeof window !== 'undefined' && (
-    window.matchMedia('(display-mode: standalone)').matches
-    || (navigator as any).standalone === true
-  )
+  const isPwa = typeof window !== 'undefined' && isStandalone()
+  const inAppBrowser = inAppBrowserName()
+  const [inAppCardClosed, setInAppCardClosed] = useState(false)
 
   const openAuth = (m: 'login' | 'signup') => {
     setMode(m); setShowAuth(true); clearError()
@@ -449,15 +450,20 @@ export function AuthPage() {
           <div style={{ flex: 1, height: 1, background: '#E5DDD5' }} />
         </div>
 
-        <button onClick={() => handleOAuth('google')} disabled={loading} style={oauthBtn}>
-          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-            <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
-            <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
-            <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
-            <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
-          </svg>
-          Continue with Google
-        </button>
+        {/* Google blocks OAuth in social apps' WebViews (403 disallowed_useragent) */}
+        {inAppBrowser ? (
+          <OpenInBrowserNotice appName={inAppBrowser} variant="inline" />
+        ) : (
+          <button onClick={() => handleOAuth('google')} disabled={loading} style={oauthBtn}>
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+              <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+              <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+              <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+            </svg>
+            Continue with Google
+          </button>
+        )}
 
         {isSignup && (
           <div style={{ font: '500 11px Plus Jakarta Sans', color: '#9C938A', textAlign: 'center', marginTop: 14, lineHeight: 1.6 }}>
@@ -515,6 +521,9 @@ export function AuthPage() {
         onSignUp={() => openAuth('signup')}
         onLegal={setLegalPage}
       />
+      {inAppBrowser && !showAuth && !inAppCardClosed && (
+        <OpenInBrowserNotice appName={inAppBrowser} variant="card" onClose={() => setInAppCardClosed(true)} />
+      )}
       {showAuth && (
         <div className="mp-auth-overlay" onClick={e => { if (e.target === e.currentTarget) closeAuth() }}>
           <div className="mp-auth-modal">
