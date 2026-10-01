@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Pause, Play } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, round2, selectOnFocus, localIso } from '@/lib/utils'
@@ -18,6 +18,7 @@ import { getRemainingObligations } from '@/lib/obligations'
 import type { AppState, DerivedMetrics, Commitment, CreditCard } from '@/types'
 
 type Freq = 'monthly' | 'weekly' | 'yearly'
+type BillFilter = 'active' | 'completed' | 'inactive' | 'all'
 
 type CForm = {
   name: string
@@ -95,6 +96,8 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
   const [saving, setSaving] = useState(false)
   const [paying, setPaying] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [toggling, setToggling] = useState<string | null>(null)
+  const [filter, setFilter] = useState<BillFilter>('active')
   const [confirmPay, setConfirmPay] = useState<Commitment | null>(null)
   const [confirmAccountId, setConfirmAccountId] = useState('')
   const [payChoices, setPayChoices] = useState<PaidForChoice | null>(null)
@@ -249,7 +252,8 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
       due_day: (form.is_recurring && form.frequency === 'monthly' && form.due_day) ? parseInt(form.due_day) : null,
       due_date: (!form.is_recurring && form.due_date) ? form.due_date : null,
       from_account_id: form.from_account_id || null,
-      is_active: true,
+      // Editing details must not resume a paused bill.
+      is_active: editingId ? state.commitments.find(cm => cm.id === editingId)?.is_active !== false : true,
       total_installments: form.total_installments ? parseInt(form.total_installments) : null,
       current_installment: parseInt(form.current_installment) || 0,
     }
@@ -280,6 +284,16 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
     setDeleting(null)
   }
 
+  // Paused bills drop out of the forecast, reminders and obligations (every reader
+  // checks is_active) but keep their history, unlike Delete.
+  const handleToggleActive = async (cm: Commitment) => {
+    const pausing = cm.is_active !== false
+    if (pausing && !await confirm(`Pause "${cm.name}"? It stops appearing in reminders, the forecast and unpaid totals until you resume it.`)) return
+    setToggling(cm.id)
+    try { await onUpdate(cm.id, { is_active: !pausing }) } catch (_) {}
+    setToggling(null)
+  }
+
   const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: c.surface2,
     border: `1.5px solid ${c.faint}`, borderRadius: 11, padding: '10px 12px',
@@ -302,11 +316,31 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
     .filter(({ billing }) => billing.billedAmount > 0)
 
   const isCompleted = (cm: Commitment) => !cm.is_recurring && cm.remaining <= 0
+  const inactive = state.commitments.filter(cm => cm.is_active === false)
+  const completedList = active.filter(isCompleted)
+  const openList = active.filter(cm => !isCompleted(cm))
+  const filterCounts: Record<BillFilter, number> = {
+    active: openList.length + ccBillItems.length,
+    completed: completedList.length,
+    inactive: inactive.length,
+    all: state.commitments.length + ccBillItems.length,
+  }
+  const filterLabels: Record<BillFilter, string> = { active: 'Active', completed: 'Completed', inactive: 'Inactive', all: 'All' }
+
+  const shownCommitments =
+    filter === 'active' ? openList
+    : filter === 'completed' ? completedList
+    : filter === 'inactive' ? inactive
+    : [...active, ...inactive]
+  const showCCBills = filter === 'active' || filter === 'all'
 
   const unified: UnifiedItem[] = [
-    ...active.map(cm => ({ kind: 'commitment' as const, cm })),
-    ...ccBillItems.map(({ cc, billing }) => ({ kind: 'cc_bill' as const, cc, billing })),
+    ...shownCommitments.map(cm => ({ kind: 'commitment' as const, cm })),
+    ...(showCCBills ? ccBillItems : []).map(({ cc, billing }) => ({ kind: 'cc_bill' as const, cc, billing })),
   ].sort((a, b) => {
+    const inactiveA = a.kind === 'commitment' && a.cm.is_active === false
+    const inactiveB = b.kind === 'commitment' && b.cm.is_active === false
+    if (inactiveA !== inactiveB) return inactiveA ? 1 : -1
     const completedA = a.kind === 'commitment' && isCompleted(a.cm)
     const completedB = b.kind === 'commitment' && isCompleted(b.cm)
     if (completedA !== completedB) return completedA ? 1 : -1
@@ -315,8 +349,8 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
     return daysA - daysB
   })
 
-  const isEmpty = active.length === 0 && ccBillItems.length === 0
-  const totalItems = active.length + ccBillItems.length
+  const isEmpty = state.commitments.length === 0 && ccBillItems.length === 0
+  const totalItems = filterCounts.active
 
   return (
     <>
@@ -385,6 +419,33 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
               <button onClick={openAdd} style={{ background: '#8B5CF6', color: '#fff', border: 'none', borderRadius: 14, padding: '13px 28px', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}>Add your first bill</button>
             </div>
           ) : (
+            <>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {(['active', 'completed', 'inactive', 'all'] as BillFilter[]).map(f => {
+                const on = filter === f
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    style={{
+                      flexShrink: 0, border: 'none', borderRadius: 999, padding: '6px 12px', cursor: 'pointer',
+                      font: '700 12px Plus Jakarta Sans',
+                      background: on ? '#8B5CF6' : c.surface2,
+                      color: on ? '#fff' : c.muted,
+                    }}
+                  >
+                    {filterLabels[f]} <span style={{ opacity: 0.75, fontWeight: 600 }}>{filterCounts[f]}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {unified.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px 24px', font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6 }}>
+                {filter === 'active' ? 'Nothing due. Every bill is paid off or paused.'
+                  : filter === 'completed' ? 'No completed bills yet.'
+                  : 'No inactive bills. Pause a bill to stop its reminders without deleting it.'}
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {unified.map((item, i) => {
                 const isLast = i === unified.length - 1
@@ -456,6 +517,8 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                 const amount = cm.amount || cm.remaining || 0
                 const isPaying = paying === cm.id
                 const isDeleting = deleting === cm.id
+                const isInactive = cm.is_active === false
+                const isToggling = toggling === cm.id
 
                 const paidThisPeriod = cm.is_recurring
                   ? isPaidForCycle(cm, cm.last_paid_date, new Date(), cycle.cycleEnd)
@@ -466,12 +529,12 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                 return (
                   <div
                     key={cm.id}
-                    onClick={() => !isPaying && !isDeleting && openEdit(cm)}
+                    onClick={() => !isPaying && !isDeleting && !isToggling && openEdit(cm)}
                     style={{
                       display: 'flex', alignItems: 'flex-start', gap: 11,
                       paddingTop: i === 0 ? 0 : 12, paddingBottom: 12,
                       borderBottom: borderStyle,
-                      opacity: isDeleting ? 0.4 : 1,
+                      opacity: isDeleting || isToggling ? 0.4 : isInactive ? 0.6 : 1,
                       cursor: 'pointer',
                     }}
                   >
@@ -512,6 +575,11 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                             Completed
                           </span>
                         )}
+                        {isInactive && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 999, padding: '2px 7px' }}>
+                            Inactive
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ font: '600 11.5px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
@@ -539,7 +607,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       )}
 
                       <div style={{ display: 'flex', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
-                        {!completed && !paidThisPeriod && (
+                        {!isInactive && !completed && !paidThisPeriod && (
                           <button
                             onClick={e => { e.stopPropagation(); handleMarkPaid(cm) }}
                             disabled={isPaying}
@@ -578,6 +646,16 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                           {cm.total_installments ? 'EMI/mo' : cm.is_recurring ? `/${cm.frequency?.slice(0, 2)}` : 'each'}
                         </div>
                       </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleToggleActive(cm) }}
+                        disabled={isToggling}
+                        title={isInactive ? 'Resume' : 'Pause'}
+                        aria-label={isInactive ? `Resume ${cm.name}` : `Pause ${cm.name}`}
+                        style={{ background: isInactive ? c.goodSoft : c.surface2, color: isInactive ? c.good : c.muted, border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        {isInactive ? <Play size={12} /> : <Pause size={12} />}
+                      </button>
                       <button
                         onClick={e => { e.stopPropagation(); handleDelete(cm.id) }}
                         disabled={isDeleting}
@@ -587,11 +665,13 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                           <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
                         </svg>
                       </button>
+                      </div>
                     </div>
                   </div>
                 )
               })}
             </div>
+            </>
           )}
         </div>
 
