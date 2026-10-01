@@ -85,17 +85,21 @@ export interface CategorySpike {
 // can reuse the same detection with structured numbers instead of parsing rendered copy.
 export function detectCategorySpike(state: AppState): CategorySpike | null {
   const now = new Date()
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const lastMonthSameDay = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
+  // Calendar-date strings, not Date objects: `transaction_date` is YYYY-MM-DD, and
+  // `new Date('2026-09-01')` is UTC midnight — 05:30 local in IST, i.e. AFTER a
+  // local-midnight boundary of the same day. That excluded every row dated the
+  // same day as the boundary, so on the 1st of a month the last-month window
+  // (lastMonthStart…lastMonthSameDay, both the 1st) was always empty and no spike
+  // could ever fire. Same localIso rule as financial-cycle.ts and period parsing.
+  const thisMonthStart = localIso(new Date(now.getFullYear(), now.getMonth(), 1))
+  const lastMonthStart = localIso(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+  const lastMonthSameDay = localIso(new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()))
 
   // Net: an alert about a category "spike" that was reimbursed is a false alarm.
   const expenses = forSpendAnalytics(state.transactions).filter(t => t.transaction_type === 'expense')
-  const thisMonth = expenses.filter(t => new Date(t.transaction_date) >= thisMonthStart)
-  const lastToSameDay = expenses.filter(t => {
-    const dt = new Date(t.transaction_date)
-    return dt >= lastMonthStart && dt <= lastMonthSameDay
-  })
+  const thisMonth = expenses.filter(t => t.transaction_date >= thisMonthStart)
+  const lastToSameDay = expenses.filter(t =>
+    t.transaction_date >= lastMonthStart && t.transaction_date <= lastMonthSameDay)
   const lastMonthSpend = lastToSameDay.reduce((s, t) => s + spendAmount(t), 0)
   if (lastMonthSpend <= 0) return null
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { generateMintSuggestions } from '@/lib/mint-suggestions'
 import type { ChallengeCalc } from '@/lib/challenge'
 import { derive } from '@/lib/data'
-import { iso } from '@/lib/utils'
+import { iso, localIso } from '@/lib/utils'
 import type { AppState, Transaction, Category, Group, Commitment } from '@/types'
 
 const BASE_CATEGORIES: Category[] = [
@@ -114,6 +114,16 @@ function daysAgoIso(n: number): string {
   return iso(d)
 }
 
+// detectCategorySpike compares CALENDAR months (this month so far vs last month to
+// the same day), so its fixtures can't be day counts: on the 1st or 2nd, "2 days
+// ago" lands in last month and the spike silently stops firing. Anchor to the 1st
+// of each month instead — always inside the window the detector looks at — and
+// build the date locally, since a UTC-shifted "today" moves across the boundary too.
+function monthStartIso(monthsBack: number): string {
+  const now = new Date()
+  return localIso(new Date(now.getFullYear(), now.getMonth() - monthsBack, 1))
+}
+
 function tomorrowIso(): string {
   const d = new Date()
   d.setDate(d.getDate() + 1)
@@ -155,8 +165,8 @@ describe('Mint Suggestions — priority rule engine', () => {
   it('4. Category Spike fires when this month is up >30% vs last month same point for a category', () => {
     const state = makeState({
       transactions: [
-        makeTx({ transaction_date: daysAgoIso(35), description: 'groceries', amount: 250, category_id: 'cat-food' }), // last month
-        makeTx({ transaction_date: daysAgoIso(2), description: 'groceries', amount: 400, category_id: 'cat-food' }), // this month
+        makeTx({ transaction_date: monthStartIso(1), description: 'groceries', amount: 250, category_id: 'cat-food' }), // last month
+        makeTx({ transaction_date: monthStartIso(0), description: 'groceries', amount: 400, category_id: 'cat-food' }), // this month
       ],
     })
     const calc = makeCalc({ pctUsed: 60, status: 'on_track' })
@@ -197,8 +207,8 @@ describe('Mint Suggestions — priority rule engine', () => {
         makeTx({ transaction_date: daysAgoIso(20), description: 'Tea', amount: 40 }),
         makeTx({ transaction_date: daysAgoIso(15), description: 'Tea', amount: 40 }),
         makeTx({ transaction_date: daysAgoIso(10), description: 'Tea', amount: 40 }),
-        makeTx({ transaction_date: daysAgoIso(35), description: 'groceries', amount: 250, category_id: 'cat-food' }),
-        makeTx({ transaction_date: daysAgoIso(2), description: 'groceries', amount: 400, category_id: 'cat-food' }),
+        makeTx({ transaction_date: monthStartIso(1), description: 'groceries', amount: 250, category_id: 'cat-food' }),
+        makeTx({ transaction_date: monthStartIso(0), description: 'groceries', amount: 400, category_id: 'cat-food' }),
       ],
     })
     const calc = makeCalc({ pctUsed: 60, status: 'on_track' })
@@ -235,8 +245,8 @@ describe('Mint Suggestions — contract invariants', () => {
       label: 'category spike',
       state: makeState({
         transactions: [
-          makeTx({ transaction_date: daysAgoIso(35), description: 'groceries', amount: 250, category_id: 'cat-food' }),
-          makeTx({ transaction_date: daysAgoIso(2), description: 'groceries', amount: 400, category_id: 'cat-food' }),
+          makeTx({ transaction_date: monthStartIso(1), description: 'groceries', amount: 250, category_id: 'cat-food' }),
+          makeTx({ transaction_date: monthStartIso(0), description: 'groceries', amount: 400, category_id: 'cat-food' }),
         ],
       }),
       calc: makeCalc({ pctUsed: 60, status: 'on_track' }),
