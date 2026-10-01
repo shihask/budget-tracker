@@ -41,3 +41,6 @@ client_secret_*.json
 
 # Supabase CLI local cache (versions, linked project info) — machine-local, not shared state
 supabase/.temp/
+
+# Private service-account notes (repo is public)
+ACCOUNTS.local.md
