@@ -64,3 +64,27 @@ Full privacy policy: moneyplant.online
 
 #moneyplant #privacy #personalfinance #budgeting #financeindia #expensetracker
 ```
+
+---
+
+## Reel: "Can I afford it?"
+File: `out/reel-afford.mp4` (18 s, 1080×1920, no audio). Source: `reel-afford.html`
+Regenerate: `node marketing/instagram/render-reel.mjs reel-afford` (needs ffmpeg; see the script header).
+
+In the Instagram editor, add a trending sound at low volume before posting. Reels with
+audio get far more reach, and the video has no audio of its own.
+Cover: pick the end card (the logo frame), or the "Payday is 12 days away" opening.
+
+```
+Payday is 12 days away. Can you afford that ₹5,000 jacket? 🤔
+
+Ask Mint. MoneyPlant checks your rent, EMIs and card bills, and tells you what's actually free to spend before payday.
+
+Free. Works on any phone, even offline.
+👉 Link in bio: moneyplant.online
+
+#moneyplant #personalfinance #budgeting #moneytips #salary #expensetracker #financeindia #savemoney #budgetapp #reelsindia
+```
+
+For a Meta ad: same video, primary text = the first two lines above, headline
+"Know before you spend", button "Learn more" → https://moneyplant.online
