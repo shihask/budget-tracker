@@ -509,7 +509,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         transaction_date: quickCatTx.transaction_date,
         transaction_type: quickCatTx.transaction_type,
         category_id: quickCatId || null,
-        from_account_id: quickCatTx.from_account_id || null,
+        from_account_id: quickCatTx.from_account_id || quickCatTx.credit_card_id || null,
         to_account_id: quickCatTx.to_account_id || null,
       })
       setQuickCatTx(null)
@@ -522,6 +522,13 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
     const rawAmount = evaluateAmountExpression(editForm.amount)
     const amount = rawAmount === null ? NaN : round2(rawAmount)
     if (!editForm.description.trim() || isNaN(amount) || amount <= 0) return
+    // Income lands on a card only as a refund; unlinking it would leave ordinary
+    // income on a card, which nothing downstream expects.
+    if (editForm.transaction_type === 'income' && !editForm.reimbursement_for
+      && (state.credit_cards || []).some(cc => cc.id === editForm.from_account_id)) {
+      setReceiptError('A credit card can only receive a reimbursement. Link an expense or choose a bank account.')
+      return
+    }
     setSaving(true)
     setReceiptError(null)
 
@@ -1152,7 +1159,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     <optgroup label="Bank / Cash">
                       {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </optgroup>
-                    {(state.credit_cards || []).length > 0 && !['income', 'borrowing', 'transfer', 'savings_contribution', 'savings_withdrawal'].includes(editForm.transaction_type) && (
+                    {/* Income reaches a card only as a refund, i.e. a linked reimbursement. */}
+                    {(state.credit_cards || []).length > 0 && (editForm.transaction_type === 'income' ? !!editForm.reimbursement_for : !['borrowing', 'transfer', 'savings_contribution', 'savings_withdrawal'].includes(editForm.transaction_type)) && (
                       <optgroup label="Credit Cards">
                         {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                       </optgroup>

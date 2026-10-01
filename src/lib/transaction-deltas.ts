@@ -11,6 +11,12 @@ export const delta = (type: TransactionType, amount: number) => {
   }
 }
 
+/** Signed effect of a transaction on a credit card's outstanding. A card carries
+ *  debt, so this mirrors `delta`: spending raises what is owed, and money arriving
+ *  on the card (a merchant refund, recorded as a reimbursement) lowers it. Create,
+ *  edit and delete all go through this — never a bare amount. */
+export const cardDelta = (type: TransactionType, amount: number) => -delta(type, amount)
+
 /** Which rows a new transaction moves, and by how much. This is the ONE model
  *  shared by the live save (mp_execute_transaction's p_*_delta args, the local
  *  optimistic update) and the offline queue's overlay — never a second copy.
@@ -38,7 +44,7 @@ export function txDeltas(form: NewTransactionInput, creditCardIds: ReadonlySet<s
     toAccountId,
     toDelta:      toAccountId ? form.amount : null,
     creditCardId,
-    ccDelta:      creditCardId ? form.amount : null,  // CC expense: outstanding increases
+    ccDelta:      creditCardId ? cardDelta(form.transaction_type, form.amount) : null,
   }
 }
 

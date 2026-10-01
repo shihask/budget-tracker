@@ -2004,7 +2004,7 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
         amount: ep.field === 'amount' ? ep.newAmount! : ep.transaction.amount,
         transaction_type: ep.transaction.transaction_type,
         category_id: ep.field === 'category' ? ep.newCategoryId! : ep.transaction.category_id,
-        from_account_id: ep.transaction.from_account_id,
+        from_account_id: ep.transaction.from_account_id ?? ep.transaction.credit_card_id ?? null,
       })
 
       let text = ''

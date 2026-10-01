@@ -113,3 +113,17 @@ describe('executeTransaction — retry after a committed-but-unacknowledged save
     expect(rpcSpy.mock.calls[0][1]).toMatchObject({ p_id: 'U9', p_from_delta: -500, p_to_account_id: 'bank', p_to_delta: 500 })
   })
 })
+
+describe('txDeltas — credit cards', () => {
+  const cards = new Set(['visa'])
+
+  it('a card expense raises what the card owes', () => {
+    const d = txDeltas(form({ from_account_id: 'visa', amount: 665 }), cards)
+    expect(d).toMatchObject({ creditCardId: 'visa', ccDelta: 665, fromAccountId: null, fromDelta: null })
+  })
+
+  it('a refund credited to the card lowers what it owes', () => {
+    const d = txDeltas(form({ from_account_id: 'visa', amount: 655, transaction_type: 'income', category_id: null }), cards)
+    expect(d).toMatchObject({ creditCardId: 'visa', ccDelta: -655, fromAccountId: null, fromDelta: null })
+  })
+})

@@ -9,7 +9,7 @@ import { getCreditCardBilling } from '@/lib/credit-card'
 import { normalizeMasterName, duplicateMasterMessage, ensurePersonMaster, masterPaid, masterReceived, masterActivity } from '@/lib/masters'
 import { withTimeout, iso, localIso, txTime, TODAY, fmt, round2 } from '@/lib/utils'
 import type { PickedReceipt } from '@/lib/imageCompress'
-import { delta, txDeltas, applyDeltas } from '@/lib/transaction-deltas'
+import { delta, cardDelta, txDeltas, applyDeltas } from '@/lib/transaction-deltas'
 import { executeTransaction } from '@/lib/execute-transaction'
 import { paidForChoices, type PaidSchedule } from '@/lib/recurring'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
@@ -599,7 +599,7 @@ export function useSupabaseData(userId: string) {
       }
 
       const ccId = t.credit_card_id ?? null
-      const ccDelta = ccId ? -t.amount : null
+      const ccDelta = ccId ? -cardDelta(t.transaction_type, t.amount) : null
 
       const { error } = await supabase.rpc('mp_delete_transaction', {
         p_transaction_id:  t.id,
@@ -903,10 +903,10 @@ export function useSupabaseData(userId: string) {
       const newToDelta = toAccountId ? form.amount : null
 
       const oldCcId = old.credit_card_id ?? null
-      const oldCcDelta = oldCcId ? -old.amount : null
+      const oldCcDelta = oldCcId ? -cardDelta(old.transaction_type, old.amount) : null
       const newIsCC = stateRef.current.credit_cards.some(c => c.id === form.from_account_id)
       const newCcId = newIsCC ? form.from_account_id! : null
-      const newCcDelta = newCcId ? form.amount : null
+      const newCcDelta = newCcId ? cardDelta(form.transaction_type, form.amount) : null
 
       const { data, error } = await supabase.rpc('mp_update_transaction', {
         p_transaction_id:      old.id,

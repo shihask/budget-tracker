@@ -328,6 +328,10 @@ per-account breakdown still balances.
   when the anchor leg of a split is deleted — it fires ahead of the FK's SET NULL.
 - Triggers raise `SQLSTATE 'PT422'` with user-facing messages; both QuickAdd and the edit sheet
   surface `err.message` verbatim.
+- A reimbursement can land on a **credit card** (a merchant refund to the card it was paid
+  with) — the only income a card accepts. Card deltas go through `cardDelta(type, amount)` in
+  `transaction-deltas.ts` on create, edit and delete (income → outstanding falls); statement
+  math counts it as a negative adjustment in the cycle it posts, never as a purchase or payment.
 - A reimbursement carries **no category** — it belongs to no income category, and giving it one
   would put it in income category charts.
 - `financial-cycle.ts`'s `isPrimaryIncomeTransaction` now excludes linked rows; this supersedes

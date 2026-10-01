@@ -59,11 +59,17 @@ export function getCreditCardBilling(
       paidSinceBill += t.amount
     } else if (t.transaction_type === 'cc_balance_adjustment') {
       balanceAtBill += t.is_credit ? -t.amount : t.amount
+    } else if (t.transaction_type === 'income') {
+      // A refund credited to the card after the bill lowered the balance; undo it.
+      // Not a payment: it posts as a credit in the open cycle, as sumWindow counts it.
+      balanceAtBill += t.amount
     }
   }
 
   const statementAmount = Math.max(0, round2(balanceAtBill))
-  const billedAmount = Math.max(0, round2(statementAmount - paidSinceBill))
+  // Never more than the card owes in total: a refund larger than the open cycle's spend
+  // (or a credit adjustment) leaves the card owing less than last statement's figure.
+  const billedAmount = Math.max(0, round2(Math.min(statementAmount - paidSinceBill, card.current_balance)))
   const unbilledAmount = Math.max(0, round2(card.current_balance - billedAmount))
 
   return {

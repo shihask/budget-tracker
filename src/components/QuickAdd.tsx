@@ -216,6 +216,16 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
     : null
 
   const accs = state.accounts.filter(a => a.is_active)
+
+  // Where a reimbursed expense was paid from, so "Received in" can default to it —
+  // a refund usually goes back to the same card or account. A split was paid from
+  // several, so it has no single answer and keeps the current choice.
+  const paidFromAccountId = (targetId: string): string | null => {
+    const target = state.transactions.find(t => t.id === targetId)
+    if (!target || target.split_group_id) return null
+    const id = target.from_account_id ?? target.credit_card_id ?? null
+    return id && (accs.some(a => a.id === id) || (state.credit_cards || []).some(cc => cc.id === id)) ? id : null
+  }
   const isGroupVisible = (groupName: string) => {
     const g = state.groups.find(g => g.name === groupName)
     return g ? g.is_visible !== false && (trackBorrowings || g.name !== BORROWING_GROUP) : true
@@ -340,7 +350,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         description: target ? `Reimbursement · ${target.description}` : '',
         amount: defaultReimbursement?.remaining ?? 0,
         category_id: defaultReimbursement ? '' : firstCat,
-        from_account_id: firstAccount,
+        from_account_id: (defaultReimbursement && paidFromAccountId(defaultReimbursement.targetId)) || firstAccount,
       })
       initialCategoryIdRef.current = firstCat
       initialDateRef.current = localIso(now)
@@ -848,9 +858,10 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 setTxType(t)
                 // Split payment is an expense-only idea — leaving the tab leaves the mode.
                 if (t !== 'expense') setSplitLegs(null)
-                // Cards fund expenses only; their options vanish on the other tabs, so a
-                // card left in the field would submit an id the select can no longer show.
-                if (t !== 'expense' && (state.credit_cards || []).some(cc => cc.id === fromAccountId)) {
+                // Cards fund expenses (and receive refunds, which start on the Income
+                // purpose); their options vanish on the other tabs, so a card left in the
+                // field would submit an id the select can no longer show.
+                if (t !== 'expense' &&(state.credit_cards || []).some(cc => cc.id === fromAccountId)) {
                   setValue('from_account_id', accs[0]?.id || '', { shouldValidate: true })
                 }
                 // Leaving the income tab leaves reimbursement mode with it.
@@ -888,8 +899,13 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
               return (
                 <button key={p} type="button" onClick={() => {
                   setIncomePurpose(p)
-                  if (p === 'income') setReimbursementFor(null)
-                  else {
+                  if (p === 'income') {
+                    setReimbursementFor(null)
+                    // Ordinary income can't land on a card, and the card options vanish here.
+                    if ((state.credit_cards || []).some(cc => cc.id === fromAccountId)) {
+                      setValue('from_account_id', accs[0]?.id || '', { shouldValidate: true })
+                    }
+                  } else {
                     setValue('category_id', '', { shouldValidate: false })
                     // Choosing it teaches it better than reading about it does.
                     if (showReimbursementTip) onDismissReimbursementTip?.()
@@ -1384,7 +1400,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                       <optgroup label="Bank / Cash">
                         {accs.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                       </optgroup>
-                      {isExpense && (state.credit_cards || []).length > 0 && (
+                      {/* A card can also receive money back: a merchant refund to the card it
+                          was paid with lowers what the card owes. */}
+                      {(isExpense || isReimbursing) && (state.credit_cards || []).length > 0 && (
                         <optgroup label="Credit Cards">
                           {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                         </optgroup>
@@ -1580,6 +1598,8 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         onPick={(targetId, remaining) => {
           setReimbursementFor(targetId)
           setReimbursementRemaining(remaining)
+          const paidFrom = paidFromAccountId(targetId)
+          if (paidFrom) setValue('from_account_id', paidFrom, { shouldValidate: true })
           // Prefill what is still owed: the whole point of opening this sheet is
           // usually to recover exactly that.
           if (!amountVal) setValue('amount', remaining, { shouldValidate: true })

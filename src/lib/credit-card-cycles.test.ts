@@ -327,3 +327,16 @@ describe('buildCardCycles', () => {
     expect(all).toEqual(buildStatements(card(), txns, 6, today))
   })
 })
+
+describe('refunds credited to the card', () => {
+  const today = new Date(2026, 8, 30) // 30 Sep 2026 — last statement 25 Sep
+
+  it('lower the cycle they post in, as a credit — not a purchase', () => {
+    const txns = [tx('2026-09-27', 665), tx('2026-09-29', 655, 'income')]
+    const u = buildUnbilledCycle(card(), txns, today)
+    expect(u.purchases).toBe(665)
+    expect(u.adjustments).toBe(-655)
+    expect(u.amount).toBe(10)
+    expect(getStatementTransactions(u, txns).map(t => t.amount)).toEqual([665])
+  })
+})

@@ -28,7 +28,8 @@ export interface Statement {
   amount: number
   /** Spend only — expense + commitment. What the purchases list shows. */
   purchases: number
-  /** Signed reconciliation entries: cc_balance_adjustment and cc_opening_balance. Split out of the
+  /** Signed reconciliation entries: cc_balance_adjustment, cc_opening_balance and refunds credited
+   *  to the card (income rows, negative here). Split out of the
    *  same loop as `purchases` so the details footer reconciles by construction:
    *  purchases + adjustments === amount (before the clamp below). */
   adjustments: number
@@ -86,6 +87,10 @@ function sumWindow(mine: Transaction[], start: string, end: string): { purchases
       adjustments += t.amount
     } else if (t.transaction_type === 'cc_balance_adjustment') {
       adjustments += t.is_credit ? t.amount : -t.amount
+    } else if (t.transaction_type === 'income') {
+      // A merchant refund credited back to the card (recorded as a reimbursement).
+      // It lowers the cycle it posts in, the way a bank statement shows a credit.
+      adjustments -= t.amount
     }
   }
   return { purchases, adjustments }
