@@ -48,7 +48,7 @@ const link: React.CSSProperties = {
   color: accent, textDecoration: 'underline', fontWeight: 700,
 }
 
-const EFFECTIVE_DATE = 'September 29, 2026'
+const EFFECTIVE_DATE = 'October 1, 2026'
 const CONTACT_EMAIL = 'hello@moneyplant.online'
 const WEBSITE_URL = 'moneyplant.online'
 
@@ -143,7 +143,8 @@ export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
         </div>
         <div style={p}>
           We use these service providers to run MoneyPlant: Supabase (database, sign-in and file storage),
-          Vercel (hosting and analytics), Groq (AI), Resend (invitation emails), Google (if you sign in
+          Vercel (hosting and analytics), Groq (AI), Brevo (sign-in and account emails), Resend
+          (invitation emails), Google (if you sign in
           with Google), and Setu and Finvu (bank linking, if you use it).
         </div>
 
