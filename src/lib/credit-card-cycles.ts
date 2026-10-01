@@ -7,13 +7,17 @@ const CC_SPEND_TYPES = new Set<TransactionType>(['expense', 'commitment'])
 
 export type StatementStatus = 'paid' | 'partial' | 'due' | 'overdue'
 
-/** One payment's contribution to one statement. `amount` is the portion allocated HERE, not the
- *  payment's face value — a single ₹1000 payment spanning two statements appears in both, as ₹600
- *  and ₹400, so each statement's payments always sum to its `paid`. */
+/** One credit's contribution to one statement. `amount` is the portion allocated HERE, not the
+ *  credit's face value — a single ₹1000 payment spanning two statements appears in both, as ₹600
+ *  and ₹400, so each statement's payments always sum to its `paid`.
+ *
+ *  `kind: 'refund'` is a merchant refund credited to the card (an income row, recorded as a
+ *  reimbursement). Banks apply it to the billed amount the same way as a payment. */
 export interface StatementPayment {
   id: string
   date: string
   amount: number
+  kind: 'payment' | 'refund'
 }
 
 export interface Statement {
@@ -28,12 +32,12 @@ export interface Statement {
   amount: number
   /** Spend only — expense + commitment. What the purchases list shows. */
   purchases: number
-  /** Signed reconciliation entries: cc_balance_adjustment, cc_opening_balance and refunds credited
-   *  to the card (income rows, negative here). Split out of the
+  /** Signed reconciliation entries: cc_balance_adjustment, cc_opening_balance, and the part of a
+   *  refund posted in this window that no earlier statement absorbed (negative). Split out of the
    *  same loop as `purchases` so the details footer reconciles by construction:
    *  purchases + adjustments === amount (before the clamp below). */
   adjustments: number
-  /** Payments allocated to this statement, oldest-first. */
+  /** Payments and refunds allocated to this statement, oldest-first. */
   paid: number
   remaining: number
   /** The allocations that make up `paid`, in the order they were applied. */
@@ -87,10 +91,6 @@ function sumWindow(mine: Transaction[], start: string, end: string): { purchases
       adjustments += t.amount
     } else if (t.transaction_type === 'cc_balance_adjustment') {
       adjustments += t.is_credit ? t.amount : -t.amount
-    } else if (t.transaction_type === 'income') {
-      // A merchant refund credited back to the card (recorded as a reimbursement).
-      // It lowers the cycle it posts in, the way a bank statement shows a credit.
-      adjustments -= t.amount
     }
   }
   return { purchases, adjustments }
@@ -134,6 +134,11 @@ export const STATEMENT_ARCHIVE_CYCLES = 36
  */
 export function buildCardCycles(card: CreditCard, txns: Transaction[], today: Date = new Date()): Statement[] {
   const mine = txns.filter(t => t.credit_card_id === card.id)
+  return buildStatementWindows(card, mine, cyclesSpanning(card, mine, today), today)
+}
+
+/** How many statement windows reach back to the card's earliest row, capped at the archive size. */
+function cyclesSpanning(card: CreditCard, mine: Transaction[], today: Date): number {
   const lastBill = currentStatementPeriod(card, today).statementDate
   const earliest = mine.reduce<string | null>(
     (min, t) => (min === null || t.transaction_date < min ? t.transaction_date : min), null,
@@ -152,7 +157,7 @@ export function buildCardCycles(card: CreditCard, txns: Transaction[], today: Da
       cursor = prev
     }
   }
-  return buildStatementWindows(card, mine, months, today)
+  return months
 }
 
 /** `months` statement windows ending at the last generated statement, newest first, unfiltered. */
@@ -162,6 +167,17 @@ function buildStatementWindows(
   months: number,
   today: Date,
 ): Statement[] {
+  return statementWindowsWithCredits(card, txns, months, today).statements
+}
+
+/** The windows plus, per refund, the part no closed statement could absorb — what the open
+ *  cycle has to net off (see `buildUnbilledCycle`). */
+function statementWindowsWithCredits(
+  card: CreditCard,
+  txns: Transaction[],
+  months: number,
+  today: Date,
+): { statements: Statement[]; unabsorbedRefunds: Map<string, number> } {
   const mine = txns.filter(t => t.credit_card_id === card.id)
 
   // Statement dates: the most recent bill_day on or before today, then back `months` cycles.
@@ -202,32 +218,17 @@ function buildStatementWindows(
     }
   })
 
-  // ── Payment allocation, oldest-first ───────────────────────────────────────
+  // ── Credit allocation, oldest-first ────────────────────────────────────────
   // A credit_card_payment row carries no link to the statement it settles (useSupabaseData.ts:2069
   // writes only transaction_date), so attribution is inferred: a payment settles the oldest statement
   // still owing that was generated before the payment was made. This is the same assumption
-  // getCreditCardBilling already makes at credit-card.ts:43-45, so the two agree on the current cycle.
-  const payments = mine
-    .filter(t => t.transaction_type === 'credit_card_payment')
-    .map(t => ({ id: t.id, date: t.transaction_date, left: t.amount }))
-    .sort((a, b) => a.date.localeCompare(b.date))
-
-  for (const s of statements) {
-    let owing = s.amount
-    if (owing <= 0) continue
-    for (const p of payments) {
-      if (p.left <= 0 || owing <= 0) continue
-      if (p.date <= s.statementDate) continue
-      const take = Math.min(p.left, owing)
-      p.left = round2(p.left - take)
-      owing = round2(owing - take)
-      s.paid = round2(s.paid + take)
-      // The allocated portion, not p's face value — one payment can span several statements.
-      s.payments.push({ id: p.id, date: p.date, amount: take })
-      if (owing <= 0.01) s.paidOn = p.date
-    }
-    s.remaining = Math.max(0, round2(owing))
-  }
+  // getCreditCardBilling already makes, so the two agree on the current cycle.
+  //
+  // A refund credited to the card is settled the same way — banks apply it to the billed amount
+  // first. Whatever no earlier statement needed lowers the window it posted in instead, so a refund
+  // of something bought this cycle simply nets off this cycle. Credits are walked in date order:
+  // a refund's leftover must reduce its window before any later payment is allocated to it.
+  const unabsorbedRefunds = allocateCredits(statements, mine)
 
   for (const s of statements) {
     if (s.remaining <= 0.01) s.status = 'paid'
@@ -238,7 +239,45 @@ function buildStatementWindows(
     if (s.status !== 'paid') s.paidOn = undefined
   }
 
-  return statements.reverse()
+  return { statements: statements.reverse(), unabsorbedRefunds }
+}
+
+/** Applies payments and refunds to `statements` (oldest first) in date order, mutating them.
+ *  Returns each refund's remainder that fell outside every window — one posted in the open cycle. */
+function allocateCredits(statements: Statement[], mine: Transaction[]): Map<string, number> {
+  const credits = mine
+    .filter(t => t.transaction_type === 'credit_card_payment' || t.transaction_type === 'income')
+    .map(t => ({
+      id: t.id, date: t.transaction_date, left: t.amount,
+      kind: (t.transaction_type === 'income' ? 'refund' : 'payment') as StatementPayment['kind'],
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const unabsorbed = new Map<string, number>()
+  for (const cr of credits) {
+    for (const st of statements) {
+      // Oldest first, so once one was generated on/after the credit, every later one was too.
+      if (cr.left <= 0 || cr.date <= st.statementDate) break
+      const owing = round2(st.amount - st.paid)
+      if (owing <= 0) continue
+      const take = Math.min(cr.left, owing)
+      cr.left = round2(cr.left - take)
+      st.paid = round2(st.paid + take)
+      // The allocated portion, not the credit's face value — one credit can span several statements.
+      st.payments.push({ id: cr.id, date: cr.date, amount: take, kind: cr.kind })
+      if (st.amount - st.paid <= 0.01) st.paidOn = cr.date
+    }
+    if (cr.kind !== 'refund' || cr.left <= 0) continue
+    const home = statements.find(st => cr.date >= st.periodStart && cr.date <= st.statementDate)
+    if (home) {
+      home.adjustments = round2(home.adjustments - cr.left)
+      home.amount = Math.max(0, round2(home.purchases + home.adjustments))
+    } else {
+      unabsorbed.set(cr.id, cr.left)
+    }
+  }
+  for (const st of statements) st.remaining = Math.max(0, round2(st.amount - st.paid))
+  return unabsorbed
 }
 
 /**
@@ -330,7 +369,15 @@ export function buildUnbilledCycle(
   const periodStart = localYmd(addDaysLocal(lastBill, 1))
   const statementDate = localYmd(nextBill)
   const mine = txns.filter(t => t.credit_card_id === card.id)
-  const { purchases, adjustments } = sumWindow(mine, periodStart, statementDate)
+  const { purchases, adjustments: reconciled } = sumWindow(mine, periodStart, statementDate)
+  // A refund posted this cycle goes to the billed statements first; only the rest nets off here.
+  const { unabsorbedRefunds } = statementWindowsWithCredits(card, mine, cyclesSpanning(card, mine, today), today)
+  let adjustments = reconciled
+  for (const t of mine) {
+    if (t.transaction_date >= periodStart && t.transaction_date <= statementDate) {
+      adjustments -= unabsorbedRefunds.get(t.id) ?? 0
+    }
+  }
   return {
     cardId: card.id,
     periodStart,

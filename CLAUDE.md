@@ -330,8 +330,11 @@ per-account breakdown still balances.
   surface `err.message` verbatim.
 - A reimbursement can land on a **credit card** (a merchant refund to the card it was paid
   with) — the only income a card accepts. Card deltas go through `cardDelta(type, amount)` in
-  `transaction-deltas.ts` on create, edit and delete (income → outstanding falls); statement
-  math counts it as a negative adjustment in the cycle it posts, never as a purchase or payment.
+  `transaction-deltas.ts` on create, edit and delete (income → outstanding falls). Statement
+  math applies it to the **billed** amount first, like a payment (that's what banks do):
+  `getCreditCardBilling.refundedSinceBill`, and `allocateCredits` in `credit-card-cycles.ts`
+  (`StatementPayment.kind: 'refund'`). Only the leftover the bill didn't need nets off the
+  window it posted in. Never a purchase.
 - A reimbursement carries **no category** — it belongs to no income category, and giving it one
   would put it in income category charts.
 - `financial-cycle.ts`'s `isPrimaryIncomeTransaction` now excludes linked rows; this supersedes

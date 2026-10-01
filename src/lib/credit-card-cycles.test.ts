@@ -339,4 +339,34 @@ describe('refunds credited to the card', () => {
     expect(u.amount).toBe(10)
     expect(getStatementTransactions(u, txns).map(t => t.amount)).toEqual([665])
   })
+
+  it('settle the billed statement first, like a payment', () => {
+    // Statement 25 Sep: 1000. Refund 655 on 29 Sep for a purchase made this cycle.
+    const txns = [tx('2026-09-10', 1000), tx('2026-09-27', 665), tx('2026-09-29', 655, 'income')]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    expect(latest.amount).toBe(1000)
+    expect(latest.paid).toBe(655)
+    expect(latest.remaining).toBe(345)
+    expect(latest.status).toBe('partial')
+    expect(latest.payments).toEqual([expect.objectContaining({ amount: 655, kind: 'refund' })])
+    // …so it does not also net off the open cycle
+    const u = buildUnbilledCycle(card(), txns, today)
+    expect(u.amount).toBe(665)
+    expect(u.adjustments).toBe(0)
+  })
+
+  it('net only the leftover off the open cycle once the bill is covered', () => {
+    const txns = [
+      tx('2026-09-10', 1000),
+      tx('2026-09-26', 900, 'credit_card_payment'),
+      tx('2026-09-27', 665),
+      tx('2026-09-29', 655, 'income'),
+    ]
+    const [latest] = buildStatements(card(), txns, 6, today)
+    expect(latest.remaining).toBe(0)
+    expect(latest.payments.map(p => [p.kind, p.amount])).toEqual([['payment', 900], ['refund', 100]])
+    const u = buildUnbilledCycle(card(), txns, today)
+    expect(u.adjustments).toBe(-555)
+    expect(u.amount).toBe(110)
+  })
 })

@@ -169,7 +169,7 @@ export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage,
             const remaining = billing.billedAmount
             const status: StatementStatus =
               billing.statementAmount <= 0 || remaining <= 0.01 ? 'paid'
-              : billing.paidSinceBill > 0 ? 'partial'
+              : billing.paidSinceBill + billing.refundedSinceBill > 0 ? 'partial'
               : todayYmd() > period.dueDate ? 'overdue'
               : 'due'
             return (
@@ -197,7 +197,9 @@ export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage,
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   {([
                     ['Total', billing.statementAmount, c.ink],
-                    ['Paid', billing.paidSinceBill, billing.paidSinceBill > 0 ? c.good : c.ink],
+                    // A refund settles the bill like a payment, so it counts here — or Total − Paid
+                    // would stop equalling Remaining. Named, since no money was paid.
+                    [billing.refundedSinceBill > 0 ? 'Paid + refund' : 'Paid', billing.paidSinceBill + billing.refundedSinceBill, billing.paidSinceBill + billing.refundedSinceBill > 0 ? c.good : c.ink],
                     ['Remaining', remaining, remaining > 0 ? c.bad : c.good],
                   ] as const).map(([label, value, color]) => (
                     <div key={label} style={{ flex: 1, minWidth: 0 }}>

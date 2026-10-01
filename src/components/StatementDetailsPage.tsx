@@ -303,7 +303,7 @@ export function StatementDetailsPage({ state, card, statements, initialStatement
           <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${c.faint}` }}>
             {statement ? (
               <>
-                {figure('Paid', fmt(statement.paid), statement.paid > 0 ? c.good : c.ink)}
+                {figure(statement.payments.some(p => p.kind === 'refund') ? 'Paid + refund' : 'Paid', fmt(statement.paid), statement.paid > 0 ? c.good : c.ink)}
                 {figure('Remaining', fmt(statement.remaining), statement.remaining > 0 ? statusColor : c.good)}
                 {figure('Due', stmtDate(statement.dueDate, false), statement.status === 'overdue' ? c.bad : c.ink)}
               </>
@@ -388,7 +388,10 @@ export function StatementDetailsPage({ state, card, statements, initialStatement
                     <div style={{ width: 26, height: 26, borderRadius: 999, background: c.goodSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c.good} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </div>
-                    <span style={{ font: '600 12.5px Plus Jakarta Sans', color: c.ink }}>{stmtDate(p.date)}</span>
+                    <span style={{ font: '600 12.5px Plus Jakarta Sans', color: c.ink }}>
+                      {stmtDate(p.date)}
+                      {p.kind === 'refund' && <span style={{ color: c.muted }}> · Refund</span>}
+                    </span>
                   </div>
                   <span style={{ font: '700 13px Plus Jakarta Sans', color: c.good, flexShrink: 0 }}>{fmt(p.amount)}</span>
                 </div>

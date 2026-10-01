@@ -112,7 +112,7 @@ describe('getCreditCardBilling — billed/unbilled split', () => {
 describe('getCreditCardBilling — refunds credited to the card', () => {
   const today = new Date(2026, 8, 9) // 9 Sep 2026, last bill 25 Aug
 
-  it('a refund in the open cycle reduces unbilled, leaving the statement alone', () => {
+  it('a refund goes to the billed amount first, like a payment (as banks apply it)', () => {
     // 1000 billed, 665 unbilled purchase, 655 refunded → owes 1010
     const c = card({ current_balance: 1010 })
     const b = getCreditCardBilling(c, [
@@ -121,8 +121,23 @@ describe('getCreditCardBilling — refunds credited to the card', () => {
       tx('2026-09-05', 655, 'income'),
     ], today)
     expect(b.statementAmount).toBe(1000)
-    expect(b.billedAmount).toBe(1000)
-    expect(b.unbilledAmount).toBe(10)
+    expect(b.refundedSinceBill).toBe(655)
+    expect(b.paidSinceBill).toBe(0)
+    expect(b.billedAmount).toBe(345)
+    expect(b.unbilledAmount).toBe(665)
+  })
+
+  it('only the part the bill no longer needs comes off unbilled', () => {
+    // 1000 billed, 900 paid, 665 unbilled, 655 refunded → owes 110; the bill needed only 100
+    const c = card({ current_balance: 110 })
+    const b = getCreditCardBilling(c, [
+      tx('2026-08-20', 1000),
+      tx('2026-09-02', 900, 'credit_card_payment'),
+      tx('2026-09-01', 665),
+      tx('2026-09-05', 655, 'income'),
+    ], today)
+    expect(b.billedAmount).toBe(0)
+    expect(b.unbilledAmount).toBe(110)
   })
 
   it('a refund larger than the open cycle never leaves the bill above the total owed', () => {

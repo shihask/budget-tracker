@@ -16,6 +16,10 @@ export interface CreditCardBilling {
   statementAmount: number
   /** Payments made since the last bill date, i.e. what has been settled against that statement. */
   paidSinceBill: number
+  /** Refunds credited to the card since the last bill. Banks apply them to the billed amount first,
+   *  exactly like a payment, so they settle that statement too; kept apart from `paidSinceBill`
+   *  because no money was paid. */
+  refundedSinceBill: number
 }
 
 /** The most recent bill_day on or before `today`.
@@ -47,9 +51,10 @@ export function getCreditCardBilling(
   const lastBillStr = localYmd(lastBill)
 
   // Reconstruct the statement amount at the last bill date by reversing all post-bill activity,
-  // while tracking payments made since — they settle that statement (fully or partially).
+  // while tracking payments and refunds made since — they settle that statement (fully or partially).
   let balanceAtBill = card.current_balance
   let paidSinceBill = 0
+  let refundedSinceBill = 0
   for (const t of transactions) {
     if (t.credit_card_id !== card.id || t.transaction_date <= lastBillStr) continue
     if (CC_SPEND_TYPES.has(t.transaction_type)) {
@@ -60,16 +65,17 @@ export function getCreditCardBilling(
     } else if (t.transaction_type === 'cc_balance_adjustment') {
       balanceAtBill += t.is_credit ? -t.amount : t.amount
     } else if (t.transaction_type === 'income') {
-      // A refund credited to the card after the bill lowered the balance; undo it.
-      // Not a payment: it posts as a credit in the open cycle, as sumWindow counts it.
+      // A refund credited to the card (a reimbursement). Applied to the bill first, like a
+      // payment; only what the bill no longer needs comes off the unbilled amount below.
       balanceAtBill += t.amount
+      refundedSinceBill += t.amount
     }
   }
 
   const statementAmount = Math.max(0, round2(balanceAtBill))
-  // Never more than the card owes in total: a refund larger than the open cycle's spend
-  // (or a credit adjustment) leaves the card owing less than last statement's figure.
-  const billedAmount = Math.max(0, round2(Math.min(statementAmount - paidSinceBill, card.current_balance)))
+  // Never more than the card owes in total (a credit adjustment can leave it owing less than the
+  // statement's figure).
+  const billedAmount = Math.max(0, round2(Math.min(statementAmount - paidSinceBill - refundedSinceBill, card.current_balance)))
   const unbilledAmount = Math.max(0, round2(card.current_balance - billedAmount))
 
   return {
@@ -81,5 +87,6 @@ export function getCreditCardBilling(
     nextBillDate: localYmd(getNextDate(card.bill_day, today)),
     statementAmount,
     paidSinceBill: round2(paidSinceBill),
+    refundedSinceBill: round2(refundedSinceBill),
   }
 }
