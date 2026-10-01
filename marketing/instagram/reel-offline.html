@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant reel: No network? Still logged</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<!-- Offline entry. See reel-kit.js for how a reel is driven. Preview: open this file in a browser.
+     Mirrors the real flow: saved on the phone at once, uploaded only when you tap Save all. -->
+<style>
+  .status { align-self: flex-start; display: inline-flex; align-items: center; gap: 16px; padding: 18px 30px; border-radius: 999px; font-size: 34px; font-weight: 800; }
+  .status svg { width: 40px; height: 40px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .status.off { background: #FEF3C7; color: #92400E; }
+  .status.on { background: var(--mint-bg); color: var(--green-dark); }
+
+  .entry { padding: 40px 44px; margin-top: 40px; }
+  .entry .amount { font-size: 140px; font-weight: 800; letter-spacing: -5px; line-height: 1; min-height: 140px; }
+  .entry .fields { display: flex; gap: 18px; margin-top: 30px; flex-wrap: wrap; }
+  .pill2 { display: inline-flex; align-items: center; gap: 12px; background: var(--cream); border: 3px solid var(--rule); border-radius: 999px; padding: 14px 28px; font-size: 34px; font-weight: 700; }
+  .savebtn { margin-top: 34px; background: var(--green-dark); color: #fff; text-align: center; font-size: 44px; font-weight: 800; padding: 30px; border-radius: 28px; }
+
+  .tx { display: flex; align-items: center; gap: 26px; padding: 34px 40px; margin-top: 30px; }
+  .tx .ico { flex-basis: 92px; height: 92px; border-radius: 26px; }
+  .tx .what { flex: 1; font-size: 44px; font-weight: 800; letter-spacing: -.5px; }
+  .tx .badge { display: inline-flex; align-items: center; gap: 10px; margin-top: 8px; padding: 6px 18px; border-radius: 999px; font-size: 28px; font-weight: 800; letter-spacing: 0; }
+  .tx .badge svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .badge.wait { background: #FEF3C7; color: #92400E; }
+  .badge.done { background: var(--mint-bg); color: var(--green-dark); }
+  .tx .amt { font-size: 48px; font-weight: 800; }
+  .cash { display: flex; justify-content: space-between; align-items: baseline; margin-top: 26px; font-size: 34px; font-weight: 700; color: var(--muted); padding: 0 8px; }
+  .cash b { font-size: 56px; color: var(--ink); letter-spacing: -1.5px; }
+
+  .review { margin-top: 40px; background: var(--ink); color: #fff; border-radius: 36px; padding: 34px 40px; display: flex; align-items: center; gap: 24px; }
+  .review .txt { flex: 1; font-size: 38px; font-weight: 700; }
+  .review .btn { background: var(--green); font-size: 38px; font-weight: 800; padding: 20px 36px; border-radius: 999px; }
+</style>
+</head>
+<body>
+
+<section class="scene green" id="s1">
+  <div style="flex:1"></div>
+  <div class="big el" id="s1a">No network</div>
+  <div class="big el" id="s1b">at the dhaba?</div>
+  <div style="height:80px"></div>
+  <div class="mid soft el" id="s1c">Log it anyway.</div>
+  <div style="flex:1.3"></div>
+</section>
+
+<section class="scene cream" id="s2" style="justify-content:flex-start;padding-top:500px">
+  <div class="status el" id="st">
+    <svg viewBox="0 0 24 24" id="stIcoOff"><path d="M2 2l20 20"/><path d="M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.8M2 8.8a15 15 0 0 1 4.2-2.6"/><circle cx="12" cy="20" r=".8"/></svg>
+    <svg viewBox="0 0 24 24" id="stIcoOn"><path d="M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 14 0M2 8.8a15 15 0 0 1 20 0"/><circle cx="12" cy="20" r=".8"/></svg>
+    <span id="stTxt">No internet</span>
+  </div>
+
+  <div class="entry card el" id="entry">
+    <div class="amount" id="amt"></div>
+    <div class="fields">
+      <span class="pill2 el" id="p1">Food</span>
+      <span class="pill2 el" id="p2">Lunch at dhaba</span>
+      <span class="pill2 el" id="p3">Cash</span>
+    </div>
+    <div class="savebtn el" id="save">Save</div>
+  </div>
+
+  <div class="tx card el" id="tx">
+    <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 3v8a3 3 0 0 0 3 3v7M7 3v5M10 3v8a3 3 0 0 1-3 3"/><path d="M17 21V3c-2 0-4 2-4 6v4h4"/></svg></div>
+    <div class="what">Lunch at dhaba<br>
+      <span class="badge wait" id="bWait"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Waiting to sync</span>
+      <span class="badge done" id="bDone"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Saved to your account</span>
+    </div>
+    <div class="amt">₹180</div>
+  </div>
+  <div class="cash el" id="cash"><span>Cash</span><b id="cashN">₹2,320</b></div>
+
+  <div class="review el" id="review"><div class="txt">1 expense waiting</div><div class="btn" id="saveAll">Save all</div></div>
+</section>
+
+<section class="scene cream" id="s3">
+  <div class="kicker el" id="s3k">Offline, you can still</div>
+  <div class="chips">
+    <div class="chip el" id="c1"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>Add expenses and income</div>
+    <div class="chip el" id="c2"><div class="ico"><svg viewBox="0 0 24 24"><path d="M7 7h12l-3-3M17 17H5l3 3"/></svg></div>Move money between accounts</div>
+    <div class="chip el" id="c3"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>See your balances</div>
+  </div>
+</section>
+
+<section class="scene green end" id="s4">
+  <img class="logo el" src="../../public/email-logo.png" alt="">
+  <div class="name el">MoneyPlant</div>
+  <div class="tagline el">Every rupee. Even offline.</div>
+  <div class="pill el">Free · moneyplant.online</div>
+</section>
+
+<script src="reel-kit.js"></script>
+<script>
+  const DURATION = 17
+
+  function tap(el, t, at) {
+    const p = prog(t, at, .12) - prog(t, at + .14, .2)
+    el.style.transform = `scale(${1 - .07 * p})`
+  }
+
+  function render(t) {
+    // 1 — hook
+    scene($('s1'), t, 0, 3.2)
+    rise($('s1a'), t, .15); rise($('s1b'), t, .45); rise($('s1c'), t, 1.4, .6)
+
+    // 2 — add offline → waiting → back online → Save all → saved
+    scene($('s2'), t, 3.2, 12.6)
+    const online = t >= 8.4
+    rise($('st'), t, 3.3)
+    $('st').className = 'status el ' + (online ? 'on' : 'off')
+    $('stTxt').textContent = online ? 'Back online' : 'No internet'
+    $('stIcoOff').style.display = online ? 'none' : 'block'
+    $('stIcoOn').style.display = online ? 'block' : 'none'
+
+    // the entry card, then it hands over to the saved row
+    const entryShown = t < 6.4
+    $('entry').style.display = entryShown ? 'block' : 'none'
+    rise($('entry'), t, 3.45)
+    $('amt').textContent = '₹' + typed('180', t, 3.8, .5)
+    rise($('p1'), t, 4.4, .3, 20); rise($('p2'), t, 4.7, .3, 20); rise($('p3'), t, 5.0, .3, 20)
+    rise($('save'), t, 5.2, .3, 20); tap($('save'), t, 5.9)
+    if (t >= 6.1) $('entry').style.opacity = 1 - prog(t, 6.1, .3)   // fades while the row comes in, no blank frame
+
+    appear($('tx'), t, 6.4)
+    if (t >= 6.4 && t < 6.8) $('tx').style.opacity = Math.max(.35, easeOut(prog(t, 6.4, .45)))
+    appear($('cash'), t, 6.6)
+    $('cashN').textContent = inr(2320 - 180 * easeOut(prog(t, 6.8, .6)))
+    const synced = t >= 10.6
+    $('bWait').style.display = synced ? 'none' : 'inline-flex'
+    $('bDone').style.display = synced ? 'inline-flex' : 'none'
+    $('tx').querySelector('.ico').style.background = synced ? 'var(--mint-bg)' : '#FEF3C7'
+
+    appear($('review'), t, 8.8)
+    if (t >= 10.45) $('review').style.opacity = 1 - prog(t, 10.45, .25)
+    tap($('saveAll'), t, 10.2)
+
+    // 3 — what works offline
+    scene($('s3'), t, 12.6, 14.8)
+    rise($('s3k'), t, 12.7)
+    rise($('c1'), t, 12.85, .45, 80); rise($('c2'), t, 13.15, .45, 80); rise($('c3'), t, 13.45, .45, 80)
+
+    // 4 — end card
+    endCard($('s4'), t, 14.8, DURATION)
+  }
+
+  boot(render, DURATION, [1.8, 5.5, 7.6, 9.8, 11.2, 14.2, 16.6])
+</script>
+</body>
+</html>

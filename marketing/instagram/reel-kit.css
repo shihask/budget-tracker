@@ -1,0 +1,34 @@
+/* Shared look for every reel-*.html: 1080×1920 frame, brand tokens, scene shells,
+   type scale, the white "card" and "chip" rows, and the green end card.
+   Reels UI covers roughly the top 220 px and bottom 420 px, hence the scene padding. */
+
+:root { --green: #16C98A; --green-dark: #0A7A56; --ink: #1C1410; --muted: #6B5F57; --cream: #F6F1EA; --rule: #EDE5DB; --red: #B4372B; --red-bg: #FDECEA; --mint-bg: #E3F8EF; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: var(--ink); }
+
+.scene { position: absolute; inset: 0; padding: 260px 90px 440px; display: flex; flex-direction: column; will-change: opacity, transform; }
+.green { background: linear-gradient(160deg, var(--green), var(--green-dark)); color: #fff; }
+.cream { background: var(--cream); justify-content: center; }
+.el { will-change: opacity, transform; }
+
+.kicker { font-size: 34px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; color: var(--green-dark); }
+.green .kicker { color: rgba(255,255,255,.8); }
+.big { font-size: 128px; line-height: 1.02; font-weight: 800; letter-spacing: -4px; }
+.mid { font-size: 76px; line-height: 1.1; font-weight: 800; letter-spacing: -2px; }
+.soft { color: #D9FFEE; }
+.note { font-size: 26px; color: var(--muted); font-weight: 500; }
+
+.card { background: #fff; border: 3px solid var(--rule); border-radius: 44px; }
+
+.chips { display: flex; flex-direction: column; gap: 34px; margin-top: 80px; }
+.chip { display: flex; align-items: center; gap: 34px; background: #fff; border: 3px solid var(--rule); border-radius: 40px; padding: 40px 44px; font-size: 50px; font-weight: 800; letter-spacing: -1px; }
+.ico { flex: 0 0 104px; height: 104px; border-radius: 30px; background: var(--mint-bg); display: grid; place-items: center; }
+.ico svg { width: 56px; height: 56px; stroke: var(--green-dark); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* end card: <section class="scene green end"> with .logo .name .tagline .pill */
+.end { align-items: center; justify-content: center; text-align: center; }
+.end .logo { width: 260px; height: 260px; border-radius: 64px; box-shadow: 0 30px 80px rgba(0,0,0,.25); }
+.end .name { font-size: 104px; font-weight: 800; letter-spacing: -3px; margin-top: 56px; }
+.end .tagline { font-size: 52px; font-weight: 600; opacity: .9; margin-top: 18px; }
+.end .pill { margin-top: 90px; background: #fff; color: var(--green-dark); font-size: 50px; font-weight: 800; padding: 30px 56px; border-radius: 999px; }

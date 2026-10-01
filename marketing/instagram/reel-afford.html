@@ -5,27 +5,9 @@
 <title>MoneyPlant reel: Can I afford it?</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
-<!--
-  An 18 s, 1080×1920 reel. Every frame is a pure function of time: render(t)
-  sets each element's style from t, so render-reel.mjs can step through it
-  frame by frame and the video is identical on every run.
-  Preview in a browser: open this file and it plays on a loop.
-  Reels UI covers roughly the top 220 px and bottom 420 px; key content stays between.
--->
+<link rel="stylesheet" href="reel-kit.css">
+<!-- See reel-kit.js for how a reel is driven. Preview: open this file in a browser. -->
 <style>
-  :root { --green: #16C98A; --green-dark: #0A7A56; --ink: #1C1410; --muted: #6B5F57; --cream: #F6F1EA; --rule: #EDE5DB; }
-  * { box-sizing: border-box; margin: 0; }
-  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
-  body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: var(--ink); }
-  .scene { position: absolute; inset: 0; padding: 260px 90px 440px; display: flex; flex-direction: column; will-change: opacity, transform; }
-  .green { background: linear-gradient(160deg, var(--green), var(--green-dark)); color: #fff; }
-  .cream { background: var(--cream); justify-content: center; }
-  .kicker { font-size: 34px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; color: var(--green-dark); }
-  .green .kicker { color: rgba(255,255,255,.8); }
-  .big { font-size: 128px; line-height: 1.02; font-weight: 800; letter-spacing: -4px; }
-  .mid { font-size: 76px; line-height: 1.1; font-weight: 800; letter-spacing: -2px; }
-  .el { will-change: opacity, transform; }
-
   /* scene 2 — chat */
   .bubble { padding: 36px 44px; border-radius: 48px; font-size: 48px; line-height: 1.35; font-weight: 600; }
   .me { align-self: flex-end; background: var(--green-dark); color: #fff; border-bottom-right-radius: 14px; max-width: 86%; min-height: 137px; }
@@ -41,7 +23,7 @@
   .note { font-size: 26px; color: var(--muted); font-weight: 500; }
 
   /* scene 3 — forecast */
-  .chart { position: relative; margin-top: 70px; background: #fff; border: 3px solid var(--rule); border-radius: 44px; padding: 48px 40px 36px; }
+  .chart { position: relative; margin-top: 70px; padding: 48px 40px 36px; }
   .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
   .tag { position: absolute; font-size: 28px; font-weight: 800; padding: 10px 20px; border-radius: 999px; white-space: nowrap; }
   .tag.down { background: #FDECEA; color: #B4372B; }
@@ -49,18 +31,6 @@
   .lowest { display: flex; justify-content: space-between; align-items: baseline; margin-top: 30px; font-size: 34px; font-weight: 700; color: var(--muted); }
   .lowest b { font-size: 60px; color: var(--ink); letter-spacing: -1.5px; }
 
-  /* scene 4 — chips */
-  .chips { display: flex; flex-direction: column; gap: 34px; margin-top: 80px; }
-  .chip { display: flex; align-items: center; gap: 34px; background: #fff; border: 3px solid var(--rule); border-radius: 40px; padding: 40px 44px; font-size: 50px; font-weight: 800; letter-spacing: -1px; }
-  .chip .ico { flex: 0 0 104px; height: 104px; border-radius: 30px; background: #E3F8EF; display: grid; place-items: center; }
-  .chip svg { width: 56px; height: 56px; stroke: var(--green-dark); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-
-  /* scene 5 — end card */
-  .end { align-items: center; justify-content: center; text-align: center; }
-  .end .logo { width: 260px; height: 260px; border-radius: 64px; box-shadow: 0 30px 80px rgba(0,0,0,.25); }
-  .end .name { font-size: 104px; font-weight: 800; letter-spacing: -3px; margin-top: 56px; }
-  .end .tagline { font-size: 52px; font-weight: 600; opacity: .9; margin-top: 18px; }
-  .end .pill { margin-top: 90px; background: #fff; color: var(--green-dark); font-size: 50px; font-weight: 800; padding: 30px 56px; border-radius: 999px; }
 </style>
 </head>
 <body>
@@ -70,7 +40,7 @@
   <div class="big el" id="s1a">Payday is</div>
   <div class="big el" id="s1b">12 days away.</div>
   <div style="height:80px"></div>
-  <div class="mid el" id="s1c" style="color:#D9FFEE">How much can you actually spend?</div>
+  <div class="mid soft el" id="s1c">How much can you actually spend?</div>
   <div style="flex:1.3"></div>
 </section>
 
@@ -94,7 +64,7 @@
   <div class="kicker el" id="s3k">Payday forecast</div>
   <div style="height:30px"></div>
   <div class="mid el" id="s3t">Your balance, every day until salary.</div>
-  <div class="chart el" id="s3c">
+  <div class="chart card el" id="s3c">
     <svg viewBox="0 0 820 440" id="s3svg">
       <defs>
         <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
@@ -127,37 +97,15 @@
 </section>
 
 <section class="scene green end" id="s5">
-  <img class="logo el" id="s5logo" src="../../public/email-logo.png" alt="">
-  <div class="name el" id="s5name">MoneyPlant</div>
-  <div class="tagline el" id="s5tag">Know before you spend.</div>
-  <div class="pill el" id="s5pill">Free · moneyplant.online</div>
+  <img class="logo el" src="../../public/email-logo.png" alt="">
+  <div class="name el">MoneyPlant</div>
+  <div class="tagline el">Know before you spend.</div>
+  <div class="pill el">Free · moneyplant.online</div>
 </section>
 
+<script src="reel-kit.js"></script>
 <script>
   const DURATION = 18
-  const $ = id => document.getElementById(id)
-  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
-  const prog = (t, start, dur) => clamp((t - start) / dur)
-  const easeOut = p => 1 - Math.pow(1 - p, 3)
-  const easeInOut = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2
-  const backOut = p => { const c = 1.6; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2) }
-
-  // Element enters: fade + rise
-  function rise(el, t, start, dur = .5, dist = 60) {
-    const p = easeOut(prog(t, start, dur))
-    el.style.opacity = p
-    el.style.transform = `translateY(${(1 - p) * dist}px)`
-  }
-  // Scene visible between [a, b]. Only the incoming scene fades and slides; the
-  // outgoing one stays fully opaque underneath (later scenes are later in the
-  // DOM, so they paint on top). Fading both over the black body gave muddy grey frames.
-  function scene(el, t, a, b, fade = .35) {
-    const pin = a <= 0 ? 1 : easeInOut(prog(t, a - fade / 2, fade))
-    el.style.display = t >= a - fade / 2 && t < b + fade / 2 ? 'flex' : 'none'
-    el.style.opacity = pin
-    el.style.transform = `translateX(${(1 - pin) * 80}px)`
-  }
-
   const QUESTION = 'Can I afford a ₹5,000 jacket?'
   const POINTS = [[0,70],[90,92],[130,98],[140,250],[300,282],[380,290],[390,352],[560,372],[700,382],[710,120],[820,128]]
   function pointAtX(x) {
@@ -167,9 +115,8 @@
     }
     return POINTS[POINTS.length - 1]
   }
-  const inr = n => '₹' + Math.round(n).toLocaleString('en-IN')
 
-  window.render = function (t) {
+  function render(t) {
     // 1 — hook
     scene($('s1'), t, 0, 3.2)
     rise($('s1a'), t, .15); rise($('s1b'), t, .45); rise($('s1c'), t, 1.4, .6)
@@ -178,8 +125,7 @@
     scene($('s2'), t, 3.2, 8.2)
     rise($('s2k'), t, 3.3)
     rise($('s2q'), t, 3.5, .4, 40)
-    const typed = Math.floor(QUESTION.length * prog(t, 3.8, 1.6))
-    $('s2qt').textContent = QUESTION.slice(0, typed)
+    $('s2qt').textContent = typed(QUESTION, t, 3.8, 1.6)
     $('s2caret').style.opacity = t < 5.6 && Math.floor(t * 3) % 2 === 0 ? 1 : 0
     const dotsOn = t >= 5.6 && t < 6.4
     $('s2dots').style.display = dotsOn ? 'flex' : 'none'
@@ -207,22 +153,10 @@
     rise($('c1'), t, 13.2, .45, 80); rise($('c2'), t, 13.6, .45, 80); rise($('c3'), t, 14.0, .45, 80)
 
     // 5 — end card
-    scene($('s5'), t, 15.6, DURATION + 1)
-    const lp = backOut(prog(t, 15.7, .6))
-    $('s5logo').style.opacity = prog(t, 15.7, .25)
-    $('s5logo').style.transform = `scale(${.6 + .4 * lp})`
-    rise($('s5name'), t, 16.0); rise($('s5tag'), t, 16.25); rise($('s5pill'), t, 16.6)
+    endCard($('s5'), t, 15.6, DURATION)
   }
-  window.REEL_DURATION = DURATION
 
-  // Live preview when opened directly (render-reel.mjs sets ?render to drive it frame by frame)
-  if (!location.search.includes('render')) {
-    const t0 = performance.now()
-    const loop = now => { render(((now - t0) / 1000) % DURATION); requestAnimationFrame(loop) }
-    requestAnimationFrame(loop)
-  } else {
-    render(0)
-  }
+  boot(render, DURATION, [1.5, 5, 7.8, 10.5, 12.5, 14.8, 17.5])
 </script>
 </body>
 </html>

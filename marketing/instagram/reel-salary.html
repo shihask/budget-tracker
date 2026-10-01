@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant reel: Salary day reality</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<!-- Bills before payday. See reel-kit.js for how a reel is driven. Preview: open this file in a browser. -->
+<style>
+  .balance { padding: 34px 44px 30px; margin-top: 28px; }
+  .balance .label { font-size: 34px; font-weight: 700; color: var(--muted); }
+  .balance .num { font-size: 132px; font-weight: 800; letter-spacing: -5px; line-height: 1.05; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .bills { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
+  .bill { display: flex; align-items: center; gap: 26px; background: #fff; border: 3px solid var(--rule); border-radius: 32px; padding: 20px 34px; }
+  .bill .ico { flex-basis: 84px; height: 84px; border-radius: 24px; background: var(--red-bg); }
+  .bill .ico svg { width: 44px; height: 44px; stroke: var(--red); }
+  .bill .what { flex: 1; font-size: 42px; font-weight: 800; letter-spacing: -.5px; }
+  .bill .due { display: block; font-size: 28px; font-weight: 600; color: var(--muted); margin-top: 2px; letter-spacing: 0; }
+  .bill .amt { font-size: 44px; font-weight: 800; color: var(--red); }
+  .free { margin-top: 24px; background: var(--green-dark); color: #fff; border-radius: 36px; padding: 34px 40px; display: flex; justify-content: space-between; align-items: baseline; }
+  .free span { font-size: 36px; font-weight: 700; opacity: .85; }
+  .free b { font-size: 76px; font-weight: 800; letter-spacing: -2px; }
+
+  .daily { font-size: 210px; font-weight: 800; letter-spacing: -8px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<section class="scene green" id="s1">
+  <div style="flex:1"></div>
+  <div class="kicker el" id="s1k">Salary day</div>
+  <div style="height:24px"></div>
+  <div class="big el" id="s1a">₹48,000</div>
+  <div class="big el" id="s1b">credited.</div>
+  <div style="height:80px"></div>
+  <div class="mid soft el" id="s1c">Feels rich, right?</div>
+  <div style="flex:1.3"></div>
+</section>
+
+<section class="scene cream" id="s2" style="justify-content:flex-start;padding-top:270px">
+  <div class="kicker el" id="s2k">Before you spend it</div>
+  <div class="balance card el" id="s2bal">
+    <div class="label">In your account</div>
+    <div class="num" id="s2num">₹48,000</div>
+  </div>
+  <div class="bills">
+    <div class="bill el" id="b1"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></div><div class="what">Rent<span class="due">Due 5th</span></div><div class="amt">−₹15,000</div></div>
+    <div class="bill el" id="b2"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 17h14l-1.5-6h-11z"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg></div><div class="what">Car EMI<span class="due">Due 7th</span></div><div class="amt">−₹9,500</div></div>
+    <div class="bill el" id="b3"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg></div><div class="what">Credit card bill<span class="due">Due 15th</span></div><div class="amt">−₹6,200</div></div>
+    <div class="bill el" id="b4"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 4 7-8"/><path d="M15 8h5v5"/></svg></div><div class="what">SIP<span class="due">Due 10th</span></div><div class="amt">−₹3,000</div></div>
+  </div>
+  <div class="free el" id="s2free"><span>Actually free</span><b>₹14,300</b></div>
+</section>
+
+<section class="scene green" id="s3">
+  <div style="flex:1"></div>
+  <div class="kicker el" id="s3k">Until next salary, that's about</div>
+  <div style="height:40px"></div>
+  <div class="daily el" id="s3n">₹0</div>
+  <div class="mid el" id="s3a">a day.</div>
+  <div style="height:80px"></div>
+  <div class="mid soft el" id="s3b" style="font-size:60px">MoneyPlant works this out for you. Every day.</div>
+  <div style="flex:1.3"></div>
+  <div class="note el" id="s3note" style="color:rgba(255,255,255,.7)">Example figures.</div>
+</section>
+
+<section class="scene green end" id="s4">
+  <img class="logo el" src="../../public/email-logo.png" alt="">
+  <div class="name el">MoneyPlant</div>
+  <div class="tagline el">Know before you spend.</div>
+  <div class="pill el">Free · moneyplant.online</div>
+</section>
+
+<script src="reel-kit.js"></script>
+<script>
+  const DURATION = 17
+  const BILLS = [15000, 9500, 6200, 3000]
+  const BILL_AT = [4.6, 5.6, 6.6, 7.6]   // when each bill lands and comes off the balance
+
+  function render(t) {
+    // 1 — hook
+    scene($('s1'), t, 0, 3.4)
+    rise($('s1k'), t, .1); rise($('s1a'), t, .3); rise($('s1b'), t, .6); rise($('s1c'), t, 1.6, .6)
+
+    // 2 — bills come off one by one
+    scene($('s2'), t, 3.4, 11)
+    rise($('s2k'), t, 3.5); rise($('s2bal'), t, 3.6)
+    let balance = 48000
+    BILLS.forEach((amt, i) => {
+      rise($('b' + (i + 1)), t, BILL_AT[i], .4, 40)
+      balance -= amt * easeOut(prog(t, BILL_AT[i] + .15, .6))
+    })
+    $('s2num').textContent = inr(balance)
+    rise($('s2free'), t, 8.6, .5, 40)
+
+    // 3 — per day
+    scene($('s3'), t, 11, 14.6)
+    rise($('s3k'), t, 11.1); rise($('s3n'), t, 11.25)
+    $('s3n').textContent = inr(476 * easeOut(prog(t, 11.3, .9)))
+    rise($('s3a'), t, 11.6); rise($('s3b'), t, 12.4, .6); rise($('s3note'), t, 12.4)
+
+    // 4 — end card
+    endCard($('s4'), t, 14.6, DURATION)
+  }
+
+  boot(render, DURATION, [1.8, 6.2, 9.6, 13.4, 16.5])
+</script>
+</body>
+</html>

@@ -88,3 +88,49 @@ Free. Works on any phone, even offline.
 
 For a Meta ad: same video, primary text = the first two lines above, headline
 "Know before you spend", button "Learn more" → https://moneyplant.online
+
+---
+
+## More reels
+All four reels share `reel-kit.css` / `reel-kit.js`. Render any of them:
+`node marketing/instagram/render-reel.mjs reel-afford reel-trip reel-salary reel-offline`
+Same posting notes as above: add a trending sound in Instagram; there's no audio in the file.
+
+### Reel: "Mint noticed your trip" (Life Events)
+File: `out/reel-trip.mp4` (18 s). Cover: the "Ooty Trip ₹8,460" card.
+```
+Back from a trip and now your budget says you overspent? 😅
+
+MoneyPlant's Mint spots trips, weddings and other one-offs in your expenses and suggests grouping them. You review it, and it stays out of your monthly budget, while your balance stays accurate.
+
+Nothing is linked without you.
+👉 Link in bio: moneyplant.online
+
+#moneyplant #travelbudget #weddingbudget #personalfinance #budgeting #expensetracker #financeindia #moneytips #reelsindia
+```
+
+### Reel: "Salary day reality"
+File: `out/reel-salary.mp4` (17 s). Cover: "₹48,000 credited." or the "Actually free ₹14,300" frame.
+```
+₹48,000 credited. Feels rich for about 5 minutes 😬
+
+Rent, EMI, credit card bill, SIP... MoneyPlant takes them out before you spend, and tells you what's actually free until next salary, per day.
+
+Free. Works on any phone.
+👉 Link in bio: moneyplant.online
+
+#moneyplant #salaryday #salary #emi #personalfinance #budgeting #moneymanagement #financeindia #savemoney #reelsindia
+```
+
+### Reel: "No network? Still logged" (offline)
+File: `out/reel-offline.mp4` (17 s). Cover: the "No network at the dhaba?" opening.
+```
+No network at the dhaba? Log it anyway 📵
+
+MoneyPlant saves expenses on your phone when you're offline and updates your balance straight away. Back online, tap Save all and it's in your account.
+
+Every rupee. Even offline.
+👉 Link in bio: moneyplant.online
+
+#moneyplant #offline #expensetracker #personalfinance #budgeting #financeindia #roadtrip #moneytips #reelsindia
+```

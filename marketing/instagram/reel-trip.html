@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant reel: Mint noticed your trip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<!-- Life Events. See reel-kit.js for how a reel is driven. Preview: open this file in a browser.
+     Mirrors the real flow: Mint suggests, the user reviews, nothing is linked automatically. -->
+<style>
+  .list { margin-top: 40px; padding: 18px 40px; }
+  .row { display: flex; align-items: center; gap: 28px; padding: 30px 0; border-bottom: 3px solid var(--rule); }
+  .row:last-child { border-bottom: 0; }
+  .row .desc { flex: 1; font-size: 44px; font-weight: 700; letter-spacing: -.5px; }
+  .row .cat { display: block; font-size: 30px; font-weight: 600; color: var(--muted); margin-top: 4px; letter-spacing: 0; }
+  .row .amt { font-size: 46px; font-weight: 800; }
+  .row .hl { color: var(--green-dark); background: var(--mint-bg); border-radius: 10px; padding: 0 8px; }
+
+  .toast { position: absolute; left: 90px; right: 90px; top: 250px; background: var(--ink); color: #fff; border-radius: 40px; padding: 36px 40px; box-shadow: 0 30px 80px rgba(28,20,16,.35); }
+  .toast .top { display: flex; align-items: center; gap: 18px; font-size: 32px; font-weight: 700; color: rgba(255,255,255,.75); }
+  .toast .top img { width: 56px; height: 56px; border-radius: 14px; }
+  .toast .what { font-size: 54px; font-weight: 800; margin-top: 18px; letter-spacing: -1px; }
+  .toast .sub { font-size: 34px; font-weight: 600; color: rgba(255,255,255,.7); margin-top: 6px; }
+  .toast .btn { display: inline-block; margin-top: 28px; background: var(--green); color: #fff; font-size: 38px; font-weight: 800; padding: 20px 44px; border-radius: 999px; }
+
+  .event { padding: 48px 44px; margin-top: 56px; }
+  .event .head { display: flex; align-items: center; gap: 30px; }
+  .event .head .ico { flex-basis: 128px; height: 128px; border-radius: 36px; }
+  .event .head .ico svg { width: 68px; height: 68px; }
+  .event .title { font-size: 72px; font-weight: 800; letter-spacing: -2px; }
+  .event .meta { font-size: 36px; font-weight: 600; color: var(--muted); margin-top: 4px; }
+  .event .total { font-size: 110px; font-weight: 800; letter-spacing: -4px; margin-top: 36px; }
+  .facts { display: flex; flex-direction: column; gap: 22px; margin-top: 34px; padding-top: 34px; border-top: 3px solid var(--rule); }
+  .fact { display: flex; align-items: center; gap: 22px; font-size: 40px; font-weight: 700; }
+  .fact svg { flex: 0 0 52px; width: 52px; height: 52px; stroke: var(--green-dark); fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+
+<section class="scene green" id="s1">
+  <div style="flex:1"></div>
+  <div class="big el" id="s1a">Back from</div>
+  <div class="big el" id="s1b">a trip?</div>
+  <div style="height:80px"></div>
+  <div class="mid soft el" id="s1c">Now your budget says you overspent.</div>
+  <div style="flex:1.3"></div>
+</section>
+
+<section class="scene cream" id="s2" style="justify-content:flex-start;padding-top:740px">
+  <div class="kicker el" id="s2k">This week's expenses</div>
+  <div class="list card el" id="s2list">
+    <div class="row el" id="r1"><div class="desc">Tea <span class="hl">ooty trip</span><span class="cat">Food</span></div><div class="amt">₹60</div></div>
+    <div class="row el" id="r2"><div class="desc">Petrol <span class="hl">ooty trip</span><span class="cat">Transport</span></div><div class="amt">₹2,400</div></div>
+    <div class="row el" id="r3"><div class="desc">Hotel <span class="hl">ooty trip</span><span class="cat">Travel</span></div><div class="amt">₹4,800</div></div>
+    <div class="row el" id="r4"><div class="desc">Boating <span class="hl">ooty trip</span><span class="cat">Entertainment</span></div><div class="amt">₹1,200</div></div>
+  </div>
+  <div class="toast el" id="s2toast">
+    <div class="top"><img src="../../public/email-logo.png" alt="">Mint</div>
+    <div class="what">Mint noticed a possible life event</div>
+    <div class="sub">Ooty Trip · 4 expenses · ₹8,460</div>
+    <div class="btn el" id="s2btn">Review</div>
+  </div>
+</section>
+
+<section class="scene cream" id="s3">
+  <div class="kicker el" id="s3k">You review, then it's grouped</div>
+  <div class="event card el" id="s3card">
+    <div class="head">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 20l6-11 4 6 3-4 5 9z"/><circle cx="17" cy="6" r="2"/></svg></div>
+      <div><div class="title">Ooty Trip</div><div class="meta">Life event · 4 expenses</div></div>
+    </div>
+    <div class="total" id="s3total">₹0</div>
+    <div class="facts">
+      <div class="fact el" id="f1"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Kept out of your monthly budget</div>
+      <div class="fact el" id="f2"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Still counted in your balance</div>
+      <div class="fact el" id="f3"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Every expense keeps its category</div>
+    </div>
+  </div>
+  <div class="note el" id="s3note" style="margin-top:28px">Example. Mint only suggests; nothing is linked until you tap Link.</div>
+</section>
+
+<section class="scene cream" id="s4">
+  <div class="kicker el" id="s4k">Works for any one-off</div>
+  <div class="chips">
+    <div class="chip el" id="c1"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="14" r="5"/><circle cx="15" cy="14" r="5"/><path d="M9 4l1.5 3M15 4l-1.5 3"/></svg></div>Weddings</div>
+    <div class="chip el" id="c2"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></div>Building a house</div>
+    <div class="chip el" id="c3"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M12 9v7M8.5 12.5h7"/></svg></div>A hospital stay</div>
+  </div>
+</section>
+
+<section class="scene green end" id="s5">
+  <img class="logo el" src="../../public/email-logo.png" alt="">
+  <div class="name el">MoneyPlant</div>
+  <div class="tagline el">Track the trip. Keep the budget honest.</div>
+  <div class="pill el">Free · moneyplant.online</div>
+</section>
+
+<script src="reel-kit.js"></script>
+<script>
+  const DURATION = 18
+
+  function render(t) {
+    // 1 — hook
+    scene($('s1'), t, 0, 3.2)
+    rise($('s1a'), t, .15); rise($('s1b'), t, .45); rise($('s1c'), t, 1.4, .6)
+
+    // 2 — expenses, then Mint's toast drops in from the top
+    scene($('s2'), t, 3.2, 8.6)
+    rise($('s2k'), t, 3.3); rise($('s2list'), t, 3.4)
+    ;['r1', 'r2', 'r3', 'r4'].forEach((id, i) => rise($(id), t, 3.7 + i * .45, .4, 30))
+    const tp = backOut(prog(t, 6.0, .55))
+    $('s2toast').style.opacity = prog(t, 6.0, .2)
+    $('s2toast').style.transform = `translateY(${(1 - tp) * -260}px)`
+    // the button gets "tapped"
+    const press = prog(t, 7.7, .15) - prog(t, 7.9, .2)
+    $('s2btn').style.transform = `scale(${1 - .08 * press})`
+    $('s2btn').style.opacity = 1
+
+    // 3 — the event
+    scene($('s3'), t, 8.6, 13.2)
+    rise($('s3k'), t, 8.7); rise($('s3card'), t, 8.85)
+    $('s3total').textContent = inr(8460 * easeOut(prog(t, 9.2, 1)))
+    rise($('f1'), t, 10.1, .4, 30); rise($('f2'), t, 10.5, .4, 30); rise($('f3'), t, 10.9, .4, 30)
+    rise($('s3note'), t, 11.3)
+
+    // 4 — chips
+    scene($('s4'), t, 13.2, 15.6)
+    rise($('s4k'), t, 13.3)
+    rise($('c1'), t, 13.5, .45, 80); rise($('c2'), t, 13.85, .45, 80); rise($('c3'), t, 14.2, .45, 80)
+
+    // 5 — end card
+    endCard($('s5'), t, 15.6, DURATION)
+  }
+
+  boot(render, DURATION, [1.5, 5.2, 7.8, 11.8, 14.9, 17.5])
+</script>
+</body>
+</html>
