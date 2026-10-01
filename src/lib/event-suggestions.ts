@@ -15,9 +15,16 @@ import type { EventIconKey } from '@/features/events/lib/eventIcons'
 // suggestion looks like. Nothing is ever linked from here — the user confirms
 // every row in LinkExpensesSheet.
 
-/** How far back untagged spending is considered. Long enough for a honeymoon or
- *  a month-long house shift, short enough that last quarter's trip is history. */
+/** How far back untagged spending is considered when ASSEMBLING a candidate.
+ *  Long enough for a honeymoon, a month-long house shift, or a trip logged late.
+ *  This is not how long an event lasts, and not how long a suggestion shows —
+ *  that is SUGGESTION_FRESHNESS_DAYS. */
 export const SUGGESTION_WINDOW_DAYS = 30
+/** How recent the newest matched expense must be for a candidate to SURFACE.
+ *  Freshness is a surfacing gate, never a detection gate: a cluster may reach 30
+ *  days back, but once its newest row passes this it stops being offered, so the
+ *  bell doesn't become a graveyard of finished trips. */
+export const SUGGESTION_FRESHNESS_DAYS = 7
 /** A shared phrase only triggers AI when its expenses fall within this span —
  *  tighter than the pool, because an occasion is concentrated in time. */
 export const AI_SIGNAL_SPAN_DAYS = 21
@@ -328,10 +335,20 @@ export function baselineDailySpend(history: HistoryRow[], before: string): numbe
   return median(days)
 }
 
-/** The heaviest BURST_SPAN_DAYS window in the pool that has ≥3 expenses, at
- *  least ₹MIN_LOCAL_EVENT_TOTAL, and at least BURST_MULTIPLIER× the baseline
- *  day. Catches hospital stays and weddings, whose rows share no words. Only
- *  ever used to decide whether to ask AI — never shown on its own. */
+/** The heaviest BURST_SPAN_DAYS window with ≥3 expenses and ≥₹MIN_LOCAL_EVENT_TOTAL
+ *  — everything that can be judged without history. Split from the baseline test
+ *  so freshness can reject a candidate before any 90-day median is computed.
+ *  Catches hospital stays and weddings, whose rows share no words.
+ *
+ *  Equivalent to the full test in two steps: the baseline only ever raises the
+ *  bar on `total`, so the heaviest qualifying window is the same window either
+ *  way — if it fails ≥3× the median, no lighter window could pass. */
+export function findBurstCandidate(pool: AnalyticsTransaction[]): AnalyticsTransaction[] | null {
+  return findBurst(pool, 0)
+}
+
+/** As above, but also at least BURST_MULTIPLIER× the baseline day. Only ever
+ *  used to decide whether to ask AI — never shown on its own. */
 export function findBurst(pool: AnalyticsTransaction[], baseline: number): AnalyticsTransaction[] | null {
   const rows = [...pool].sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
   let best: AnalyticsTransaction[] | null = null
@@ -477,6 +494,9 @@ export interface DetectionInput {
   /** Expenses to judge novelty and the burst baseline against — loaded rows
    *  plus anything the hook fetched to reach NOVELTY_LOOKBACK_DAYS back. */
   history: HistoryRow[]
+  /** Today as YYYY-MM-DD — freshness is measured against the real date, never
+   *  inferred from the rows (the newest row IS the thing being judged). */
+  today: string
   categories: Category[]
   masters: Master[]
   events: LifeEvent[]
@@ -491,29 +511,55 @@ export interface Detection {
   local: EventSuggestion | null
 }
 
+/** The newest matched expense, or '' for an empty list. */
+const newestDate = (txs: Pick<Transaction, 'transaction_date'>[]): string =>
+  txs.reduce((m, t) => (t.transaction_date > m ? t.transaction_date : m), '')
+
+/** Calendar-date comparison, never timestamps: with today 2026-09-18 the cutoff
+ *  is 2026-09-11, so 09-11 is fresh and 09-10 is stale, in every timezone. */
+export const isFresh = (txs: Pick<Transaction, 'transaction_date'>[], today: string): boolean =>
+  txs.length > 0 && newestDate(txs) >= shiftIso(today, -SUGGESTION_FRESHNESS_DAYS)
+
 const spanDays = (txs: Pick<Transaction, 'transaction_date'>[]): number => {
   const days = txs.map(t => dayIndex(t.transaction_date))
   return Math.max(...days) - Math.min(...days) + 1
 }
 
-export function detectEventSignals({ pool, history, categories, masters, events }: DetectionInput): Detection {
+const clusterStart = (txs: Pick<Transaction, 'transaction_date'>[]): string =>
+  txs.reduce((m, t) => (t.transaction_date < m ? t.transaction_date : m), txs[0].transaction_date)
+
+/** Fresh phrase clusters — everything judged before any history is consulted.
+ *  The order is the point: freshness first, so a cluster whose newest row is
+ *  three weeks old costs nothing beyond phrase grouping. */
+const freshPhraseCandidates = (pool: AnalyticsTransaction[], today: string): PhraseCluster[] =>
+  findPhraseClusters(pool).filter(c => isFresh(c.transactions, today))
+
+/** Does anything on screen still need the 90-day history fetch? Novelty (a fresh
+ *  phrase cluster) and the burst baseline (a fresh burst candidate) are separate
+ *  questions; either one needs it, and with neither the hook makes no request. */
+export function needsHistory(pool: AnalyticsTransaction[], today: string): boolean {
+  if (freshPhraseCandidates(pool, today).length > 0) return true
+  const candidate = findBurstCandidate(pool)
+  return !!candidate && isFresh(candidate, today)
+}
+
+export function detectEventSignals({ pool, history, today, categories, masters, events }: DetectionInput): Detection {
   const categorySlugs = new Set(categories.map(c => eventSlug(c.name)))
-  const eligible = findPhraseClusters(pool).filter(c => {
-    const start = c.transactions.reduce((m, t) => t.transaction_date < m ? t.transaction_date : m, c.transactions[0].transaction_date)
-    return isNovel(c.phrase, start, history) && !isMerchantCluster(c.transactions, c.phrase, masters)
-  })
 
-  const spansCategories = (c: PhraseCluster) =>
-    new Set(c.transactions.map(t => t.category_id ?? '')).size >= MIN_LOCAL_CATEGORIES
+  // fresh → merchant → novelty. Each gate is cheaper than the one after it.
+  const eligible = freshPhraseCandidates(pool, today)
+    .filter(c => !isMerchantCluster(c.transactions, c.phrase, masters))
+    .filter(c => isNovel(c.phrase, clusterStart(c.transactions), history))
 
-  // Category spread is required here too, not only for local suggestions: a new
-  // user has no history, so every phrase is novel, and without it each chai they
-  // log would change the signal and re-ask AI about a habit.
-  const phraseSignals = eligible.filter(c => spanDays(c.transactions) <= AI_SIGNAL_SPAN_DAYS && spansCategories(c))
+  // Deliberately looser than the local thresholds below: a one-category occasion
+  // is real ("Hotel Kodai Trip" and "Taxi Kodai Trip" are both Travel), and AI is
+  // what can tell that from a habit. A bare signal surfaces nothing on its own,
+  // so it costs no AI call — App only calls analyze() once something is shown.
+  const phraseSignals = eligible.filter(c => spanDays(c.transactions) <= AI_SIGNAL_SPAN_DAYS)
 
   const localCluster = eligible.find(c =>
     c.transactions.length >= MIN_LOCAL_EXPENSES &&
-    spansCategories(c) &&
+    new Set(c.transactions.map(t => t.category_id ?? '')).size >= MIN_LOCAL_CATEGORIES &&
     c.transactions.reduce((s, t) => s + spendAmount(t), 0) >= MIN_LOCAL_EVENT_TOTAL &&
     !categorySlugs.has(eventSlug(c.phrase)))
 
@@ -523,9 +569,17 @@ export function detectEventSignals({ pool, history, categories, masters, events 
     local = buildSuggestion('local', name, guessEventIcon(name), localCluster.transactions, categories, events)
   }
 
-  const poolStart = pool.reduce((m, t) => t.transaction_date < m ? t.transaction_date : m, pool[0]?.transaction_date ?? '')
-  const baseline = pool.length ? baselineDailySpend(history, poolStart) : null
-  const burst = baseline === null ? null : findBurst(pool, baseline)
+  // Same order on the burst path: candidate → fresh → only then the 90-day median.
+  const candidate = findBurstCandidate(pool)
+  let burst: AnalyticsTransaction[] | null = null
+  if (candidate && isFresh(candidate, today)) {
+    // Measured before the burst's own first day: including it in its own median
+    // is what would make a heavy week look ordinary.
+    const baseline = baselineDailySpend(history, clusterStart(candidate))
+    if (baseline !== null && candidate.reduce((s, t) => s + spendAmount(t), 0) >= BURST_MULTIPLIER * baseline) {
+      burst = candidate
+    }
+  }
 
   return { phraseSignals, burst, local }
 }

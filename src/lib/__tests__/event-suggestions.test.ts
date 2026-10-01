@@ -4,7 +4,7 @@ import {
   firstMeaningfulToken, isMerchantCluster, baselineDailySpend, suggestionPool,
   suggestionFingerprint, detectEventSignals, hasEventSignal, signalRows,
   validateAiResult, isSuppressed, matchExistingEvent, shiftIso, MAX_AI_ROWS,
-  burstSuggestion, RELATED_EXPENSES_NAME,
+  burstSuggestion, RELATED_EXPENSES_NAME, isFresh, needsHistory, SUGGESTION_FRESHNESS_DAYS,
 } from '@/lib/event-suggestions'
 import type { HistoryRow } from '@/lib/event-suggestions'
 import type { Category, Group, LifeEvent, Master, Transaction } from '@/types'
@@ -74,6 +74,7 @@ const detect = (transactions: Transaction[], opts: { history?: HistoryRow[]; mas
   const pool = suggestionPool({ transactions, categories, groups }, TODAY)
   return detectEventSignals({
     pool,
+    today: TODAY,
     history: opts.history ?? [],
     categories,
     masters: opts.masters ?? [],
@@ -133,9 +134,9 @@ describe('positive detection', () => {
 
   it('suggests a Goa trip whose rows share a phrase', () => {
     const d = detect([
-      tx('Goa trip hotel', '2026-09-05', 4000, 'stay'),
-      tx('Goa trip fuel', '2026-09-06', 900, 'fuel'),
-      tx('Goa trip food', '2026-09-07', 1100, 'food'),
+      tx('Goa trip hotel', '2026-09-13', 4000, 'stay'),
+      tx('Goa trip fuel', '2026-09-14', 900, 'fuel'),
+      tx('Goa trip food', '2026-09-15', 1100, 'food'),
     ])
     expect(d.local?.name).toBe('Goa Trip')
     expect(d.local?.total).toBe(6000)
@@ -180,11 +181,11 @@ describe('positive detection', () => {
 
   it('sends a Goa trip without a shared phrase to AI as a burst', () => {
     const d = detect([
-      tx('Goa trip', '2026-09-05', 4000, 'travel'),
-      tx('Hotel', '2026-09-06', 3000, 'stay'),
-      tx('Fuel', '2026-09-06', 900, 'fuel'),
-      tx('Food', '2026-09-07', 1100, 'food'),
-    ], { history: dailyHistory('2026-09-05', 120, 300) })
+      tx('Goa trip', '2026-09-13', 4000, 'travel'),
+      tx('Hotel', '2026-09-14', 3000, 'stay'),
+      tx('Fuel', '2026-09-14', 900, 'fuel'),
+      tx('Food', '2026-09-15', 1100, 'food'),
+    ], { history: dailyHistory('2026-09-13', 120, 300) })
     expect(d.local).toBeNull()
     expect(d.burst).toHaveLength(4)
   })
@@ -289,12 +290,16 @@ describe('negative detection', () => {
     expect(d.burst).toBeNull()
   })
 
-  it('ignores a single-category novel phrase, so a new user’s chai never asks AI', () => {
+  it('surfaces nothing for a new user’s chai, so it can never reach AI', () => {
     const d = detect([
       tx('masala chai', '2026-09-15', 20, 'food'),
       tx('masala chai', '2026-09-16', 20, 'food'),
     ])
-    expect(hasEventSignal(d)).toBe(false)
+    // The signal itself is allowed (one-category occasions are real), but with no
+    // local suggestion and no burst there is nothing to show — and App only calls
+    // analyze() for something it shows, so no AI request happens.
+    expect(d.local).toBeNull()
+    expect(d.burst).toBeNull()
   })
 })
 
@@ -511,5 +516,115 @@ describe('burstSuggestion', () => {
     const s = burstSuggestion(d.burst!, categories)
     expect(s).toMatchObject({ generic: true, name: RELATED_EXPENSES_NAME, total: 12700, startDate: '2026-09-15', endDate: '2026-09-17' })
     expect(s.existingEventId).toBeUndefined()
+  })
+})
+
+// ── Freshness: a surfacing gate, never a detection gate ─────────────────────
+
+describe('freshness gate', () => {
+  /** A trip spread across the whole 30-day window, newest row `daysAgo` old. */
+  const spreadTrip = (daysAgo: number) => [
+    tx('hotel munnar trip', shiftIso(TODAY, -29), 4000, 'stay'),
+    tx('fuel munnar trip', shiftIso(TODAY, -20), 1200, 'fuel'),
+    tx('food munnar trip', shiftIso(TODAY, -12), 800, 'food'),
+    tx('tickets munnar trip', shiftIso(TODAY, -daysAgo), 600, 'fun'),
+  ]
+
+  it('still assembles a cluster from the full 30 days when its newest row is fresh', () => {
+    const d = detect(spreadTrip(2))
+    expect(d.local).toMatchObject({ name: 'Munnar Trip', total: 6600 })
+    // The regression this guards: 30-day detection must not become 7-day detection.
+    expect(d.local!.txIds).toHaveLength(4)
+    expect(d.local!.startDate).toBe(shiftIso(TODAY, -29))
+  })
+
+  it('hides everything once the newest matched expense is older than 7 days', () => {
+    const d = detect(spreadTrip(10))
+    expect(d.local).toBeNull()
+    expect(d.phraseSignals).toEqual([])
+    expect(d.burst).toBeNull()
+    expect(hasEventSignal(d)).toBe(false)
+  })
+
+  it('treats exactly 7 days as fresh and 8 days as stale', () => {
+    expect(detect(spreadTrip(SUGGESTION_FRESHNESS_DAYS)).local).not.toBeNull()
+    expect(detect(spreadTrip(SUGGESTION_FRESHNESS_DAYS + 1)).local).toBeNull()
+  })
+
+  it('compares calendar dates', () => {
+    const at = (date: string) => [{ transaction_date: date }]
+    expect(isFresh(at('2026-09-11'), TODAY)).toBe(true)
+    expect(isFresh(at('2026-09-10'), TODAY)).toBe(false)
+    expect(isFresh([], TODAY)).toBe(false)
+  })
+
+  it('suggests a trip logged late, because transaction_date is the source of truth', () => {
+    const d = detect([
+      tx('hotel wayanad trip', TODAY, 4000, 'stay'),
+      tx('fuel wayanad trip', TODAY, 1200, 'fuel'),
+      tx('food wayanad trip', TODAY, 800, 'food'),
+    ])
+    expect(d.local?.name).toBe('Wayanad Trip')
+  })
+
+  it('retires a stale burst before any baseline is involved', () => {
+    const rows = [
+      tx('Hospital admission', shiftIso(TODAY, -12), 8000, 'medical'),
+      tx('Pharmacy', shiftIso(TODAY, -11), 1200, 'medical'),
+      tx('MRI scan', shiftIso(TODAY, -10), 3500, 'medical'),
+    ]
+    const history = dailyHistory(shiftIso(TODAY, -12), 120, 300)
+    expect(detect(rows, { history }).burst).toBeNull()
+    // Same rows, same history, moved into the fresh window → burst fires.
+    const fresh = [
+      tx('Hospital admission', shiftIso(TODAY, -3), 8000, 'medical'),
+      tx('Pharmacy', shiftIso(TODAY, -2), 1200, 'medical'),
+      tx('MRI scan', shiftIso(TODAY, -1), 3500, 'medical'),
+    ]
+    expect(detect(fresh, { history: dailyHistory(shiftIso(TODAY, -3), 120, 300) }).burst).toHaveLength(3)
+  })
+
+  it('keeps the AI signal broader than the local suggestion', () => {
+    const d = detect([
+      tx('Hotel Kodai Trip', shiftIso(TODAY, -2), 3000, 'stay'),
+      tx('Taxi Kodai Trip', shiftIso(TODAY, -1), 1200, 'stay'),
+    ])
+    expect(d.phraseSignals.map(c => c.phrase)).toEqual(['kodai trip'])
+    expect(d.local).toBeNull()
+  })
+
+  it('counts only dates strictly before the cluster when judging novelty', () => {
+    const inside: HistoryRow[] = [
+      { id: 'h1', description: 'ooty trip snacks', transaction_date: '2026-09-13', amount: 50 },
+      { id: 'h2', description: 'ooty trip later', transaction_date: TODAY, amount: 50 },
+    ]
+    expect(detect(ootyTrip(), { history: inside }).local?.name).toBe('Ooty Trip')
+    const before: HistoryRow[] = [{ id: 'h3', description: 'ooty trip', transaction_date: '2026-09-01', amount: 50 }]
+    expect(detect(ootyTrip(), { history: before }).local).toBeNull()
+  })
+})
+
+describe('needsHistory', () => {
+  const poolOf = (transactions: Transaction[]) => suggestionPool({ transactions, categories, groups }, TODAY)
+
+  it('is false with no fresh candidate, so no 90-day request is made', () => {
+    expect(needsHistory(poolOf([
+      tx('hotel munnar trip', shiftIso(TODAY, -20), 4000, 'stay'),
+      tx('fuel munnar trip', shiftIso(TODAY, -12), 1200, 'fuel'),
+      tx('food munnar trip', shiftIso(TODAY, -10), 800, 'food'),
+    ]), TODAY)).toBe(false)
+    expect(needsHistory(poolOf([tx('coffee', TODAY, 50, 'food')]), TODAY)).toBe(false)
+  })
+
+  it('is true for a fresh phrase cluster', () => {
+    expect(needsHistory(poolOf(ootyTrip()), TODAY)).toBe(true)
+  })
+
+  it('is true for a fresh burst candidate with no shared words', () => {
+    expect(needsHistory(poolOf([
+      tx('Hospital admission', shiftIso(TODAY, -2), 8000, 'medical'),
+      tx('Pharmacy', shiftIso(TODAY, -1), 1200, 'medical'),
+      tx('MRI scan', TODAY, 3500, 'medical'),
+    ]), TODAY)).toBe(true)
   })
 })

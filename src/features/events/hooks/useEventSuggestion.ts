@@ -8,7 +8,7 @@ import { detectLifeEventWithAI } from '@/lib/gemini'
 import type { OnAiUsed } from '@/lib/gemini'
 import {
   suggestionPool, suggestionFingerprint, detectEventSignals, hasEventSignal, signalRows,
-  buildSuggestion, burstSuggestion, validateAiResult, isSuppressed, shiftIso, NOVELTY_LOOKBACK_DAYS,
+  buildSuggestion, burstSuggestion, validateAiResult, isSuppressed, shiftIso, needsHistory, NOVELTY_LOOKBACK_DAYS,
   isOccasionSpendCategory, groupByName,
 } from '@/lib/event-suggestions'
 import type { EventSuggestion, HistoryRow } from '@/lib/event-suggestions'
@@ -132,7 +132,11 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
   const [fetched, setFetched] = useState<{ from: string; rows: HistoryRow[] } | null>(null)
   const fetchedFor = useRef<string | null>(null)
   const fetchedCovers = fetched !== null && fetched.from <= historyFrom
-  const needsFetch = pool.length >= 2 && !loadedCovers && !fetchedCovers
+  // Only fetch history for something that can still surface. `needsHistory` asks
+  // the two questions separately — a fresh phrase cluster (novelty) or a fresh
+  // burst candidate (baseline) — and one query answers both, since it already
+  // selects description AND amount for the same range.
+  const needsFetch = !loadedCovers && !fetchedCovers && needsHistory(pool, today)
 
   useEffect(() => {
     if (!needsFetch) return
@@ -168,13 +172,13 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
   // ── Detection ─────────────────────────────────────────────────────────────
   const detection = useMemo(() => ready
     ? detectEventSignals({
-        pool, history,
+        pool, history, today,
         categories: state.categories,
         masters: state.masters ?? [],
         events: state.events,
       })
     : null,
-  [ready, pool, history, state.categories, state.masters, state.events])
+  [ready, pool, history, today, state.categories, state.masters, state.events])
 
   const signalKey = detection && hasEventSignal(detection)
     ? suggestionFingerprint(signalRows(detection))

@@ -207,25 +207,51 @@ NotificationsSheet item and adds 1 to the badge. There is no dashboard card (rem
 | `src/features/events/components/EventSuggestionSheet.tsx` | Review: Mint thinking (AI running) → result or "Looks like everyday spending" |
 | `src/components/UndoSnackbar.tsx` | "Suggestion dismissed · Undo" |
 
-Pipeline: pool (30d, untagged, unsplit, non-system, day-to-day spending groups only, ≤60) → phrase clusters → novelty (90d) →
-merchant rejection. **Autopilot off** → local suggestion only (phrase, ≥3 rows, ≥2 categories,
-≥₹500). **Autopilot on** → the same local suggestion, plus a **burst** offered as generic
-"Mint found related expenses" (`burstSuggestion`, `generic: true`) for AI to name. Toast wording:
-phrase → "Mint noticed a possible life event"; burst → "Mint found related expenses" — never
-"hospital"/"wedding" before AI has actually read the expenses.
-The AI signal (what the cache is keyed on):
-- **Phrase** — novel, non-merchant phrase in ≥2 rows across ≥2 categories within 21 days.
-- **Burst** — ≥3 rows in 5 days, ≥₹500 and ≥3× the trailing 90-day *median* day. Catches
-  hospital/wedding clusters that share no words. Never named locally; if AI says it's everyday
-  spending, the generic suggestion retires and Review says so.
+**30 days discovers the event; 7 days decides whether it surfaces (v1.80).** `SUGGESTION_WINDOW_DAYS`
+is cluster assembly — trips span two weekends, weddings spread over weeks, people log late.
+`SUGGESTION_FRESHNESS_DAYS = 7` is a **surfacing** gate: a candidate reaches local output, an AI
+signal, a toast or the bell only while its newest matched row is `>= shiftIso(today, -7)`. Calendar
+dates, never timestamps (today 09-18 → 09-11 fresh, 09-10 stale, in every timezone). Never shrink
+the 30 to "fix" staleness — that turns 30-day detection into 7-day detection, which the
+"assembles a cluster from the full 30 days" test exists to catch.
+
+Order matters: the cheap gate runs **first**, so a stale candidate never pays for a merchant check,
+a novelty check, a 90-day median or an AI call.
+```
+pool → findPhraseClusters → isFresh → merchant → novelty ─┬→ AI signal: ≥2 rows, ≤21d span
+                                                          └→ local: ≥3 rows, ≥2 categories, ≥₹500, not a category name
+pool → findBurstCandidate (≥3 rows/5d, ≥₹500) → isFresh → baselineDailySpend → ≥3× median → burst
+```
+**Autopilot off** → local suggestion only. **Autopilot on** → the same, plus a **burst** offered as
+generic "Mint found related expenses" (`burstSuggestion`, `generic: true`) for AI to name. Toast
+wording: phrase → "Mint noticed a possible life event"; burst → "Mint found related expenses" —
+never "hospital"/"wedding" before AI has actually read the expenses.
+
+The AI phrase signal deliberately does **not** require ≥2 categories (a one-category occasion is
+real: "Hotel Kodai Trip" + "Taxi Kodai Trip" are both Travel). What protects the quota is that a
+bare signal surfaces nothing, and App only calls `analyze()` for something it shows — if AI is ever
+triggered from a signal alone, the category guard must come back.
+
+Lifecycle: fresh + not dismissed → toast (once) → bell → newest row passes 7 days → hidden → a new
+matching row → eligible again. **Stale ≠ dismissed:** going stale only hides it, and the tx-id
+majority rule still suppresses a re-freshened cluster (dismissed A B C D vs. new A B C D E is 4/5).
 
 Gotchas:
 - **Novelty is token-based on both sides, never `ILIKE`** — "goa" must not match "goal". When the
-  200 loaded rows don't reach 90 days back, the hook fetches just descriptions for that range.
+  200 loaded rows don't reach 90 days back, the hook fetches that range — but only when
+  `needsHistory(pool, today)` says a **fresh** candidate still needs it (a fresh phrase cluster for
+  novelty, or a fresh burst candidate for the baseline — separate questions, one shared query,
+  since it already selects description *and* amount). No fresh candidate ⇒ no network request.
+- Only dates **strictly before** the cluster's own start count against novelty; a row inside or
+  after it carrying the same phrase doesn't make the phrase old.
+- The burst baseline is measured before the **candidate's** first day, not before today: a window
+  that included the burst itself would make a heavy week look ordinary.
 - The burst baseline is `null` (no burst) when history doesn't reach 90 days: an unknown day is
   not a zero-spend day, or every new user's ordinary week reads as a burst.
-- The phrase signal needs ≥2 categories too — otherwise a new user (no history → everything
-  novel) re-asks AI about their chai every time they log one.
+- The phrase signal dropped its ≥2-categories rule in v1.80 (it existed so a new user's chai —
+  no history ⇒ novel — couldn't re-ask AI daily). Safe only because a bare signal surfaces
+  nothing and App calls `analyze()` only for what it shows. See the note above before changing
+  where AI is triggered.
 - The AI cache (`mp_event_suggest_<uid>`) is keyed on the **signal rows'** fingerprint
   (`id:date:tokens`), not the whole pool, so an unrelated coffee doesn't re-ask. "Not an event"
   is cached too; an AI failure is not. **AI never vetoes** — on "no", failure or an invalid
