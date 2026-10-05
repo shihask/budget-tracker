@@ -134,3 +134,41 @@ Every rupee. Even offline.
 
 #moneyplant #offline #expensetracker #personalfinance #budgeting #financeindia #roadtrip #moneytips #reelsindia
 ```
+
+### Reel: "When did I last pay the plumber?" (Mint find)
+File: `out/reel-find.mp4` (17 s). Cover: the opening question.
+```
+When did I last pay the plumber? 🤔 You know you paid. Not when.
+
+Just ask Mint. "find plumber", "find swiggy in August", "find 450", and the matching expenses show up with dates. You can even fix one: "change fuel 500 to 300".
+
+👉 Link in bio: moneyplant.online
+
+#moneyplant #expensetracker #personalfinance #budgeting #moneytips #financeindia #productivity #reelsindia
+```
+
+### Reel: "Friends paid you back"
+File: `out/reel-payback.mp4` (17 s). Cover: the "₹1,200 → ₹400" Food card.
+```
+You paid ₹1,200 for dinner. Friends paid back ₹800. So what did you really spend? 🍽️
+
+Link the payback to the bill in MoneyPlant. Your Food spending shows ₹400, the ₹800 isn't counted as income, and your balance still shows both.
+
+Only count what's really yours.
+👉 Link in bio: moneyplant.online
+
+#moneyplant #splitbill #friends #personalfinance #budgeting #expensetracker #financeindia #moneytips #reelsindia
+```
+
+### Reel: "Credit card bill surprised you again?"
+File: `out/reel-card.mp4` (17 s). Cover: the card with "Due in 6 days".
+```
+Credit card bill surprised you again? 💳
+
+MoneyPlant shows this bill, its due date and what's already on the next one. And it takes the bill out of your safe-to-spend before you spend.
+
+No more bill-day surprises.
+👉 Link in bio: moneyplant.online
+
+#moneyplant #creditcard #creditcardbill #personalfinance #budgeting #emi #financeindia #moneytips #reelsindia
+```
