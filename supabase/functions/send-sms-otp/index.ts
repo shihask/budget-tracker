@@ -33,7 +33,8 @@ const PROVIDER_TIMEOUT_MS = 4000
 const SEND_FAILED = 'Could not send the code. Please try again in a minute.'
 
 interface HookPayload {
-  user?: { phone?: string }
+  /** `new_phone` is the pending number while a phone is being added (phone_change). */
+  user?: { phone?: string; new_phone?: string }
   sms?: { otp?: string }
 }
 
@@ -65,8 +66,12 @@ Deno.serve(async req => {
   }
 
   const otp = payload.sms?.otp
-  // Auth stores phones as E.164 digits without '+', e.g. 919876543210.
-  const phone = (payload.user?.phone ?? '').replace(/\D/g, '')
+  // Auth stores phones as E.164 digits without '+', e.g. 919876543210. Sign-up and
+  // sign-in codes go to `phone`; Profile → Add mobile (phone_change) leaves `phone`
+  // empty and puts the number being added in `new_phone`. The app only ever *adds*
+  // a phone, so a set `phone` always wins — a stale abandoned `new_phone` can never
+  // redirect a sign-in code.
+  const phone = (payload.user?.phone || payload.user?.new_phone || '').replace(/\D/g, '')
   if (!otp || !phone) return hookError(400, 'Missing phone number or code')
   if (!phone.startsWith('91') || phone.length !== 12) {
     return hookError(400, 'Only Indian (+91) mobile numbers are supported')
