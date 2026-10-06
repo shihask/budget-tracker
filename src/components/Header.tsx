@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Pencil } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { Glyph } from './Glyph'
 import { NavMenu } from './NavMenu'
@@ -10,6 +11,8 @@ interface HeaderProps {
   userEmail: string
   synced: boolean
   onSignOut: () => void
+  /** Pencil next to the name in the profile menu → ProfileSheet. */
+  onEditProfile: () => void
   onSettings: () => void
   onMasters: () => void
   onCategories: () => void
@@ -37,7 +40,7 @@ interface HeaderProps {
 }
 
 export function Header({
-  dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onMasters, onCategories, notificationCount = 0, onNotifications, onTour, onAdmin,
+  dark, onToggleTheme, userName, userEmail, synced, onSignOut, onEditProfile, onSettings, onMasters, onCategories, notificationCount = 0, onNotifications, onTour, onAdmin,
   onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onCreditCards, onProjects, onEvents, onCreate, onGrow, onPlant,
   trackSavings, trackBorrowings, trackCreditCards, trackProjects, hasEvents,
 }: HeaderProps) {
@@ -189,7 +192,16 @@ export function Header({
             }}>
               {/* User info */}
               <div style={{ padding: '10px 12px 8px' }}>
-                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{userName}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
+                  <button
+                    onClick={() => { setMenuOpen(false); onEditProfile() }}
+                    aria-label="Edit profile"
+                    style={{ flexShrink: 0, display: 'flex', background: c.surface2, border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer' }}
+                  >
+                    <Pencil size={13} color={c.ink} />
+                  </button>
+                </div>
                 <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{userEmail}</div>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, background: synced ? '#22C55E18' : '#F59E0B18', borderRadius: 999, padding: '3px 8px' }}>
                   <span style={{ width: 6, height: 6, borderRadius: 999, background: synced ? '#22C55E' : '#F59E0B', flexShrink: 0 }} />

@@ -12,6 +12,10 @@ import { PrivacyPolicy, TermsOfService, AboutPage, ContactPage } from './LegalPa
 import { MintAnimation } from './MintAnimation'
 import { OpenInBrowserNotice } from './OpenInBrowserNotice'
 import { inAppBrowserName, isStandalone } from '@/lib/browser-env'
+import {
+  type Identifier, OTP_LENGTH, OTP_RESEND_SECONDS, PHONE_AUTH_OFF,
+  displayIdentifier, isPhoneAuthOff, parseIdentifier,
+} from '@/lib/auth-identifier'
 
 type Tab = 'login' | 'signup'
 /**
@@ -21,44 +25,8 @@ type Tab = 'login' | 'signup'
  */
 type CodePurpose = 'signup' | 'login' | 'reset'
 
-type Identifier = { kind: 'email' | 'phone'; value: string }
-
 /** Supabase Auth's default minimum. */
 const MIN_PASSWORD_LENGTH = 6
-
-/** Supabase Auth refuses a second code to the same address within 60 s. */
-const OTP_RESEND_SECONDS = 60
-/** Must match Dashboard → Auth → Email OTP length (SMS codes are always 6). */
-const OTP_LENGTH = 6
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-/**
- * Reads the one sign-in box as an email or an Indian mobile number (SMS goes
- * through 2Factor, India only — see send-sms-otp). Accepts 9876543210,
- * 98765 43210, 09876543210, +91 98765-43210. Null when it's neither.
- * India-only by design; going international means a phone-number library, not more regexes.
- */
-function parseIdentifier(raw: string): Identifier | null {
-  const v = raw.trim()
-  if (v.includes('@')) return EMAIL_RE.test(v) ? { kind: 'email', value: v.toLowerCase() } : null
-  const compact = v.replace(/[\s\-().]/g, '')
-  if (!/^\+?\d+$/.test(compact)) return null
-  let digits = compact.replace(/^\+/, '')
-  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2)
-  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1)
-  return /^[6-9]\d{9}$/.test(digits) ? { kind: 'phone', value: `+91${digits}` } : null
-}
-
-/**
- * Supabase's raw errors when the Phone provider / SMS hook isn't set up
- * ("Unsupported phone provider", "Phone logins are disabled", …).
- */
-const isPhoneAuthOff = (msg: string) => /unsupported phone provider|phone (logins|signups) (are )?disabled/i.test(msg)
-const PHONE_AUTH_OFF = "Mobile number sign-in isn't available yet. Please use your email or Google."
-
-function displayIdentifier(id: Identifier) {
-  return id.kind === 'phone' ? `+91 ${id.value.slice(3, 8)} ${id.value.slice(8)}` : id.value
-}
 
 /** Password field with a show/hide toggle — one field instead of password + confirm. */
 function PasswordInput({ value, onChange, onEnter, autoComplete, autoFocus }: {

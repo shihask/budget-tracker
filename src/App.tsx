@@ -40,6 +40,7 @@ import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { PWAPrompt } from '@/components/PWAPrompt'
 import { AuthPage, CompleteProfilePage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
+import { ProfileSheet } from '@/components/ProfileSheet'
 import { MastersPage } from '@/features/masters/components/MastersPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
 import { CreditCardsPage } from '@/components/CreditCardsPage'
@@ -218,6 +219,7 @@ function AppContent({ session }: { session: Session }) {
   }, [dark])
   const [layout, setLayout] = useState<Layout>('grid')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [sheetDefaultType, setSheetDefaultType] = useState<'expense' | 'income' | 'transfer' | undefined>()
   const [sheetDefaultCategoryId, setSheetDefaultCategoryId] = useState<string | null | undefined>()
@@ -741,7 +743,7 @@ function AppContent({ session }: { session: Session }) {
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
-            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
+            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onEditProfile={() => setProfileOpen(true)} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
               onTransactions={() => setTxnsOpen(true)}
               onAnalytics={() => setAnalyticsOpen(true)}
               onCashflow={() => setCashflowOpen(true)}
@@ -1417,6 +1419,7 @@ function AppContent({ session }: { session: Session }) {
           onUpdateBucket={updateCategoryBucket}
         />
 
+        {profileOpen && <ProfileSheet open={profileOpen} user={session.user} onClose={() => setProfileOpen(false)} />}
         {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} d={d} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
 
         {adminOpen && <AdminPage open={adminOpen} onClose={() => setAdminOpen(false)} onSwipeProgress={setSwipePct} />}

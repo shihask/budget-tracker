@@ -145,16 +145,19 @@ const TEMPLATES = {
       footer: 'Sent to {{ .Email }}. If you didn\'t ask for this, ignore this email; your password stays the same.',
     }),
   },
+  // Sent when Profile → Sign-in methods adds an email to an account. A
+  // mobile-only account has no current address, so the copy never names
+  // {{ .Email }}; the code is verified with type 'email_change'.
   'change-email': {
-    subject: 'Confirm your new email for MoneyPlant',
+    subject: 'Your MoneyPlant verification code',
     html: layout({
-      preheader: 'Confirm the change to your sign-in email.',
-      heading: 'Confirm your new email',
+      preheader: 'Your 6-digit code to add this email.',
+      heading: 'Add this email to MoneyPlant',
       body:
-        paragraph('You asked to change your MoneyPlant sign-in email from <strong>{{ .Email }}</strong> to <strong>{{ .NewEmail }}</strong>. Confirm to finish the change.') +
-        button('{{ .ConfirmationURL }}', 'Confirm new email') +
-        fallbackLink('{{ .ConfirmationURL }}'),
-      footer: 'If you didn\'t ask for this, ignore this email; your sign-in email won\'t change.',
+        paragraph('Use this code to add <strong>{{ .NewEmail }}</strong> to your MoneyPlant account:') +
+        codeBlock('{{ .Token }}') +
+        paragraph('Enter it in MoneyPlant to finish. This code expires in 1 hour.'),
+      footer: 'If you didn\'t ask for this, ignore this email; nothing on your account will change.',
     }),
   },
   'notice-password-changed': {

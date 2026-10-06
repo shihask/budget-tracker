@@ -563,6 +563,12 @@ must not register).
   Auth rate limits are the real control. Turnstile (`captchaToken` in `signInWithOtp` and
   `signInWithPassword`) before phone sign-up goes public.
 - The code step shows the identifier in full (unmasked, on purpose) so a typo is visible.
+- **Profile** (pencil next to the name in the header menu → `ProfileSheet`): edit `full_name`, and
+  `SignInMethodsSection` adds the *missing* email or mobile — `updateUser({ email | phone })` → code
+  to the new address → `verifyOtp` type `email_change` / `phone_change`. Add-only: changing an
+  existing email needs Supabase's two-inbox confirmation. Same password works with either.
+  `parseIdentifier` & co. live in `src/lib/auth-identifier.ts`, shared with AuthPage. Taken
+  addresses fail with "already used by another MoneyPlant account" — accounts are never merged.
 - **TODO — identity linking**: Google `x@gmail.com` and phone `+91…` are separate accounts today;
   linking Google + email + phone (+ Apple) to one account is a future feature.
 
