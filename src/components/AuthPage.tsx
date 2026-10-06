@@ -211,8 +211,10 @@ export function AuthPage() {
   const clearError = () => setError(null)
 
   const isPwa = typeof window !== 'undefined' && isStandalone()
+  // Only consulted inside the sign-in box. No banner on arrival: a visitor from an
+  // ad saw "you're in Instagram's browser, leave" before seeing the product, and
+  // email sign-up works there anyway (v1.84.1).
   const inAppBrowser = inAppBrowserName()
-  const [inAppCardClosed, setInAppCardClosed] = useState(false)
 
   const openAuth = (m: 'login' | 'signup') => {
     setMode(m); setShowAuth(true); clearError()
@@ -452,7 +454,7 @@ export function AuthPage() {
 
         {/* Google blocks OAuth in social apps' WebViews (403 disallowed_useragent) */}
         {inAppBrowser ? (
-          <OpenInBrowserNotice appName={inAppBrowser} variant="inline" />
+          <OpenInBrowserNotice appName={inAppBrowser} />
         ) : (
           <button onClick={() => handleOAuth('google')} disabled={loading} style={oauthBtn}>
             <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -521,9 +523,6 @@ export function AuthPage() {
         onSignUp={() => openAuth('signup')}
         onLegal={setLegalPage}
       />
-      {inAppBrowser && !showAuth && !inAppCardClosed && (
-        <OpenInBrowserNotice appName={inAppBrowser} variant="card" onClose={() => setInAppCardClosed(true)} />
-      )}
       {showAuth && (
         <div className="mp-auth-overlay" onClick={e => { if (e.target === e.currentTarget) closeAuth() }}>
           <div className="mp-auth-modal">

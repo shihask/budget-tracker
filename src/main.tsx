@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import * as Sentry from '@sentry/react'
 import App from './App'
 import './index.css'
+import { dismissBootShell } from './lib/boot-shell'
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN || '',
@@ -29,6 +30,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 )
 
 function SentryFallback() {
+  // never leave the boot shell's "Loading…" covering an error
+  dismissBootShell()
   return (
     <div style={{
       minHeight: '100svh', display: 'flex', flexDirection: 'column',

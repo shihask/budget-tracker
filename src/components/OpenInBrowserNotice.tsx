@@ -1,60 +1,24 @@
 import { useState } from 'react'
-import { Copy, ExternalLink, MoreHorizontal, X } from 'lucide-react'
+import { Copy, ExternalLink, MoreHorizontal } from 'lucide-react'
 import { getDevice, openInBrowserIntentUrl } from '@/lib/browser-env'
 
 // Shown when MoneyPlant is opened inside a social app's built-in browser
 // (see browser-env.ts for why that breaks Google sign-in and installing).
-// `variant="card"` floats at the bottom of the landing page and can be closed;
-// `variant="inline"` sits inside the sign-in box in place of the Google button.
+// OpenInBrowserNotice sits inside the sign-in box in place of the Google button;
+// PWAPrompt's sheet uses OpenInBrowserActions. There is deliberately no banner on
+// arrival: it greeted ad visitors with "leave" before they saw the product.
 
 const INK = '#1C1410'
 const MUTED = '#9C938A'
 const ACCENT_DARK = '#0A7A56'
 
-export function OpenInBrowserNotice({ appName, variant, onClose }: {
-  appName: string
-  variant: 'card' | 'inline'
-  onClose?: () => void
-}) {
-  const device = getDevice()
-  const browser = device === 'ios' ? 'Safari' : 'your browser'
-
-  if (variant === 'inline') {
-    return (
-      <div style={{ background: '#F5F0EA', border: '1.5px solid #E5DDD5', borderRadius: 13, padding: '14px 16px' }}>
-        <div style={{ font: '700 14px Plus Jakarta Sans', color: INK }}>Google sign-in doesn't work inside {appName}</div>
-        <div style={{ font: '500 13px Plus Jakarta Sans', color: MUTED, marginTop: 4, lineHeight: 1.5 }}>
-          Google blocks it in app browsers. Use email above, or open MoneyPlant in {browser}.
-        </div>
-        <OpenInBrowserActions />
-      </div>
-    )
-  }
-
+export function OpenInBrowserNotice({ appName }: { appName: string }) {
+  const browser = getDevice() === 'ios' ? 'Safari' : 'your browser'
   return (
-    <div
-      role="dialog"
-      aria-label={`Open MoneyPlant outside ${appName}`}
-      style={{
-        position: 'fixed', left: 12, right: 12, zIndex: 50,
-        bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
-        maxWidth: 440, margin: '0 auto',
-        background: '#FDFAF7', borderRadius: 18, padding: '16px 16px 14px',
-        boxShadow: '0 8px 32px rgba(28,20,16,0.18)', border: '1px solid #E5DDD5',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ font: '800 15px Plus Jakarta Sans', color: INK }}>You're in {appName}'s browser</div>
-          <div style={{ font: '500 13px Plus Jakarta Sans', color: MUTED, marginTop: 4, lineHeight: 1.5 }}>
-            To sign in with Google or install MoneyPlant on your home screen, open it in {browser}.
-          </div>
-        </div>
-        {onClose && (
-          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: MUTED, display: 'flex' }}>
-            <X size={18} />
-          </button>
-        )}
+    <div style={{ background: '#F5F0EA', border: '1.5px solid #E5DDD5', borderRadius: 13, padding: '14px 16px' }}>
+      <div style={{ font: '700 14px Plus Jakarta Sans', color: INK }}>Google sign-in doesn't work inside {appName}</div>
+      <div style={{ font: '500 13px Plus Jakarta Sans', color: MUTED, marginTop: 4, lineHeight: 1.5 }}>
+        Google blocks it in app browsers. Use email above, or open MoneyPlant in {browser}.
       </div>
       <OpenInBrowserActions />
     </div>

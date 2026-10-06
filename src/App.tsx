@@ -109,6 +109,7 @@ import { ProjectsListPage } from '@/features/shared-projects/components/Projects
 import { PublicProjectPage } from '@/features/shared-projects/components/PublicProjectPage'
 import { useProjectsSummary } from '@/features/shared-projects/hooks/useProjectsSummary'
 import { NotificationsSheet } from '@/features/shared-projects/components/NotificationsSheet'
+import { dismissBootShell } from '@/lib/boot-shell'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -141,6 +142,10 @@ export default function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // index.html's boot shell covers the page until the first real screen is up.
+  const firstScreenReady = session !== undefined || isResetting
+  useEffect(() => { if (firstScreenReady) dismissBootShell() }, [firstScreenReady])
 
   if (session === undefined && !isResetting) return (
     <div style={{ minHeight: '100svh', background: '#EDE7DD', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

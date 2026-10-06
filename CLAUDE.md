@@ -536,14 +536,31 @@ Links from social posts open in the app's own WebView, where Google blocks OAuth
 (`inAppBrowserName`, plus the shared `isStandalone` / `getDevice`) detects it by **named UA
 tokens only** — never Android's generic `; wv)`, since a false positive hides Google sign-in
 from someone who could use it. When detected:
-- AuthPage: `OpenInBrowserNotice` card on the landing page, and the Google button is replaced
-  inline (email sign-up still works)
+- AuthPage: the Google button is replaced inline by `OpenInBrowserNotice` (email sign-up still
+  works). **No banner on arrival** — v1.84.0 had one and ad visitors met "leave" before the product
 - PWAPrompt: banner says "Open", its sheet shows `OpenInBrowserActions` instead of install steps
 - OnboardingFlow: skips the install step (PWAPrompt covers it)
 
 Android escapes with an `intent://…#Intent;scheme=https;end` link (no `package=`, so the
 user's default browser); iOS has no programmatic escape, so it gets the ⋯ → Open in external
 browser step and a copy-link fallback.
+
+## Boot shell — first paint before the bundle
+The bundle is one ~700 KB (gz) file; on a budget phone over 4G it took 3–6 s before #root painted
+anything, and ad traffic left during that blank screen (62 Meta clicks, ~9 counted visits).
+`index.html` now paints `#mp-boot` straight from the HTML: a static copy of the landing hero for a
+first-time visitor, else the same plain spinner App shows while the session loads.
+- The choice is made by an inline script **before first paint**: hero only on `/`, not standalone,
+  no `sb-*-auth-token` in localStorage, no auth hash. Any doubt → spinner. A signed-in user must
+  never see a flash of "Create account".
+- It overlays #root rather than living in it (React would swap it for the spinner first, giving
+  hero → spinner → hero). App removes it via `dismissBootShell()` once session resolves (or a reset
+  link is open); `SentryFallback` removes it too, so it can never hide an error.
+- It has no working buttons — nothing can act on a tap before the app is up — just "Loading…",
+  which offers a reload after 15 s.
+- **Keep it in sync with the real hero** (`LandingScreen` in AuthPage + `.mp-hero*` in index.css):
+  same copy, same layout, headline at normal weight (the CSS reset's, not 800). A mismatch shows
+  as a jump at handoff.
 
 ## Git conventions
 - Commit directly to `main` — no feature branches
