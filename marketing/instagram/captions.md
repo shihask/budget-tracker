@@ -172,3 +172,39 @@ No more bill-day surprises.
 
 #moneyplant #creditcard #creditcardbill #personalfinance #budgeting #emi #financeindia #moneytips #reelsindia
 ```
+
+---
+
+## Carousel: "Your whole money life. One free app." (all features)
+Files: `out/features-01.png` … `out/features-10.png` (upload as one carousel, in order).
+Source: `carousel-features.html` → `node marketing/instagram/render.mjs carousel-features`.
+Good one to pin, and to replace the oldest pinned post. Carousels get saved; the last slide asks for it.
+```
+Your whole money life. One free app. 🌱 Swipe to see everything MoneyPlant does 👉
+
+1️⃣ Safe to spend today, with a plant that grows when you stick to it
+2️⃣ Your balance on every day until payday
+3️⃣ Bills, EMIs and subscriptions, before they're due
+4️⃣ Credit card bill: billed and unbilled
+5️⃣ SIPs, gold schemes, RDs and chit funds
+6️⃣ Ask Mint: "Can I afford it?"
+7️⃣ Needs, Wants and Savings plans
+8️⃣ Trips, weddings and splitting with friends
+
+Free. No bank password. Works offline.
+👉 Link in bio: moneyplant.online · Save this for later 🔖
+
+#moneyplant #personalfinance #budgeting #expensetracker #moneymanagement #financeindia #salary #sip #creditcard #budgetapp
+```
+
+## Reel: "8 things MoneyPlant does, for free"
+File: `out/reel-features.mp4` (22 s). Cover: the "8 things" opening.
+```
+8 things MoneyPlant does, for free 🌱 Which one do you need most? Tell me in the comments 👇
+
+Safe-to-spend · payday forecast · bills & EMIs · credit card bills · SIP & chit funds · Ask Mint · Needs/Wants/Savings · trips & splits
+
+👉 Link in bio: moneyplant.online
+
+#moneyplant #personalfinance #budgeting #expensetracker #financeindia #moneytips #salary #budgetapp #reelsindia
+```

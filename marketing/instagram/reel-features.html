@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant reel: 8 things it does</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<!-- Feature countdown, the reel twin of carousel-features.html (same 8 features and claims).
+     See reel-kit.js for how a reel is driven. Preview: open this file in a browser. -->
+<style>
+  .feat { justify-content: center; }
+  .idx { display: flex; align-items: center; gap: 24px; }
+  .idx b { font-size: 190px; font-weight: 800; letter-spacing: -6px; color: var(--green-dark); line-height: 1; }
+  .idx span { font-size: 34px; font-weight: 800; color: var(--muted); letter-spacing: 3px; }
+  .ftitle { font-size: 112px; line-height: 1.02; font-weight: 800; letter-spacing: -3.5px; margin-top: 30px; }
+  .fvis { margin-top: 70px; padding: 52px 52px; }
+  .fvis .lab { font-size: 38px; font-weight: 700; color: var(--muted); }
+  .fvis .val { font-size: 156px; font-weight: 800; letter-spacing: -4px; line-height: 1.05; }
+  .fvis .val.neg { color: var(--red); }
+  .fvis .val.pos { color: var(--green-dark); }
+  .bar { height: 34px; border-radius: 999px; background: var(--rule); overflow: hidden; margin-top: 18px; }
+  .bar i { display: block; height: 100%; border-radius: 999px; background: var(--green); }
+  .progress { position: absolute; left: 90px; right: 90px; top: 250px; display: flex; gap: 12px; }
+  .progress i { flex: 1; height: 10px; border-radius: 999px; background: var(--rule); }
+  .progress i.on { background: var(--green-dark); }
+  .ticks { display: flex; flex-direction: column; gap: 26px; margin-top: 60px; text-align: left; }
+  .tick { display: flex; align-items: center; gap: 22px; font-size: 48px; font-weight: 700; }
+  .tick svg { flex: 0 0 56px; width: 56px; height: 56px; fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+
+<section class="scene green" id="s0">
+  <div style="flex:1"></div>
+  <div class="big el" id="h1" style="font-size:150px">8 things</div>
+  <div class="big el" id="h2">MoneyPlant does</div>
+  <div style="height:60px"></div>
+  <div class="mid soft el" id="h3">for free.</div>
+  <div style="flex:1.3"></div>
+</section>
+
+<!-- the 8 feature scenes are generated below from FEATURES -->
+<div id="feats"></div>
+
+<section class="scene green end" id="sEnd">
+  <img class="logo el" src="../../public/email-logo.png" alt="" style="width:200px;height:200px">
+  <div class="name el">MoneyPlant</div>
+  <div class="ticks el" id="endTicks">
+    <div class="tick"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Free to use</div>
+    <div class="tick"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>No bank password needed</div>
+    <div class="tick"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Works even offline</div>
+  </div>
+  <div class="tagline el" style="display:none"></div>
+  <div class="pill el">Link in bio · moneyplant.online</div>
+</section>
+
+<script src="reel-kit.js"></script>
+<script>
+  // Same eight as carousel-features.html. Example figures throughout.
+  const FEATURES = [
+    { t: 'Know what’s safe to spend today', lab: 'Safe to spend today', val: '₹640', bar: 38 },
+    { t: 'See your balance until payday', lab: 'Lowest point before payday', val: '₹11,400' },
+    { t: 'Never miss a bill or EMI', lab: 'Car EMI · due 7th', val: '−₹9,500', cls: 'neg' },
+    { t: 'Know your credit card bill', lab: 'This bill · due 15 Oct', val: '₹18,400' },
+    { t: 'Track SIPs, gold and chit funds', lab: 'Goal: New phone', val: '62%', bar: 62, cls: 'pos' },
+    { t: 'Ask Mint: “Can I afford it?”', lab: 'Mint says', val: 'Yes.', cls: 'pos' },
+    { t: 'Plan Needs, Wants and Savings', lab: 'Savings this month', val: '20%', bar: 100, cls: 'pos' },
+    { t: 'Trips and splits with friends', lab: 'Arjun owes you', val: '₹1,250', cls: 'pos' },
+  ]
+  const HOOK_END = 2.6, PER = 2.05, END_AT = HOOK_END + FEATURES.length * PER, DURATION = END_AT + 3.4
+
+  document.getElementById('feats').outerHTML = FEATURES.map((f, i) => `
+    <section class="scene cream feat" id="f${i}">
+      <div class="progress">${FEATURES.map((_, j) => `<i class="${j <= i ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="idx el" id="f${i}i"><b>${i + 1}</b><span>OF ${FEATURES.length}</span></div>
+      <div class="ftitle el" id="f${i}t">${f.t}</div>
+      <div class="fvis card el" id="f${i}v">
+        <div class="lab">${f.lab}</div>
+        <div class="val ${f.cls ?? ''}">${f.val}</div>
+        ${f.bar != null ? `<div class="bar"><i id="f${i}b" style="width:0"></i></div>` : ''}
+      </div>
+      <div class="note el" id="f${i}n" style="margin-top:20px">Example.</div>
+    </section>`).join('')
+
+  function render(t) {
+    scene($('s0'), t, 0, HOOK_END)
+    rise($('h1'), t, .1, .4); rise($('h2'), t, .35, .4); rise($('h3'), t, 1.0, .5)
+
+    FEATURES.forEach((f, i) => {
+      const a = HOOK_END + i * PER
+      scene($('f' + i), t, a, a + PER, .3)
+      rise($(`f${i}i`), t, a + .05, .35, 40); rise($(`f${i}t`), t, a + .15, .4, 40); rise($(`f${i}v`), t, a + .35, .4, 50)
+      rise($(`f${i}n`), t, a + .5, .3, 0)
+      if (f.bar != null) $(`f${i}b`).style.width = (f.bar * easeOut(prog(t, a + .6, .7))) + '%'
+    })
+
+    endCard($('sEnd'), t, END_AT, DURATION)
+    rise($('endTicks'), t, END_AT + .6, .5)
+  }
+
+  boot(render, DURATION, [1.4, 3.8, 9.9, 16.0, 19.0, 21.5])
+</script>
+</body>
+</html>

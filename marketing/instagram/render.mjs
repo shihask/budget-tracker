@@ -1,6 +1,8 @@
-// Renders every .slide in pinned-posts.html to a 1080×1350 PNG in ./out/,
-// and profile-picture.svg to profile-picture.png.
-// Run from the repo root: node marketing/instagram/render.mjs
+// Renders every .slide in a carousel page to a 1080×1350 PNG in ./out/, and
+// profile-picture.svg to profile-picture.png.
+// Run from the repo root:
+//   node marketing/instagram/render.mjs                     → pinned-posts.html
+//   node marketing/instagram/render.mjs carousel-features   → carousel-features.html
 
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
@@ -19,7 +21,8 @@ await page.setViewportSize({ width: 1080, height: 1080 })
 await page.screenshot({ path: join(here, 'profile-picture.png') })
 
 await page.setViewportSize({ width: 1080, height: 1350 })
-await page.goto(pathToFileURL(join(here, 'pinned-posts.html')).href, { waitUntil: 'networkidle' })
+const pageName = process.argv[2] ?? 'pinned-posts'
+await page.goto(pathToFileURL(join(here, `${pageName}.html`)).href, { waitUntil: 'networkidle' })
 await page.evaluate(() => document.fonts.ready)
 for (const slide of await page.$$('.slide')) {
   const name = await slide.getAttribute('data-name')
