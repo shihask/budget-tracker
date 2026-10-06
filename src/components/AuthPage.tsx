@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   BarChart3, Bell, Bot, Briefcase, CalendarCheck, Check,
-  ChevronDown, Cloud, CloudOff, CreditCard, Flame, FolderOpen, Gem, GraduationCap, HandCoins,
+  ChevronDown, Cloud, CloudOff, CreditCard, Eye, EyeOff, Flame, FolderOpen, Gem, GraduationCap, HandCoins,
   LayoutDashboard, LineChart, Lock, PiggyBank, Receipt, Repeat, Shield,
   ShieldCheck, Sprout, Star, Target, TrendingUp, Trophy, Users, Wallet,
   X as XIcon, Zap,
@@ -13,7 +13,78 @@ import { MintAnimation } from './MintAnimation'
 import { OpenInBrowserNotice } from './OpenInBrowserNotice'
 import { inAppBrowserName, isStandalone } from '@/lib/browser-env'
 
-type Mode = 'login' | 'signup' | 'check-email' | 'forgot' | 'forgot-sent'
+type Tab = 'login' | 'signup'
+/**
+ * Why a code was sent. A code proves ownership once, at sign-up; after that the
+ * password signs in. 'login' (a code instead of the password) and 'reset' (a
+ * code, then a new password) are the fallbacks.
+ */
+type CodePurpose = 'signup' | 'login' | 'reset'
+
+type Identifier = { kind: 'email' | 'phone'; value: string }
+
+/** Supabase Auth's default minimum. */
+const MIN_PASSWORD_LENGTH = 6
+
+/** Supabase Auth refuses a second code to the same address within 60 s. */
+const OTP_RESEND_SECONDS = 60
+/** Must match Dashboard → Auth → Email OTP length (SMS codes are always 6). */
+const OTP_LENGTH = 6
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Reads the one sign-in box as an email or an Indian mobile number (SMS goes
+ * through 2Factor, India only — see send-sms-otp). Accepts 9876543210,
+ * 98765 43210, 09876543210, +91 98765-43210. Null when it's neither.
+ * India-only by design; going international means a phone-number library, not more regexes.
+ */
+function parseIdentifier(raw: string): Identifier | null {
+  const v = raw.trim()
+  if (v.includes('@')) return EMAIL_RE.test(v) ? { kind: 'email', value: v.toLowerCase() } : null
+  const compact = v.replace(/[\s\-().]/g, '')
+  if (!/^\+?\d+$/.test(compact)) return null
+  let digits = compact.replace(/^\+/, '')
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2)
+  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1)
+  return /^[6-9]\d{9}$/.test(digits) ? { kind: 'phone', value: `+91${digits}` } : null
+}
+
+/**
+ * Supabase's raw errors when the Phone provider / SMS hook isn't set up
+ * ("Unsupported phone provider", "Phone logins are disabled", …).
+ */
+const isPhoneAuthOff = (msg: string) => /unsupported phone provider|phone (logins|signups) (are )?disabled/i.test(msg)
+const PHONE_AUTH_OFF = "Mobile number sign-in isn't available yet. Please use your email or Google."
+
+function displayIdentifier(id: Identifier) {
+  return id.kind === 'phone' ? `+91 ${id.value.slice(3, 8)} ${id.value.slice(8)}` : id.value
+}
+
+/** Password field with a show/hide toggle — one field instead of password + confirm. */
+function PasswordInput({ value, onChange, onEnter, autoComplete, autoFocus }: {
+  value: string
+  onChange: (v: string) => void
+  onEnter: () => void
+  autoComplete: 'current-password' | 'new-password'
+  autoFocus?: boolean
+}) {
+  const [shown, setShown] = useState(false)
+  return (
+    <div style={{ position: 'relative' }}>
+      <input type={shown ? 'text' : 'password'} value={value} onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') onEnter() }}
+        placeholder={autoComplete === 'new-password' ? `Min. ${MIN_PASSWORD_LENGTH} characters` : '••••••••'}
+        autoComplete={autoComplete} style={{ ...inp, paddingRight: 48 }} autoFocus={autoFocus} />
+      <button type="button" onClick={() => setShown(v => !v)} aria-label={shown ? 'Hide password' : 'Show password'} style={{
+        position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+        background: 'none', border: 'none', padding: 8, cursor: 'pointer', color: '#9C938A', display: 'flex',
+      }}>
+        {shown ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  )
+}
+
 type LegalPage = 'privacy' | 'terms' | 'about' | 'contact' | null
 
 const accent = '#16C98A'
@@ -197,30 +268,43 @@ function Reveal({ children, className = '' }: { children: React.ReactNode; class
 
 // ── Main AuthPage ─────────────────────────────────────────────────────────────
 
-export function AuthPage() {
-  const [mode, setMode] = useState<Mode>('login')
+/**
+ * `onPasswordResetPending` lets App show the new-password page instead of the
+ * dashboard once a 'reset' code verifies. It is raised *before* verifyOtp:
+ * the session (and App's re-render) lands while verifyOtp is still awaiting.
+ */
+export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: (pending: boolean) => void }) {
+  const [tab, setTab] = useState<Tab>('login')
+  const [codeStep, setCodeStep] = useState(false)
   const [showAuth, setShowAuth] = useState(false)
   const [legalPage, setLegalPage] = useState<LegalPage>(null)
-  const [name, setName]             = useState('')
-  const [email, setEmail]           = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword]     = useState('')
-  const [confirm, setConfirm]       = useState('')
+  const [sentTo, setSentTo]         = useState<{ id: Identifier; purpose: CodePurpose } | null>(null)
+  const [otp, setOtp]               = useState('')
+  const [resendIn, setResendIn]     = useState(0)
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
+
+  useEffect(() => {
+    if (resendIn <= 0) return
+    const t = setTimeout(() => setResendIn(s => s - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendIn])
 
   const clearError = () => setError(null)
 
   const isPwa = typeof window !== 'undefined' && isStandalone()
   // Only consulted inside the sign-in box. No banner on arrival: a visitor from an
   // ad saw "you're in Instagram's browser, leave" before seeing the product, and
-  // email sign-up works there anyway (v1.84.1).
+  // email/phone sign-up works there anyway (v1.84.1).
   const inAppBrowser = inAppBrowserName()
 
-  const openAuth = (m: 'login' | 'signup') => {
-    setMode(m); setShowAuth(true); clearError()
-    setName(''); setEmail(''); setPassword(''); setConfirm('')
+  const switchTab = (t: Tab) => {
+    setTab(t); setCodeStep(false); clearError(); setPassword(''); setOtp('')
   }
-  const closeAuth = () => { setShowAuth(false); setMode('login'); clearError() }
+  const openAuth = (t: Tab) => { switchTab(t); setIdentifier(''); setShowAuth(true) }
+  const closeAuth = () => { setShowAuth(false); setCodeStep(false); clearError() }
 
   useEffect(() => {
     if (showAuth) document.body.style.overflow = 'hidden'
@@ -245,42 +329,67 @@ export function AuthPage() {
     if (error) { setError(error.message); setLoading(false) }
   }
 
-  const handleLogin = async () => {
-    if (!email || !password) return
-    setLoading(true); clearError()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError(error.message)
-    setLoading(false)
+  const readIdentifier = () => {
+    const id = parseIdentifier(identifier)
+    if (!id) setError('Enter a valid email or 10-digit mobile number.')
+    return id
   }
 
-  const handleSignup = async () => {
-    if (!name.trim() || !email || !password) return
-    if (password.length < 6) { setError('Password must be at least 6 characters'); return }
-    if (password !== confirm) { setError('Passwords do not match'); return }
+  const sendCode = async (id: Identifier, purpose: CodePurpose) => {
     setLoading(true); clearError()
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: name.trim() } },
-    })
+    // Only Sign Up may create an account; a fallback code for a mistyped
+    // identifier must not quietly register it.
+    const options = { shouldCreateUser: purpose === 'signup' }
+    const { error } = id.kind === 'email'
+      ? await supabase.auth.signInWithOtp({ email: id.value, options })
+      : await supabase.auth.signInWithOtp({ phone: id.value, options })
     if (error) {
-      setError(error.message)
-    } else if ((data.user?.identities?.length ?? 0) === 0) {
-      setError('An account with this email already exists. Try signing in with Google instead.')
+      setError(isPhoneAuthOff(error.message) ? PHONE_AUTH_OFF
+        : /signups not allowed/i.test(error.message)
+          ? `No account with this ${id.kind === 'email' ? 'email' : 'number'} yet. Choose Sign Up to create one.`
+          : error.message)
     } else {
-      setMode('check-email')
+      setSentTo({ id, purpose }); setOtp(''); setResendIn(OTP_RESEND_SECONDS); setCodeStep(true)
     }
     setLoading(false)
   }
 
-  const handleForgot = async () => {
-    if (!email) return
+  const handleSignIn = async () => {
+    const id = readIdentifier()
+    if (!id || !password) return
     setLoading(true); clearError()
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    })
-    if (error) setError(error.message)
-    else setMode('forgot-sent')
+    const { error } = id.kind === 'email'
+      ? await supabase.auth.signInWithPassword({ email: id.value, password })
+      : await supabase.auth.signInWithPassword({ phone: id.value, password })
+    if (error) {
+      setError(isPhoneAuthOff(error.message) ? PHONE_AUTH_OFF
+        : /invalid login credentials/i.test(error.message)
+          ? `Wrong ${id.kind === 'email' ? 'email' : 'number'} or password. Forgot it? Sign in with a code below.`
+          : error.message)
+    }
+    setLoading(false)
+  }
+
+  const handleCodeFallback = (purpose: 'login' | 'reset') => {
+    const id = readIdentifier()
+    if (id) sendCode(id, purpose)
+  }
+
+  const verifyCode = async () => {
+    if (!sentTo || otp.length !== OTP_LENGTH) return
+    setLoading(true); clearError()
+    const isReset = sentTo.purpose === 'reset'
+    if (isReset) onPasswordResetPending?.(true)
+    // On success App's session listener swaps this page out (to the name/password
+    // step for a new account, the new-password page for a reset, else the dashboard).
+    const { id } = sentTo
+    const { error } = await supabase.auth.verifyOtp(id.kind === 'email'
+      ? { email: id.value, token: otp, type: 'email' }
+      : { phone: id.value, token: otp, type: 'sms' })
+    if (error) {
+      if (isReset) onPasswordResetPending?.(false)
+      setError(/expired|invalid/i.test(error.message) ? 'That code is wrong or has expired.' : error.message)
+    }
     setLoading(false)
   }
 
@@ -288,64 +397,48 @@ export function AuthPage() {
     if (e.key === 'Enter') action()
   }
 
-  const isSignup = mode === 'signup'
+  const legalLink: React.CSSProperties = { background: 'none', border: 'none', color: accent, font: '600 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }
+  const inlineLink: React.CSSProperties = { background: 'none', border: 'none', color: accent, font: '600 13px Plus Jakarta Sans', cursor: 'pointer', padding: 0 }
 
   // ── Auth modal content ──────────────────────────────────────────────────────
   const renderAuthContent = () => {
-    if (mode === 'check-email' || mode === 'forgot-sent') {
-      const isForgot = mode === 'forgot-sent'
-      return (
-        <div style={{ textAlign: 'center', padding: '0 8px' }}>
-          <div style={{ width: 72, height: 72, borderRadius: 999, background: accent + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-              <polyline points="22,6 12,13 2,6"/>
-            </svg>
-          </div>
-          <div style={{ font: '800 22px Plus Jakarta Sans', color: '#1C1410', marginBottom: 10 }}>
-            {isForgot ? 'Reset link sent' : 'Check your email'}
-          </div>
-          <div style={{ font: '600 14px Plus Jakarta Sans', color: '#9C938A', lineHeight: 1.6 }}>
-            {isForgot ? 'We sent a password reset link to' : 'We sent a confirmation link to'}
-            <br />
-            <strong style={{ color: '#1C1410' }}>{email}</strong>
-          </div>
-          {!isForgot && (
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: '#9C938A', marginTop: 12 }}>
-              Click the link in the email to activate your account.
-            </div>
-          )}
-          <button
-            onClick={() => { setMode('login'); clearError() }}
-            style={{ marginTop: 28, background: accent, color: '#fff', border: 'none', borderRadius: 14, width: '100%', padding: '15px', font: '700 15px Plus Jakarta Sans', cursor: 'pointer' }}
-          >
-            Back to Sign In
-          </button>
-        </div>
-      )
-    }
-
-    if (mode === 'forgot') {
+    if (codeStep && sentTo) {
+      const { id, purpose } = sentTo
+      const noun = id.kind === 'email' ? 'email' : 'number'
       return (
         <>
-          <div style={{ font: '800 24px Plus Jakarta Sans', color: '#1C1410', marginBottom: 6 }}>Reset password</div>
-          <div style={{ font: '600 13px Plus Jakarta Sans', color: '#9C938A', marginBottom: 24 }}>
-            Enter your email and we'll send a reset link.
+          <div style={{ font: '800 24px Plus Jakarta Sans', color: '#1C1410', marginBottom: 6 }}>
+            {purpose === 'signup' ? 'Verify your ' + noun : purpose === 'reset' ? 'Reset your password' : 'Enter the code'}
+          </div>
+          <div style={{ font: '600 13px Plus Jakarta Sans', color: '#9C938A', marginBottom: 24, lineHeight: 1.5 }}>
+            We sent a 6-digit code to
+            {/* Shown in full, not masked: a typo has to be visible to be fixed. */}
+            <br /><strong style={{ color: '#1C1410', wordBreak: 'break-all' }}>{displayIdentifier(id)}</strong>
           </div>
           {error && <ErrorBox msg={error} />}
-          <Field label="Email">
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => onKey(e, handleForgot)}
-              placeholder="you@example.com" autoComplete="email" style={inp} autoFocus />
+          <Field label="6-digit code">
+            <input type="text" inputMode="numeric" autoComplete="one-time-code" value={otp}
+              onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH))}
+              onKeyDown={e => onKey(e, verifyCode)}
+              placeholder="••••••" style={{ ...inp, letterSpacing: '0.4em', textAlign: 'center' }} autoFocus />
           </Field>
-          <PrimaryBtn loading={loading} onClick={handleForgot} disabled={!email}>
-            Send Reset Link
+          <PrimaryBtn loading={loading} onClick={verifyCode} disabled={otp.length !== OTP_LENGTH}>
+            Verify
           </PrimaryBtn>
-          <TextBtn onClick={() => { setMode('login'); clearError() }}>&larr; Back to Sign In</TextBtn>
+          <div style={{ font: '500 12px Plus Jakarta Sans', color: '#9C938A', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
+            Didn't receive the code? Check that the {noun} above is correct.
+          </div>
+          <TextBtn onClick={() => { if (resendIn <= 0 && !loading) sendCode(id, purpose) }}>
+            {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+          </TextBtn>
+          <TextBtn onClick={() => { setCodeStep(false); setOtp(''); clearError() }}>
+            &larr; Use a different {noun}
+          </TextBtn>
         </>
       )
     }
 
+    const isSignup = tab === 'signup'
     return (
       <>
         {/* Logo */}
@@ -362,89 +455,53 @@ export function AuthPage() {
 
         {/* Toggle */}
         <div style={{ display: 'flex', background: '#EDE7DD', borderRadius: 14, padding: 4, gap: 4, marginBottom: 24 }}>
-          {(['login', 'signup'] as Mode[]).map(m => (
-            <button key={m} onClick={() => { setMode(m); clearError(); setName(''); setEmail(''); setPassword(''); setConfirm('') }} style={{
+          {(['login', 'signup'] as Tab[]).map(t => (
+            <button key={t} onClick={() => switchTab(t)} style={{
               flex: 1, border: 'none', borderRadius: 11, padding: '10px',
               font: '700 13px Plus Jakarta Sans',
-              background: mode === m ? '#fff' : 'transparent',
-              color: mode === m ? '#1C1410' : '#9C938A',
+              background: tab === t ? '#fff' : 'transparent',
+              color: tab === t ? '#1C1410' : '#9C938A',
               cursor: 'pointer',
-              boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+              boxShadow: tab === t ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
               transition: 'all 0.15s',
             }}>
-              {m === 'login' ? 'Sign In' : 'Sign Up'}
+              {t === 'login' ? 'Sign In' : 'Sign Up'}
             </button>
           ))}
         </div>
 
         {error && <ErrorBox msg={error} />}
 
-        {isSignup && (
-          <Field label="Your name">
-            <input value={name} onChange={e => setName(e.target.value)}
-              placeholder="e.g. Rahul Menon" autoComplete="off" style={inp} autoFocus />
-          </Field>
-        )}
-
-        <Field label="Email">
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            onKeyDown={!isSignup ? e => onKey(e, handleLogin) : undefined}
-            placeholder="you@example.com" autoComplete="email" style={inp}
-            autoFocus={!isSignup} />
+        <Field label="Email or mobile number">
+          <input type="text" value={identifier} onChange={e => { setIdentifier(e.target.value); clearError() }}
+            onKeyDown={e => onKey(e, isSignup ? () => { const id = readIdentifier(); if (id) sendCode(id, 'signup') } : handleSignIn)}
+            placeholder="you@example.com or 98765 43210" autoComplete="username"
+            autoCapitalize="none" autoCorrect="off" spellCheck={false} style={inp} autoFocus />
         </Field>
 
-        <Field label="Password">
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => onKey(e, isSignup ? handleSignup : handleLogin)}
-            placeholder={isSignup ? 'Min. 6 characters' : '••••••••'}
-            autoComplete={isSignup ? 'new-password' : 'current-password'}
-            style={inp} />
-        </Field>
-
-        {isSignup && (
-          <Field label="Confirm Password">
-            <div style={{ position: 'relative' }}>
-              <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
-                onKeyDown={e => onKey(e, handleSignup)}
-                placeholder="Re-enter password"
-                autoComplete="new-password"
-                style={{
-                  ...inp,
-                  borderColor: confirm.length > 0
-                    ? confirm === password ? '#10B981' : '#EF4444'
-                    : '#E5DDD5',
-                }} />
-              {confirm.length > 0 && (
-                <div style={{
-                  position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                  font: '700 12px Plus Jakarta Sans',
-                  color: confirm === password ? '#10B981' : '#EF4444',
-                }}>
-                  {confirm === password ? <><Check size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Match</> : <><XIcon size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> No match</>}
-                </div>
-              )}
+        {isSignup ? (
+          <>
+            <div style={{ font: '500 12px Plus Jakarta Sans', color: '#9C938A', marginTop: -6, marginBottom: 16, lineHeight: 1.5 }}>
+              We'll send a 6-digit code to verify it. You'll set a password next.
             </div>
-          </Field>
+            <PrimaryBtn loading={loading} onClick={() => { const id = readIdentifier(); if (id) sendCode(id, 'signup') }} disabled={!identifier.trim()}>
+              Continue
+            </PrimaryBtn>
+          </>
+        ) : (
+          <>
+            <Field label="Password">
+              <PasswordInput value={password} onChange={setPassword} onEnter={handleSignIn} autoComplete="current-password" />
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: -6, marginBottom: 16 }}>
+              <button onClick={() => handleCodeFallback('login')} disabled={loading} style={inlineLink}>Sign in with a code</button>
+              <button onClick={() => handleCodeFallback('reset')} disabled={loading} style={inlineLink}>Forgot password?</button>
+            </div>
+            <PrimaryBtn loading={loading} onClick={handleSignIn} disabled={!identifier.trim() || !password}>
+              Sign In
+            </PrimaryBtn>
+          </>
         )}
-
-        {!isSignup && (
-          <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 16 }}>
-            <button onClick={() => { setMode('forgot'); clearError() }} style={{
-              background: 'none', border: 'none', color: accent,
-              font: '600 13px Plus Jakarta Sans', cursor: 'pointer', padding: 0,
-            }}>
-              Forgot password?
-            </button>
-          </div>
-        )}
-
-        <PrimaryBtn
-          loading={loading}
-          onClick={isSignup ? handleSignup : handleLogin}
-          disabled={isSignup ? !name || !email || !password || !confirm : !email || !password}
-        >
-          {isSignup ? 'Create Account' : 'Sign In'}
-        </PrimaryBtn>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 16px' }}>
           <div style={{ flex: 1, height: 1, background: '#E5DDD5' }} />
@@ -470,10 +527,9 @@ export function AuthPage() {
         {isSignup && (
           <div style={{ font: '500 11px Plus Jakarta Sans', color: '#9C938A', textAlign: 'center', marginTop: 14, lineHeight: 1.6 }}>
             By signing up you agree to our{' '}
-            <button onClick={() => { closeAuth(); setLegalPage('terms') }} style={{ background: 'none', border: 'none', color: accent, font: '600 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Terms</button>
+            <button onClick={() => { closeAuth(); setLegalPage('terms') }} style={legalLink}>Terms</button>
             {' '}and{' '}
-            <button onClick={() => { closeAuth(); setLegalPage('privacy') }} style={{ background: 'none', border: 'none', color: accent, font: '600 11px Plus Jakarta Sans', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Privacy Policy</button>.
-            <br />We'll send a confirmation email to verify your account.
+            <button onClick={() => { closeAuth(); setLegalPage('privacy') }} style={legalLink}>Privacy Policy</button>.
           </div>
         )}
       </>
@@ -1171,7 +1227,73 @@ function TextBtn({ children, onClick }: { children: React.ReactNode; onClick: ()
   )
 }
 
-// ── Reset Password Page (shown after clicking email link) ─────────────────────
+// ── Complete Profile (name + password for a brand-new account) ────────────────
+// The sign-up code proves the email/number; this sets what signs in from now on.
+// verifyOtp() creates the session and App swaps AuthPage out at once, so this
+// can't live there: App shows it while user_metadata.full_name is missing.
+// updateUser fires USER_UPDATED, App's listener re-sets the session, and the
+// dashboard renders. Leaving here without a password is recoverable: Sign In →
+// "Sign in with a code" lands back on this page.
+
+export function CompleteProfilePage({ username }: { username: string }) {
+  const [name, setName]         = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+
+  const ready = !!name.trim() && password.length >= MIN_PASSWORD_LENGTH
+  const handleSave = async () => {
+    if (!ready) return
+    setLoading(true); setError(null)
+    const { error } = await supabase.auth.updateUser({ password, data: { full_name: name.trim() } })
+    if (error) setError(error.message)
+    setLoading(false)
+  }
+
+  return (
+    <div style={{
+      minHeight: '100svh', width: '100%',
+      background: '#EDE7DD',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      fontFamily: 'Plus Jakarta Sans, sans-serif',
+      padding: 'calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))',
+      boxSizing: 'border-box',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <LeafWatermark />
+      <div style={{
+        width: '100%', maxWidth: 400,
+        background: '#FDFAF7', borderRadius: 24, padding: '28px 24px',
+        boxShadow: '0 4px 32px rgba(0,0,0,0.08)',
+        position: 'relative', zIndex: 1,
+      }}>
+        <div style={{ font: '800 24px Plus Jakarta Sans', color: '#1C1410', marginBottom: 6 }}>What should we call you?</div>
+        <div style={{ font: '600 13px Plus Jakarta Sans', color: '#9C938A', marginBottom: 24 }}>
+          One last step. You'll sign in with this password from now on.
+        </div>
+        {error && <ErrorBox msg={error} />}
+        {/* Lets a password manager save the new password against the right account. */}
+        <input type="text" autoComplete="username" value={username} readOnly hidden />
+        <Field label="Your name">
+          <input value={name} onChange={e => setName(e.target.value)}
+            placeholder="e.g. Rahul Menon" autoComplete="name" style={inp} autoFocus />
+        </Field>
+        <Field label="Create a password">
+          <PasswordInput value={password} onChange={setPassword} onEnter={handleSave} autoComplete="new-password" />
+        </Field>
+        <PrimaryBtn loading={loading} onClick={handleSave} disabled={!ready}>
+          Create my account
+        </PrimaryBtn>
+        <TextBtn onClick={() => supabase.auth.signOut()}>Not you? Sign out</TextBtn>
+      </div>
+    </div>
+  )
+}
+
+// ── Reset Password Page ───────────────────────────────────────────────────────
+// Shown after a "Forgot password?" code verifies (App's resettingByCode), and
+// for legacy emailed reset links (App's recovery-hash handling — remove that
+// path once old links have expired; no UI sends reset links any more).
 
 export function ResetPasswordPage({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState('')

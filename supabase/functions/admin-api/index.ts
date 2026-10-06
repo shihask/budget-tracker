@@ -114,7 +114,8 @@ Deno.serve(async (req) => {
         for (const f of TOGGLEABLE_FIELDS) features[f] = s ? Boolean(s[f]) : DEFAULT_FIELD_VALUES[f]
         return {
           id: u.id,
-          email: u.email ?? null,
+          // Phone-OTP accounts have no email; the number identifies them instead.
+          email: u.email || (u.phone ? `+${u.phone}` : null),
           fullName: (u.user_metadata as { full_name?: string } | null)?.full_name ?? null,
           createdAt: u.created_at,
           lastSignInAt: u.last_sign_in_at ?? null,

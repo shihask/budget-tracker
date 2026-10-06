@@ -7,8 +7,12 @@
 // #16C98A — white on the bright green is too low-contrast to read.
 //
 // Only template variables Supabase documents for that template are used
-// (ConfirmationURL, Email, NewEmail). A variable the template doesn't
+// (ConfirmationURL, Token, Email, NewEmail). A variable the template doesn't
 // provide fails the send, so the security notices use none.
+//
+// Sign-in is passwordless OTP: Confirm signup (new/unconfirmed user) and
+// Magic Link (existing user) both carry the 6-digit {{ .Token }} and no link —
+// a button would mix magic-link sign-in back into the code flow.
 //
 // Run: node scripts/build-email-templates.mjs
 
@@ -43,6 +47,11 @@ function fallbackLink(href) {
             Button not working? Paste this link into your browser:<br>
             <a href="${href}" style="color:${BRAND_DARK};word-break:break-all;">${href}</a>
           </p>`
+}
+
+function codeBlock(token) {
+  return `
+          <div style="margin:24px 0 20px;padding:18px 12px;background:${PAGE_BG};border-radius:14px;text-align:center;font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:${BRAND_DARK};">${token}</div>`
 }
 
 function paragraph(html) {
@@ -97,19 +106,31 @@ function layout({ preheader, heading, body, footer }) {
 }
 
 const securityFooter = 'This is a security notice about your MoneyPlant account. You can\'t turn these off.'
-const notYouSecurity = paragraph(`If this wasn't you, reset your password straight away from the sign-in screen at <a href="${SITE}" style="color:${BRAND_DARK};">moneyplant.online</a>, then email <a href="mailto:hello@moneyplant.online" style="color:${BRAND_DARK};">hello@moneyplant.online</a>.`)
+const notYouSecurity = paragraph(`If this wasn't you, email <a href="mailto:hello@moneyplant.online" style="color:${BRAND_DARK};">hello@moneyplant.online</a> straight away.`)
 
 const TEMPLATES = {
   'confirm-signup': {
-    subject: 'Confirm your MoneyPlant account',
+    subject: 'Your MoneyPlant verification code',
     html: layout({
-      preheader: 'One tap to activate your account.',
+      preheader: 'Your 6-digit code to create your account.',
       heading: 'Welcome to MoneyPlant',
       body:
-        paragraph('Confirm your email address to activate your account and start tracking where your money goes.') +
-        button('{{ .ConfirmationURL }}', 'Confirm my email') +
-        fallbackLink('{{ .ConfirmationURL }}'),
+        paragraph('Your MoneyPlant code is') +
+        codeBlock('{{ .Token }}') +
+        paragraph('Enter this code in MoneyPlant to continue. This code expires in 1 hour.'),
       footer: 'You\'re getting this because {{ .Email }} was used to sign up for MoneyPlant. If that wasn\'t you, ignore this email and no account will be created.',
+    }),
+  },
+  'magic-link': {
+    subject: 'Your MoneyPlant sign-in code',
+    html: layout({
+      preheader: 'Your 6-digit code to sign in.',
+      heading: 'Your sign-in code',
+      body:
+        paragraph('Your MoneyPlant code is') +
+        codeBlock('{{ .Token }}') +
+        paragraph('Enter this code in MoneyPlant to continue. This code expires in 1 hour.'),
+      footer: 'Sent to {{ .Email }}. If you didn\'t try to sign in, ignore this email; no one can get in without this code.',
     }),
   },
   'reset-password': {

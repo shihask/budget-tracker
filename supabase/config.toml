@@ -11,3 +11,6 @@ project_id = "prkzgxympgupuwppytlf"
 
 [functions.aa-webhook]
 verify_jwt = false
+
+[functions.send-sms-otp]
+verify_jwt = false

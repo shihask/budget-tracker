@@ -38,7 +38,7 @@ import { ImportStatementSheet } from '@/features/statement-import/components/Imp
 import { Glyph } from '@/components/Glyph'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { PWAPrompt } from '@/components/PWAPrompt'
-import { AuthPage, ResetPasswordPage } from '@/components/AuthPage'
+import { AuthPage, CompleteProfilePage, ResetPasswordPage } from '@/components/AuthPage'
 import { CategoriesPage } from '@/components/CategoriesPage'
 import { MastersPage } from '@/features/masters/components/MastersPage'
 import { CreditCardsSection } from '@/components/CreditCardsSection'
@@ -121,6 +121,8 @@ export default function App() {
       ? hash.includes('type=recovery')
       : false
   })
+  // Raised by AuthPage before a "Forgot password?" code is verified (see onPasswordResetPending).
+  const [resettingByCode, setResettingByCode] = useState(false)
 
   useEffect(() => {
     // If recovery token in URL, don't call getSession yet — wait for onAuthStateChange
@@ -171,7 +173,15 @@ export default function App() {
     setSession(session)
   }} />
 
-  if (!session) return <AuthPage />
+  if (!session) return <AuthPage onPasswordResetPending={setResettingByCode} />
+
+  // "Forgot password?" code just verified: set the new password before the dashboard.
+  if (resettingByCode) return <ResetPasswordPage onDone={() => setResettingByCode(false)} />
+
+  // A new email/phone account has no name or password yet (Google and older accounts have a name).
+  if (!session.user.user_metadata?.full_name) {
+    return <CompleteProfilePage username={session.user.email || (session.user.phone ? `+${session.user.phone}` : '')} />
+  }
 
   return <AppContent session={session} />
 }
@@ -187,7 +197,8 @@ const SHEET_CLOSE_MS = 350
 function AppContent({ session }: { session: Session }) {
   const user = session.user
   const userName  = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
-  const userEmail = user.email || ''
+  // Phone-OTP accounts have no email; show the number wherever the email would go.
+  const userEmail = user.email || (user.phone ? `+${user.phone}` : '')
 
   const [accent, setAccent] = useState('#10B981')
   const [dark, setDark] = useState(() => {
