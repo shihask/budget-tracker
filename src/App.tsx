@@ -87,8 +87,6 @@ import { useSyncPromotion } from '@/features/aa-sync/hooks/useSyncPromotion'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
 import { GuidedTour } from '@/components/GuidedTour'
-import { Analytics as VercelAnalytics } from '@vercel/analytics/react'
-import { SpeedInsights } from '@vercel/speed-insights/react'
 import { ProjectsDashboardCard } from '@/features/shared-projects/components/ProjectsDashboardCard'
 import { EventsCard } from '@/features/events/components/EventsCard'
 import { EventFormSheet } from '@/features/events/components/EventFormSheet'
@@ -1580,8 +1578,6 @@ function AppContent({ session }: { session: Session }) {
               </div>
         </BottomSheet>
       </div>
-      <VercelAnalytics />
-      <SpeedInsights />
     </ThemeContext.Provider>
   )
 }

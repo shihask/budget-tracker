@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import * as Sentry from '@sentry/react'
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import App from './App'
 import './index.css'
 import { dismissBootShell } from './lib/boot-shell'
@@ -26,6 +28,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <Sentry.ErrorBoundary fallback={<SentryFallback />}>
       <App />
     </Sentry.ErrorBoundary>
+    {/* At the root, not in AppContent: every screen counts — landing, sign-in and
+        the name step included. Inside AppContent only signed-in users were seen,
+        so every ad visitor was invisible (Oct 2026). Outside the boundary so a
+        visitor who hits an error is still counted. */}
+    <VercelAnalytics />
+    <SpeedInsights />
   </React.StrictMode>,
 )
 
