@@ -12,6 +12,7 @@ import { PrivacyPolicy, TermsOfService, AboutPage, ContactPage } from './LegalPa
 import { MintAnimation } from './MintAnimation'
 import { OpenInBrowserNotice } from './OpenInBrowserNotice'
 import { inAppBrowserName, isStandalone } from '@/lib/browser-env'
+import { trackStep } from '@/lib/funnel'
 import {
   type Identifier, OTP_LENGTH, OTP_RESEND_SECONDS, PHONE_AUTH_OFF,
   displayIdentifier, isPhoneAuthOff, parseIdentifier,
@@ -271,8 +272,13 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
   const switchTab = (t: Tab) => {
     setTab(t); setCodeStep(false); clearError(); setPassword(''); setOtp('')
   }
-  const openAuth = (t: Tab) => { switchTab(t); setIdentifier(''); setShowAuth(true) }
+  const openAuth = (t: Tab) => {
+    trackStep(t === 'signup' ? 'signup_opened' : 'signin_opened')
+    switchTab(t); setIdentifier(''); setShowAuth(true)
+  }
   const closeAuth = () => { setShowAuth(false); setCodeStep(false); clearError() }
+
+  useEffect(() => { trackStep('landing_view') }, [])
 
   useEffect(() => {
     if (showAuth) document.body.style.overflow = 'hidden'
@@ -286,6 +292,7 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
   if (legalPage === 'contact') return <ContactPage onBack={() => setLegalPage(null)} />
 
   const handleOAuth = async (provider: 'google') => {
+    trackStep('google_clicked')
     clearError(); setLoading(true)
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
@@ -312,11 +319,13 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
       ? await supabase.auth.signInWithOtp({ email: id.value, options })
       : await supabase.auth.signInWithOtp({ phone: id.value, options })
     if (error) {
+      trackStep('code_send_failed')
       setError(isPhoneAuthOff(error.message) ? PHONE_AUTH_OFF
         : /signups not allowed/i.test(error.message)
           ? `No account with this ${id.kind === 'email' ? 'email' : 'number'} yet. Choose Sign Up to create one.`
           : error.message)
     } else {
+      if (purpose === 'signup') trackStep('signup_code_sent')
       setSentTo({ id, purpose }); setOtp(''); setResendIn(OTP_RESEND_SECONDS); setCodeStep(true)
     }
     setLoading(false)
@@ -334,6 +343,8 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
         : /invalid login credentials/i.test(error.message)
           ? `Wrong ${id.kind === 'email' ? 'email' : 'number'} or password. Forgot it? Sign in with a code below.`
           : error.message)
+    } else {
+      trackStep('signin_success')
     }
     setLoading(false)
   }
@@ -350,13 +361,18 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
     if (isReset) onPasswordResetPending?.(true)
     // On success App's session listener swaps this page out (to the name/password
     // step for a new account, the new-password page for a reset, else the dashboard).
+    // trackStep is module-level, so recording after the await is safe even once
+    // this page has unmounted.
     const { id } = sentTo
+    const verifiedStep = sentTo.purpose === 'signup' ? 'signup_code_verified' as const : null
     const { error } = await supabase.auth.verifyOtp(id.kind === 'email'
       ? { email: id.value, token: otp, type: 'email' }
       : { phone: id.value, token: otp, type: 'sms' })
     if (error) {
       if (isReset) onPasswordResetPending?.(false)
       setError(/expired|invalid/i.test(error.message) ? 'That code is wrong or has expired.' : error.message)
+    } else if (verifiedStep) {
+      trackStep(verifiedStep)
     }
     setLoading(false)
   }
@@ -1215,6 +1231,7 @@ export function CompleteProfilePage({ username }: { username: string }) {
     setLoading(true); setError(null)
     const { error } = await supabase.auth.updateUser({ password, data: { full_name: name.trim() } })
     if (error) setError(error.message)
+    else trackStep('account_created')
     setLoading(false)
   }
 
