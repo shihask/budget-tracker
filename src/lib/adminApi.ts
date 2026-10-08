@@ -103,8 +103,10 @@ export async function toggleAdminUserFeature(userId: string, field: ToggleableFe
 
 export type AdminAuditLogEntry = {
   id: string
-  admin_user_id: string
-  target_user_id: string
+  /** null once that admin's account was deleted (FK is ON DELETE SET NULL). */
+  admin_user_id: string | null
+  /** null for a deleted account — `delete_user` rows keep its email/phone in old_value. */
+  target_user_id: string | null
   action: string
   field: string | null
   old_value: unknown
@@ -115,6 +117,14 @@ export type AdminAuditLogEntry = {
 export async function fetchAdminAuditLog(targetUserId?: string, limit?: number): Promise<AdminAuditLogEntry[]> {
   const { entries } = await callAdminApi<{ entries: AdminAuditLogEntry[] }>({ action: 'audit-log', target_user_id: targetUserId, limit })
   return entries
+}
+
+/**
+ * Permanently delete an account, its data and files. `confirm` is the
+ * account's email or phone as typed by the admin — the server re-checks it.
+ */
+export async function deleteAdminUser(userId: string, confirm: string): Promise<{ filesRemoved: number }> {
+  return callAdminApi<{ ok: true; filesRemoved: number }>({ action: 'delete-user', user_id: userId, confirm })
 }
 
 /** One funnel_daily row: a step's count on one IST day for one ad source. */

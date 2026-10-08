@@ -4,6 +4,7 @@ import type { ColorTokens } from '@/lib/tokens'
 import { timeAgo } from '@/lib/utils'
 import { ACHIEVEMENTS } from '@/lib/achievement-definitions'
 import { AdminFunnelCard } from './AdminFunnelCard'
+import { AdminDeleteAccount } from './AdminDeleteAccount'
 import {
   fetchAdminUserList, fetchAdminUserDetail, toggleAdminUserFeature, setAdminUserTokenBudget,
   fetchAdminAuditLog, fetchAdminUserActivity,
@@ -164,16 +165,23 @@ function RefreshButton({ onClick, spinning, c }: { onClick: () => void; spinning
 }
 
 function AuditRow({ entry, usersById, c, showTarget }: { entry: AdminAuditLogEntry; usersById: Map<string, AdminUserSummary>; c: ColorTokens; showTarget: boolean }) {
-  const admin = usersById.get(entry.admin_user_id)
-  const target = usersById.get(entry.target_user_id)
+  const admin = entry.admin_user_id ? usersById.get(entry.admin_user_id) : undefined
+  const target = entry.target_user_id ? usersById.get(entry.target_user_id) : undefined
   const fieldLabel = entry.field ? (FEATURE_LABELS[entry.field as ToggleableFeatureField] ?? entry.field) : entry.action
   const oldVal = extractBool(entry.old_value, entry.field)
   const newVal = extractBool(entry.new_value, entry.field)
+  const deleted = entry.action === 'delete_user'
+    ? entry.old_value as { email?: string | null; phone?: string | null; full_name?: string | null } | null
+    : null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 0', borderBottom: `1px solid ${c.faint}` }}>
-      <div style={{ font: '600 12.5px Plus Jakarta Sans', color: c.ink }}>{fieldLabel}: {oldVal} → {newVal}</div>
+      <div style={{ font: '600 12.5px Plus Jakarta Sans', color: deleted ? c.bad : c.ink }}>
+        {deleted
+          ? <>Deleted account: {deleted.full_name || deleted.email || deleted.phone || 'unknown'}{deleted.full_name && (deleted.email || deleted.phone) ? ` (${deleted.email || deleted.phone})` : ''}</>
+          : <>{fieldLabel}: {oldVal} → {newVal}</>}
+      </div>
       <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {showTarget && <>{target?.fullName || target?.email || 'Unknown account'} · </>}
+        {showTarget && !deleted && <>{target?.fullName || target?.email || 'Unknown account'} · </>}
         by {admin?.fullName || admin?.email || 'Unknown admin'} · {timeAgo(entry.created_at)}
       </div>
     </div>
@@ -398,6 +406,16 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
     } finally {
       setBudgetSaving(false)
     }
+  }
+
+  // Back to the list without the deleted account, then reload counts and the
+  // activity feed (which now has the delete_user entry).
+  const handleUserDeleted = (id: string) => {
+    setSelectedUserId(null)
+    setUsers(prev => prev?.filter(u => u.id !== id) ?? prev)
+    Promise.all([fetchAdminUserList(), fetchAdminAuditLog(undefined, 30)])
+      .then(([listRes, auditRes]) => { setUsers(listRes.users); setSummary(listRes.summary); setGlobalActivity(auditRes) })
+      .catch(() => {})
   }
 
   const handleRefresh = async () => {
@@ -698,6 +716,8 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
               <ActivityRow key={i} entry={entry} c={c} />
             ))}
           </div>
+
+          <AdminDeleteAccount key={selectedUser.id} user={selectedUser} onDeleted={handleUserDeleted} />
         </div>
       )}
 

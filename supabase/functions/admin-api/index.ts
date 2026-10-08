@@ -59,6 +59,26 @@ function isSameMonth(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
 }
 
+/** Every file path under `prefix/` in a bucket. Storage `list` is one level deep, so folders are walked. */
+async function listAllFiles(db: ReturnType<typeof serviceClient>, bucket: string, prefix: string): Promise<string[]> {
+  const out: string[] = []
+  const queue = [prefix]
+  while (queue.length) {
+    const dir = queue.shift()!
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await db.storage.from(bucket).list(dir, { limit: 1000, offset })
+      if (error) throw error
+      for (const item of data ?? []) {
+        // Folders come back with a null id; files have one.
+        if (item.id) out.push(`${dir}/${item.name}`)
+        else queue.push(`${dir}/${item.name}`)
+      }
+      if (!data || data.length < 1000) break
+    }
+  }
+  return out
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 }
@@ -311,6 +331,64 @@ Deno.serve(async (req) => {
       if (auditError) console.error('[admin-api] audit log insert failed:', auditError)
 
       return json({ ok: true })
+    }
+
+    // ── delete-user: permanently delete one account, its data and its files ──
+    // Every user-linked table CASCADEs (admin_audit_logs SET NULL since
+    // 20261008000001), so deleting the auth user removes all their rows in one
+    // transaction. Storage has no FK, so files are removed afterwards — best
+    // effort, logged: a leftover file is better than a half-deleted account.
+    if (action === 'delete-user') {
+      const { user_id, confirm } = body
+      if (!user_id || typeof confirm !== 'string') return json({ error: 'invalid_request' }, 400)
+      if (user_id === caller.id) return json({ error: 'cannot_delete_self' }, 400)
+
+      const { data: roleRow } = await db.from('user_roles').select('role').eq('user_id', user_id).maybeSingle()
+      if (roleRow?.role === 'admin') return json({ error: 'cannot_delete_admin' }, 400)
+
+      const { data: got, error: getError } = await db.auth.admin.getUserById(user_id)
+      if (getError || !got?.user) return json({ error: 'user_not_found' }, 404)
+      const target = got.user
+      const email = target.email ?? null
+      const phone = target.phone ? `+${target.phone}` : null
+      // Server-side re-check of the type-to-confirm box: a stale or scripted call
+      // can't delete anyone without naming them.
+      const typed = confirm.trim().toLowerCase().replace(/\s+/g, '')
+      const matches = [email?.toLowerCase(), phone, target.phone].filter(Boolean).includes(typed)
+      if (!matches) return json({ error: 'confirmation_mismatch' }, 400)
+
+      const { error: deleteError } = await db.auth.admin.deleteUser(user_id)
+      if (deleteError) {
+        console.error('[admin-api] deleteUser failed:', deleteError.message)
+        return json({ error: 'delete_failed', detail: deleteError.message }, 500)
+      }
+
+      // All three buckets key files under `${userId}/…`.
+      let filesRemoved = 0
+      for (const bucket of ['transaction-receipts', 'statement-imports', 'project-attachments']) {
+        try {
+          const paths = await listAllFiles(db, bucket, user_id)
+          for (let i = 0; i < paths.length; i += 100) {
+            const { error } = await db.storage.from(bucket).remove(paths.slice(i, i + 100))
+            if (error) console.error(`[admin-api] remove from ${bucket} failed:`, error.message)
+            else filesRemoved += Math.min(100, paths.length - i)
+          }
+        } catch (e) {
+          console.error(`[admin-api] listing ${bucket} failed:`, e)
+        }
+      }
+
+      const { error: auditError } = await db.from('admin_audit_logs').insert({
+        admin_user_id: caller.id,
+        target_user_id: null,
+        action: 'delete_user',
+        field: null,
+        old_value: { user_id, email, phone, full_name: (target.user_metadata as { full_name?: string } | null)?.full_name ?? null },
+        new_value: { files_removed: filesRemoved },
+      })
+      if (auditError) console.error('[admin-api] audit log insert failed:', auditError)
+
+      return json({ ok: true, filesRemoved })
     }
 
     // ── funnel: anonymous sign-up step counts (funnel_daily view) for the last N days ──
