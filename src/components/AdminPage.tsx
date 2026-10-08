@@ -3,6 +3,7 @@ import { useTheme } from '@/lib/theme-context'
 import type { ColorTokens } from '@/lib/tokens'
 import { timeAgo } from '@/lib/utils'
 import { ACHIEVEMENTS } from '@/lib/achievement-definitions'
+import { AdminFunnelCard } from './AdminFunnelCard'
 import {
   fetchAdminUserList, fetchAdminUserDetail, toggleAdminUserFeature, setAdminUserTokenBudget,
   fetchAdminAuditLog, fetchAdminUserActivity,
@@ -221,6 +222,8 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [globalActivity, setGlobalActivity] = useState<AdminAuditLogEntry[] | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  // Bumped by Refresh; AdminFunnelCard loads on its own so a funnel failure never blocks accounts.
+  const [funnelRefreshKey, setFunnelRefreshKey] = useState(0)
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [detail, setDetail] = useState<AdminUserDetail | null>(null)
@@ -399,6 +402,7 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
 
   const handleRefresh = async () => {
     setRefreshing(true)
+    if (!selectedUserId) setFunnelRefreshKey(k => k + 1)
     try {
       if (selectedUserId) {
         const [d, activity, listRes] = await Promise.all([
@@ -497,6 +501,8 @@ export function AdminPage({ open, onClose, onSwipeProgress }: Props) {
               </div>
             </>
           )}
+
+          <AdminFunnelCard refreshKey={funnelRefreshKey} />
 
           {users && users.length > 0 && (
             <>

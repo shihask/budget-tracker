@@ -313,6 +313,18 @@ Deno.serve(async (req) => {
       return json({ ok: true })
     }
 
+    // ── funnel: anonymous sign-up step counts (funnel_daily view) for the last N days ──
+    // The view groups by IST calendar day, so "since" is computed in IST too.
+    if (action === 'funnel') {
+      const days = typeof body.days === 'number' && body.days >= 1 && body.days <= 90 ? Math.floor(body.days) : 30
+      const istNow = new Date(Date.now() + 330 * 60 * 1000)
+      istNow.setUTCDate(istNow.getUTCDate() - (days - 1))
+      const since = istNow.toISOString().slice(0, 10)
+      const { data, error } = await db.from('funnel_daily').select('*').gte('day', since).order('day', { ascending: false })
+      if (error) return json({ error: 'funnel_failed' }, 500)
+      return json({ rows: data ?? [] })
+    }
+
     return json({ error: 'unknown_action' }, 400)
   } catch (e) {
     console.error('[admin-api] unhandled exception:', e)

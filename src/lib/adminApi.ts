@@ -117,6 +117,23 @@ export async function fetchAdminAuditLog(targetUserId?: string, limit?: number):
   return entries
 }
 
+/** One funnel_daily row: a step's count on one IST day for one ad source. */
+export type FunnelDailyRow = {
+  day: string
+  step: string
+  source: string
+  total: number
+  android: number
+  ios: number
+  in_app: number
+}
+
+export async function fetchAdminFunnel(days = 30): Promise<FunnelDailyRow[]> {
+  const { rows } = await callAdminApi<{ rows: FunnelDailyRow[] }>({ action: 'funnel', days })
+  // count(*) is bigint — coerce in case it ever arrives as a string.
+  return rows.map(r => ({ ...r, total: Number(r.total), android: Number(r.android), ios: Number(r.ios), in_app: Number(r.in_app) }))
+}
+
 export type AdminActivityEntry =
   | { type: 'audit'; at: string; adminUserId: string; action: string; field: string | null; oldValue: unknown; newValue: unknown }
   | { type: 'achievement'; at: string; achievementId: string }
