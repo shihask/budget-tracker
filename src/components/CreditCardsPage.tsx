@@ -217,7 +217,9 @@ export function CreditCardsPage({
       const b = getCreditCardBilling(cd, state.transactions)
       items.push({ date: b.nextBillDate, label: cd.name, sub: 'Statement generated', amount: null, color: colorFor(cd.name) })
       if (b.billedAmount > 0) {
-        items.push({ date: b.nextDueDate, label: cd.name, sub: 'Payment due', amount: b.billedAmount, color: c.bad })
+        // statementDueDate, not nextDueDate: on the due day the latter is already next month.
+        // Overdue → listed as today so it doesn't vanish from "upcoming" while still unpaid.
+        items.push({ date: b.statementDueDate < today ? today : b.statementDueDate, label: cd.name, sub: b.statementDueDate < today ? 'Overdue' : 'Payment due', amount: b.billedAmount, color: c.bad })
       }
     }
     return items.filter(i => i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4)

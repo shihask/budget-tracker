@@ -9,7 +9,12 @@ export interface CreditCardBilling {
   billedAmount: number
   unbilledAmount: number
   lastBillDate: string
+  /** The next due day strictly after today — a calendar fact, not "when the outstanding bill is due".
+   *  On the due day itself this is already next month's date; use `statementDueDate` for the bill. */
   nextDueDate: string
+  /** When the statement generated at `lastBillDate` (i.e. `billedAmount`) falls due: the first due day
+   *  after that bill date. Equals today on the due day, and is in the past once it is overdue. */
+  statementDueDate: string
   nextBillDate: string
   /** Gross statement before payments. billedAmount is already net of them, so the Current Statement
    *  preview needs this to show Total / Paid / Remaining. Additive only — nothing else reads it. */
@@ -84,6 +89,7 @@ export function getCreditCardBilling(
     unbilledAmount,
     lastBillDate: lastBillStr,
     nextDueDate: localYmd(getNextDate(card.due_day, today)),
+    statementDueDate: localYmd(getNextDate(card.due_day, lastBill)),
     nextBillDate: localYmd(getNextDate(card.bill_day, today)),
     statementAmount,
     paidSinceBill: round2(paidSinceBill),

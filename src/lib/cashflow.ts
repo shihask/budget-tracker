@@ -364,7 +364,12 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics, 
         events.push({ date: dateStr, title, amount: rounded, type: 'expense', source: 'card', card_id: cc.id })
       }
 
-      pushBill(billing.nextDueDate, `${cc.name} bill`, billing.billedAmount)
+      // The billed amount is due on its STATEMENT's due date, not the next due day after today —
+      // on the due day itself that is already next month, which dropped an unpaid bill out of the
+      // forecast exactly when it mattered. Unpaid past the due date → still owed, so it carries
+      // forward to today, every day, until it is paid.
+      const todayIso = isoOf(today)
+      pushBill(billing.statementDueDate < todayIso ? todayIso : billing.statementDueDate, `${cc.name} bill`, billing.billedAmount)
 
       if (opts?.includeUnbilledCards) {
         const nextBill = new Date(billing.nextBillDate + 'T00:00:00')

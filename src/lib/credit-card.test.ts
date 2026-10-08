@@ -149,3 +149,21 @@ describe('getCreditCardBilling — refunds credited to the card', () => {
     expect(b.unbilledAmount).toBe(0)
   })
 })
+
+describe('getCreditCardBilling — statementDueDate', () => {
+  // bill 25, due 11: the 25 Sep statement is due 11 Oct.
+  it('is the due day after the last bill, before the due day', () => {
+    expect(getCreditCardBilling(card(), [], new Date(2026, 9, 5)).statementDueDate).toBe('2026-10-11')
+  })
+
+  it('is today on the due day — nextDueDate has already rolled to next month', () => {
+    const b = getCreditCardBilling(card(), [], new Date(2026, 9, 11))
+    expect(b.statementDueDate).toBe('2026-10-11')
+    expect(b.nextDueDate).toBe('2026-11-11')
+  })
+
+  it('stays in the past once overdue, until the next statement', () => {
+    expect(getCreditCardBilling(card(), [], new Date(2026, 9, 20)).statementDueDate).toBe('2026-10-11')
+    expect(getCreditCardBilling(card(), [], new Date(2026, 9, 25)).statementDueDate).toBe('2026-11-11')
+  })
+})
