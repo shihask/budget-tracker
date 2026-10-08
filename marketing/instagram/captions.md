@@ -208,3 +208,20 @@ Safe-to-spend · payday forecast · bills & EMIs · credit card bills · SIP & c
 
 #moneyplant #personalfinance #budgeting #expensetracker #financeindia #moneytips #salary #budgetapp #reelsindia
 ```
+
+---
+
+## Reel: "Still typing every bill? Just snap it." (receipt scan)
+File: `out/reel-receipt.mp4` (18 s). Cover: the "Just snap it." opening or the filled-in form.
+Note for comments: receipt reading needs **Autopilot** turned on (Settings) and an internet connection.
+```
+Still typing every bill? Just snap it 📸
+
+Take a photo of the receipt (or send it to Mint in chat) and MoneyPlant fills in the shop, amount, date and category. You check it, tap Save, and the receipt stays attached to the expense.
+
+Turn on Autopilot in Settings to use it. Free.
+👉 Link in bio: moneyplant.online
+
+#moneyplant #receipt #expensetracker #personalfinance #budgeting #moneytips #financeindia #productivity #reelsindia
+```
+For a Meta ad: headline "Snap. Check. Saved.", URL ending `utm_campaign=receipt_reel`.
