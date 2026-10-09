@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant value posts, batch 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;800&display=swap" rel="stylesheet">
+<!-- Organic "value first" posts (batch 1): 7 carousels + 3 quote cards + 3 Malayalam quote cards.
+     MoneyPlant appears only as a soft mention on each carousel's last slide.
+     Render: node marketing/instagram/render.mjs value-posts → out/<data-name>.png
+     Rules (see content-plan.md): every figure is arithmetic shown on the slide; amounts and splits
+     are examples to adapt, never rules; no statistics, no news, no attributed quotes. -->
+<style>
+  :root { --green: #16C98A; --green-dark: #0A7A56; --ink: #1C1410; --muted: #6B5F57; --cream: #F6F1EA; --rule: #EDE5DB; --red: #B4372B; --red-bg: #FDECEA; --mint-bg: #E3F8EF; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #ccc; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: var(--ink); }
+  .slide { width: 1080px; height: 1350px; position: relative; overflow: hidden; padding: 96px 90px 90px; display: flex; flex-direction: column; margin: 0 0 40px; background: var(--cream); }
+  .green { background: linear-gradient(150deg, var(--green), var(--green-dark)); color: #fff; }
+  .ink { background: var(--ink); color: #fff; }
+  .top { display: flex; align-items: center; justify-content: space-between; }
+  .handle { display: flex; align-items: center; gap: 14px; font-size: 28px; font-weight: 800; opacity: .85; }
+  .handle img { width: 48px; height: 48px; border-radius: 13px; }
+  .count { font-size: 28px; font-weight: 800; color: var(--muted); letter-spacing: 2px; }
+  .green .count, .ink .count { color: rgba(255,255,255,.7); }
+  .kicker { font-size: 30px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; color: var(--green-dark); }
+  .green .kicker, .ink .kicker { color: rgba(255,255,255,.8); }
+  h1 { font-size: 112px; line-height: 1.0; font-weight: 800; letter-spacing: -3.5px; }
+  h2 { font-size: 80px; line-height: 1.05; font-weight: 800; letter-spacing: -2px; }
+  .lead { font-size: 40px; line-height: 1.42; font-weight: 500; color: var(--muted); margin-top: 26px; }
+  .green .lead, .ink .lead { color: rgba(255,255,255,.88); }
+  .soft { color: #D9FFEE; }
+  .spacer { flex: 1; }
+  .card { background: #fff; border: 3px solid var(--rule); border-radius: 40px; padding: 38px 42px; color: var(--ink); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0; font-size: 38px; font-weight: 700; }
+  .row + .row { border-top: 3px solid var(--rule); }
+  .row b { font-size: 46px; font-weight: 800; white-space: nowrap; }
+  .row small { display: block; font-size: 27px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+  .pos { color: var(--green-dark); } .neg { color: var(--red); }
+  .swipe { display: flex; align-items: center; gap: 14px; font-size: 32px; font-weight: 800; }
+  .note { font-size: 26px; color: var(--muted); font-weight: 500; margin-top: 20px; }
+  .green .note, .ink .note { color: rgba(255,255,255,.7); }
+  .tip { display: flex; gap: 30px; align-items: flex-start; }
+  .tip .n { flex: 0 0 110px; height: 110px; border-radius: 32px; background: var(--mint-bg); color: var(--green-dark); display: grid; place-items: center; font-size: 60px; font-weight: 800; }
+  .tip h3 { font-size: 64px; line-height: 1.08; font-weight: 800; letter-spacing: -1.5px; }
+  .tip.lg { align-items: center; }
+  .tip.lg h3 { font-size: 80px; line-height: 1.04; letter-spacing: -2.5px; }
+  .fix { margin-top: 40px; background: var(--mint-bg); border-radius: 32px; padding: 34px 40px; font-size: 38px; line-height: 1.4; font-weight: 600; color: #0b4d37; }
+  .fix b { font-weight: 800; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; }
+  .grid i { aspect-ratio: 1; border-radius: 18px; background: #fff; border: 3px solid var(--rule); display: grid; place-items: center; font-style: normal; font-size: 30px; font-weight: 800; color: var(--muted); }
+  .grid i.done { background: var(--green); border-color: var(--green); color: #fff; }
+  .bar { height: 54px; border-radius: 18px; overflow: hidden; display: flex; }
+  .bar span { display: grid; place-items: center; color: #fff; font-size: 28px; font-weight: 800; }
+  .quote { font-size: 104px; line-height: 1.08; font-weight: 800; letter-spacing: -3px; }
+  .quote.ml { font-family: 'Noto Sans Malayalam', 'Plus Jakarta Sans', sans-serif; font-size: 86px; line-height: 1.32; letter-spacing: 0; }
+  .quote em { font-style: normal; color: var(--green-dark); }
+  .green .quote em, .ink .quote em { color: #7FF0C6; }
+  .mark { font-size: 220px; line-height: .6; font-weight: 800; color: var(--green); height: 110px; }
+  .soft-cta { display: flex; align-items: center; gap: 22px; background: #fff; border: 3px solid var(--rule); border-radius: 36px; padding: 30px 36px; color: var(--ink); }
+  .soft-cta img { width: 84px; height: 84px; border-radius: 22px; flex: 0 0 84px; }
+  .soft-cta div { font-size: 34px; font-weight: 700; line-height: 1.35; }
+  .soft-cta b { color: var(--green-dark); }
+  .asks { display: flex; flex-direction: column; gap: 22px; margin-top: 40px; }
+  .ask { display: flex; align-items: center; gap: 22px; font-size: 42px; font-weight: 800; }
+  .ask svg { flex: 0 0 60px; width: 60px; height: 60px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .qnum { font-size: 200px; font-weight: 800; letter-spacing: -8px; line-height: .9; color: var(--green-dark); }
+  .ink .qnum { color: #7FF0C6; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ Carousel 1 · Save what you can, every day ═══════════ -->
+
+<section class="slide green" data-name="challenge-01">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">CHALLENGE</span></div>
+  <div class="spacer"></div>
+  <div class="kicker">The daily saving challenge</div>
+  <div style="height:30px"></div>
+  <h1>Save a little.</h1>
+  <h1 class="soft" style="margin-top:16px">Every day.</h1>
+  <p class="lead" style="margin-top:44px">Even ₹10 a day counts. Here's what small amounts turn into.</p>
+  <div class="spacer"></div>
+  <div class="top"><span class="note" style="margin:0">Save this. Start Monday.</span><span class="swipe">Swipe <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+</section>
+
+<section class="slide" data-name="challenge-02">
+  <div class="top"><span class="kicker">The maths</span><span class="count">2 / 6</span></div>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="row"><span>₹10 a day<small>₹10 × 365 days</small></span><b>₹3,650 a year</b></div>
+    <div class="row"><span>₹20 a day<small>₹20 × 365 days</small></span><b>₹7,300 a year</b></div>
+    <div class="row"><span>₹50 a day<small>₹50 × 365 days</small></span><b class="pos">₹18,250 a year</b></div>
+  </div>
+  <p class="lead">Pick the one that doesn't hurt. The habit matters more than the amount.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="challenge-03">
+  <div class="top"><span class="kicker">The rules</span><span class="count">3 / 6</span></div>
+  <h2 style="margin-top:40px">Keep it simple.</h2>
+  <div class="spacer"></div>
+  <div style="display:flex;flex-direction:column;gap:46px">
+    <div class="tip"><span class="n">1</span><div><h3>Pick an amount that doesn't hurt</h3><p class="lead" style="margin-top:10px">₹10 is fine. Rent, groceries and EMIs come first.</p></div></div>
+    <div class="tip"><span class="n">2</span><div><h3>Move it the same day</h3><p class="lead" style="margin-top:10px">To a separate account or wallet. Out of sight.</p></div></div>
+    <div class="tip"><span class="n">3</span><div><h3>Missed a day? Don't double up</h3><p class="lead" style="margin-top:10px">Just carry on tomorrow. Streaks beat perfection.</p></div></div>
+  </div>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="challenge-04">
+  <div class="top"><span class="kicker">Your first week</span><span class="count">4 / 6</span></div>
+  <h2 style="margin-top:40px">Tick a box each day.</h2>
+  <p class="lead">Screenshot this slide and mark it up in your gallery.</p>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="grid">
+      <i class="done">M</i><i class="done">T</i><i class="done">W</i><i>T</i><i>F</i><i>S</i><i>S</i>
+    </div>
+    <div class="row" style="padding-bottom:0;margin-top:20px"><span>Saved so far<small>₹20 a day × 3 days</small></span><b class="pos">₹60</b></div>
+  </div>
+  <p class="note">Example.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide ink" data-name="challenge-05">
+  <div class="top"><span class="kicker">Pick your number</span><span class="count">5 / 6</span></div>
+  <div class="spacer"></div>
+  <h2>Any amount works.</h2>
+  <div class="card" style="margin-top:50px">
+    <div class="row"><span>₹10 a day<small>₹300 a month</small></span><b>₹3,650 a year</b></div>
+    <div class="row"><span>₹25 a day<small>₹750 a month</small></span><b>₹9,125 a year</b></div>
+    <div class="row"><span>₹50 a day<small>₹1,500 a month</small></span><b>₹18,250 a year</b></div>
+    <div class="row"><span>₹100 a day<small>₹3,000 a month</small></span><b class="pos">₹36,500 a year</b></div>
+  </div>
+  <p class="note">× 30 for a month, × 365 for a year. Before any interest.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide green" data-name="challenge-06">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">6 / 6</span></div>
+  <div class="spacer"></div>
+  <h2>Starting Monday?</h2>
+  <div class="asks">
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>Comment your daily number</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Save it for Monday</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>Send it to a friend who'd join</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="soft-cta"><img src="../../public/email-logo.png" alt=""><div>Want to see your streak? <b>MoneyPlant</b> tracks your daily spending free. Link in bio.</div></div>
+</section>
+
+<!-- ═══════════ Carousel 2 · One way to split ₹40,000 (50/30/20 as an example) ═══════════ -->
+
+<section class="slide green" data-name="rule503020-01">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">MONEY BASICS</span></div>
+  <div class="spacer"></div>
+  <div class="kicker">The 50/30/20 idea</div>
+  <div style="height:30px"></div>
+  <h1>Earning ₹40,000?</h1>
+  <h1 class="soft" style="margin-top:20px">Here's one way to split it.</h1>
+  <div class="spacer"></div>
+  <div class="top"><span class="note" style="margin:0">An example, not a rule</span><span class="swipe">Swipe <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+</section>
+
+<section class="slide" data-name="rule503020-02">
+  <div class="top"><span class="kicker">The split</span><span class="count">2 / 6</span></div>
+  <h2 style="margin-top:40px">Three buckets.</h2>
+  <div class="spacer"></div>
+  <div class="bar"><span style="flex:50;background:#0A7A56">50%</span><span style="flex:30;background:#F2A33A">30%</span><span style="flex:20;background:#16C98A">20%</span></div>
+  <div class="card" style="margin-top:30px">
+    <div class="row"><span>Needs<small>50% of ₹40,000</small></span><b>₹20,000</b></div>
+    <div class="row"><span>Wants<small>30% of ₹40,000</small></span><b>₹12,000</b></div>
+    <div class="row"><span>Savings<small>20% of ₹40,000</small></span><b class="pos">₹8,000</b></div>
+  </div>
+  <p class="note">Example. Your split can be different.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="rule503020-03">
+  <div class="top"><span class="kicker" style="color:#0A7A56">Needs · 50%</span><span class="count">3 / 6</span></div>
+  <h2 style="margin-top:40px">Things you can't skip.</h2>
+  <p class="lead">If you stopped paying, something would break.</p>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="row"><span>Rent</span><b>₹11,000</b></div>
+    <div class="row"><span>Groceries</span><b>₹4,500</b></div>
+    <div class="row"><span>Electricity, mobile, internet</span><b>₹2,000</b></div>
+    <div class="row"><span>Travel to work</span><b>₹2,500</b></div>
+    <div class="row"><span>Total</span><b>₹20,000</b></div>
+  </div>
+  <p class="note">Example split. EMIs and money you send home count here too.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="rule503020-04">
+  <div class="top"><span class="kicker" style="color:#B87512">Wants · 30%</span><span class="count">4 / 6</span></div>
+  <h2 style="margin-top:40px">Enjoy it. Guilt-free.</h2>
+  <p class="lead">Eating out, shopping, OTT, weekend trips. Spending here is the point, as long as it stays in the bucket.</p>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="row"><span>Food delivery & eating out</span><b>₹5,000</b></div>
+    <div class="row"><span>Shopping</span><b>₹4,000</b></div>
+    <div class="row"><span>Subscriptions & outings</span><b>₹3,000</b></div>
+    <div class="row"><span>Total</span><b>₹12,000</b></div>
+  </div>
+  <p class="note">Example split.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="rule503020-05">
+  <div class="top"><span class="kicker">Savings · 20%</span><span class="count">5 / 6</span></div>
+  <h2 style="margin-top:40px">Pay yourself first.</h2>
+  <p class="lead">Move it on salary day, before the wants start. Not at the end of the month, when nothing is left.</p>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="row"><span>Emergency fund<small>until it covers 3–6 months of needs</small></span><b>₹4,000</b></div>
+    <div class="row"><span>Long-term savings</span><b>₹3,000</b></div>
+    <div class="row"><span>A goal you care about</span><b>₹1,000</b></div>
+    <div class="row"><span>Total</span><b class="pos">₹8,000</b></div>
+  </div>
+  <p class="note">Example split. Not investment advice.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide green" data-name="rule503020-06">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">6 / 6</span></div>
+  <div class="spacer"></div>
+  <h2>Not a rule. A starting point.</h2>
+  <p class="lead">City rent, EMIs or supporting family? 60/30/10 or 70/20/10 are normal. Adjust the split, and keep some saving, even a small one.</p>
+  <div class="asks">
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>Comment your split</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Save for salary day</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="soft-cta"><img src="../../public/email-logo.png" alt=""><div><b>MoneyPlant</b> sorts your spending into Needs, Wants and Savings, with your own split. Free, link in bio.</div></div>
+</section>
+
+<!-- ═══════════ Carousel 3 · 5 silent money leaks ═══════════ -->
+
+<section class="slide ink" data-name="leaks-01">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">MONEY LEAKS</span></div>
+  <div class="spacer"></div>
+  <h1>5 silent leaks</h1>
+  <h1 style="color:#7FF0C6;margin-top:16px">in your salary.</h1>
+  <p class="lead" style="margin-top:44px">None of them feels like spending. All of them add up.</p>
+  <div class="spacer"></div>
+  <div class="top"><span class="note" style="margin:0">Which one is yours?</span><span class="swipe">Swipe <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+</section>
+
+<section class="slide" data-name="leaks-02">
+  <div class="top"><span class="kicker">Leak 1</span><span class="count">2 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="tip lg"><span class="n">1</span><h3>Subscriptions you forgot</h3></div>
+  <p class="lead">An OTT plan, a music app, cloud storage, a gym you stopped going to. Small, monthly, invisible.</p>
+  <div class="fix"><b>Fix:</b> open your UPI autopay and card standing instructions once a month. Cancel anything you didn't use.</div>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="leaks-03">
+  <div class="top"><span class="kicker">Leak 2</span><span class="count">3 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="tip lg"><span class="n">2</span><h3>Paying only the card's minimum due</h3></div>
+  <p class="lead">The unpaid balance carries over and collects interest. Credit card interest is usually higher than typical personal-loan or home-loan rates. Your statement shows your card's exact rate.</p>
+  <div class="fix"><b>Fix:</b> pay the total due, every month. If you can't, pause using the card until you can.</div>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="leaks-04">
+  <div class="top"><span class="kicker">Leak 3</span><span class="count">4 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="tip lg"><span class="n">3</span><h3>Small UPI payments</h3></div>
+  <p class="lead">₹20 here, ₹80 there. Each one feels like nothing, so nobody counts them.</p>
+  <div class="card" style="margin-top:36px">
+    <div class="row"><span>Small payments</span><b>₹120 a day</b></div>
+    <div class="row"><span>× 30 days</span><b class="neg">₹3,600 a month</b></div>
+  </div>
+  <div class="fix"><b>Fix:</b> log every payment for one week. Just seeing the total changes habits.</div>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="leaks-05">
+  <div class="top"><span class="kicker">Leak 4</span><span class="count">5 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="tip lg"><span class="n">4</span><h3>Late fees and penalties</h3></div>
+  <p class="lead">A bill paid two days late, a cheque that bounced, a minimum balance you dipped under. Money spent on nothing.</p>
+  <div class="fix"><b>Fix:</b> list every due date in one place, and set reminders a few days before, not on the day.</div>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="leaks-06">
+  <div class="top"><span class="kicker">Leak 5</span><span class="count">6 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="tip lg"><span class="n">5</span><h3>"It's a sale" shopping</h3></div>
+  <p class="lead">50% off something you weren't going to buy is not a saving. It's 50% of a new expense.</p>
+  <div class="fix"><b>Fix:</b> the 48-hour rule. Leave it in the cart for two days. If you still want it, buy it.</div>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide green" data-name="leaks-07">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">7 / 7</span></div>
+  <div class="spacer"></div>
+  <h2>Which leak is yours?</h2>
+  <div class="asks">
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>Comment the number, 1 to 5</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>Share with someone who needs it</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Follow for practical money ideas</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="soft-cta"><img src="../../public/email-logo.png" alt=""><div><b>MoneyPlant</b> puts your bills, due dates and spending in one place, free. Link in bio.</div></div>
+</section>
+
+<!-- ═══════════ Carousel 4 · Salary-day checklist ═══════════ -->
+
+<section class="slide green" data-name="salaryday-01">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">CHECKLIST</span></div>
+  <div class="spacer"></div>
+  <div class="kicker">Salary-day checklist</div>
+  <div style="height:30px"></div>
+  <h1>Salary credited.</h1>
+  <h1 class="soft" style="margin-top:16px">Do these 5 things first.</h1>
+  <p class="lead" style="margin-top:44px">Before the first shopping app opens.</p>
+  <div class="spacer"></div>
+  <div class="top"><span class="note" style="margin:0">Save for next salary day</span><span class="swipe">Swipe <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+</section>
+
+<section class="slide" data-name="salaryday-02">
+  <div class="top"><span class="kicker">Step 1</span><span class="count">2 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">1</div>
+  <h2 style="margin-top:30px">Pay the fixed bills</h2>
+  <p class="lead">Rent, EMIs, school fees, electricity. Pay them, or set them aside, before anything else. Late fees are money spent on nothing.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="salaryday-03">
+  <div class="top"><span class="kicker">Step 2</span><span class="count">3 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">2</div>
+  <h2 style="margin-top:30px">Clear the credit card bill</h2>
+  <p class="lead">The total due, not the minimum. Last month's spending is this month's bill.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="salaryday-04">
+  <div class="top"><span class="kicker">Step 3</span><span class="count">4 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">3</div>
+  <h2 style="margin-top:30px">Set aside money for family</h2>
+  <p class="lead">Sending money home or supporting parents? Move it now, so it's never what's "left over".</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="salaryday-05">
+  <div class="top"><span class="kicker">Step 4</span><span class="count">5 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">4</div>
+  <h2 style="margin-top:30px">Move your saving</h2>
+  <p class="lead">Whatever amount you chose, big or small. Before the spending starts, not after.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="salaryday-06">
+  <div class="top"><span class="kicker">Step 5</span><span class="count">6 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">5</div>
+  <h2 style="margin-top:30px">Find your daily number</h2>
+  <p class="lead">What's left is your spending money. Divide it by the days to your next salary.</p>
+  <div class="card" style="margin-top:36px">
+    <div class="row"><span>Left after steps 1–4</span><b>₹9,000</b></div>
+    <div class="row"><span>÷ 30 days to next salary</span><b class="pos">₹300 a day</b></div>
+  </div>
+  <p class="note">Example.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide green" data-name="salaryday-07">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">7 / 7</span></div>
+  <div class="spacer"></div>
+  <h2>Which step do you skip?</h2>
+  <div class="asks">
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>Comment the step number</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Save for next salary day</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="soft-cta"><img src="../../public/email-logo.png" alt=""><div><b>MoneyPlant</b> counts your bills, EMIs and savings, and shows what's safe to spend each day. Free, link in bio.</div></div>
+</section>
+
+<!-- ═══════════ Carousel 5 · Can I afford this? ═══════════ -->
+
+<section class="slide ink" data-name="afford-01">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">BEFORE YOU BUY</span></div>
+  <div class="spacer"></div>
+  <h1>Can I afford this?</h1>
+  <h1 style="color:#7FF0C6;margin-top:16px">4 questions before you tap Pay.</h1>
+  <div class="spacer"></div>
+  <div class="top"><span class="note" style="margin:0">Know before you spend</span><span class="swipe">Swipe <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+</section>
+
+<section class="slide" data-name="afford-02">
+  <div class="top"><span class="kicker">Question 1</span><span class="count">2 / 6</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">1</div>
+  <h2 style="margin-top:30px">Is this money free, or already spoken for?</h2>
+  <p class="lead">A balance in your account isn't the same as money you can spend. Rent, EMIs and the card bill have a claim on it.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="afford-03">
+  <div class="top"><span class="kicker">Question 2</span><span class="count">3 / 6</span></div>
+  <h2 style="margin-top:40px">What's due before my next salary?</h2>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="row"><span>In your account</span><b>₹30,000</b></div>
+    <div class="row"><span>Rent</span><b class="neg">−₹12,000</b></div>
+    <div class="row"><span>EMI</span><b class="neg">−₹6,000</b></div>
+    <div class="row"><span>Card bill</span><b class="neg">−₹5,000</b></div>
+    <div class="row"><span>Actually free</span><b class="pos">₹7,000</b></div>
+  </div>
+  <p class="note">Example.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="afford-04">
+  <div class="top"><span class="kicker">Question 3</span><span class="count">4 / 6</span></div>
+  <h2 style="margin-top:40px">How long does it have to last?</h2>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="row"><span>₹7,000 ÷ 15 days to salary</span><b>≈ ₹467 a day</b></div>
+    <div class="row"><span>After a ₹5,000 purchase<small>₹2,000 ÷ 15 days</small></span><b class="neg">≈ ₹133 a day</b></div>
+  </div>
+  <p class="lead">Can you live on that until payday? If not, it's a "not yet", not a "no".</p>
+  <p class="note">Example.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="afford-05">
+  <div class="top"><span class="kicker">Question 4</span><span class="count">5 / 6</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">4</div>
+  <h2 style="margin-top:30px">Would I still want it in 48 hours?</h2>
+  <p class="lead">Leave it in the cart for two days. Real needs survive the wait. Impulse buys usually don't.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide green" data-name="afford-06">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">6 / 6</span></div>
+  <div class="spacer"></div>
+  <h2>Know before you spend.</h2>
+  <div class="asks">
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>Comment what you're saving for</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Save before your next big buy</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="soft-cta"><img src="../../public/email-logo.png" alt=""><div>Ask Mint in <b>MoneyPlant</b> "Can I afford ₹5,000?" and it checks your bills before payday. Free, link in bio.</div></div>
+</section>
+
+<!-- ═══════════ Carousel 6 · The bills nobody plans for ═══════════ -->
+
+<section class="slide green" data-name="irregular-01">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">FAMILY BUDGET</span></div>
+  <div class="spacer"></div>
+  <h1>The bills nobody plans for.</h1>
+  <p class="lead" style="margin-top:44px">They don't come every month, so they always feel like a surprise. They aren't.</p>
+  <div class="spacer"></div>
+  <div class="top"><span class="note" style="margin:0">Save this before the next one</span><span class="swipe">Swipe <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+</section>
+
+<section class="slide" data-name="irregular-02">
+  <div class="top"><span class="kicker">The usual suspects</span><span class="count">2 / 6</span></div>
+  <h2 style="margin-top:40px">List them for a year.</h2>
+  <div class="spacer"></div>
+  <div class="card">
+    <div class="row"><span>Health insurance</span><b>₹18,000</b></div>
+    <div class="row"><span>School fees (terms)</span><b>₹24,000</b></div>
+    <div class="row"><span>Festivals & gifts</span><b>₹12,000</b></div>
+    <div class="row"><span>Vehicle insurance</span><b>₹9,600</b></div>
+    <div class="row"><span>Vehicle service</span><b>₹4,800</b></div>
+    <div class="row"><span>Total a year</span><b>₹68,400</b></div>
+  </div>
+  <p class="note">Example amounts. Yours will differ.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="irregular-03">
+  <div class="top"><span class="kicker">The trick</span><span class="count">3 / 6</span></div>
+  <div class="spacer"></div>
+  <h2>Divide by 12.</h2>
+  <div class="card" style="margin-top:50px">
+    <div class="row"><span>₹68,400 a year ÷ 12</span><b class="pos">₹5,700 a month</b></div>
+  </div>
+  <p class="lead">Treat that like a bill. Move it every salary day into a separate "yearly bills" account or pot.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="irregular-04">
+  <div class="top"><span class="kicker">When the bill comes</span><span class="count">4 / 6</span></div>
+  <div class="spacer"></div>
+  <h2>The money is already there.</h2>
+  <div class="card" style="margin-top:50px">
+    <div class="row"><span>Vehicle insurance<small>₹800 a month × 12</small></span><b class="pos">₹9,600 ready</b></div>
+    <div class="row"><span>Festivals & gifts<small>₹1,000 a month × 12</small></span><b class="pos">₹12,000 ready</b></div>
+  </div>
+  <p class="lead">No credit card. No borrowing. No stress in festival month.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="irregular-05">
+  <div class="top"><span class="kicker">Getting started</span><span class="count">5 / 6</span></div>
+  <h2 style="margin-top:40px">Start small.</h2>
+  <div class="spacer"></div>
+  <div style="display:flex;flex-direction:column;gap:46px">
+    <div class="tip"><span class="n">1</span><div><h3>Write down last year's surprises</h3><p class="lead" style="margin-top:10px">Check your bank statement for the big ones.</p></div></div>
+    <div class="tip"><span class="n">2</span><div><h3>Can't afford the full amount?</h3><p class="lead" style="margin-top:10px">Start with the biggest bill, or half the amount. Anything is better than nothing.</p></div></div>
+  </div>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide green" data-name="irregular-06">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">6 / 6</span></div>
+  <div class="spacer"></div>
+  <h2>Which one always surprises you?</h2>
+  <div class="asks">
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>Tell us in the comments</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>Share with whoever runs the house budget</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="soft-cta"><img src="../../public/email-logo.png" alt=""><div><b>MoneyPlant</b> tracks monthly and yearly bills and shows them in your forecast before they're due. Free, link in bio.</div></div>
+</section>
+
+<!-- ═══════════ Carousel 7 · The monthly family money talk ═══════════ -->
+
+<section class="slide green" data-name="family-01">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">FAMILY BUDGET</span></div>
+  <div class="spacer"></div>
+  <h1>The monthly family money talk.</h1>
+  <p class="lead" style="margin-top:44px">15 minutes, once a month. No blame. Just 5 questions.</p>
+  <div class="spacer"></div>
+  <div class="top"><span class="note" style="margin:0">Do it on the 1st</span><span class="swipe">Swipe <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+</section>
+
+<section class="slide" data-name="family-02">
+  <div class="top"><span class="kicker">Question 1</span><span class="count">2 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">1</div>
+  <h2 style="margin-top:30px">What came in this month?</h2>
+  <p class="lead">Every income in the house: salaries, rent received, a side business, help from family.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="family-03">
+  <div class="top"><span class="kicker">Question 2</span><span class="count">3 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">2</div>
+  <h2 style="margin-top:30px">What's fixed?</h2>
+  <p class="lead">Rent, EMIs, school fees, money for parents, chit or RD instalments. The non-negotiables.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="family-04">
+  <div class="top"><span class="kicker">Question 3</span><span class="count">4 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">3</div>
+  <h2 style="margin-top:30px">What's coming up?</h2>
+  <p class="lead">Festivals, birthdays, a wedding to attend, a repair that can't wait, school admissions.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="family-05">
+  <div class="top"><span class="kicker">Question 4</span><span class="count">5 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">4</div>
+  <h2 style="margin-top:30px">Where did the rest go?</h2>
+  <p class="lead">Look at the spending together. Not to blame anyone, just to see it.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide" data-name="family-06">
+  <div class="top"><span class="kicker">Question 5</span><span class="count">6 / 7</span></div>
+  <div class="spacer"></div>
+  <div class="qnum">5</div>
+  <h2 style="margin-top:30px">What's one thing to change?</h2>
+  <p class="lead">Just one. Fewer food orders, one subscription cancelled, a small saving started. Next month, check how it went.</p>
+  <div class="spacer"></div>
+</section>
+
+<section class="slide green" data-name="family-07">
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">7 / 7</span></div>
+  <div class="spacer"></div>
+  <h2>Try it on the 1st.</h2>
+  <div class="asks">
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Save it for the 1st</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>Send it to your family group</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="soft-cta"><img src="../../public/email-logo.png" alt=""><div>Sharing costs at home? <b>MoneyPlant</b> shared projects show who paid what. Free, link in bio.</div></div>
+</section>
+
+<!-- ═══════════ Quote cards · original MoneyPlant lines (English) ═══════════ -->
+
+<section class="slide" data-name="quote-01">
+  <div class="spacer"></div>
+  <div class="mark">“</div>
+  <div class="quote">Your salary isn't what you earn. It's what's <em>left after the bills.</em></div>
+  <div class="spacer"></div>
+  <div class="top"><div class="handle" style="opacity:1"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">SAVE · SHARE</span></div>
+</section>
+
+<section class="slide green" data-name="quote-02">
+  <div class="spacer"></div>
+  <div class="mark" style="color:#7FF0C6">“</div>
+  <div class="quote">Save first, then spend. <em>Not the other way round.</em></div>
+  <div class="spacer"></div>
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">SAVE · SHARE</span></div>
+</section>
+
+<section class="slide ink" data-name="quote-03">
+  <div class="spacer"></div>
+  <div class="mark">“</div>
+  <div class="quote">Small money, every day, <em>is never small money.</em></div>
+  <div class="spacer"></div>
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">SAVE · SHARE</span></div>
+</section>
+
+<!-- ═══════════ Quote cards · Malayalam (same lines, same designs; the language test) ═══════════
+     Check the wording with a native reader before posting. -->
+
+<section class="slide" data-name="quote-ml-01">
+  <div class="spacer"></div>
+  <div class="mark">“</div>
+  <div class="quote ml">നിങ്ങളുടെ ശമ്പളം നിങ്ങൾ സമ്പാദിക്കുന്നതല്ല. <em>ബില്ലുകൾ കഴിഞ്ഞ് ബാക്കിയുള്ളതാണ്.</em></div>
+  <div class="spacer"></div>
+  <div class="top"><div class="handle" style="opacity:1"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">SAVE · SHARE</span></div>
+</section>
+
+<section class="slide green" data-name="quote-ml-02">
+  <div class="spacer"></div>
+  <div class="mark" style="color:#7FF0C6">“</div>
+  <div class="quote ml">ആദ്യം മിച്ചം വെക്കൂ, പിന്നെ ചെലവാക്കൂ. <em>തിരിച്ചല്ല.</em></div>
+  <div class="spacer"></div>
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">SAVE · SHARE</span></div>
+</section>
+
+<section class="slide ink" data-name="quote-ml-03">
+  <div class="spacer"></div>
+  <div class="mark">“</div>
+  <div class="quote ml">ദിവസവും ചെറിയ തുക, <em>ഒരിക്കലും ചെറിയ തുകയല്ല.</em></div>
+  <div class="spacer"></div>
+  <div class="top"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><span class="count">SAVE · SHARE</span></div>
+</section>
+
+</body>
+</html>
