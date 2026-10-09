@@ -109,6 +109,7 @@ import { PublicProjectPage } from '@/features/shared-projects/components/PublicP
 import { useProjectsSummary } from '@/features/shared-projects/hooks/useProjectsSummary'
 import { NotificationsSheet } from '@/features/shared-projects/components/NotificationsSheet'
 import { dismissBootShell } from '@/lib/boot-shell'
+import { createActivationWatcher, trackStep } from '@/lib/funnel'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -191,6 +192,8 @@ const SUGGESTION_TOAST_DELAY_MS = 1200
 const SUGGESTION_MIN_LEAF_MS = 800
 /** BottomSheet unmounts 340 ms after closing; wait that out before emptying one. */
 const SHEET_CLOSE_MS = 350
+// first_expense counts only for accounts this young: activation, not an old account's first entry
+const FIRST_EXPENSE_WINDOW_DAYS = 7
 
 // ── AppContent: all hooks live here, no early returns before them ─────────────
 function AppContent({ session }: { session: Session }) {
@@ -384,6 +387,27 @@ function AppContent({ session }: { session: Session }) {
       try { localStorage.setItem('mp_onboarded_' + session.user.id, '1') } catch (_) {}
     }
   }, [loading, state.accounts.length])
+
+  // Anonymous funnel step: a new account's first saved expense (see createActivationWatcher).
+  // Only accounts younger than FIRST_EXPENSE_WINDOW_DAYS, once per device, so an old
+  // account or a failed-then-retried load can't count as activation.
+  const expenseCount = useMemo(
+    () => state.transactions.filter(t => t.transaction_type === 'expense').length,
+    [state.transactions],
+  )
+  const activationWatcher = useRef<ReturnType<typeof createActivationWatcher> | null>(null)
+  activationWatcher.current ??= createActivationWatcher()
+  const isNewAccount = useMemo(() => {
+    const created = Date.parse(session.user.created_at)
+    return Number.isFinite(created) && Date.now() - created < FIRST_EXPENSE_WINDOW_DAYS * 86_400_000
+  }, [session.user.created_at])
+  useEffect(() => {
+    if (!isNewAccount || !activationWatcher.current?.observe(loading, expenseCount)) return
+    const flag = 'mp_first_expense_tracked_' + session.user.id
+    try { if (localStorage.getItem(flag)) return; localStorage.setItem(flag, '1') } catch { /* still count once this load */ }
+    trackStep('first_expense')
+  }, [isNewAccount, loading, expenseCount, session.user.id])
+
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
   // Event totals must see tagged rows older than the 200-row window.

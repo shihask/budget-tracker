@@ -575,7 +575,15 @@ must not register).
 ## Sign-up funnel — anonymous step counts
 `trackStep(step)` (`src/lib/funnel.ts`) inserts one row into `funnel_events` per step per page
 load: `landing_view → signup_opened / signin_opened / google_clicked → signup_code_sent
-(or code_send_failed) → signup_code_verified → account_created`, plus `signin_success`.
+(or code_send_failed) → signup_code_verified → account_created → first_expense`, plus `signin_success`.
+- `source` is the link's `utm_campaign`, read at load and kept in **sessionStorage**
+  (`mp_funnel_source`) so it survives Google sign-in's redirect in the same tab. Instagram links
+  use `ig_bio` / `ig_story_<topic>` (see marketing/instagram/content-plan.md).
+- `first_expense` = a new account's first saved **expense** (not any row: onboarding writes
+  `opening_balance` rows by itself). `createActivationWatcher` fires only after a load has been
+  seen to finish with 0 expenses; App also limits it to accounts < `FIRST_EXPENSE_WINDOW_DAYS`
+  old and a per-device flag `mp_first_expense_tracked_<uid>`, so a failed-then-retried load or an
+  old account can't fake activation. The step's CHECK lives in `20261009000001_funnel_first_expense.sql`.
 Each row holds only the step, `utm_campaign` (read once at load), platform and in-app browser —
 **never** a user id, email, phone or IP. That's the privacy line (no Pixel, no tracking cookies);
 don't add identifying columns. Insert-only RLS for anon/authenticated; read via the `funnel_daily`
