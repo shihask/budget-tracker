@@ -1,11 +1,22 @@
 # MoneyPlant Instagram: organic content plan (batch 1)
 
-Ads brought clicks but no signups, so the account now grows on **useful money content**. People
-follow for the value; MoneyPlant shows up as a soft, natural mention on each carousel's last slide.
+Ads brought clicks but no signups, so the account now grows on **useful money content**: build
+followers first, promote the app later. People follow for the value; MoneyPlant shows up only as a
+soft one-line mention on carousel last slides (and the bio link) until the account has an audience.
 
 **Judge batch 1 by which topics earn attention from the right audience** (saves, shares, follows,
-link taps), not by signups in week one. The winners decide batch 2, and app demonstrations come
-in gradually.
+link taps), not by signups in the first weeks. The winners decide batch 2.
+
+## Phases
+| Phase | Until | What to post |
+|---|---|---|
+| **1 · Grow** (now) | 300–500 followers | Value only: tips, challenges, quotes. **Mostly reels**, plus carousels. No app reels. |
+| **2 · Introduce** | ~1,000 followers | Keep value posts; add **1 app reel in every 4–5 posts**, picked to match the topics that won in phase 1. |
+| **3 · Promote** | after that | App posts in step with demand (questions like "how do you track this?"); consider ads again, using the best-performing value reel. |
+
+**Why reels first:** with few followers, carousels and photos are shown mostly to existing
+followers, so they barely travel. Reels are shown to non-followers (Reels tab, Explore), which is
+how a new account gets found. Carousels still matter: they're what convinces a profile visitor to follow.
 
 ## Guardrails (apply to every post)
 - **No unverified news.** No RBI rates, tax rules or bank changes from memory. If you see a real
@@ -32,31 +43,51 @@ Upload each carousel's slides as one post, in number order.
 | Quote cards, English | `quote-01`, `quote-02`, `quote-03` | 1 each |
 | Quote cards, Malayalam | `quote-ml-01`, `quote-ml-02`, `quote-ml-03` | 1 each |
 
-**10 English posts + 3 Malayalam posts.** Existing app reels fill 2 more slots.
+**10 English posts + 3 Malayalam posts.** The existing app reels (`reel-*.mp4`) wait for phase 2.
 
-## Cadence
-**3 feed posts a week + Stories most days.** Raise to 4–5 only if quality holds.
+### Value reels — to make next (no app in them)
+7–12 s each, vertical, built with the existing reel kit (`reel-kit.css/js`, `render-reel.mjs`),
+reusing batch 1's content and guardrails. Add a trending sound in Instagram when posting.
+
+| Reel | Hook | From |
+|---|---|---|
+| V1 | "₹10 a day = ₹3,650 a year", building up line by line | challenge |
+| V2 | "5 silent leaks in your salary", quick cuts | leaks |
+| V3 | "Salary credited? Do these 5 things first" | salary-day checklist |
+| V4 | "Can I afford this? Ask 4 questions" | afford |
+| V5 | "The bills nobody plans for: divide by 12" | irregular bills |
+| V6 | "One way to split ₹40,000" | 50/30/20 |
+| V7 | Quote reel: "Small money, every day, is never small money." | quote 3 |
+| V8 | Quote reel: "Save first, then spend. Not the other way round." | quote 2 |
+
+## Cadence (phase 1)
+**5 posts a week: 3 reels + 2 static posts, plus Stories most days.** If that's too much to keep
+up, drop one static post before dropping a reel.
 
 | Day | Slot |
 |---|---|
 | Monday | Carousel |
+| Tuesday | Value reel |
 | Wednesday | Quote card (English and Malayalam alternate) |
-| Friday | Carousel or an app reel |
+| Thursday | Value reel |
+| Saturday | Value reel (or the carousel when a date calls for it) |
 
 Post at the same time each slot (evening, roughly 7–9 pm, is a common starting point; adjust once
 Insights shows when your followers are online).
 
-## 5-week calendar (from Mon 12 Oct 2026)
-| Week | Mon | Wed | Fri |
-|---|---|---|---|
-| 1 · 12–16 Oct | 5 silent leaks | Quote 1 (EN) | Daily saving challenge ("start Monday") |
-| 2 · 19–23 Oct | One way to split ₹40,000 | Quote 1 (ML) | App reel: receipt scan |
-| 3 · 26–30 Oct | Family money talk ("do it on the 1st") | Quote 2 (EN) | Salary-day checklist (before 1 Nov salaries) |
-| 4 · 2–6 Nov | Can I afford this? | Quote 2 (ML) | The bills nobody plans for |
-| 5 · 9–13 Nov | App reel: 8 things MoneyPlant does | Quote 3 (EN) | Batch 2, post 1 |
-| 6 · 16 Nov → | Batch 2 | Quote 3 (ML) | Batch 2 |
+## Calendar (phase 1, from Mon 12 Oct 2026)
+| Week | Mon | Tue | Wed | Thu | Sat |
+|---|---|---|---|---|---|
+| 1 · 12–18 Oct | **5 silent leaks ✓ posted** | — (reels not ready) | Quote 1 (EN) | V1 ₹10 a day | V7 quote reel · *Fri 16: daily saving challenge carousel ("start Monday")* |
+| 2 · 19–25 Oct | One way to split ₹40,000 | V2 leaks reel | Quote 1 (ML) | V5 divide by 12 | V8 quote reel |
+| 3 · 26 Oct–1 Nov | Family money talk ("do it on the 1st") | V4 afford reel | Quote 2 (EN) | V3 salary-day reel | Salary-day checklist carousel (before 1 Nov salaries) |
+| 4 · 2–8 Nov | Can I afford this? | V6 split reel | Quote 2 (ML) | Batch 2 reel | The bills nobody plans for |
+| 5 · 9–15 Nov | Batch 2 | Batch 2 reel | Quote 3 (EN) | Batch 2 reel | Batch 2 |
+| 6 · 16 Nov → | Batch 2 | Batch 2 reel | Quote 3 (ML) | Batch 2 reel | Batch 2 |
 
-**Batch 2 production happens in week 3**, using the week 1–2 scorecard, so content never runs out.
+Week 1 has 6 posts because the challenge carousel is timed for Friday (people start on Monday).
+**Value reels V1–V8 are made first, before Thu 15 Oct. Batch 2 production happens in week 3**,
+using the week 1–2 scorecard, so content never runs out.
 
 ### Stories (most days, 2–3 frames, low effort)
 - Week 1: "Which leak is yours?" quiz sticker; on Sunday, "Who's starting the saving challenge tomorrow?" poll.
@@ -88,12 +119,14 @@ Fill in every Sunday from Instagram Insights (open each post → View insights) 
 |---|---|---|---|---|---|---|---|
 | | | | | | | | |
 
-| Week | Bio `landing_view` | `signup_opened` | `account_created` | `first_expense` |
-|---|---|---|---|---|
-| | | | | |
+| Week | Followers (Sunday) | New followers | Bio `landing_view` | `signup_opened` | `account_created` | `first_expense` |
+|---|---|---|---|---|---|---|
+| 1 · 18 Oct | | | | | | |
 
-**Decision rule:** batch 2 doubles down on the **top two pillars** by saves + shares + follows.
-Views alone don't decide anything.
+**Decision rules:**
+- Batch 2 doubles down on the **top two pillars** by saves + shares + follows. Views alone don't decide anything.
+- Reels vs carousels: compare **follows per post**. If reels win clearly, move one more weekly slot to reels.
+- **Phase gate:** move to phase 2 when followers pass 300–500 *and* the last two weeks each added followers.
 
 ### The Malayalam test
 Each Malayalam quote card is the same line and design as an English one, in the same Wednesday
@@ -103,13 +136,19 @@ batch 2 makes Malayalam carousels too; if it's even, keep one a week; if it lose
 (The account grows between the pair's two dates, so compare non-follower reach rather than raw reach.)
 
 ## Growth routine
-- Reply to **every** comment within a few hours, with a real answer, not an emoji.
+- **First 50–100 followers from people you know.** Share posts to your personal Instagram, WhatsApp
+  status and groups; ask friends, family and colleagues to follow. An account at 0 followers looks
+  untrustworthy to strangers; one at 80 doesn't.
+- **10 minutes a day commenting** on bigger Indian personal-finance accounts. Add something useful
+  (an example, a question, your experience), never "nice post". Good comments bring profile visits.
+- Reply to **every** comment on your own posts within a few hours, with a real answer, not an emoji.
 - Hashtags: 3–5 niche + 2 broad per post (captions below). Don't reuse the identical set every time.
-- From week 3, DM 3–5 small Indian or Kerala personal-finance creators a week:
+- **Collabs from ~200 followers:** DM 3–5 small Indian or Kerala personal-finance creators a week:
   > Hi! I run @moneyplant.online, practical money ideas for salaried families. Loved your post on ___.
   > Would you be up for a collab carousel, e.g. "5 salary-day mistakes", posted on both accounts?
   > Happy to design it.
-- App reels: at most 1 in 4 posts. Value first.
+- **No app reels in phase 1** (see Phases). The bio link and the one-line mention on carousel last
+  slides are enough until there's an audience.
 
 ## Batch 2 backlog
 No-spend weekend · Emergency fund in 3 steps · Sending money home without breaking your budget ·
