@@ -1,0 +1,19 @@
+/* Value reels: layout pieces on top of reel-kit.css. */
+.vcard { margin-top: 50px; padding: 20px 50px; }
+.vrow { display: flex; justify-content: space-between; align-items: baseline; gap: 30px; padding: 34px 0; font-size: 50px; font-weight: 700; }
+.vrow + .vrow { border-top: 3px solid var(--rule); }
+.vrow b { font-size: 60px; font-weight: 800; white-space: nowrap; letter-spacing: -1px; }
+.vrow.hl b { color: var(--green-dark); font-size: 72px; }
+.vrow.hl { font-weight: 800; }
+.vsteps { display: flex; flex-direction: column; gap: 28px; margin-top: 50px; }
+.vstep { display: flex; align-items: center; gap: 30px; background: #fff; border: 3px solid var(--rule); border-radius: 36px; padding: 34px 40px; font-size: 54px; font-weight: 800; line-height: 1.15; letter-spacing: -1px; }
+.vn { flex: 0 0 96px; height: 96px; border-radius: 28px; background: var(--mint-bg); color: var(--green-dark); display: grid; place-items: center; font-size: 52px; }
+.vmark { font-size: 260px; line-height: .6; font-weight: 800; color: var(--green); height: 130px; }
+.vquote { font-size: 118px; line-height: 1.08; font-weight: 800; letter-spacing: -3.5px; }
+.vquote .w { display: inline-block; white-space: pre; }
+.vquote .em { color: #7FF0C6; }
+.cream .vquote .em { color: var(--green-dark); }
+.vfollow { display: inline-flex; align-items: center; gap: 18px; }
+.vfollow svg { width: 52px; height: 52px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.vsave { margin-top: 40px; font-size: 40px; font-weight: 700; opacity: .85; }
+.ink { background: var(--ink); color: #fff; }

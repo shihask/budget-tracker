@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant value reel: One way to split ₹40,000</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="vreel.css">
+<!-- Value reel (phase 1, no app). Scenes are defined below; vreel.js builds and times them. -->
+</head>
+<body>
+<script src="reel-kit.js"></script>
+<script>
+window.VREEL = [
+  { type: 'hook', dur: 2.4, lines: ['Earning ₹40,000?'], soft: 'One way to split it.' },
+  { type: 'rows', dur: 5.4, kicker: '50 / 30 / 20', rows: [['Needs · 50%', '₹20,000'], ['Wants · 30%', '₹12,000'], ['Savings · 20%', '₹8,000', true]], note: 'An example, not a rule. Adjust it to your life.' },
+  { type: 'follow', dur: 2.6 },
+]
+</script>
+<script src="vreel.js"></script>
+</body>
+</html>

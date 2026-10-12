@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant value reel: Salary day</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="vreel.css">
+<!-- Value reel (phase 1, no app). Scenes are defined below; vreel.js builds and times them. -->
+</head>
+<body>
+<script src="reel-kit.js"></script>
+<script>
+window.VREEL = [
+  { type: 'hook', dur: 2.4, lines: ['Salary credited?'], soft: 'Do these 5 things first.' },
+  { type: 'steps', dur: 6.6, kicker: 'Before you spend', steps: ['Pay the fixed bills', 'Clear the card bill in full', 'Set aside money for family', 'Move your saving', 'Find your daily number'] },
+  { type: 'follow', dur: 2.6 },
+]
+</script>
+<script src="vreel.js"></script>
+</body>
+</html>

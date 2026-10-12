@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant value reel: Can I afford this?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="vreel.css">
+<!-- Value reel (phase 1, no app). Scenes are defined below; vreel.js builds and times them. -->
+</head>
+<body>
+<script src="reel-kit.js"></script>
+<script>
+window.VREEL = [
+  { type: 'hook', dur: 2.4, lines: ['Can I afford this?'], soft: 'Ask 4 questions first.' },
+  { type: 'steps', dur: 6.2, kicker: 'Before you tap Pay', steps: ['Is this money free, or already spoken for?', 'What\'s due before my next salary?', 'How long does it have to last?', 'Would I still want it in 48 hours?'] },
+  { type: 'follow', dur: 2.6 },
+]
+</script>
+<script src="vreel.js"></script>
+</body>
+</html>

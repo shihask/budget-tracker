@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant value reel: Divide by 12</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="vreel.css">
+<!-- Value reel (phase 1, no app). Scenes are defined below; vreel.js builds and times them. -->
+</head>
+<body>
+<script src="reel-kit.js"></script>
+<script>
+window.VREEL = [
+  { type: 'hook', dur: 2.4, lines: ['The bills', 'nobody plans for.'] },
+  { type: 'rows', dur: 7, kicker: 'Add up a year', rows: [['Health insurance', '₹18,000'], ['School fees', '₹24,000'], ['Festivals & gifts', '₹12,000'], ['Vehicle insurance', '₹9,600'], ['Vehicle service', '₹4,800'], ['Total a year', '₹68,400'], ['÷ 12', '₹5,700 a month', true]], note: 'Example amounts. Set it aside every salary day.' },
+  { type: 'follow', dur: 2.6 },
+]
+</script>
+<script src="vreel.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant value reel: ₹10 a day</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="vreel.css">
+<!-- Value reel (phase 1, no app). Scenes are defined below; vreel.js builds and times them. -->
+</head>
+<body>
+<script src="reel-kit.js"></script>
+<script>
+window.VREEL = [
+  { type: 'hook', dur: 2.4, lines: ['Save ₹10 a day.'], soft: 'What does it become?' },
+  { type: 'rows', dur: 6, kicker: '₹10 × the days', rows: [['1 week', '₹70'], ['1 month', '₹300'], ['6 months', '₹1,820'], ['1 year', '₹3,650', true]], note: 'Before any interest. Pick an amount that doesn\'t hurt.' },
+  { type: 'follow', dur: 2.6 },
+]
+</script>
+<script src="vreel.js"></script>
+</body>
+</html>

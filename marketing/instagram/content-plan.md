@@ -273,3 +273,85 @@ ML 3:
 
 #malayali #kerala #moneytipsmalayalam #savingtips #personalfinanceindia
 ```
+
+## Value reel captions (phase 1 — no app; the goal is follows)
+Files: `out/vreel-v1…v8-*.mp4` (vertical, 8–12 s, no audio). Source: `vreel-*.html` (scene lists)
++ `vreel.js` / `vreel.css`. Render: `node marketing/instagram/render-reel.mjs vreel-v1-ten-a-day …`
+(needs ffmpeg; see that script's header).
+
+When posting: **add a trending sound** in the Instagram editor (low volume), pick the opening frame
+as the cover, and keep "Also share to Feed" on so the reel shows on your profile grid.
+
+### V1 · ₹10 a day
+```
+Save ₹10 a day. What does it become? 🌱
+
+₹70 a week, ₹300 a month, ₹3,650 a year. Pick an amount that doesn't hurt; the habit matters more than the number.
+
+What's your daily number? 👇 Follow for more practical money ideas.
+
+#savingchallenge #moneytipsindia #personalfinanceindia #savingtips #personalfinance #reelsindia
+```
+
+### V2 · 5 silent leaks
+```
+5 silent leaks in your salary 💸 Which one is yours? Comment the number 👇
+
+Follow for practical money ideas for salaried families.
+
+#moneytipsindia #personalfinanceindia #budgetingtips #salary #personalfinance #reelsindia
+```
+
+### V3 · Salary day
+```
+Salary credited? Do these 5 things first ✅
+
+Save this for next salary day 🔖 and follow for more.
+
+#salaryday #salary #budgetingtips #personalfinanceindia #moneytipsindia #reelsindia
+```
+
+### V4 · Can I afford this?
+```
+Can I afford this? Ask 4 questions before you tap Pay 🤔
+
+Send this to the friend who's about to buy something big 😅 Follow for more.
+
+#smartspending #moneytipsindia #personalfinanceindia #budgetingtips #personalfinance #reelsindia
+```
+
+### V5 · Divide by 12
+```
+The bills nobody plans for: insurance, school fees, festivals, vehicle service 🧾
+
+Add up a year, divide by 12, set that aside every salary day. Which one always surprises you? 👇
+
+#familybudget #householdbudget #budgetingtips #personalfinanceindia #moneytipsindia #reelsindia
+```
+
+### V6 · One way to split ₹40,000
+```
+Earning ₹40,000? Here's one way to split it 🧮
+
+An example, not a rule. EMIs or supporting family? Adjust it. What's your split? 👇
+
+#503020rule #budgetingtips #salary #personalfinanceindia #moneytipsindia #reelsindia
+```
+
+### V7 · Small money (quote)
+```
+Small money, every day, is never small money 🌱
+
+Follow for practical money ideas.
+
+#moneyquotes #savingtips #personalfinanceindia #moneytipsindia #reelsindia
+```
+
+### V8 · Save first (quote)
+```
+Save first, then spend. Not the other way round 🌱
+
+Share this with someone who just got paid.
+
+#moneyquotes #savemoney #personalfinanceindia #moneytipsindia #reelsindia
+```
