@@ -660,14 +660,16 @@ files before the SPA rewrite — before v1.90 both `/robots.txt` and `/sitemap.x
 - Title targets how people search ("expense tracker", "budget app", "India"); keep it ≤ 60 chars and
   the description ≤ 155. The boot shell's hero (above) is the crawlable text Google sees first.
 
-## Kakeibo — Monthly Money Reflection (v1)
+## Kakeibo — Monthly Money Reflection (v1) + Analysis Workspace (v2)
 A **ritual, not a budgeting formula**:
 - set a savings goal on payday;
 - review the finished cycle;
 - write one thing to do differently;
 - see it again next payday.
 
-There is no new `BudgetStrategyType`, no Culture bucket, no AI, and no push in v1. The dashboard card is the in-app reminder.
+v2 adds an on-demand workspace in Analytics → Kakeibo: pick a cycle → Generate → the four questions with the **four pillars** (Survival / Optional / Culture / Unexpected).
+
+There is no new `BudgetStrategyType`, no Culture *bucket* (pillars are a separate layer), and no push. The dashboard card is the in-app reminder; its Review button opens the workspace on that cycle (`initialTab` + `initialCycleStart`).
 
 Kakeibo is fully isolated:
 - its own table (`kakeibo_reflections`);
@@ -681,7 +683,7 @@ On any failure it renders nothing, and Dashboard and Analytics are unaffected.
 | `src/features/kakeibo/lib/kakeibo.ts` | Pure: `isEligible`, `planCycleSync`, `dashboardActions`, `nextReviewState`, `computeCycleSummary`, `kakeiboInsight` |
 | `src/features/kakeibo/hooks/useKakeibo.ts` | Records, sync (plan → RPC → re-read, at most 2 tries), column-scoped mutations |
 | `src/features/kakeibo/hooks/useCycleLedger.ts` | A past cycle's rows from the DB (out of the 200-row window), merged with `mergeLoadedWins` |
-| `supabase/migrations/20261014000001_kakeibo.sql` | Table, RLS (no DELETE policy), `mp_kakeibo_apply_sync` |
+| `supabase/migrations/20261013000002_kakeibo.sql` | Table, RLS (no DELETE policy), `mp_kakeibo_apply_sync` |
 | `supabase/tests/kakeibo_sync.sql` | Manual RLS / isolation / atomicity checks. **Non-production DB only**; runs in a transaction that rolls back |
 
 - **Monthly pattern + `cycle.source === 'transaction'` only.** Anything else is ineligible: nothing is written and nothing is shown, so irregular income never gets a review.
@@ -696,6 +698,36 @@ On any failure it renders nothing, and Dashboard and Analytics are unaffected.
   - Savings = contributions + savings-bucket spend − withdrawals.
   - There is no closing balance (no historical source) and no budget comparison (the periods differ).
 - **Future push** reads `cycle_end` / `review_status`, so the server needs no cycle math. It can only follow a rollover the client has already saved.
+- `planCycleSync` re-closes the predecessor **only when adjacent**: it is open, it ends inside the new cycle, or it was adjacent to the re-keyed row. A past cycle recorded later from history must never be stretched.
+
+### v2 — the four pillars
+| File | Purpose |
+|---|---|
+| `src/features/kakeibo/lib/pillars.ts` | `resolvePillar`, `computePillarTotals`, `categoriesNeedingAi`, `validatePillarSuggestions`, `buildInsightFacts`, `insightNumbersAreGrounded` |
+| `src/features/kakeibo/lib/cycles.ts` | `buildCycleOptions` — the cycle selector |
+| `src/features/kakeibo/hooks/useKakeiboPillars.ts`, `useIncomeHistory.ts` | Pillar tables; income rows for the engine's backward walk |
+| `src/features/kakeibo/components/KakeiboWorkspace.tsx`, `PillarReview.tsx` | Workspace and report; per-category / per-expense pickers |
+| `supabase/migrations/20261013000003_kakeibo_pillars.sql` | `kakeibo_category_pillars`, `kakeibo_txn_pillars`, `mp_kakeibo_save_ai_pillars`, `mp_kakeibo_record_past_cycle` |
+| `supabase/tests/kakeibo_pillars.sql` | Rolled-back RLS / ownership / AI-precedence / cascade checks |
+
+- **Pillars never touch** transactions, categories, `budget_bucket` or Budget Strategy. Their only storage is the two pillar tables.
+- **Precedence**, first match wins:
+  1. transaction override (user);
+  2. category pillar (`source = 'user'`);
+  3. category pillar (`source = 'ai'`);
+  4. seed: Needs → Survival, Wants → Optional;
+  5. **Needs review**, never guessed.
+- **AI can't overwrite the user.** The `ON CONFLICT … WHERE source = 'ai'` upsert in `mp_kakeibo_save_ai_pillars` enforces it. Ownership of the referenced category or transaction is enforced in RLS `WITH CHECK`, not only via `user_id`.
+- **Reconciliation:** `eligibleSpendRows` / `classifyCycleRows` are the one spending-row definition. `computeCycleSummary` folds them, and its output is pinned byte-for-byte by `summary-snapshot.test.ts`. The pillars read the same rows, so pillars + Needs review === `spent` exactly (randomised test).
+- **AI only with Autopilot on** (`kakeibo-classify`, `kakeibo-insight` in `ai-categorize`):
+  - It classifies **categories**, and only ones with no stored pillar, so a category is sent about once, ever.
+  - The insight gets precomputed facts only, and is dropped if `insightNumbersAreGrounded` finds any number that isn't a fact.
+  - At most one insight request per Generate; it's cached per facts fingerprint (`mp_kakeibo_insight_<uid>`).
+  - With Autopilot off, or if AI fails, the deterministic `kakeiboInsight` line still shows.
+- **Cycle selector:**
+  - Records win. Older cycles come from the engine (`getPreviousFinancialCycle`, read-only) over the fetched income history.
+  - An engine cycle is offered only if it is salary-anchored, 16–46 days long, doesn't overlap a record or another offered cycle, and has **no other salary within 15 days before its anchor**. A split or late salary is excluded, never guessed.
+  - Notes on older cycles go through `mp_kakeibo_record_past_cycle`, which returns `'conflict'` on any overlap.
 
 ## Git conventions
 - Commit directly to `main` — no feature branches

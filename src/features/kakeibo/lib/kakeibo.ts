@@ -1,11 +1,11 @@
-import type { AppState, KakeiboReflection, Transaction } from '@/types'
+import type { AppState, BudgetBucket, Category, KakeiboReflection, Transaction } from '@/types'
 import { SYSTEM_TX_TYPES } from '@/types'
 import type { FinancialCycle } from '@/lib/financial-cycle'
 import { isPrimaryIncomeTransaction } from '@/lib/financial-cycle'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { getCategoryBucket } from '@/lib/budget-strategy'
 import { ringFencedEventIds, countsTowardBudget } from '@/lib/events'
-import { forSpendAnalytics, spendAmount } from '@/lib/reimbursements'
+import { forSpendAnalytics, spendAmount, type AnalyticsTransaction } from '@/lib/reimbursements'
 import { localIso, parseIso, addDays, fmt } from '@/lib/utils'
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -96,7 +96,16 @@ export function planCycleSync(records: KakeiboReflection[], cycle: Pick<Financia
   const before = sorted.filter(r => r.cycle_start < key && r.cycle_start !== movedFrom)
   const pred = before[before.length - 1]
   const predEnd = dayBefore(key)
-  if (pred && pred.cycle_end !== predEnd) {
+  // Re-close the predecessor only when it is genuinely this cycle's neighbour:
+  // still open, ending inside this cycle, or adjacent to the record just re-keyed.
+  // A closed past cycle ending earlier (one recorded later from history, with
+  // unrecorded cycles between) is left alone — stretching it would swallow them.
+  const adjacent = pred != null && (
+    pred.cycle_end == null
+    || pred.cycle_end >= key
+    || (movedFrom != null && pred.cycle_end === dayBefore(movedFrom))
+  )
+  if (pred && adjacent && pred.cycle_end !== predEnd) {
     plan.setEnd = { cycle_start: pred.cycle_start, expected_end: pred.cycle_end, cycle_end: predEnd }
   }
 
@@ -231,56 +240,93 @@ export interface CycleSummary {
 
 const isSystem = (t: Transaction) => SYSTEM_TX_TYPES.has(t.transaction_type)
 
-/** Every number the review shows. Pure; reads raw rows in [from, to].
+/** One row of the cycle, read the way the review reads it. The only place the
+ *  spending-type rule lives — `computeCycleSummary` folds these, the four
+ *  pillars (pillars.ts) read the `spend` ones through `eligibleSpendRows`, so the
+ *  two can't drift apart. */
+export type CycleRow =
+  | { kind: 'income'; t: AnalyticsTransaction; primary: boolean }
+  | { kind: 'saved'; t: AnalyticsTransaction; delta: number }
+  | { kind: 'spend'; t: AnalyticsTransaction; amount: number; bucket: BudgetBucket | null; ringFenced: boolean; cat: Category | undefined }
+  | { kind: 'other'; t: AnalyticsTransaction }
+
+/** Non-system rows in [from, to], each classified. Pure.
  *
  *  The spending-type rule mirrors `computeStrategyData` (budget-strategy.ts) —
  *  expense, commitment and own (non-credit) borrowing repayments; system rows,
  *  including credit-card bill payments, are never spending, so a card purchase
  *  counts once. A parity test pins Needs/Wants to that function. It is not called
  *  directly because it only knows the current cycle (no end bound). */
-export function computeCycleSummary(txns: Transaction[], state: AppState, from: string, to: string): CycleSummary {
+export function classifyCycleRows(txns: Transaction[], state: AppState, from: string, to: string): CycleRow[] {
   const catMap = new Map(state.categories.map(c => [c.id, c]))
   const ringFenced = ringFencedEventIds(state.events)
+  const out: CycleRow[] = []
+
+  for (const t of forSpendAnalytics(txns)) {
+    if (t.transaction_date < from || t.transaction_date > to) continue
+    if (isSystem(t)) continue
+    const cat = t.category_id ? catMap.get(t.category_id) : undefined
+
+    if (t.transaction_type === 'income') {
+      // forSpendAnalytics already dropped reimbursements — they net expenses, they aren't income.
+      out.push({ kind: 'income', t, primary: isPrimaryIncomeTransaction(t, state) })
+      continue
+    }
+    if (t.transaction_type === 'savings_contribution') { out.push({ kind: 'saved', t, delta: t.amount }); continue }
+    if (t.transaction_type === 'savings_withdrawal') { out.push({ kind: 'saved', t, delta: -t.amount }); continue }
+
+    let bucket: BudgetBucket | null
+    if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') {
+      bucket = cat ? getCategoryBucket(cat, state.groups) : null
+    } else if (t.transaction_type === 'borrowing_repayment' && !t.is_credit) {
+      bucket = cat ? (cat.budget_bucket ?? 'needs') : null
+    } else {
+      out.push({ kind: 'other', t })
+      continue
+    }
+    out.push({ kind: 'spend', t, amount: spendAmount(t), bucket, ringFenced: !countsTowardBudget(t, ringFenced), cat })
+  }
+  return out
+}
+
+type SpendRow = Extract<CycleRow, { kind: 'spend' }>
+
+/** Does this spend row count as spending (vs. savings)? Ring-fenced life-event
+ *  spend always does; an un-ring-fenced savings-bucket expense is savings. */
+export const countsAsSpent = (r: SpendRow): boolean => r.ringFenced || r.bucket !== 'savings'
+
+/** Exactly the rows that make up `CycleSummary.spent` — read-only, for the pillars. */
+export function eligibleSpendRows(txns: Transaction[], state: AppState, from: string, to: string): SpendRow[] {
+  return classifyCycleRows(txns, state, from, to).filter((r): r is SpendRow => r.kind === 'spend' && countsAsSpent(r))
+}
+
+/** Every number the review shows. Pure; reads raw rows in [from, to]. Output is
+ *  pinned byte-for-byte by summary-snapshot.test.ts. */
+export function computeCycleSummary(txns: Transaction[], state: AppState, from: string, to: string): CycleSummary {
   const s: CycleSummary = {
     from, to, incomePrimary: 0, incomeOther: 0, income: 0, spent: 0, needs: 0, wants: 0,
     events: 0, unclassified: 0, savedNet: 0, topCategories: [], rowCount: 0,
   }
   const byCat = new Map<string, number>()
 
-  for (const t of forSpendAnalytics(txns)) {
-    if (t.transaction_date < from || t.transaction_date > to) continue
-    if (isSystem(t)) continue
+  for (const r of classifyCycleRows(txns, state, from, to)) {
     s.rowCount++
-    const amt = spendAmount(t)
-    const cat = t.category_id ? catMap.get(t.category_id) : undefined
-
-    if (t.transaction_type === 'income') {
-      // forSpendAnalytics already dropped reimbursements — they net expenses, they aren't income.
-      if (isPrimaryIncomeTransaction(t, state)) s.incomePrimary += t.amount
-      else s.incomeOther += t.amount
+    if (r.kind === 'income') {
+      if (r.primary) s.incomePrimary += r.t.amount
+      else s.incomeOther += r.t.amount
       continue
     }
-    if (t.transaction_type === 'savings_contribution') { s.savedNet += t.amount; continue }
-    if (t.transaction_type === 'savings_withdrawal') { s.savedNet -= t.amount; continue }
+    if (r.kind === 'saved') { s.savedNet += r.delta; continue }
+    if (r.kind === 'other') continue
 
-    let isSpend = false
-    let bucket: ReturnType<typeof getCategoryBucket> = null
-    if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') {
-      isSpend = true
-      bucket = cat ? getCategoryBucket(cat, state.groups) : null
-    } else if (t.transaction_type === 'borrowing_repayment' && !t.is_credit) {
-      isSpend = true
-      bucket = cat ? (cat.budget_bucket ?? 'needs') : null
-    }
-    if (!isSpend) continue
-
-    if (!countsTowardBudget(t, ringFenced)) { s.events += amt; s.spent += amt; continue }
-    if (bucket === 'savings') { s.savedNet += amt; continue }
+    const amt = r.amount
+    if (r.ringFenced) { s.events += amt; s.spent += amt; continue }
+    if (r.bucket === 'savings') { s.savedNet += amt; continue }
     s.spent += amt
-    if (bucket === 'needs') s.needs += amt
-    else if (bucket === 'wants') s.wants += amt
+    if (r.bucket === 'needs') s.needs += amt
+    else if (r.bucket === 'wants') s.wants += amt
     else s.unclassified += amt
-    if (cat) byCat.set(cat.name, (byCat.get(cat.name) ?? 0) + amt)
+    if (r.cat) byCat.set(r.cat.name, (byCat.get(r.cat.name) ?? 0) + amt)
   }
 
   s.income = s.incomePrimary + s.incomeOther

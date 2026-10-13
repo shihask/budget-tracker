@@ -3,34 +3,30 @@ import { NotebookPen, Quote } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import type { AppState } from '@/types'
 import type { Kakeibo } from '../hooks/useKakeibo'
 import { cycleLabel } from '../lib/kakeibo'
 import { KakeiboGoalSheet } from './KakeiboGoalSheet'
-import { KakeiboReviewSheet } from './KakeiboReviewSheet'
 import { KButton } from './ui'
 
 interface Props {
   kakeibo: Kakeibo
-  state: AppState
-  userId: string
-  allTransactionsLoaded: boolean
   suggestedGoal: number | null
+  /** Opens Analytics → Kakeibo on this cycle (the workspace is the review). */
+  onOpenReview: (cycleStart: string) => void
 }
 
 /** The in-app reminder. Renders nothing unless something is asked of the user,
  *  so on most days the dashboard looks exactly as it did before Kakeibo. Review
  *  and goal are independent rows — on payday both show, in either order. */
-export function KakeiboDashboardCard({ kakeibo, state, userId, allTransactionsLoaded, suggestedGoal }: Props) {
+export function KakeiboDashboardCard({ kakeibo, suggestedGoal, onOpenReview }: Props) {
   const c = useTheme()
-  const [reviewOpen, setReviewOpen] = useState(false)
   const [goalOpen, setGoalOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const { review, goal, lesson } = kakeibo.actions
 
-  // Keep the sheets mounted while open even after their row resolves.
+  // Keep the goal sheet mounted while open even after its row resolves.
   const showCard = kakeibo.status === 'ready' && (review || goal || lesson)
-  if (!showCard && !reviewOpen && !goalOpen) return null
+  if (!showCard && !goalOpen) return null
 
   const quick = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -61,7 +57,7 @@ export function KakeiboDashboardCard({ kakeibo, state, userId, allTransactionsLo
                   {cycleLabel(review)} · about two minutes
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <KButton onClick={() => setReviewOpen(true)}>Review</KButton>
+                  <KButton onClick={() => onOpenReview(review.cycle_start)}>Review</KButton>
                   <KButton kind="quiet" disabled={busy} onClick={() => quick(() => kakeibo.review(review, { kind: 'skip' }))}>Skip</KButton>
                 </div>
               </div>
@@ -97,16 +93,6 @@ export function KakeiboDashboardCard({ kakeibo, state, userId, allTransactionsLo
         </Card>
       )}
 
-      <KakeiboReviewSheet
-        open={reviewOpen}
-        onClose={() => setReviewOpen(false)}
-        record={review ?? (reviewOpen ? kakeibo.previous : null)}
-        records={kakeibo.records}
-        state={state}
-        userId={userId}
-        allTransactionsLoaded={allTransactionsLoaded}
-        onReview={kakeibo.review}
-      />
       <KakeiboGoalSheet
         open={goalOpen}
         onClose={() => setGoalOpen(false)}

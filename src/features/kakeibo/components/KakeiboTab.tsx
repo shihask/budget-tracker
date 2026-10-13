@@ -1,14 +1,16 @@
-import { useState } from 'react'
-import { NotebookPen, ChevronRight } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { NotebookPen } from 'lucide-react'
 import { Card } from '@/components/Card'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
-import type { AppState, KakeiboReflection } from '@/types'
+import { fmt, localIso } from '@/lib/utils'
+import type { AppState } from '@/types'
+import type { OnAiUsed } from '@/lib/gemini'
 import type { Kakeibo } from '../hooks/useKakeibo'
-import { cycleLabel } from '../lib/kakeibo'
+import { useCycleLedger } from '../hooks/useCycleLedger'
+import { computeCycleSummary, GOAL_PROMPT_DAYS } from '../lib/kakeibo'
 import { KakeiboGoalSheet } from './KakeiboGoalSheet'
-import { KakeiboReviewSheet } from './KakeiboReviewSheet'
-import { KButton, SectionLabel } from './ui'
+import { KakeiboWorkspace } from './KakeiboWorkspace'
+import { KButton } from './ui'
 
 interface Props {
   kakeibo: Kakeibo
@@ -16,28 +18,44 @@ interface Props {
   userId: string
   allTransactionsLoaded: boolean
   suggestedGoal: number | null
+  autopilotEnabled: boolean
+  onAiUsed?: OnAiUsed
+  /** From the dashboard's Review button — open the workspace on this cycle. */
+  initialCycleStart?: string | null
 }
 
-const STATUS_LABEL: Record<'completed' | 'skipped' | 'pending', string> = {
-  completed: 'Reflected', skipped: 'Skipped', pending: 'Ready to review',
-}
-
-/** Analytics → Kakeibo. The feature's home: this cycle's goal, every finished
- *  cycle (re-openable and editable), and the ritual explained when it can't run. */
-export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, suggestedGoal }: Props) {
+/** Analytics → Kakeibo. This cycle's goal (the payday ritual) on top, then the
+ *  analysis workspace for any cycle; explains itself when it can't run. */
+export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, suggestedGoal, autopilotEnabled, onAiUsed, initialCycleStart }: Props) {
   const c = useTheme()
-  const [reviewing, setReviewing] = useState<KakeiboReflection | null>(null)
   const [goalOpen, setGoalOpen] = useState(false)
 
+  // Savings so far this cycle — the same figure and the same full-range read as
+  // the review, so the bar never disagrees with it. Only fetched when there is a goal.
+  const cur0 = kakeibo.status === 'ready' ? kakeibo.current : null
+  const today = localIso(new Date())
+  const progress = useCycleLedger({
+    userId,
+    loaded: state.transactions,
+    allLoaded: allTransactionsLoaded,
+    from: cur0?.cycle_start ?? null,
+    to: today,
+    enabled: cur0?.savings_goal != null,
+  })
+  const savedSoFar = useMemo(
+    () => (cur0 && cur0.savings_goal != null ? computeCycleSummary(progress.rows, state, cur0.cycle_start, today).savedNet : null),
+    [cur0, progress.rows, state, today],
+  )
+
   const intro = (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
       <div style={{ width: 36, height: 36, borderRadius: 10, background: c.accentSoft, color: c.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <NotebookPen size={18} />
       </div>
       <div>
         <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>Kakeibo</div>
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
-          Monthly Money Reflection. Set a savings goal on payday, look back when the cycle ends, and carry one lesson forward.
+          Your money, understood. Set a savings goal on payday, sort your spending into the four pillars, and carry one lesson into the next cycle.
         </div>
       </div>
     </div>
@@ -70,27 +88,80 @@ export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, sugg
   const cur = kakeibo.current
   const cycle = kakeibo.cycle
   const lessonForGoal = kakeibo.previous?.reflection_note && !kakeibo.previous.lesson_acknowledged_at ? kakeibo.previous : null
+  const goal = cur?.savings_goal ?? null
+  const saved = progress.status === 'ready' && savedSoFar != null ? Math.max(0, savedSoFar) : null
+  const pct = goal != null && goal > 0 && saved != null ? Math.min(100, (saved / goal) * 100) : null
+  const goalWindowOpen = !!cycle && cycle.currentDay <= GOAL_PROMPT_DAYS
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Card>
         {intro}
-        <SectionLabel>This cycle{cycle ? ` · day ${cycle.currentDay} of ${cycle.totalDays}` : ''}</SectionLabel>
-        {cur ? (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <div>
-              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>
-                {cur.savings_goal != null ? `Savings goal ${fmt(Math.round(cur.savings_goal))}` : cur.goal_decided_at ? 'No goal this cycle' : 'No goal set yet'}
-              </div>
-              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted }}>Review opens after your next salary</div>
+        {cycle && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.01em' }}>
+              Day {cycle.currentDay} of {cycle.totalDays}
             </div>
-            <KButton kind={cur.savings_goal != null ? 'quiet' : 'primary'} onClick={() => setGoalOpen(true)}>
-              {cur.savings_goal != null ? 'Edit' : 'Set goal'}
-            </KButton>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
+              {cycle.daysRemaining <= 1 ? 'Last day of this cycle' : `About ${cycle.daysRemaining} days left`} · the full review opens on your next salary
+            </div>
           </div>
+        )}
+
+        {cur ? (
+          goal != null ? (
+            <div style={{ background: c.goodSoft, borderRadius: 14, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div>
+                  <div style={{ font: '700 12px Plus Jakarta Sans', color: c.sub }}>This cycle's savings goal</div>
+                  <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, fontVariantNumeric: 'tabular-nums' }}>{fmt(Math.round(goal))}</div>
+                </div>
+                <KButton kind="quiet" onClick={() => setGoalOpen(true)}>Edit</KButton>
+              </div>
+              {pct != null && saved != null && (
+                <div style={{ marginTop: 10 }}>
+                  <div
+                    role="progressbar" aria-label="Savings goal progress"
+                    aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}
+                    style={{ height: 6, borderRadius: 999, background: c.faint, overflow: 'hidden' }}
+                  >
+                    <div style={{ width: `${pct}%`, height: '100%', background: c.good, borderRadius: 999 }} />
+                  </div>
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: c.sub, marginTop: 6 }}>
+                    {saved >= goal
+                      ? `${fmt(Math.round(saved))} moved to savings so far — goal reached`
+                      : `${fmt(Math.round(saved))} moved to savings so far · ${fmt(Math.round(goal - saved))} to go`}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : goalWindowOpen ? (
+            <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
+              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>
+                {cur.goal_decided_at ? 'No savings goal this cycle' : "Set this cycle's savings goal"}
+              </div>
+              <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, margin: '2px 0 10px', lineHeight: 1.5 }}>
+                {suggestedGoal != null && suggestedGoal > 0
+                  ? `Suggested from your Budget Strategy: ${fmt(Math.round(suggestedGoal))}`
+                  : 'Decide what you want to put aside before your next salary.'}
+              </div>
+              <KButton onClick={() => setGoalOpen(true)}>Set a savings goal</KButton>
+            </div>
+          ) : (
+            // Past the first week the goal is no longer pushed — same window as the
+            // dashboard row. Still settable, just quietly.
+            <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div>
+                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>No savings goal this cycle</div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>Payday is the best time to set the next one.</div>
+              </div>
+              <KButton kind="quiet" onClick={() => setGoalOpen(true)}>Set one now</KButton>
+            </div>
+          )
         ) : (
           <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>Getting this cycle ready…</div>
         )}
+
         {kakeibo.previous?.reflection_note && (
           <div style={{ background: c.surface2, borderRadius: 12, padding: '10px 12px', marginTop: 12 }}>
             <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4 }}>Your lesson from last cycle</div>
@@ -99,50 +170,14 @@ export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, sugg
         )}
       </Card>
 
-      <Card>
-        <SectionLabel>Past cycles</SectionLabel>
-        {kakeibo.reviewable.length === 0 ? (
-          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
-            Your first review appears when this cycle ends — on your next salary.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {kakeibo.reviewable.map((r, i) => {
-              const st = r.review_status ?? 'pending'
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setReviewing(r)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-                    background: 'none', border: 'none', cursor: 'pointer', padding: '11px 0',
-                    borderTop: i ? `1px solid ${c.faint}` : 'none',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{cycleLabel(r)}</div>
-                    <div style={{ font: '600 12px Plus Jakarta Sans', color: st === 'pending' ? c.accent : c.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {STATUS_LABEL[st]}{r.reflection_note ? ` · ${r.reflection_note}` : ''}
-                    </div>
-                  </div>
-                  <ChevronRight size={16} color={c.muted} />
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </Card>
-
-      <KakeiboReviewSheet
-        open={reviewing != null}
-        onClose={() => setReviewing(null)}
-        record={reviewing ? (kakeibo.records.find(r => r.id === reviewing.id) ?? reviewing) : null}
-        records={kakeibo.records}
+      <KakeiboWorkspace
+        kakeibo={kakeibo}
         state={state}
         userId={userId}
         allTransactionsLoaded={allTransactionsLoaded}
-        onReview={kakeibo.review}
+        autopilotEnabled={autopilotEnabled}
+        onAiUsed={onAiUsed}
+        initialCycleStart={initialCycleStart}
       />
       <KakeiboGoalSheet
         open={goalOpen}

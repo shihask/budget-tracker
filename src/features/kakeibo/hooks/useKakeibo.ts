@@ -29,6 +29,9 @@ export interface Kakeibo {
   actions: DashboardActions
   setGoal: (r: KakeiboReflection, amount: number | null) => Promise<void>
   review: (r: KakeiboReflection, action: ReviewAction) => Promise<void>
+  /** Stores a closed past cycle (engine-derived) so a note can be saved on it.
+   *  Resolves to its row, or null when it conflicts with the stored timeline. */
+  recordPastCycle: (start: string, end: string) => Promise<KakeiboReflection | null>
 }
 
 const NO_ACTIONS: DashboardActions = { review: null, goal: null, lesson: null }
@@ -125,8 +128,24 @@ export function useKakeibo(args: {
   const review = useCallback((r: KakeiboReflection, action: ReviewAction) =>
     patch(r, nextReviewState(r, action, new Date().toISOString())), [patch])
 
+  const recordPastCycle = useCallback(async (start: string, end: string): Promise<KakeiboReflection | null> => {
+    const { data, error } = await supabase.rpc('mp_kakeibo_record_past_cycle', { p_start: start, p_end: end })
+    if (error) throw error
+    if (data === 'conflict') return null
+    const fresh = await fetchRecords()
+    setRecords(fresh)
+    // HISTORY_LIMIT is newest-first; an old cycle may fall outside it, so read it directly.
+    const hit = fresh.find(r => r.cycle_start === start)
+    if (hit) return hit
+    const { data: row, error: e2 } = await supabase.from('kakeibo_reflections').select('*')
+      .eq('user_id', userId).eq('cycle_start', start).single()
+    if (e2) throw e2
+    setRecords(prev => [...(prev ?? []), row as KakeiboReflection])
+    return row as KakeiboReflection
+  }, [fetchRecords, userId])
+
   return useMemo<Kakeibo>(() => {
-    const base = { monthly, setGoal, review }
+    const base = { monthly, setGoal, review, recordPastCycle }
     if (!eligible || !cycle) {
       return { ...base, status: 'off', cycle: cycle ?? null, records: [], current: null, previous: null, reviewable: [], actions: NO_ACTIONS }
     }
@@ -146,5 +165,5 @@ export function useKakeibo(args: {
       reviewable: reviewableRecords(records, cycle),
       actions: dashboardActions(records, cycle),
     }
-  }, [monthly, setGoal, review, eligible, cycle, failed, records])
+  }, [monthly, setGoal, review, recordPastCycle, eligible, cycle, failed, records])
 }

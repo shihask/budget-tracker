@@ -254,6 +254,8 @@ function AppContent({ session }: { session: Session }) {
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [metricsInfoOpen, setMetricsInfoOpen] = useState(false)
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  // Set by the Kakeibo dashboard card's Review: Analytics opens on the Kakeibo tab, on that cycle.
+  const [kakeiboReviewCycle, setKakeiboReviewCycle] = useState<string | null>(null)
   const [cashflowOpen, setCashflowOpen] = useState(false)
   const [cashflowSetupOpen, setCashflowSetupOpen] = useState(false)
   const [projectsOpen, setProjectsOpen] = useState(false)
@@ -864,7 +866,10 @@ function AppContent({ session }: { session: Session }) {
                       // Only when something is asked — an empty section wrapper would add a gap.
                       el = kakeibo.status === 'ready' && (kakeibo.actions.review || kakeibo.actions.goal || kakeibo.actions.lesson) ? (
                         <KakeiboBoundary>
-                          <KakeiboDashboardCard kakeibo={kakeibo} state={state} userId={session.user.id} allTransactionsLoaded={allTransactionsLoaded} suggestedGoal={kakeiboSuggestedGoal} />
+                          <KakeiboDashboardCard
+                            kakeibo={kakeibo} suggestedGoal={kakeiboSuggestedGoal}
+                            onOpenReview={start => { setKakeiboReviewCycle(start); setAnalyticsOpen(true) }}
+                          />
                         </KakeiboBoundary>
                       ) : null
                       break
@@ -1273,10 +1278,17 @@ function AppContent({ session }: { session: Session }) {
 
           {analyticsOpen && (
             <AnalyticsPage
-              state={state} d={d} onClose={() => setAnalyticsOpen(false)} onUpdateSettings={updateSettings}
+              state={state} d={d} onClose={() => { setAnalyticsOpen(false); setKakeiboReviewCycle(null) }} onUpdateSettings={updateSettings}
+              initialTab={kakeiboReviewCycle && kakeibo.monthly ? 'kakeibo' : undefined}
               kakeiboTab={kakeibo.monthly ? (
                 <KakeiboBoundary>
-                  <KakeiboTab kakeibo={kakeibo} state={state} userId={session.user.id} allTransactionsLoaded={allTransactionsLoaded} suggestedGoal={kakeiboSuggestedGoal} />
+                  <KakeiboTab
+                    kakeibo={kakeibo} state={state} userId={session.user.id} allTransactionsLoaded={allTransactionsLoaded}
+                    suggestedGoal={kakeiboSuggestedGoal}
+                    autopilotEnabled={state.settings.autopilot_enabled ?? false}
+                    onAiUsed={(n, pct, enf) => updateSettings(aiUsagePatch(n, pct, enf))}
+                    initialCycleStart={kakeiboReviewCycle}
+                  />
                 </KakeiboBoundary>
               ) : undefined}
             />

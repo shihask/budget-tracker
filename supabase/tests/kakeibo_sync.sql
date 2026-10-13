@@ -1,7 +1,7 @@
 -- Kakeibo SQL verification — RLS, cross-user isolation, atomic sync, constraints.
 --
 -- RUN ONLY ON A NON-PRODUCTION DATABASE (local `supabase start`, or a branch or
--- staging project) after applying 20261014000001_kakeibo.sql:
+-- staging project) after applying 20261013000002_kakeibo.sql:
 --   psql "$NON_PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kakeibo_sync.sql
 --
 -- Everything runs in one transaction that ends in ROLLBACK. Two throwaway

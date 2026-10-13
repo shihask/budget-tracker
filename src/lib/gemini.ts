@@ -135,6 +135,63 @@ export async function detectLifeEventWithAI(
   }
 }
 
+/** One spending category sent to `kakeibo-classify`. `i` must equal its array index. */
+export type AIKakeiboCategory = { i: number; name: string; group: string | null; bucket: 'needs' | 'wants' | 'savings' | 'none'; samples: string[] }
+export type AIKakeiboSuggestion = { i: number; pillar: string; confidence: unknown }
+
+/** Suggests a Kakeibo pillar per category. Returned unvalidated — the caller
+ *  runs `validatePillarSuggestions` (features/kakeibo/lib/pillars.ts), the one
+ *  place thresholds live. null on any failure: Kakeibo then simply has no AI
+ *  suggestion and the category stays at its seed or "Needs review". */
+export async function classifyKakeiboPillarsWithAI(
+  categories: AIKakeiboCategory[],
+  onUsed?: OnAiUsed
+): Promise<AIKakeiboSuggestion[] | null> {
+  if (categories.length === 0) return []
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ mode: 'kakeibo-classify', feature: 'kakeibo-classify', kakeiboCategories: categories }),
+    })
+    if (res.status === 429) { console.warn('Mint AI usage limit reached'); return null }
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
+    return Array.isArray(data.items) ? data.items : []
+  } catch (e) {
+    console.error('[AI] kakeibo classify failed:', e)
+    return null
+  }
+}
+
+/** A ≤ 3-sentence explanation of numbers the app already computed. Returned
+ *  unchecked — the caller drops it unless `insightNumbersAreGrounded` passes. */
+export async function kakeiboInsightWithAI(
+  facts: Record<string, number | string>,
+  onUsed?: OnAiUsed
+): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+    const res = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ mode: 'kakeibo-insight', feature: 'kakeibo-insight', kakeiboFacts: facts }),
+    })
+    if (res.status === 429) { console.warn('Mint AI usage limit reached'); return null }
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data.used != null) onUsed?.(data.used, data.usage_pct, data.enforcing)
+    return typeof data.insight === 'string' && data.insight.trim() ? data.insight.trim() : null
+  } catch (e) {
+    console.error('[AI] kakeibo insight failed:', e)
+    return null
+  }
+}
+
 export type AIReceiptExtraction = {
   description: string | null
   merchant: string | null   // same value as description today — kept distinct for future use, not read anywhere yet

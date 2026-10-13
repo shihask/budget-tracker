@@ -23,7 +23,12 @@ const ENFORCE_TOKEN_LIMIT = false
 const KNOWN_FEATURES = new Set([
   'chat', 'affordability', 'analytics', 'goal-plan', 'goal-progress', 'coach',
   'categorize', 'parse', 'receipt-extract', 'statement-extract', 'event-detect',
+  'kakeibo-classify', 'kakeibo-insight',
 ])
+
+// Kakeibo's four pillars — the only values kakeibo-classify may return.
+const KAKEIBO_PILLARS = new Set(['survival', 'optional', 'culture', 'unexpected'])
+const KAKEIBO_BUCKETS = new Set(['needs', 'wants', 'savings', 'none'])
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -403,7 +408,7 @@ Deno.serve(async (req) => {
     const used = start.requests - 1
 
     const body = await req.json()
-    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType, images, feature, expenses, eventNames, iconKeys } = body
+    const { mode, description, categoryNames, groupNames, text, accountNames, message, history, context, once, imageBase64, mimeType, images, feature, expenses, eventNames, iconKeys, kakeiboCategories, kakeiboFacts } = body
 
     // ── Token accounting for this request ──────────────────────────────────
     // One HTTP request can make up to TEN upstream Groq calls: the chat tool
@@ -1012,6 +1017,150 @@ Rules:
     }
 
     // ── Receipt-extract mode: read merchant/amount/date/category off a receipt photo ──
+    // ── Kakeibo classify: suggest a pillar per spending CATEGORY (never per row) ──
+    // Only categories the user hasn't classified yet are sent, so this runs about
+    // once per new category. Input is validated here as well as on the client: the
+    // prompt size is this function's cost. Output is sanitised here and validated
+    // again by the client's validatePillarSuggestions; nothing is written by this
+    // function — the client saves through mp_kakeibo_save_ai_pillars, which never
+    // overwrites a user's choice.
+    if (mode === 'kakeibo-classify') {
+      const isShortString = (v: unknown, max: number) => typeof v === 'string' && v.length > 0 && v.length <= max
+      const valid = Array.isArray(kakeiboCategories)
+        && kakeiboCategories.length >= 1 && kakeiboCategories.length <= 40
+        && kakeiboCategories.every((c: Record<string, unknown>, idx: number) =>
+          c && typeof c === 'object'
+          && c.i === idx
+          && isShortString(c.name, 40)
+          && (c.group == null || (typeof c.group === 'string' && c.group.length <= 30))
+          && typeof c.bucket === 'string' && KAKEIBO_BUCKETS.has(c.bucket)
+          && (c.samples == null || (Array.isArray(c.samples) && c.samples.length <= 3
+            && c.samples.every((s: unknown) => typeof s === 'string' && s.length <= 60))))
+      if (!valid) {
+        return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
+      }
+
+      const rows = kakeiboCategories.map((c: Record<string, unknown>) => {
+        const samples = (Array.isArray(c.samples) ? c.samples : []).map((s: unknown) => String(s).replace(/\s+/g, ' ')).join('; ')
+        return `${c.i} | ${String(c.name)} | ${String(c.group ?? '-')} | ${String(c.bucket)} | ${samples || '-'}`
+      })
+
+      const prompt = `You classify a person's SPENDING CATEGORIES into the four Kakeibo pillars. Return JSON only. No markdown, no explanation.
+Descriptions may be in broken English, Hinglish or Manglish (Malayalam+English) — understand the intent.
+
+Categories (index | name | group | budget bucket | sample expense descriptions):
+${rows.join('\n')}
+
+Pillars:
+- survival: essentials needed to live and work — groceries, rent, utilities, fuel and commute, medicines, school fees, loan EMIs.
+- optional: wants and treats — eating out, shopping, entertainment, subscriptions, gadgets.
+- culture: enrichment — books, courses, classes, music, museums, hobbies, learning.
+- unexpected: unplanned costs by nature — repairs, emergency medical, fines, breakages.
+
+Return exactly this JSON shape:
+{"items":[{"i":0,"pillar":"survival","confidence":0}]}
+
+Rules:
+- One item per category you are reasonably sure about; omit a category if unsure.
+- pillar: exactly one of survival, optional, culture, unexpected.
+- confidence: 0-100.`
+
+      const groqRes = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: MODEL_TEXT_SMALL,
+          messages: [{ role: 'user', content: prompt }],
+          ...LOW_REASONING,
+          max_tokens: 1200,
+          temperature: 0,
+        }),
+      })
+      if (!groqRes.ok) {
+        return groqFailure(groqRes.status, await groqRes.text())
+      }
+      const groqData = await groqRes.json()
+      recordUsage('kakeibo-classify', MODEL_TEXT_SMALL, groqData?.usage)
+      const raw = groqData?.choices?.[0]?.message?.content?.trim() ?? ''
+
+      let items: { i: number; pillar: string; confidence: unknown }[] = []
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/)
+        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null
+        if (parsed && Array.isArray(parsed.items)) {
+          items = parsed.items.filter((it: Record<string, unknown>) =>
+            it && Number.isInteger(it.i) && (it.i as number) >= 0 && (it.i as number) < kakeiboCategories.length
+            && typeof it.pillar === 'string' && KAKEIBO_PILLARS.has(it.pillar))
+            .map((it: Record<string, unknown>) => ({
+              i: it.i as number,
+              pillar: it.pillar as string,
+              confidence: typeof it.confidence === 'number' || typeof it.confidence === 'string' ? it.confidence : 0,
+            }))
+        }
+      } catch {
+        items = []
+      }
+
+      await flushUsage()
+      return new Response(
+        JSON.stringify({ items, used: used + 1, usage_pct: await currentUsagePct(), enforcing: ENFORCE_TOKEN_LIMIT }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ── Kakeibo insight: explain numbers the app already computed ─────────────
+    // The client sends verified facts only; the model may not compute anything
+    // new. The client also checks every number in the reply against the facts
+    // (insightNumbersAreGrounded) and drops the reply if one doesn't match.
+    if (mode === 'kakeibo-insight') {
+      const factsOk = kakeiboFacts && typeof kakeiboFacts === 'object' && !Array.isArray(kakeiboFacts)
+        && Object.keys(kakeiboFacts).length <= 40
+        && Object.entries(kakeiboFacts).every(([k, v]) =>
+          /^[a-z_]{1,40}$/.test(k) && ((typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.length <= 200)))
+        && JSON.stringify(kakeiboFacts).length <= 1500
+      if (!factsOk) {
+        return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })
+      }
+      const factLines = Object.entries(kakeiboFacts as Record<string, number | string>).map(([k, v]) => `${k}: ${v}`)
+
+      const prompt = `You write a short, warm Kakeibo reflection for a MoneyPlant user about ONE finished (or in-progress) salary cycle.
+Kakeibo pillars: survival (needs), optional (wants), culture (enrichment), unexpected (unplanned).
+
+Verified facts (amounts in Indian rupees; percentages already computed):
+${factLines.join('\n')}
+
+Rules:
+- At most 3 sentences, plain language, no lists, no markdown, no emoji.
+- Use ONLY numbers that appear above, written exactly as given (₹ with Indian digit grouping is fine). Never add, subtract, average or estimate a new number.
+- Point out the single most meaningful pattern, then suggest one small, practical improvement.
+- No judgment, no guilt, no assumptions about why money was spent.
+- Personal finance only.`
+
+      const groqRes = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: MODEL_TEXT_SMALL,
+          messages: [{ role: 'user', content: prompt }],
+          ...LOW_REASONING,
+          max_tokens: 700,
+          temperature: 0.3,
+        }),
+      })
+      if (!groqRes.ok) {
+        return groqFailure(groqRes.status, await groqRes.text())
+      }
+      const groqData = await groqRes.json()
+      recordUsage('kakeibo-insight', MODEL_TEXT_SMALL, groqData?.usage)
+      const insight = String(groqData?.choices?.[0]?.message?.content ?? '').trim().slice(0, 600)
+
+      await flushUsage()
+      return new Response(
+        JSON.stringify({ insight, used: used + 1, usage_pct: await currentUsagePct(), enforcing: ENFORCE_TOKEN_LIMIT }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
     if (mode === 'receipt-extract') {
       if (!imageBase64) {
         return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400, headers: cors })

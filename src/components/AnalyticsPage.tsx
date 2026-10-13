@@ -99,6 +99,8 @@ interface Props {
   /** Kakeibo tab content — App passes it for monthly-pattern users only; the tab
    *  doesn't exist otherwise. Self-contained (own data, own error boundary). */
   kakeiboTab?: React.ReactNode
+  /** Tab to open on. Only 'kakeibo' is passed today (dashboard Kakeibo → Review). */
+  initialTab?: 'kakeibo'
 }
 
 
@@ -157,9 +159,9 @@ function TxnMiniList({ transactions, categories }: { transactions: Transaction[]
   )
 }
 
-export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab }: Props) {
+export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab, initialTab }: Props) {
   const c = useTheme()
-  const [tab, setTab] = useState<Tab>('trend')
+  const [tab, setTab] = useState<Tab>(initialTab === 'kakeibo' && kakeiboTab ? 'kakeibo' : 'trend')
   const [trendRange, setTrendRange] = useState<TrendRange>(7)
   const [insight, setInsight] = useState<string | null>(null)
   const [loadingInsight, setLoadingInsight] = useState(false)
