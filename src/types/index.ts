@@ -688,7 +688,7 @@ export type Layout = 'grid' | 'carousel' | 'list'
 export type DashboardSectionId =
   | 'hero' | 'affordability' | 'daily_challenge' | 'metrics' | 'commitments' | 'goals'
   | 'accounts' | 'borrowing' | 'credit_cards' | 'analytics' | 'recent_txns' | 'savings' | 'cashflow'
-  | 'projects' | 'wealth_summary' | 'budget_strategy' | 'events'
+  | 'projects' | 'wealth_summary' | 'budget_strategy' | 'events' | 'kakeibo'
 
 export interface DashboardSection {
   id: string                    // built-ins use DashboardSectionId; custom sections use 'custom__<timestamp>'
@@ -700,6 +700,7 @@ export interface DashboardSection {
 
 export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'hero',            visible: true },
+  { id: 'kakeibo',         visible: true },
   { id: 'wealth_summary',  visible: true },
   { id: 'budget_strategy', visible: true },
   { id: 'daily_challenge', visible: true },
@@ -717,3 +718,20 @@ export const DEFAULT_DASHBOARD_SECTIONS: DashboardSection[] = [
   { id: 'analytics',     visible: true },
   { id: 'recent_txns',   visible: true },
 ]
+
+/** One observed monthly financial cycle in Kakeibo (Monthly Money Reflection).
+ *  Only the ritual is stored — goal, note, review status. Every money figure is
+ *  derived from transactions. See src/features/kakeibo/lib/kakeibo.ts. */
+export interface KakeiboReflection {
+  id: string
+  cycle_start: string                   // YYYY-MM-DD — the cycle engine's cycleStart
+  cycle_end: string | null              // set when the next cycle is observed
+  savings_goal: number | null
+  goal_decided_at: string | null        // set with a null goal = goal skipped
+  reflection_note: string | null
+  review_status: 'completed' | 'skipped' | null
+  reviewed_at: string | null
+  lesson_acknowledged_at: string | null
+  created_at?: string
+  updated_at?: string
+}

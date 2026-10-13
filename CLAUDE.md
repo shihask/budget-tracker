@@ -660,6 +660,43 @@ files before the SPA rewrite — before v1.90 both `/robots.txt` and `/sitemap.x
 - Title targets how people search ("expense tracker", "budget app", "India"); keep it ≤ 60 chars and
   the description ≤ 155. The boot shell's hero (above) is the crawlable text Google sees first.
 
+## Kakeibo — Monthly Money Reflection (v1)
+A **ritual, not a budgeting formula**:
+- set a savings goal on payday;
+- review the finished cycle;
+- write one thing to do differently;
+- see it again next payday.
+
+There is no new `BudgetStrategyType`, no Culture bucket, no AI, and no push in v1. The dashboard card is the in-app reminder.
+
+Kakeibo is fully isolated:
+- its own table (`kakeibo_reflections`);
+- its own queries (`useKakeibo`, not `useSupabaseData`);
+- its own `Sentry.ErrorBoundary` (`KakeiboBoundary`).
+
+On any failure it renders nothing, and Dashboard and Analytics are unaffected.
+
+| File | Purpose |
+|---|---|
+| `src/features/kakeibo/lib/kakeibo.ts` | Pure: `isEligible`, `planCycleSync`, `dashboardActions`, `nextReviewState`, `computeCycleSummary`, `kakeiboInsight` |
+| `src/features/kakeibo/hooks/useKakeibo.ts` | Records, sync (plan → RPC → re-read, at most 2 tries), column-scoped mutations |
+| `src/features/kakeibo/hooks/useCycleLedger.ts` | A past cycle's rows from the DB (out of the 200-row window), merged with `mergeLoadedWins` |
+| `supabase/migrations/20261014000001_kakeibo.sql` | Table, RLS (no DELETE policy), `mp_kakeibo_apply_sync` |
+| `supabase/tests/kakeibo_sync.sql` | Manual RLS / isolation / atomicity checks. **Non-production DB only**; runs in a transaction that rolls back |
+
+- **Monthly pattern + `cycle.source === 'transaction'` only.** Anything else is ineligible: nothing is written and nothing is shown, so irregular income never gets a review.
+- **The client is the only cycle authority.**
+  - `planCycleSync` is the one definition of the rules. A start that moves ≤ 15 days (the monthly cluster window) is the same cycle **re-keyed**, and its predecessor's `cycle_end` moves with it in the same plan.
+  - The SQL holds no rules. `mp_kakeibo_apply_sync` (security invoker, per-user advisory lock) applies the plan's guarded writes. If any expectation fails it returns `'stale'` with nothing written, and it raises (full rollback) if closed cycles would overlap.
+- Records starting after the current cycle (a deleted salary) are **hidden, never deleted**; re-adding the salary brings them back with the goal and note intact.
+- Cycles longer than `MAX_REVIEW_CYCLE_DAYS` (unobserved paydays) are never offered for review.
+- **Status never returns to null.** All changes go through `nextReviewState`: editing a reflection keeps it completed, keeps the first `reviewed_at`, and can't re-arm the reminder. Mutations write only the changed columns.
+- **Metrics:**
+  - `computeCycleSummary` mirrors `computeStrategyData`'s spending-type rule. It doesn't call it because that function has no end bound. A **parity test** pins Needs/Wants to it, so change both together.
+  - Savings = contributions + savings-bucket spend − withdrawals.
+  - There is no closing balance (no historical source) and no budget comparison (the periods differ).
+- **Future push** reads `cycle_end` / `review_status`, so the server needs no cycle math. It can only follow a rollover the client has already saved.
+
 ## Git conventions
 - Commit directly to `main` — no feature branches
 - Never `git push` unless the user explicitly says so in that message

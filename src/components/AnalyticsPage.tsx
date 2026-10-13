@@ -48,7 +48,7 @@ function groupTypeColor(groupType: string | undefined, c: { good: string; warn: 
   }
 }
 
-type Tab = 'trend' | 'weeks' | 'category' | 'timeline' | 'journey'
+type Tab = 'trend' | 'weeks' | 'category' | 'timeline' | 'journey' | 'kakeibo'
 type TrendRange = 7 | 15 | 30
 const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline'], ['journey', 'Journey']]
 const TREND_RANGES: [TrendRange, string][] = [[7, '7D'], [15, '15D'], [30, '30D']]
@@ -96,6 +96,9 @@ interface Props {
   d: DerivedMetrics
   onClose: () => void
   onUpdateSettings?: (patch: Partial<Settings>) => void
+  /** Kakeibo tab content — App passes it for monthly-pattern users only; the tab
+   *  doesn't exist otherwise. Self-contained (own data, own error boundary). */
+  kakeiboTab?: React.ReactNode
 }
 
 
@@ -154,7 +157,7 @@ function TxnMiniList({ transactions, categories }: { transactions: Transaction[]
   )
 }
 
-export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
+export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab }: Props) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>('trend')
   const [trendRange, setTrendRange] = useState<TrendRange>(7)
@@ -365,7 +368,10 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings }: Props) {
           {TABS.map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} style={tabStyle(k)}>{l}</button>
           ))}
+          {kakeiboTab && <button onClick={() => setTab('kakeibo')} style={tabStyle('kakeibo')}>Kakeibo</button>}
         </div>
+
+        {tab === 'kakeibo' && kakeiboTab}
 
         {/* ── Trend ─────────────────────────────────────────── */}
         {tab === 'trend' && (

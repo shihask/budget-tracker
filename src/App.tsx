@@ -95,6 +95,11 @@ import { EventSuggestionToast } from '@/features/events/components/EventSuggesti
 import { EventSuggestionSheet } from '@/features/events/components/EventSuggestionSheet'
 import { useEventSuggestion } from '@/features/events/hooks/useEventSuggestion'
 import { useEventLedger } from '@/features/events/hooks/useEventLedger'
+import { useKakeibo } from '@/features/kakeibo/hooks/useKakeibo'
+import { KakeiboDashboardCard } from '@/features/kakeibo/components/KakeiboDashboardCard'
+import { KakeiboTab } from '@/features/kakeibo/components/KakeiboTab'
+import { KakeiboBoundary } from '@/features/kakeibo/components/ui'
+import { computeStrategyData } from '@/lib/budget-strategy'
 import type { EventSuggestion } from '@/lib/event-suggestions'
 import type { EventFormValues } from '@/features/events/components/EventFormSheet'
 import { UndoSnackbar } from '@/components/UndoSnackbar'
@@ -492,6 +497,13 @@ function AppContent({ session }: { session: Session }) {
     onAiUsed: (n, pct, enf) => updateSettings(aiUsagePatch(n, pct, enf)),
   })
 
+  // Kakeibo — isolated: own table, own queries, renders nothing on any failure.
+  const kakeibo = useKakeibo({ userId: session.user.id, state, cycle: d.financialCycle, loading, usingSupabase })
+  const kakeiboSuggestedGoal = useMemo(
+    () => (kakeibo.status === 'ready' ? computeStrategyData(state, d)?.targets.savings ?? null : null),
+    [kakeibo.status, state, d],
+  )
+
   // Never links anything itself — both paths end in LinkExpensesSheet with the
   // detected rows ticked, and the user confirms.
   const acceptEventSuggestion = (s: EventSuggestion) => {
@@ -847,6 +859,14 @@ function AppContent({ session }: { session: Session }) {
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
                       el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} /><RemindersBar state={state} reminders={alertReminders} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} isSnoozed={id => isSnoozed(id, snoozeMap)} onDismiss={id => snoozeNotif(id, 'permanent')} /></>
+                      break
+                    case 'kakeibo':
+                      // Only when something is asked — an empty section wrapper would add a gap.
+                      el = kakeibo.status === 'ready' && (kakeibo.actions.review || kakeibo.actions.goal || kakeibo.actions.lesson) ? (
+                        <KakeiboBoundary>
+                          <KakeiboDashboardCard kakeibo={kakeibo} state={state} userId={session.user.id} allTransactionsLoaded={allTransactionsLoaded} suggestedGoal={kakeiboSuggestedGoal} />
+                        </KakeiboBoundary>
+                      ) : null
                       break
                     case 'wealth_summary':
                       el = <WealthSummaryCard state={state} onGoToSavings={() => { setSavingsAddOnOpen(false); setSavingsOpen(true) }} onGoToBorrowing={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} />
@@ -1252,7 +1272,14 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {analyticsOpen && (
-            <AnalyticsPage state={state} d={d} onClose={() => setAnalyticsOpen(false)} onUpdateSettings={updateSettings} />
+            <AnalyticsPage
+              state={state} d={d} onClose={() => setAnalyticsOpen(false)} onUpdateSettings={updateSettings}
+              kakeiboTab={kakeibo.monthly ? (
+                <KakeiboBoundary>
+                  <KakeiboTab kakeibo={kakeibo} state={state} userId={session.user.id} allTransactionsLoaded={allTransactionsLoaded} suggestedGoal={kakeiboSuggestedGoal} />
+                </KakeiboBoundary>
+              ) : undefined}
+            />
           )}
 
           {cashflowOpen && (
