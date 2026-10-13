@@ -159,9 +159,10 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
   }
   const dirty = (note.trim() || null) !== (record?.reflection_note ?? null)
 
-  const choose = async (start: string) => {
+  const choose = async (start: string, andGenerate = false) => {
     if (dirty && !(await confirm('Discard your unsaved note?', { confirmLabel: 'Discard', cancelLabel: 'Keep writing' }))) return
     setSelectedStart(start)
+    if (andGenerate) { setGeneratedFor(start); setRunId(n => n + 1) }
   }
 
   const act = async (action: ReviewAction) => {
@@ -184,6 +185,9 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
 
   const isCurrent = selected.status === 'current'
   const generate = () => { setGeneratedFor(selected.start); setRunId(n => n + 1) }
+  // Previous cycle, only while its review is pending and it's in the selector.
+  const pendingPrev = kakeibo.previous && kakeibo.previous.review_status == null
+    && options.some(o => o.start === kakeibo.previous!.cycle_start) ? kakeibo.previous : null
   const statusOf = (o: CycleOption) => o.record?.review_status ?? 'pending'
   const optionLabel = (o: CycleOption) => o.status === 'current'
     ? `${cycleLabel({ cycle_start: o.start, cycle_end: null })} · in progress`
@@ -197,6 +201,21 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
 
   return (
     <Card>
+      {/* The finished cycle still waiting for its review — one tap selects and
+          generates it. Unlike the dashboard row it isn't limited to the first 10
+          days: here the user came looking. */}
+      {pendingPrev && selected.start !== pendingPrev.cycle_start && (
+        <div style={{
+          background: c.accentSoft, borderRadius: 14, padding: '12px 14px', marginBottom: 14,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ font: '800 14px Plus Jakarta Sans', color: c.ink }}>Your last cycle is ready to review</div>
+            <div style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>{cycleLabel(pendingPrev)}</div>
+          </div>
+          <KButton onClick={() => { void choose(pendingPrev.cycle_start, true) }}>Review</KButton>
+        </div>
+      )}
       <SectionLabel>Select financial cycle</SectionLabel>
       <select
         aria-label="Financial cycle"
