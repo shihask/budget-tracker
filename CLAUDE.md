@@ -438,6 +438,17 @@ so `transactionFilters.ts` stays the one definition of a match — the SQL may b
 stricter. The header says "searching all…" / "first 5,000 matches" / "latest N only" (failed);
 load-more hides once the DB has answered. Export is separate — it fetches everything itself.
 
+## Email a statement to yourself
+Export Transactions sheet → **Email to me**. `buildTransactionsCsv` (`src/lib/exportTransactionsCsv.ts`)
+builds the CSV for both download and email, so `filterAndSortTransactions` stays the one filter
+definition. `emailTransactionsCsv` posts it to `send-statement-email`, which mails it via Brevo's
+API from `noreply@moneyplant.online`.
+- **The recipient is never taken from the request:** it is always the caller's own *confirmed*
+  `user.email` (`no_email` otherwise — phone sign-ups add one in Profile). That is what keeps it from
+  being an open relay; don't add a "send to" field without rethinking abuse.
+- 10 sends/user/UTC day (`statement_email_sends`, service-role only, RLS on with no policies), 5 MB CSV cap.
+- Secret `BREVO_API_KEY` — a Brevo **API** key, not the SMTP key Supabase Auth uses.
+
 ## Auto-categorize in QuickAdd (four-tier)
 0. **History match** (`findHistoricalCategory`) — same description used before (exact, case-insensitive) → same category as the most recent matching transaction
 1. **Name match** (`findCategoryMatches`) — word-overlap against category names  

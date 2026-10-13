@@ -1645,6 +1645,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
         onClose={() => setExportOpen(false)}
         state={state}
         userId={userId}
+        userEmail={userEmail}
         allTransactionsLoaded={!!allTransactionsLoaded}
         initialFilters={{ search, account: filterAccount, category: filterCategory, group: filterGroup, event: filterEvent, dateFrom: filterDateFrom, dateTo: filterDateTo, amount: filterAmount, showSystemTxns }}
         initialSortKey={sortKey}

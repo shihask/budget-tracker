@@ -143,7 +143,7 @@ export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
         </div>
         <div style={p}>
           We use these service providers to run MoneyPlant: Supabase (database, sign-in and file storage),
-          Vercel (hosting and analytics), Groq (AI), Brevo (sign-in and account emails), Resend
+          Vercel (hosting and analytics), Groq (AI), Brevo (sign-in and account emails, and statements you email to yourself), Resend
           (invitation emails), Google (if you sign in
           with Google), and Setu and Finvu (bank linking, if you use it).
         </div>

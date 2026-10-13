@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { Mail } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmtDate, openDatePicker } from '@/lib/utils'
 import { BottomSheet } from './BottomSheet'
 import { filterAndSortTransactions, DEFAULT_TXN_FILTERS, type TransactionFilterState, type TxnSortKey } from '@/lib/transactionFilters'
-import { exportTransactionsCsv } from '@/lib/exportTransactionsCsv'
+import { exportTransactionsCsv, emailTransactionsCsv, type ExportLookupData } from '@/lib/exportTransactionsCsv'
 import type { AppState } from '@/types'
 
 interface ExportTransactionsSheetProps {
@@ -11,26 +12,34 @@ interface ExportTransactionsSheetProps {
   onClose: () => void
   state: AppState
   userId: string
+  /** Signed-in identifier — an email, or a phone number for mobile sign-ups. */
+  userEmail?: string
   allTransactionsLoaded: boolean
   initialFilters: TransactionFilterState
   initialSortKey: TxnSortKey
 }
 
-export function ExportTransactionsSheet({ open, onClose, state, userId, allTransactionsLoaded, initialFilters, initialSortKey }: ExportTransactionsSheetProps) {
+export function ExportTransactionsSheet({ open, onClose, state, userId, userEmail, allTransactionsLoaded, initialFilters, initialSortKey }: ExportTransactionsSheetProps) {
   const c = useTheme()
   const [filters, setFilters] = useState(initialFilters)
   const [sortKey, setSortKey] = useState(initialSortKey)
   const [exporting, setExporting] = useState(false)
+  const [emailing, setEmailing] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
-  const [exportedCount, setExportedCount] = useState<number | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const dateToRef = useRef<HTMLInputElement>(null)
+
+  // The server sends only to the account's own confirmed email; this just
+  // decides whether to offer it. Phone sign-ups add one from Profile.
+  const emailAddress = userEmail?.includes('@') ? userEmail : null
+  const busy = exporting || emailing
 
   useEffect(() => {
     if (!open) return
     setFilters(initialFilters)
     setSortKey(initialSortKey)
     setExportError(null)
-    setExportedCount(null)
+    setSuccessMessage(null)
   }, [open])
 
   const accounts = state.accounts.filter(a => a.is_active)
@@ -65,22 +74,36 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
 
   const resetFilters = () => setFilters(DEFAULT_TXN_FILTERS)
 
+  const lookup: ExportLookupData = { categories: state.categories, accounts: state.accounts, creditCards, events: state.events }
+  const plural = (n: number) => `${n} transaction${n === 1 ? '' : 's'}`
+
   const handleExport = async () => {
     setExporting(true)
     setExportError(null)
+    setSuccessMessage(null)
     try {
-      const count = await exportTransactionsCsv(
-        userId,
-        { categories: state.categories, accounts: state.accounts, creditCards, events: state.events },
-        filters,
-        sortKey,
-      )
-      setExportedCount(count)
+      const count = await exportTransactionsCsv(userId, lookup, filters, sortKey)
+      setSuccessMessage(`Exported ${plural(count)}`)
       setTimeout(onClose, 1200)
     } catch (_) {
       setExportError('Something went wrong. Please try again.')
     }
     setExporting(false)
+  }
+
+  const handleEmail = async () => {
+    if (!emailAddress) return
+    setEmailing(true)
+    setExportError(null)
+    setSuccessMessage(null)
+    try {
+      const count = await emailTransactionsCsv(userId, lookup, filters, sortKey, filterSummary)
+      // No auto-close: the user may want to read where it went.
+      setSuccessMessage(`Sent ${plural(count)} to ${emailAddress}`)
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Something went wrong. Please try again.')
+    }
+    setEmailing(false)
   }
 
   const inp: React.CSSProperties = {
@@ -100,7 +123,7 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
         )}
       </div>
       <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>
-        Download the matching transactions as a CSV file.
+        Download the matching transactions as a CSV file, or email it to yourself.
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -187,9 +210,9 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
       {exportError && (
         <div style={{ marginTop: 12, font: '600 12px Plus Jakarta Sans', color: c.bad, lineHeight: 1.5 }}>{exportError}</div>
       )}
-      {exportedCount !== null && !exportError && (
-        <div style={{ marginTop: 12, font: '600 12px Plus Jakarta Sans', color: c.good, lineHeight: 1.5 }}>
-          Exported {exportedCount} transaction{exportedCount === 1 ? '' : 's'}
+      {successMessage && !exportError && (
+        <div style={{ marginTop: 12, font: '600 12px Plus Jakarta Sans', color: c.good, lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+          {successMessage}
         </div>
       )}
 
@@ -199,8 +222,8 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
         </button>
         <button
           onClick={handleExport}
-          disabled={exporting}
-          style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.7 : 1 }}
+          disabled={busy}
+          style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 14, padding: '14px', font: '700 14px Plus Jakarta Sans', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.7 : 1 }}
         >
           {exporting
             ? 'Preparing export…'
@@ -208,6 +231,24 @@ export function ExportTransactionsSheet({ open, onClose, state, userId, allTrans
             ? `Export ${matched.length} Transaction${matched.length === 1 ? '' : 's'}`
             : 'Export Transactions'}
         </button>
+      </div>
+
+      <button
+        onClick={handleEmail}
+        disabled={busy || !emailAddress}
+        style={{
+          width: '100%', marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: 'none', color: emailAddress ? c.accent : c.muted,
+          border: `1.5px solid ${emailAddress ? c.accent : c.faint}`, borderRadius: 14, padding: '12px',
+          font: '700 14px Plus Jakarta Sans',
+          cursor: busy || !emailAddress ? 'not-allowed' : 'pointer', opacity: busy ? 0.7 : 1,
+        }}
+      >
+        <Mail size={16} strokeWidth={2.2} />
+        {emailing ? 'Sending…' : 'Email to me'}
+      </button>
+      <div style={{ marginTop: 6, textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, overflowWrap: 'anywhere' }}>
+        {emailAddress ? `Sends the CSV to ${emailAddress}` : 'Add an email in your Profile to receive statements by email'}
       </div>
     </BottomSheet>
   )

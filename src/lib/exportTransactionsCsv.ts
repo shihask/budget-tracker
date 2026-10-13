@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase'
 import { fetchAllPages } from '@/lib/supabasePagination'
 import { toCsv } from '@/lib/csvUtils'
 import { catById } from '@/lib/data'
@@ -46,12 +47,19 @@ function buildFilename(filters: TransactionFilterState): string {
   return `MoneyPlant_Transactions_${today}.csv`
 }
 
-export async function exportTransactionsCsv(
+export interface TransactionsCsv {
+  csv: string
+  filename: string
+  count: number
+}
+
+/** Fetches every transaction and builds the CSV — shared by download and email. */
+export async function buildTransactionsCsv(
   userId: string,
   lookup: ExportLookupData,
   filters: TransactionFilterState,
   sortKey: TxnSortKey,
-): Promise<number> {
+): Promise<TransactionsCsv> {
   const allTransactions = await fetchAllPages<Transaction>('transactions', userId, 'transaction_date')
   const rows = filterAndSortTransactions(allTransactions, lookup.categories, filters, sortKey)
 
@@ -77,16 +85,56 @@ export async function exportTransactionsCsv(
     }
   })
 
-  const csv = toCsv(csvRows, EXPORT_COLUMNS)
+  return { csv: toCsv(csvRows, EXPORT_COLUMNS), filename: buildFilename(filters), count: rows.length }
+}
+
+export async function exportTransactionsCsv(
+  userId: string,
+  lookup: ExportLookupData,
+  filters: TransactionFilterState,
+  sortKey: TxnSortKey,
+): Promise<number> {
+  const { csv, filename, count } = await buildTransactionsCsv(userId, lookup, filters, sortKey)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = buildFilename(filters)
+  a.download = filename
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 
-  return rows.length
+  return count
+}
+
+const EMAIL_ERROR_MESSAGES: Record<string, string> = {
+  no_email: 'Add an email address in your Profile to receive statements.',
+  daily_limit: "You've reached today's limit for emailed statements. Try again tomorrow, or download instead.",
+  too_large: 'This statement is too large to email. Narrow the dates, or download instead.',
+  email_not_configured: "Emailing statements isn't available right now. Download instead.",
+}
+
+/**
+ * Builds the same CSV as the download and mails it to the user's own
+ * confirmed email — send-statement-email decides the recipient, never the
+ * client. Resolves with the row count; throws an Error with a user-facing message.
+ */
+export async function emailTransactionsCsv(
+  userId: string,
+  lookup: ExportLookupData,
+  filters: TransactionFilterState,
+  sortKey: TxnSortKey,
+  summary: string,
+): Promise<number> {
+  const { csv, filename, count } = await buildTransactionsCsv(userId, lookup, filters, sortKey)
+  const { error } = await supabase.functions.invoke('send-statement-email', {
+    body: { csv, filename, count, summary },
+  })
+  if (error) {
+    let code = ''
+    try { code = (await (error as { context?: Response }).context?.json())?.error ?? '' } catch { /* not JSON */ }
+    throw new Error(EMAIL_ERROR_MESSAGES[code] ?? "Couldn't send the email. Please try again.")
+  }
+  return count
 }
