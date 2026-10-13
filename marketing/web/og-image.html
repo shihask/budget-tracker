@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant share image</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<!-- The link-preview image (WhatsApp, Instagram DMs, Google, X): 1200×630.
+     Render: node marketing/web/render-og.mjs → public/og-image.png -->
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: linear-gradient(140deg, #16C98A, #0A7A56); color: #fff; display: flex; align-items: center; padding: 0 80px; gap: 60px; }
+  .text { flex: 1; }
+  .brand { display: flex; align-items: center; gap: 20px; font-size: 40px; font-weight: 800; }
+  .brand img { width: 76px; height: 76px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+  h1 { font-size: 84px; line-height: 1.02; font-weight: 800; letter-spacing: -2.5px; margin-top: 40px; }
+  p { font-size: 32px; line-height: 1.4; font-weight: 600; opacity: .92; margin-top: 26px; max-width: 640px; }
+  .card { flex: 0 0 340px; background: #fff; color: #1C1410; border-radius: 36px; padding: 34px 36px; box-shadow: 0 30px 70px rgba(0,0,0,.25); }
+  .card .lab { font-size: 22px; font-weight: 700; color: #6B5F57; }
+  .card .big { font-size: 72px; font-weight: 800; letter-spacing: -3px; margin-top: 4px; }
+  .bar { height: 16px; border-radius: 99px; background: #EDE5DB; margin-top: 18px; overflow: hidden; }
+  .bar i { display: block; width: 38%; height: 100%; background: #16C98A; border-radius: 99px; }
+  .row { display: flex; justify-content: space-between; font-size: 24px; font-weight: 700; padding-top: 18px; margin-top: 18px; border-top: 2px solid #EDE5DB; }
+  .row b { color: #B4372B; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <div class="text">
+    <div class="brand"><img src="../../public/email-logo.png" alt="">MoneyPlant</div>
+    <h1>Know before you spend.</h1>
+    <p>Free expense tracker and budget app for India. Bills, EMIs, credit cards and salary, in one place.</p>
+  </div>
+  <div class="card">
+    <div class="lab">Safe to spend today</div>
+    <div class="big">₹640</div>
+    <div class="bar"><i></i></div>
+    <div class="row"><span>Rent</span><b>−₹15,000</b></div>
+    <div class="row"><span>Card bill</span><b>−₹6,200</b></div>
+  </div>
+</body>
+</html>

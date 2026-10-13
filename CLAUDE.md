@@ -648,6 +648,18 @@ first-time visitor, else the same plain spinner App shows while the session load
   same copy, same layout, headline at normal weight (the CSS reset's, not 800). A mismatch shows
   as a jump at handoff.
 
+## SEO and link previews
+Everything is in `index.html`'s `<head>` plus three static files in `public/` (Vercel serves real
+files before the SPA rewrite — before v1.90 both `/robots.txt` and `/sitemap.xml` returned the app HTML).
+- One indexable URL: `<link rel="canonical" href="https://moneyplant.online/">`, so `?utm_campaign=…`
+  links and SPA paths don't count as separate pages. `sitemap.xml` lists only `/`.
+- `robots.txt` disallows `/project/` — shared-project pages are public by link only.
+- Link previews (WhatsApp, Instagram DMs): `og:image` / `twitter:image` must be **absolute** URLs to
+  `public/og-image.png` (1200×630, source `marketing/web/og-image.html`, render with
+  `node marketing/web/render-og.mjs`). Keep it under ~600 KB or WhatsApp drops it.
+- Title targets how people search ("expense tracker", "budget app", "India"); keep it ≤ 60 chars and
+  the description ≤ 155. The boot shell's hero (above) is the crawlable text Google sees first.
+
 ## Git conventions
 - Commit directly to `main` — no feature branches
 - Never `git push` unless the user explicitly says so in that message

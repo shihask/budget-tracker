@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-IN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -8,20 +8,27 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="MoneyPlant" />
     <meta name="theme-color" content="#16C98A" />
-    <meta name="description" content="Track expenses, manage budgets, forecast future cash flow, monitor credit cards, savings and bills with MoneyPlant. Know before you spend." />
+    <meta name="description" content="Free expense tracker and budget app for India. Track spending, EMIs, credit card bills and SIPs, and see what's safe to spend before payday." />
+    <!-- One indexable URL: utm-tagged links (?utm_campaign=…) and SPA paths all point here -->
+    <link rel="canonical" href="https://moneyplant.online/" />
 
-    <!-- Open Graph -->
+    <!-- Link previews (WhatsApp, Instagram DMs, Google, X). Image source: marketing/web/og-image.html
+         → public/og-image.png. Absolute URLs: link-preview crawlers don't resolve relative ones. -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="MoneyPlant – Personal Finance, Budget & Cash Flow Forecast App" />
-    <meta property="og:description" content="Track expenses, manage budgets, forecast future cash flow, monitor credit cards, savings and bills with MoneyPlant. Know before you spend." />
-    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:url" content="https://moneyplant.online/" />
     <meta property="og:site_name" content="MoneyPlant" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:title" content="MoneyPlant – Know Before You Spend" />
+    <meta property="og:description" content="Free expense tracker and budget app for India. Track spending, EMIs, credit card bills and SIPs, and see what's safe to spend before payday." />
+    <meta property="og:image" content="https://moneyplant.online/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MoneyPlant: know before you spend. Safe to spend today after rent and the card bill." />
 
-    <!-- Twitter / X -->
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="MoneyPlant – Know Before You Spend" />
-    <meta name="twitter:description" content="Personal finance app with cash flow forecasting, budget planning, commitment tracking and savings goals." />
-    <meta name="twitter:image" content="/pwa-512x512.png" />
+    <meta name="twitter:description" content="Free expense tracker and budget app for India. Track spending, EMIs, credit card bills and SIPs, and see what's safe to spend before payday." />
+    <meta name="twitter:image" content="https://moneyplant.online/og-image.png" />
 
     <!-- index.css @imports the font; start the connections before that stylesheet asks -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -31,7 +38,7 @@
     <link rel="icon" href="/pwa.svg" sizes="any" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
 
-    <title>MoneyPlant – Personal Finance, Budget & Cash Flow Forecast App</title>
+    <title>MoneyPlant – Free Expense Tracker & Budget App for India</title>
 
     <!-- Stale-build recovery. A page from a previous deploy asks for hashed
          /assets files that no longer exist; the entry script then fails before
@@ -62,9 +69,12 @@
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "MoneyPlant",
+      "url": "https://moneyplant.online/",
+      "image": "https://moneyplant.online/og-image.png",
       "applicationCategory": "FinanceApplication",
-      "operatingSystem": "Web",
-      "description": "Personal finance app with cash flow forecasting, budget planning, commitment tracking and savings goals. Know before you spend.",
+      "operatingSystem": "Web, Android, iOS",
+      "inLanguage": "en-IN",
+      "description": "Free expense tracker and budget app for India. Track spending, EMIs, credit card bills and SIPs, and see what's safe to spend before payday.",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" }
     }
     </script>

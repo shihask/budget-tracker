@@ -1,0 +1,7 @@
+# moneyplant.online
+User-agent: *
+Allow: /
+# Shared-project pages are public by link only; keep them out of search results.
+Disallow: /project/
+
+Sitemap: https://moneyplant.online/sitemap.xml
