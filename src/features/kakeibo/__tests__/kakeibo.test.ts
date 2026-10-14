@@ -197,26 +197,33 @@ describe('planCycleSync', () => {
 
 // ── Dashboard actions ────────────────────────────────────────────────────────
 
+/** [cycle, today] for "day N of the cycle starting `start`" (day 1 = payday). */
+const on = (start: string, day: number): [{ cycleStart: Date }, Date] => {
+  const s = parseIso(start)
+  return [{ cycleStart: s }, new Date(s.getFullYear(), s.getMonth(), s.getDate() + day - 1, 12)]
+}
+
 describe('dashboardActions — review and goal are independent', () => {
   const payday = [rec('2026-09-28', { cycle_end: '2026-10-27' }), rec('2026-10-28')]
 
   it('on payday both the review and the goal rows show', () => {
-    const a = dashboardActions(payday, cyc('2026-10-28', 1))
+    const a = dashboardActions(payday, ...on('2026-10-28', 1))
     expect(a.review?.cycle_start).toBe('2026-09-28')
     expect(a.goal?.cycle_start).toBe('2026-10-28')
   })
 
   it('resolving the review leaves the goal, and vice versa', () => {
     const reviewed = [rec('2026-09-28', { cycle_end: '2026-10-27', review_status: 'completed' }), rec('2026-10-28')]
-    expect(dashboardActions(reviewed, cyc('2026-10-28', 1)).goal).not.toBeNull()
+    expect(dashboardActions(reviewed, ...on('2026-10-28', 1)).goal).not.toBeNull()
     const goalSet = [rec('2026-09-28', { cycle_end: '2026-10-27' }), rec('2026-10-28', { goal_decided_at: 'x' })]
-    expect(dashboardActions(goalSet, cyc('2026-10-28', 1)).review).not.toBeNull()
+    expect(dashboardActions(goalSet, ...on('2026-10-28', 1)).review).not.toBeNull()
   })
 
   it('goal row leaves after day 7, review row after day 10', () => {
-    expect(dashboardActions(payday, cyc('2026-10-28', 8)).goal).toBeNull()
-    expect(dashboardActions(payday, cyc('2026-10-28', 10)).review).not.toBeNull()
-    expect(dashboardActions(payday, cyc('2026-10-28', 11)).review).toBeNull()
+    expect(dashboardActions(payday, ...on('2026-10-28', 7)).goal).not.toBeNull()
+    expect(dashboardActions(payday, ...on('2026-10-28', 8)).goal).toBeNull()
+    expect(dashboardActions(payday, ...on('2026-10-28', 10)).review).not.toBeNull()
+    expect(dashboardActions(payday, ...on('2026-10-28', 11)).review).toBeNull()
   })
 
   it('the last lesson shows only when nothing else is asked, until acknowledged', () => {
@@ -224,9 +231,90 @@ describe('dashboardActions — review and goal are independent', () => {
       rec('2026-09-28', { cycle_end: '2026-10-27', review_status: 'completed', reflection_note: 'Cook more' }),
       rec('2026-10-28', { goal_decided_at: 'x' }),
     ]
-    expect(dashboardActions(done, cyc('2026-10-28', 3)).lesson?.reflection_note).toBe('Cook more')
+    expect(dashboardActions(done, ...on('2026-10-28', 3)).lesson?.reflection_note).toBe('Cook more')
     done[0].lesson_acknowledged_at = 'y'
-    expect(dashboardActions(done, cyc('2026-10-28', 3)).lesson).toBeNull()
+    expect(dashboardActions(done, ...on('2026-10-28', 3)).lesson).toBeNull()
+  })
+
+  it('a review saved WITHOUT a note never produces a lesson row (blank or whitespace)', () => {
+    for (const note of [null, '', '   ']) {
+      const done = [
+        rec('2026-09-28', { cycle_end: '2026-10-27', review_status: 'completed', reflection_note: note }),
+        rec('2026-10-28', { goal_decided_at: 'x' }),
+      ]
+      expect(dashboardActions(done, ...on('2026-10-28', 2))).toEqual({ review: null, goal: null, lesson: null })
+    }
+    // And saving an empty note stores null, so there is nothing to show later either.
+    expect(nextReviewState(rec('a'), { kind: 'save', note: '   ' }, 'now').reflection_note).toBeNull()
+  })
+
+  it('"Not now" hides only the reminder — the review stays pending, the goal row stays', () => {
+    const dismissed = [rec('2026-09-28', { cycle_end: '2026-10-27', review_reminder_dismissed_at: 'x' }), rec('2026-10-28')]
+    const a = dashboardActions(dismissed, ...on('2026-10-28', 1))
+    expect(a.review).toBeNull()
+    expect(a.goal).not.toBeNull()
+    expect(dismissed[0].review_status).toBeNull() // still pending → Analytics keeps offering it
+  })
+
+  it('"Skip for now" on the goal records no goal amount', () => {
+    // setGoal(r, null) writes { savings_goal: null, goal_decided_at }: decided, no goal.
+    const skipped = [rec('2026-09-28', { cycle_end: '2026-10-27', review_status: 'completed' }), rec('2026-10-28', { goal_decided_at: 'x', savings_goal: null })]
+    expect(dashboardActions(skipped, ...on('2026-10-28', 1)).goal).toBeNull()
+    expect(skipped[1].savings_goal).toBeNull()
+  })
+})
+
+describe('dashboardActions — salary recorded late', () => {
+  // Salary dated 1 Nov but entered on 9 Nov: the app first saw the new cycle on 9 Nov.
+  const late = [
+    rec('2026-10-01', { cycle_end: '2026-10-31' }),
+    rec('2026-11-01', { created_at: new Date(2026, 10, 9, 18).toISOString() }),
+  ]
+  it('windows count from the day the app saw the new cycle, not the salary date', () => {
+    expect(dashboardActions(late, ...on('2026-11-01', 9)).review?.cycle_start).toBe('2026-10-01')
+    expect(dashboardActions(late, ...on('2026-11-01', 9)).goal?.cycle_start).toBe('2026-11-01')
+    expect(dashboardActions(late, ...on('2026-11-01', 15)).goal).not.toBeNull()   // 9 Nov + 6
+    expect(dashboardActions(late, ...on('2026-11-01', 16)).goal).toBeNull()
+    expect(dashboardActions(late, ...on('2026-11-01', 18)).review).not.toBeNull() // 9 Nov + 9
+    expect(dashboardActions(late, ...on('2026-11-01', 19)).review).toBeNull()
+  })
+  it("Kakeibo's very first row (no previous cycle) still counts from the cycle start", () => {
+    const first = [rec('2026-11-01', { created_at: new Date(2026, 10, 15, 9).toISOString() })]
+    expect(dashboardActions(first, ...on('2026-11-01', 15)).goal).toBeNull()
+  })
+  it('late recording creates no duplicate rows and keeps October reviewable', () => {
+    const before = [rec('2026-10-01')]
+    const plan = planCycleSync(before, { cycleStart: parseIso('2026-11-01') })!
+    const after = applyPlan(before, plan)
+    expect(after.filter(r => r.cycle_start === '2026-11-01')).toHaveLength(1)
+    expect(after.find(r => r.cycle_start === '2026-10-01')!.cycle_end).toBe('2026-10-31')
+    expect(planCycleSync(after, { cycleStart: parseIso('2026-11-01') })).toBeNull()
+  })
+})
+
+describe('dashboardActions — day boundaries from the real cycle engine', () => {
+  // Salary on 1 Nov (salary_date 1): payday is day 1.
+  const at = (y: number, m: number, d: number) => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date(y, m, d, 12))
+    const state = makeState({ transactions: [salary('2026-10-01'), salary('2026-11-01')], settings: { ...makeState().settings, salary_date: 1 } })
+    const cycle = getCurrentFinancialCycle(state)
+    const records = [rec('2026-10-01', { cycle_end: '2026-10-31' }), rec('2026-11-01')]
+    return { cycle, a: dashboardActions(records, cycle, new Date()) }
+  }
+  it('payday is day 1 for both the engine and the reminder windows', () => {
+    const { cycle, a } = at(2026, 10, 1)
+    expect(cycle.currentDay).toBe(1)
+    expect(a.review).not.toBeNull()
+    expect(a.goal).not.toBeNull()
+  })
+  it('goal: shown through 7 Nov, gone on 8 Nov', () => {
+    expect(at(2026, 10, 7).a.goal).not.toBeNull()
+    expect(at(2026, 10, 7).cycle.currentDay).toBe(7)
+    expect(at(2026, 10, 8).a.goal).toBeNull()
+  })
+  it('review: shown through 10 Nov, gone on 11 Nov', () => {
+    expect(at(2026, 10, 10).a.review).not.toBeNull()
+    expect(at(2026, 10, 11).a.review).toBeNull()
   })
 })
 

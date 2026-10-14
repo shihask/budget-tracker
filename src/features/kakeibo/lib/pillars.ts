@@ -10,11 +10,25 @@ export const PILLARS: Pillar[] = ['survival', 'optional', 'culture', 'unexpected
 export const PILLAR_LABEL: Record<Pillar, string> = {
   survival: 'Survival', optional: 'Optional', culture: 'Culture', unexpected: 'Unexpected',
 }
+/** Plain-language meaning, shown wherever a pillar name appears — the Kakeibo
+ *  words alone ("Survival", "Culture") don't explain themselves. */
+export const PILLAR_PLAIN: Record<Pillar, string> = {
+  survival: 'Essential expenses',
+  optional: 'Things you want',
+  culture: 'Learning and enrichment',
+  unexpected: 'Unplanned expenses',
+}
+export const PILLAR_EXAMPLES: Record<Pillar, string> = {
+  survival: 'Groceries, rent, utilities, transport, medicine',
+  optional: 'Shopping, eating out, treats',
+  culture: 'Books, courses, cultural activities, hobbies',
+  unexpected: 'Emergency repairs, urgent bills',
+}
 export const PILLAR_HINT: Record<Pillar, string> = {
-  survival: 'Needs — groceries, rent, bills, transport, medicine',
-  optional: 'Wants — eating out, shopping, treats',
-  culture: 'Enrichment — books, courses, music, hobbies',
-  unexpected: 'Unplanned — repairs, emergencies',
+  survival: `${PILLAR_PLAIN.survival} — ${PILLAR_EXAMPLES.survival.toLowerCase()}`,
+  optional: `${PILLAR_PLAIN.optional} — ${PILLAR_EXAMPLES.optional.toLowerCase()}`,
+  culture: `${PILLAR_PLAIN.culture} — ${PILLAR_EXAMPLES.culture.toLowerCase()}`,
+  unexpected: `${PILLAR_PLAIN.unexpected} — ${PILLAR_EXAMPLES.unexpected.toLowerCase()}`,
 }
 export const isPillar = (v: unknown): v is Pillar => typeof v === 'string' && (PILLARS as string[]).includes(v)
 

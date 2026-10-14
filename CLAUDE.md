@@ -698,6 +698,14 @@ On any failure it renders nothing, and Dashboard and Analytics are unaffected.
   - Savings = contributions + savings-bucket spend − withdrawals.
   - There is no closing balance (no historical source) and no budget comparison (the periods differ).
 - **Future push** reads `cycle_end` / `review_status`, so the server needs no cycle math. It can only follow a rollover the client has already saved.
+- **Dashboard reminder windows** (`dashboardActions`):
+  - Day 1 is payday: the goal row shows on days 1–7 and the review row on days 1–10.
+  - If the salary was recorded late, day 1 is the day the app first saw the new cycle (the current row's `created_at`). Kakeibo's very first row always counts from the cycle start.
+- **Two different "skips":**
+  - Dashboard **"Not now"** sets `review_reminder_dismissed_at`. It hides the reminder only; the review stays pending in Analytics.
+  - The workspace's **"Skip this review"** sets `review_status = 'skipped'`.
+  - The goal's "Skip for now" stores `goal_decided_at` with a null `savings_goal`: no goal is created.
+- The lesson row needs a non-blank `reflection_note`. Empty notes are saved as null.
 - `planCycleSync` re-closes the predecessor **only when adjacent**: it is open, it ends inside the new cycle, or it was adjacent to the re-keyed row. A past cycle recorded later from history must never be stretched.
 
 ### v2 — the four pillars

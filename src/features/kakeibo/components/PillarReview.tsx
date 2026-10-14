@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
-import { PILLARS, PILLAR_LABEL, type CategoryGroupView, type Pillar, type PillarTotals } from '../lib/pillars'
+import { PILLARS, PILLAR_LABEL, PILLAR_PLAIN, type CategoryGroupView, type Pillar, type PillarTotals } from '../lib/pillars'
 
 interface Props {
   totals: PillarTotals
@@ -32,7 +32,7 @@ export function PillarReview({ totals, disabled, onCategory, onTxn }: Props) {
 
   const selectStyle: React.CSSProperties = {
     background: c.surface, color: c.ink, border: `1.5px solid ${c.faint}`, borderRadius: 10,
-    padding: '6px 8px', font: '700 12px Plus Jakarta Sans', maxWidth: 150,
+    padding: '6px 8px', font: '700 12px Plus Jakarta Sans', maxWidth: 190,
   }
   const tag = (text: string, tone: 'muted' | 'accent' | 'warn') => (
     <span style={{
@@ -76,7 +76,7 @@ export function PillarReview({ totals, disabled, onCategory, onTxn }: Props) {
                 style={{ ...selectStyle, borderColor: g.pillar ? c.faint : c.warn }}
               >
                 {!g.pillar && <option value="" disabled>Choose…</option>}
-                {PILLARS.map(p => <option key={p} value={p}>{PILLAR_LABEL[p]}</option>)}
+                {PILLARS.map(p => <option key={p} value={p}>{PILLAR_LABEL[p]} · {PILLAR_PLAIN[p]}</option>)}
                 {(g.source === 'user' || g.source === 'ai') && <option value="__reset">Reset to default</option>}
               </select>
               <span style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>Applies to all {g.name} spending</span>
@@ -110,7 +110,7 @@ export function PillarReview({ totals, disabled, onCategory, onTxn }: Props) {
                     style={{ ...selectStyle, borderColor: r.pillar ? c.faint : c.warn, fontWeight: r.source === 'txn' ? 800 : 600 }}
                   >
                     {!r.pillar && <option value="" disabled>Choose…</option>}
-                    {PILLARS.map(p => <option key={p} value={p}>{PILLAR_LABEL[p]}</option>)}
+                    {PILLARS.map(p => <option key={p} value={p}>{PILLAR_LABEL[p]} · {PILLAR_PLAIN[p]}</option>)}
                     {r.source === 'txn' && <option value="__default">Use category default</option>}
                   </select>
                   <span style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{r.source === 'txn' ? 'Only this expense' : 'From category'}</span>

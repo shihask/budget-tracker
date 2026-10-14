@@ -10,6 +10,8 @@ import { useCycleLedger } from '../hooks/useCycleLedger'
 import { computeCycleSummary, GOAL_PROMPT_DAYS } from '../lib/kakeibo'
 import { KakeiboGoalSheet } from './KakeiboGoalSheet'
 import { KakeiboWorkspace } from './KakeiboWorkspace'
+import { KakeiboIntro } from './KakeiboIntro'
+import { introSeen, markIntroSeen } from '../lib/intro'
 import { KButton } from './ui'
 
 interface Props {
@@ -29,6 +31,10 @@ interface Props {
 export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, suggestedGoal, autopilotEnabled, onAiUsed, initialCycleStart }: Props) {
   const c = useTheme()
   const [goalOpen, setGoalOpen] = useState(false)
+  // First open on this device → the intro story; afterwards only on request.
+  const [introOpen, setIntroOpen] = useState(() => !introSeen(userId))
+  const closeIntro = () => { markIntroSeen(userId); setIntroOpen(false) }
+  const introNode = <KakeiboIntro open={introOpen} onClose={closeIntro} />
 
   // Savings so far this cycle — the same figure and the same full-range read as
   // the review, so the bar never disagrees with it. Only fetched when there is a goal.
@@ -52,11 +58,16 @@ export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, sugg
       <div style={{ width: 36, height: 36, borderRadius: 10, background: c.accentSoft, color: c.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <NotebookPen size={18} />
       </div>
-      <div>
-        <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>Kakeibo</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>Kakeibo <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>· Spending & Savings Review</span></div>
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
-          Your money, understood. Set a savings goal on payday, sort your spending into the four pillars, and carry one lesson into the next cycle.
+          Understand your spending. Build better money habits.
         </div>
+        <button
+          type="button" onClick={() => setIntroOpen(true)}
+          style={{ background: 'none', border: 'none', padding: 0, marginTop: 4, color: c.accent, font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
+        >What is Kakeibo?</button>
+        {introNode}
       </div>
     </div>
   )

@@ -4,7 +4,7 @@ import { Card } from '@/components/Card'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import type { Kakeibo } from '../hooks/useKakeibo'
-import { cycleLabel } from '../lib/kakeibo'
+import { cycleLabel, cycleMonthName, isFirstReview } from '../lib/kakeibo'
 import { KakeiboGoalSheet } from './KakeiboGoalSheet'
 import { KButton } from './ui'
 
@@ -52,13 +52,17 @@ export function KakeiboDashboardCard({ kakeibo, suggestedGoal, onOpenReview }: P
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {review && (
               <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px' }}>
-                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Your Kakeibo review is ready</div>
-                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, margin: '2px 0 10px' }}>
-                  {cycleLabel(review)} · about two minutes
+                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>
+                  {isFirstReview(kakeibo.records) ? 'Your first Kakeibo review' : `Your ${cycleMonthName(review)} money review`}
+                </div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, margin: '2px 0 10px', lineHeight: 1.5 }}>
+                  {isFirstReview(kakeibo.records)
+                    ? `Your salary cycle (${cycleLabel(review)}) is complete. See where your money went, check your savings and choose one thing to improve next cycle.`
+                    : `Your salary cycle is complete · ${cycleLabel(review)} · about two minutes`}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <KButton onClick={() => onOpenReview(review.cycle_start)}>Review</KButton>
-                  <KButton kind="quiet" disabled={busy} onClick={() => quick(() => kakeibo.review(review, { kind: 'skip' }))}>Skip</KButton>
+                  <KButton onClick={() => onOpenReview(review.cycle_start)}>Review my cycle</KButton>
+                  <KButton kind="quiet" disabled={busy} onClick={() => quick(() => kakeibo.dismissReviewReminder(review))}>Not now</KButton>
                 </div>
               </div>
             )}

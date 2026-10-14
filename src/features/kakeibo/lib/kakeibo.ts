@@ -178,14 +178,36 @@ export interface DashboardActions {
 
 /** The in-app reminder. Review and goal are independent — on payday both show
  *  and either can be done first. Pure derivation: the review row shows only
- *  while `review_status` is null, and nothing ever sets it back to null. */
-export function dashboardActions(records: KakeiboReflection[], cycle: Pick<FinancialCycle, 'cycleStart' | 'currentDay'>): DashboardActions {
+ *  while `review_status` is null, and nothing ever sets it back to null.
+ *
+ *  Reminder day 1 is payday — or, when the salary was recorded late, the day
+ *  the app first saw the new cycle (the current row's `created_at`), so a
+ *  salary entered on day 9 still gets the full 7- and 10-day windows. A first-
+ *  ever row (no previous cycle) always counts from the cycle start: Kakeibo
+ *  arriving mid-cycle must not open a goal prompt on day 15.
+ *
+ *  Dismissing the reminder ("Not now") only hides the row here; the review
+ *  stays pending in Analytics. Skipping the review itself is a separate,
+ *  explicit action there (`review_status = 'skipped'`). */
+export function dashboardActions(records: KakeiboReflection[], cycle: Pick<FinancialCycle, 'cycleStart'>, today: Date): DashboardActions {
   const prev = previousRecord(records, cycle)
   const cur = currentRecord(records, cycle)
-  const review = prev && prev.review_status == null && cycle.currentDay <= REVIEW_DASHBOARD_DAYS ? prev : null
-  const goal = cur && cur.goal_decided_at == null && cycle.currentDay <= GOAL_PROMPT_DAYS ? cur : null
-  const lesson = !review && !goal && prev && prev.reflection_note && !prev.lesson_acknowledged_at ? prev : null
+  const day = reminderDay(cur, prev, cycle, today)
+  const review = prev && prev.review_status == null && !prev.review_reminder_dismissed_at && day <= REVIEW_DASHBOARD_DAYS ? prev : null
+  const goal = cur && cur.goal_decided_at == null && day <= GOAL_PROMPT_DAYS ? cur : null
+  const lesson = !review && !goal && prev && prev.reflection_note?.trim() && !prev.lesson_acknowledged_at ? prev : null
   return { review, goal, lesson }
+}
+
+/** Day of the reminder window, 1-based — see dashboardActions. */
+export function reminderDay(
+  cur: KakeiboReflection | null, prev: KakeiboReflection | null,
+  cycle: Pick<FinancialCycle, 'cycleStart'>, today: Date,
+): number {
+  const start = localIso(cycle.cycleStart)
+  const seen = cur?.created_at && prev ? localIso(new Date(cur.created_at)) : null
+  const anchor = seen && seen > start ? seen : start
+  return daysBetween(anchor, localIso(today)) + 1
 }
 
 // ── Review lifecycle ─────────────────────────────────────────────────────────
@@ -364,6 +386,20 @@ export function kakeiboInsight(s: CycleSummary, goal: number | null, prev: Cycle
   }
   return 'Not enough earlier data to compare yet.'
 }
+
+/** The month a cycle is "about" — the month of its midpoint, so a salary cycle
+ *  of 28 Sep – 27 Oct reads as October and 1 Oct – 31 Oct as October too. */
+export function cycleMonthName(r: Pick<KakeiboReflection, 'cycle_start' | 'cycle_end'>): string {
+  const start = parseIso(r.cycle_start)
+  const end = r.cycle_end ? parseIso(r.cycle_end) : start
+  const mid = new Date((start.getTime() + end.getTime()) / 2)
+  return mid.toLocaleDateString('en-IN', { month: 'long' })
+}
+
+/** True until the user has completed or skipped any review — the first-time
+ *  prompt explains what Kakeibo is; returning users get the compact one. */
+export const isFirstReview = (records: KakeiboReflection[]): boolean =>
+  !records.some(r => r.review_status != null)
 
 /** "12 Sep – 11 Oct" */
 export function cycleLabel(r: Pick<KakeiboReflection, 'cycle_start' | 'cycle_end'>): string {

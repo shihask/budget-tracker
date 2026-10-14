@@ -11,7 +11,7 @@ import type { Kakeibo } from '../hooks/useKakeibo'
 import { useCycleLedger } from '../hooks/useCycleLedger'
 import { useIncomeHistory } from '../hooks/useIncomeHistory'
 import { useKakeiboPillars } from '../hooks/useKakeiboPillars'
-import { computeCycleSummary, cycleLabel, kakeiboInsight, NOTE_MAX, type ReviewAction } from '../lib/kakeibo'
+import { computeCycleSummary, cycleLabel, cycleMonthName, kakeiboInsight, NOTE_MAX, type ReviewAction } from '../lib/kakeibo'
 import { buildCycleOptions, historyFrom, type CycleOption } from '../lib/cycles'
 import {
   PILLARS, PILLAR_LABEL, PILLAR_HINT, computePillarTotals, categoriesNeedingAi, validatePillarSuggestions,
@@ -210,10 +210,10 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
         }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ font: '800 14px Plus Jakarta Sans', color: c.ink }}>Your last cycle is ready to review</div>
+            <div style={{ font: '800 14px Plus Jakarta Sans', color: c.ink }}>Your {cycleMonthName(pendingPrev)} money review is ready</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>{cycleLabel(pendingPrev)}</div>
           </div>
-          <KButton onClick={() => { void choose(pendingPrev.cycle_start, true) }}>Review</KButton>
+          <KButton onClick={() => { void choose(pendingPrev.cycle_start, true) }}>Review my cycle</KButton>
         </div>
       )}
       <SectionLabel>Select financial cycle</SectionLabel>

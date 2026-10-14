@@ -732,6 +732,8 @@ export interface KakeiboReflection {
   review_status: 'completed' | 'skipped' | null
   reviewed_at: string | null
   lesson_acknowledged_at: string | null
+  /** Dashboard "Not now" — hides the reminder only; the review stays pending. */
+  review_reminder_dismissed_at?: string | null
   created_at?: string
   updated_at?: string
 }

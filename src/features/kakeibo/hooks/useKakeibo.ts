@@ -29,6 +29,8 @@ export interface Kakeibo {
   actions: DashboardActions
   setGoal: (r: KakeiboReflection, amount: number | null) => Promise<void>
   review: (r: KakeiboReflection, action: ReviewAction) => Promise<void>
+  /** Dashboard "Not now": hides the reminder only — the review stays pending. */
+  dismissReviewReminder: (r: KakeiboReflection) => Promise<void>
   /** Stores a closed past cycle (engine-derived) so a note can be saved on it.
    *  Resolves to its row, or null when it conflicts with the stored timeline. */
   recordPastCycle: (start: string, end: string) => Promise<KakeiboReflection | null>
@@ -128,6 +130,9 @@ export function useKakeibo(args: {
   const review = useCallback((r: KakeiboReflection, action: ReviewAction) =>
     patch(r, nextReviewState(r, action, new Date().toISOString())), [patch])
 
+  const dismissReviewReminder = useCallback((r: KakeiboReflection) =>
+    patch(r, r.review_reminder_dismissed_at ? {} : { review_reminder_dismissed_at: new Date().toISOString() }), [patch])
+
   const recordPastCycle = useCallback(async (start: string, end: string): Promise<KakeiboReflection | null> => {
     const { data, error } = await supabase.rpc('mp_kakeibo_record_past_cycle', { p_start: start, p_end: end })
     if (error) throw error
@@ -145,7 +150,7 @@ export function useKakeibo(args: {
   }, [fetchRecords, userId])
 
   return useMemo<Kakeibo>(() => {
-    const base = { monthly, setGoal, review, recordPastCycle }
+    const base = { monthly, setGoal, review, dismissReviewReminder, recordPastCycle }
     if (!eligible || !cycle) {
       return { ...base, status: 'off', cycle: cycle ?? null, records: [], current: null, previous: null, reviewable: [], actions: NO_ACTIONS }
     }
@@ -163,7 +168,7 @@ export function useKakeibo(args: {
       current: currentRecord(records, cycle),
       previous: previousRecord(records, cycle),
       reviewable: reviewableRecords(records, cycle),
-      actions: dashboardActions(records, cycle),
+      actions: dashboardActions(records, cycle, new Date()),
     }
-  }, [monthly, setGoal, review, recordPastCycle, eligible, cycle, failed, records])
+  }, [monthly, setGoal, review, dismissReviewReminder, recordPastCycle, eligible, cycle, failed, records])
 }
