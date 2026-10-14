@@ -4,6 +4,7 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import type { KakeiboReflection } from '@/types'
+import { kindOf } from '../lib/kakeibo'
 import { KButton } from './ui'
 
 interface Props {
@@ -52,7 +53,7 @@ export function KakeiboGoalSheet({ open, onClose, record, suggested, lesson, onS
       <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, margin: '4px 0 16px', lineHeight: 1.5 }}>
         {suggested != null && suggested > 0
           ? `Suggested from your Budget Strategy: ${fmt(Math.round(suggested))}. Change it if you like.`
-          : 'Set an amount you want to move into savings or investments before your next salary.'}
+          : `Set an amount you want to move into savings or investments ${record && kindOf(record) === 'month' ? 'by the end of the month' : 'before your next salary'}.`}
       </div>
 
       {lesson?.reflection_note && (

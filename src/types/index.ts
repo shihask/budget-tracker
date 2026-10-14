@@ -732,6 +732,9 @@ export interface KakeiboReflection {
   review_status: 'completed' | 'skipped' | null
   reviewed_at: string | null
   lesson_acknowledged_at: string | null
+  /** 'salary' = recorded-salary cycle (Monthly income); 'month' = calendar month
+   *  (other income patterns). Absent on rows read before the column existed → salary. */
+  cycle_kind?: 'salary' | 'month'
   /** Dashboard "Not now" — hides the reminder only; the review stays pending. */
   review_reminder_dismissed_at?: string | null
   created_at?: string

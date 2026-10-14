@@ -1279,8 +1279,8 @@ function AppContent({ session }: { session: Session }) {
           {analyticsOpen && (
             <AnalyticsPage
               state={state} d={d} onClose={() => { setAnalyticsOpen(false); setKakeiboReviewCycle(null) }} onUpdateSettings={updateSettings}
-              initialTab={kakeiboReviewCycle && kakeibo.monthly ? 'kakeibo' : undefined}
-              kakeiboTab={kakeibo.monthly ? (
+              initialTab={kakeiboReviewCycle && kakeibo.available ? 'kakeibo' : undefined}
+              kakeiboTab={kakeibo.available ? (
                 <KakeiboBoundary>
                   <KakeiboTab
                     kakeibo={kakeibo} state={state} userId={session.user.id} allTransactionsLoaded={allTransactionsLoaded}

@@ -36,14 +36,72 @@ const dayBefore = (isoDate: string): string => localIso(addDays(parseIso(isoDate
 
 // ── Eligibility ──────────────────────────────────────────────────────────────
 
-/** Kakeibo is a monthly ritual anchored on a real, recorded salary. Weekly,
- *  variable and business patterns, the calendar fallback and "no salary yet"
- *  are all ineligible: nothing is written and nothing is shown. */
+/** Salary-strategy eligibility: a Monthly income pattern with the cycle
+ *  anchored on a real, recorded salary. The calendar fallback and "no salary
+ *  yet" write nothing and show nothing. (Other patterns use the calendar-month
+ *  strategy — see kakeiboCycle.) */
 export function isEligible(state: AppState, cycle: FinancialCycle | undefined, loading: boolean): cycle is FinancialCycle {
   if (loading || !cycle) return false
   if (getIncomePattern(state.settings) !== 'monthly') return false
   return cycle.source === 'transaction'
 }
+
+// ── Cycle strategies ─────────────────────────────────────────────────────────
+
+/** 'salary' = the financial-cycle engine's recorded-salary cycle (Monthly
+ *  income). 'month' = the local calendar month, 1st to last day (Weekly,
+ *  Variable/Daily, Business) — those patterns have no salary to anchor on, and
+ *  the engine's guesses for them would make review dates misleading. Stored on
+ *  every row as `cycle_kind`, so changing the income pattern never re-dates or
+ *  re-labels a saved review. */
+export type KakeiboStrategy = 'salary' | 'month'
+
+export function kakeiboStrategy(settings: AppState['settings']): KakeiboStrategy {
+  return getIncomePattern(settings) === 'monthly' ? 'salary' : 'month'
+}
+
+/** The cycle Kakeibo is in. For 'salary' it is the engine's cycle (read-only);
+ *  for 'month' it is built from the calendar alone — never from income rows. */
+export interface KakeiboCycle {
+  kind: KakeiboStrategy
+  cycleStart: Date
+  /** Salary: the engine's estimate. Month: the real last day. */
+  cycleEnd: Date
+  currentDay: number
+  totalDays: number
+  daysRemaining: number
+  /** The engine's cycle, for walking salary history (salary only). */
+  engine: FinancialCycle | null
+}
+
+export function monthCycle(today: Date): KakeiboCycle {
+  const start = new Date(today.getFullYear(), today.getMonth(), 1)
+  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+  const totalDays = end.getDate()
+  const currentDay = today.getDate()
+  return { kind: 'month', cycleStart: start, cycleEnd: end, currentDay, totalDays, daysRemaining: totalDays - currentDay + 1, engine: null }
+}
+
+/** First and last day (YYYY-MM-DD) of the calendar month starting at `start`. */
+export function monthBounds(start: string): { start: string; end: string } {
+  const d = parseIso(start)
+  return { start: localIso(new Date(d.getFullYear(), d.getMonth(), 1)), end: localIso(new Date(d.getFullYear(), d.getMonth() + 1, 0)) }
+}
+
+/** The active Kakeibo cycle, or null when Kakeibo can't run yet (loading;
+ *  Monthly income with no recorded salary). */
+export function kakeiboCycle(settings: AppState['settings'], engine: FinancialCycle | undefined, loading: boolean, today: Date): KakeiboCycle | null {
+  if (loading) return null
+  if (kakeiboStrategy(settings) === 'month') return monthCycle(today)
+  if (!engine || engine.source !== 'transaction') return null
+  return {
+    kind: 'salary', cycleStart: engine.cycleStart, cycleEnd: engine.cycleEnd, currentDay: engine.currentDay,
+    totalDays: engine.totalDays, daysRemaining: engine.daysRemaining, engine,
+  }
+}
+
+/** Rows written before cycle_kind existed are salary rows. */
+export const kindOf = (r: Pick<KakeiboReflection, 'cycle_kind'>): KakeiboStrategy => r.cycle_kind ?? 'salary'
 
 // ── Cycle sync ───────────────────────────────────────────────────────────────
 
@@ -189,10 +247,12 @@ export interface DashboardActions {
  *  Dismissing the reminder ("Not now") only hides the row here; the review
  *  stays pending in Analytics. Skipping the review itself is a separate,
  *  explicit action there (`review_status = 'skipped'`). */
-export function dashboardActions(records: KakeiboReflection[], cycle: Pick<FinancialCycle, 'cycleStart'>, today: Date): DashboardActions {
+export function dashboardActions(
+  records: KakeiboReflection[], cycle: Pick<FinancialCycle, 'cycleStart'>, today: Date, kind: KakeiboStrategy = 'salary',
+): DashboardActions {
   const prev = previousRecord(records, cycle)
   const cur = currentRecord(records, cycle)
-  const day = reminderDay(cur, prev, cycle, today)
+  const day = reminderDay(cur, prev, cycle, today, kind)
   const review = prev && prev.review_status == null && !prev.review_reminder_dismissed_at && day <= REVIEW_DASHBOARD_DAYS ? prev : null
   const goal = cur && cur.goal_decided_at == null && day <= GOAL_PROMPT_DAYS ? cur : null
   const lesson = !review && !goal && prev && prev.reflection_note?.trim() && !prev.lesson_acknowledged_at ? prev : null
@@ -202,10 +262,11 @@ export function dashboardActions(records: KakeiboReflection[], cycle: Pick<Finan
 /** Day of the reminder window, 1-based — see dashboardActions. */
 export function reminderDay(
   cur: KakeiboReflection | null, prev: KakeiboReflection | null,
-  cycle: Pick<FinancialCycle, 'cycleStart'>, today: Date,
+  cycle: Pick<FinancialCycle, 'cycleStart'>, today: Date, kind: KakeiboStrategy = 'salary',
 ): number {
   const start = localIso(cycle.cycleStart)
-  const seen = cur?.created_at && prev ? localIso(new Date(cur.created_at)) : null
+  // Calendar months always start on the 1st — nothing can be "recorded late".
+  const seen = kind === 'salary' && cur?.created_at && prev ? localIso(new Date(cur.created_at)) : null
   const anchor = seen && seen > start ? seen : start
   return daysBetween(anchor, localIso(today)) + 1
 }

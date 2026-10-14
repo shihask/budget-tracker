@@ -12,7 +12,7 @@ import { useCycleLedger } from '../hooks/useCycleLedger'
 import { useIncomeHistory } from '../hooks/useIncomeHistory'
 import { useKakeiboPillars } from '../hooks/useKakeiboPillars'
 import { computeCycleSummary, cycleLabel, cycleMonthName, kakeiboInsight, NOTE_MAX, type ReviewAction } from '../lib/kakeibo'
-import { buildCycleOptions, historyFrom, type CycleOption } from '../lib/cycles'
+import { buildCycleOptions, buildMonthOptions, withHistory, historyFrom, type CycleOption } from '../lib/cycles'
 import {
   PILLARS, PILLAR_LABEL, PILLAR_HINT, computePillarTotals, categoriesNeedingAi, validatePillarSuggestions,
   buildInsightFacts, insightNumbersAreGrounded, factsFingerprint,
@@ -61,21 +61,31 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
   const ready = kakeibo.status === 'ready' && kakeibo.cycle != null
 
   // ── Cycle options ─────────────────────────────────────────────────────────
-  const income = useIncomeHistory({ userId, loaded: state.transactions, allLoaded: allTransactionsLoaded, from: historyFrom(today), enabled: ready })
-  const options = useMemo<CycleOption[]>(
-    () => (ready ? buildCycleOptions({ state, incomeTxns: income.rows, current: kakeibo.cycle!, records: kakeibo.records, today, historyComplete: income.complete }) : []),
-    [ready, state, income.rows, income.complete, kakeibo.cycle, kakeibo.records, today],
-  )
-  const [selectedStart, setSelectedStart] = useState<string | null>(initialCycleStart ?? null)
-  const selected = options.find(o => o.start === selectedStart) ?? options[0] ?? null
-  // Only the contiguous previous cycle is ever compared with.
-  const prevOption = selected ? options.find(o => o.status === 'completed' && o.end === dayBefore(selected.start)) ?? null : null
+  // Salary history is only needed to walk back salary cycles; calendar months
+  // come from the calendar alone.
+  const salary = kakeibo.strategy === 'salary'
+  const income = useIncomeHistory({ userId, loaded: state.transactions, allLoaded: allTransactionsLoaded, from: historyFrom(today), enabled: ready && salary })
+  const options = useMemo<CycleOption[]>(() => {
+    if (!ready) return []
+    const own = salary && kakeibo.cycle!.engine
+      ? buildCycleOptions({ state, incomeTxns: income.rows, current: kakeibo.cycle!.engine, records: kakeibo.records, today, historyComplete: income.complete })
+      : buildMonthOptions({ records: kakeibo.records, today })
+    return withHistory(own, kakeibo.history)
+  }, [ready, salary, state, income.rows, income.complete, kakeibo.cycle, kakeibo.records, kakeibo.history, today])
+  // Options are keyed `${kind}:${start}` — the dashboard passes a start of the active strategy.
+  const initialKey = initialCycleStart ? `${kakeibo.strategy}:${initialCycleStart}` : null
+  const [selectedKey, setSelectedKey] = useState<string | null>(initialKey)
+  const selected = options.find(o => o.key === selectedKey) ?? options[0] ?? null
+  // Only the contiguous previous cycle of the same kind is ever compared with.
+  const prevOption = selected
+    ? options.find(o => o.kind === selected.kind && o.status === 'completed' && o.end === dayBefore(selected.start)) ?? null
+    : null
   const record = selected?.record ?? null
 
   // ── Generate ──────────────────────────────────────────────────────────────
-  const [runId, setRunId] = useState(initialCycleStart ? 1 : 0)
-  const [generatedFor, setGeneratedFor] = useState<string | null>(initialCycleStart ?? null)
-  const generated = selected != null && generatedFor === selected.start && runId > 0
+  const [runId, setRunId] = useState(initialKey ? 1 : 0)
+  const [generatedFor, setGeneratedFor] = useState<string | null>(initialKey)
+  const generated = selected != null && generatedFor === selected.key && runId > 0
 
   const ledger = useCycleLedger({
     userId, loaded: state.transactions, allLoaded: allTransactionsLoaded,
@@ -100,7 +110,7 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
     () => (summary && totals ? buildInsightFacts({ summary, pillars: totals, goal, inProgress: selected?.status === 'current', prevPillars: prevTotals }) : null),
     [summary, totals, goal, selected, prevTotals],
   )
-  const fp = selected && facts ? factsFingerprint(selected.start, facts) : null
+  const fp = selected && facts ? factsFingerprint(selected.key, facts) : null
 
   // ── AI: classify new categories once, then explain the verified numbers ───
   const [ai, setAi] = useState<{ run: number; phase: 'classifying' | 'explaining' | 'done' } | null>(null)
@@ -151,7 +161,7 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
   const [noteFor, setNoteFor] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
-  const noteKey = selected ? `${selected.start}|${record?.id ?? ''}` : null
+  const noteKey = selected ? `${selected.key}|${record?.id ?? ''}` : null
   if (noteKey !== noteFor) {
     setNoteFor(noteKey)
     setNote(record?.reflection_note ?? '')
@@ -159,10 +169,10 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
   }
   const dirty = (note.trim() || null) !== (record?.reflection_note ?? null)
 
-  const choose = async (start: string, andGenerate = false) => {
+  const choose = async (key: string, andGenerate = false) => {
     if (dirty && !(await confirm('Discard your unsaved note?', { confirmLabel: 'Discard', cancelLabel: 'Keep writing' }))) return
-    setSelectedStart(start)
-    if (andGenerate) { setGeneratedFor(start); setRunId(n => n + 1) }
+    setSelectedKey(key)
+    if (andGenerate) { setGeneratedFor(key); setRunId(n => n + 1) }
   }
 
   const act = async (action: ReviewAction) => {
@@ -171,7 +181,7 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
     try {
       let r: KakeiboReflection | null = record
       if (!r) {
-        r = await kakeibo.recordPastCycle(selected.start, selected.end)
+        r = await kakeibo.recordPastCycle(selected.kind, selected.start, selected.end)
         if (!r) { setNoteError("This cycle overlaps one Kakeibo already has, so a note can't be saved on it."); return }
       }
       await kakeibo.review(r, action)
@@ -184,14 +194,16 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
   if (!ready || !selected) return null
 
   const isCurrent = selected.status === 'current'
-  const generate = () => { setGeneratedFor(selected.start); setRunId(n => n + 1) }
+  const generate = () => { setGeneratedFor(selected.key); setRunId(n => n + 1) }
   // Previous cycle, only while its review is pending and it's in the selector.
+  const prevKey = kakeibo.previous ? `${kakeibo.strategy}:${kakeibo.previous.cycle_start}` : null
   const pendingPrev = kakeibo.previous && kakeibo.previous.review_status == null
-    && options.some(o => o.start === kakeibo.previous!.cycle_start) ? kakeibo.previous : null
+    && options.some(o => o.key === prevKey) ? kakeibo.previous : null
   const statusOf = (o: CycleOption) => o.record?.review_status ?? 'pending'
+  const kindLabel = (o: CycleOption) => (o.origin === 'history' ? (o.kind === 'salary' ? ' · salary cycle' : ' · calendar month') : '')
   const optionLabel = (o: CycleOption) => o.status === 'current'
-    ? `${cycleLabel({ cycle_start: o.start, cycle_end: null })} · in progress`
-    : `${cycleLabel({ cycle_start: o.start, cycle_end: o.end })} · ${STATUS[statusOf(o)]}`
+    ? `${o.kind === 'month' ? cycleMonthName({ cycle_start: o.start, cycle_end: null }) : cycleLabel({ cycle_start: o.start, cycle_end: null })} · in progress`
+    : `${cycleLabel({ cycle_start: o.start, cycle_end: o.end })}${kindLabel(o)} · ${STATUS[statusOf(o)]}`
   const saved = summary ? Math.max(0, summary.savedNet) : 0
   const showInsight = (insight && fp && insight.fp === fp ? insight.text : null) ?? cachedInsight
   const staleInsight = insight && fp && insight.fp !== fp && !cachedInsight
@@ -204,7 +216,7 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
       {/* The finished cycle still waiting for its review — one tap selects and
           generates it. Unlike the dashboard row it isn't limited to the first 10
           days: here the user came looking. */}
-      {pendingPrev && selected.start !== pendingPrev.cycle_start && (
+      {pendingPrev && selected.key !== prevKey && (
         <div style={{
           background: c.accentSoft, borderRadius: 14, padding: '12px 14px', marginBottom: 14,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
@@ -213,27 +225,27 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
             <div style={{ font: '800 14px Plus Jakarta Sans', color: c.ink }}>Your {cycleMonthName(pendingPrev)} money review is ready</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.sub }}>{cycleLabel(pendingPrev)}</div>
           </div>
-          <KButton onClick={() => { void choose(pendingPrev.cycle_start, true) }}>Review my cycle</KButton>
+          <KButton onClick={() => { void choose(prevKey!, true) }}>Review my cycle</KButton>
         </div>
       )}
       <SectionLabel>Select financial cycle</SectionLabel>
       <select
         aria-label="Financial cycle"
-        value={selected.start}
+        value={selected.key}
         onChange={e => { void choose(e.target.value) }}
         style={{
           width: '100%', boxSizing: 'border-box', background: c.surface2, color: c.ink,
           border: `1.5px solid ${c.faint}`, borderRadius: 12, padding: '11px 12px', font: '700 14px Plus Jakarta Sans',
         }}
       >
-        {options.map(o => <option key={o.start} value={o.start}>{optionLabel(o)}</option>)}
+        {options.map(o => <option key={o.key} value={o.key}>{optionLabel(o)}</option>)}
       </select>
-      {income.complete && !options.some(o => o.status === 'completed') && (
+      {(!salary || income.complete) && !options.some(o => o.status === 'completed') && (
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.sub, marginTop: 8, lineHeight: 1.55 }}>
           Your first full Kakeibo reflection will appear at the end of this cycle. Review your spending, see how much you saved, and choose one improvement for next cycle. You can already analyse this cycle so far.
         </div>
       )}
-      {!income.complete && !allTransactionsLoaded && (
+      {salary && !income.complete && !allTransactionsLoaded && (
         <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 6 }}>Looking further back in your salary history…</div>
       )}
 

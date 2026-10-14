@@ -684,9 +684,21 @@ On any failure it renders nothing, and Dashboard and Analytics are unaffected.
 | `src/features/kakeibo/hooks/useKakeibo.ts` | Records, sync (plan → RPC → re-read, at most 2 tries), column-scoped mutations |
 | `src/features/kakeibo/hooks/useCycleLedger.ts` | A past cycle's rows from the DB (out of the 200-row window), merged with `mergeLoadedWins` |
 | `supabase/migrations/20261013000002_kakeibo.sql` | Table, RLS (no DELETE policy), `mp_kakeibo_apply_sync` |
+| `supabase/migrations/20261014000002_kakeibo_cycle_kind.sql` | `cycle_kind`, month CHECK, per-kind uniqueness, salary RPCs scoped to salary, `mp_kakeibo_ensure_month`. Checks in `supabase/tests/kakeibo_cycle_kind.sql` (includes a rollback rehearsal) |
 | `supabase/tests/kakeibo_sync.sql` | Manual RLS / isolation / atomicity checks. **Non-production DB only**; runs in a transaction that rolls back |
 
-- **Monthly pattern + `cycle.source === 'transaction'` only.** Anything else is ineligible: nothing is written and nothing is shown, so irregular income never gets a review.
+- **Two cycle strategies (v1.94, `kakeiboStrategy`), stored per row as `cycle_kind`:**
+
+  | Income pattern | Strategy | Cycle |
+  |---|---|---|
+  | Monthly | `salary` | The engine's recorded-salary cycle, only when `cycle.source === 'transaction'`; no salary yet → off |
+  | Weekly, Variable/Daily, Business | `month` | Local calendar month, 1st to last day (`monthCycle`); never inferred from income rows |
+
+  - Month rows are created by `mp_kakeibo_ensure_month` (idempotent; the server computes the end; a CHECK enforces whole months). Uniqueness is `(user_id, cycle_kind, cycle_start)`.
+  - The salary RPCs (`mp_kakeibo_apply_sync`, `mp_kakeibo_record_past_cycle`) only ever see `cycle_kind = 'salary'`.
+  - Month reminder windows always start on the 1st (no late-recording adjustment). A review prompt needs last month's row, so Kakeibo never asks a brand-new user to review a month it didn't see. The workspace still offers the last 6 calendar months.
+  - **Changing income pattern never re-dates or re-labels a row.** Only rows of the active kind drive sync and reminders. Other-kind rows that hold a goal, note or review stay in the selector as history ("· salary cycle" / "· calendar month"). An open salary row left by a switch stays open and untouched.
+  - Selector options are keyed `${kind}:${start}`, because a salary cycle and a month can both start on the 1st.
 - **The client is the only cycle authority.**
   - `planCycleSync` is the one definition of the rules. A start that moves ≤ 15 days (the monthly cluster window) is the same cycle **re-keyed**, and its predecessor's `cycle_end` moves with it in the same plan.
   - The SQL holds no rules. `mp_kakeibo_apply_sync` (security invoker, per-user advisory lock) applies the plan's guarded writes. If any expectation fails it returns `'stale'` with nothing written, and it raises (full rollback) if closed cycles would overlap.

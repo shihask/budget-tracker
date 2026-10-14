@@ -26,6 +26,10 @@ interface Props {
   initialCycleStart?: string | null
 }
 
+/** "1 Nov" — the day after a calendar month's last day. */
+const nextMonthLabel = (end: Date) =>
+  new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+
 /** Analytics → Kakeibo. This cycle's goal (the payday ritual) on top, then the
  *  analysis workspace for any cycle; explains itself when it can't run. */
 export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, suggestedGoal, autopilotEnabled, onAiUsed, initialCycleStart }: Props) {
@@ -77,7 +81,7 @@ export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, sugg
       <Card>
         {intro}
         <div style={{ font: '600 13px Plus Jakarta Sans', color: c.sub, lineHeight: 1.5 }}>
-          Kakeibo follows your salary cycle. It starts the next time you record your salary.
+          With a monthly salary, Kakeibo follows your salary cycle. It starts the next time you record your salary.
         </div>
       </Card>
     )
@@ -114,7 +118,7 @@ export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, sugg
               Day {cycle.currentDay} of {cycle.totalDays}
             </div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>
-              {cycle.daysRemaining <= 1 ? 'Last day of this cycle' : `About ${cycle.daysRemaining} days left`} · the full review opens on your next salary
+              {cycle.daysRemaining <= 1 ? 'Last day of this cycle' : `About ${cycle.daysRemaining} days left`} · {cycle.kind === 'month' ? `your review opens on ${nextMonthLabel(cycle.cycleEnd)}` : 'the full review opens on your next salary'}
             </div>
           </div>
         )}
@@ -154,7 +158,7 @@ export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, sugg
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, margin: '2px 0 10px', lineHeight: 1.5 }}>
                 {suggestedGoal != null && suggestedGoal > 0
                   ? `Suggested from your Budget Strategy: ${fmt(Math.round(suggestedGoal))}`
-                  : 'Decide what you want to put aside before your next salary.'}
+                  : cycle?.kind === 'month' ? 'Decide what you want to put aside by the end of the month.' : 'Decide what you want to put aside before your next salary.'}
               </div>
               <KButton onClick={() => setGoalOpen(true)}>Set a savings goal</KButton>
             </div>
@@ -164,7 +168,7 @@ export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, sugg
             <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
               <div>
                 <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>No savings goal this cycle</div>
-                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>Payday is the best time to set the next one.</div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>The start of a cycle is the best time to set the next one.</div>
               </div>
               <KButton kind="quiet" onClick={() => setGoalOpen(true)}>Set one now</KButton>
             </div>

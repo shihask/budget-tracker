@@ -3,19 +3,26 @@ import type { FinancialCycle } from '@/lib/financial-cycle'
 import { getPreviousFinancialCycle, isPrimaryIncomeTransaction } from '@/lib/financial-cycle'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { localIso, parseIso, addDays } from '@/lib/utils'
-import { reviewableRecords, REANCHOR_WINDOW_DAYS, MAX_REVIEW_CYCLE_DAYS } from './kakeibo'
+import { reviewableRecords, kindOf, REANCHOR_WINDOW_DAYS, MAX_REVIEW_CYCLE_DAYS, type KakeiboStrategy } from './kakeibo'
 
 /** One choice in the workspace's cycle selector. */
 export interface CycleOption {
+  /** Unique across kinds — a salary cycle and a calendar month can both start on the 1st. */
+  key: string
+  kind: KakeiboStrategy
   start: string
   /** Completed: the cycle's last day. Current: today (figures so far). */
   end: string
   status: 'current' | 'completed'
-  /** Stored v1 row, when Kakeibo observed this cycle (goal, note, status). */
+  /** Stored row, when there is one (goal, note, status). */
   record: KakeiboReflection | null
-  /** 'record' = stored boundaries; 'engine' = derived from salary history now. */
-  origin: 'current' | 'record' | 'engine'
+  /** 'record' = stored salary boundaries; 'engine' = derived from salary history
+   *  now; 'calendar' = a calendar month; 'history' = a saved review from the
+   *  other strategy, kept after an income-pattern change. */
+  origin: 'current' | 'record' | 'engine' | 'calendar' | 'history'
 }
+
+const keyOf = (kind: KakeiboStrategy, start: string) => `${kind}:${start}`
 
 export const MAX_COMPLETED_OPTIONS = 6
 /** How far back the engine is walked; also the income-history fetch window. */
@@ -56,10 +63,10 @@ export function buildCycleOptions(args: {
   const { state, incomeTxns, current, records, today, historyComplete } = args
   const key = localIso(current.cycleStart)
   const currentRecord = records.find(r => r.cycle_start === key) ?? null
-  const out: CycleOption[] = [{ start: key, end: localIso(today), status: 'current', record: currentRecord, origin: 'current' }]
+  const out: CycleOption[] = [{ key: keyOf('salary', key), kind: 'salary', start: key, end: localIso(today), status: 'current', record: currentRecord, origin: 'current' }]
 
   const fromRecords: CycleOption[] = reviewableRecords(records, current).map(r => ({
-    start: r.cycle_start, end: r.cycle_end!, status: 'completed', record: r, origin: 'record',
+    key: keyOf('salary', r.cycle_start), kind: 'salary', start: r.cycle_start, end: r.cycle_end!, status: 'completed', record: r, origin: 'record',
   }))
   // Every stored row blocks engine candidates — open ones to infinity.
   const blocked = records.map(r => ({ start: r.cycle_start, end: r.cycle_end ?? '9999-12-31' }))
@@ -83,7 +90,7 @@ export function buildCycleOptions(args: {
       if (ambiguous) continue
       if (blocked.some(b => overlaps(b, cand))) continue
       if (engine.some(e => overlaps(e, cand))) continue
-      engine.push({ ...cand, status: 'completed', record: null, origin: 'engine' })
+      engine.push({ ...cand, key: keyOf('salary', cand.start), kind: 'salary', status: 'completed', record: null, origin: 'engine' })
     }
   }
 
@@ -91,4 +98,40 @@ export function buildCycleOptions(args: {
     .sort((a, b) => b.start.localeCompare(a.start))
     .slice(0, MAX_COMPLETED_OPTIONS)
   return [...out, ...completed]
+}
+
+/** Calendar-month options (Weekly, Variable/Daily, Business income): the current
+ *  month (provisional, to today) plus the previous MAX_COMPLETED_OPTIONS months,
+ *  newest first. Built from the calendar alone; dates are certain, so every
+ *  month is offered whether or not a row exists yet (saving a note creates it). */
+export function buildMonthOptions(args: { records: KakeiboReflection[]; today: Date }): CycleOption[] {
+  const { records, today } = args
+  const byStart = new Map(records.filter(r => kindOf(r) === 'month').map(r => [r.cycle_start, r]))
+  const out: CycleOption[] = []
+  for (let k = 0; k <= MAX_COMPLETED_OPTIONS; k++) {
+    const start = localIso(new Date(today.getFullYear(), today.getMonth() - k, 1))
+    const end = k === 0 ? localIso(today) : localIso(new Date(today.getFullYear(), today.getMonth() - k + 1, 0))
+    out.push({
+      key: keyOf('month', start), kind: 'month', start, end,
+      status: k === 0 ? 'current' : 'completed',
+      record: byStart.get(start) ?? null,
+      origin: k === 0 ? 'current' : 'calendar',
+    })
+  }
+  return out
+}
+
+/** Appends saved reviews from the OTHER strategy (rows that hold a goal, note or
+ *  review), as stored — an income-pattern change never re-dates or re-labels them.
+ *  They may overlap the active strategy's dates; the label says which is which. */
+export function withHistory(options: CycleOption[], history: KakeiboReflection[]): CycleOption[] {
+  const extra: CycleOption[] = history
+    .filter(r => r.cycle_end != null)
+    .map(r => ({
+      key: keyOf(kindOf(r), r.cycle_start), kind: kindOf(r), start: r.cycle_start, end: r.cycle_end!,
+      status: 'completed' as const, record: r, origin: 'history' as const,
+    }))
+    .filter(o => !options.some(x => x.key === o.key))
+    .sort((a, b) => b.start.localeCompare(a.start))
+  return [...options, ...extra]
 }

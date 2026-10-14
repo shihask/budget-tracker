@@ -57,8 +57,8 @@ export function KakeiboDashboardCard({ kakeibo, suggestedGoal, onOpenReview }: P
                 </div>
                 <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, margin: '2px 0 10px', lineHeight: 1.5 }}>
                   {isFirstReview(kakeibo.records)
-                    ? `Your salary cycle (${cycleLabel(review)}) is complete. See where your money went, check your savings and choose one thing to improve next cycle.`
-                    : `Your salary cycle is complete · ${cycleLabel(review)} · about two minutes`}
+                    ? `${kakeibo.strategy === 'month' ? cycleMonthName(review) : `Your salary cycle (${cycleLabel(review)})`} is complete. See where your money went, check your savings and choose one thing to improve next cycle.`
+                    : `${kakeibo.strategy === 'month' ? `${cycleMonthName(review)} is complete` : 'Your salary cycle is complete'} · ${cycleLabel(review)} · about two minutes`}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <KButton onClick={() => onOpenReview(review.cycle_start)}>Review my cycle</KButton>

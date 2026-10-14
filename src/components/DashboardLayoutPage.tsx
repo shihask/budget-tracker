@@ -12,13 +12,12 @@ import { useTheme } from '@/lib/theme-context'
 import { BottomSheet } from '@/components/BottomSheet'
 import type { Category, DashboardSection, DashboardSectionId, Settings } from '@/types'
 import { DEFAULT_DASHBOARD_SECTIONS } from '@/types'
-import { getIncomePattern } from '@/lib/income-pattern'
 
 const LOCKED_IDS: string[] = ['hero', 'affordability']
 
 const SECTION_META: Record<DashboardSectionId, { label: string; desc: string }> = {
   hero:            { label: 'Weekly Overview',       desc: 'Spending vs budget & week summary' },
-  kakeibo:         { label: 'Kakeibo',                desc: 'Payday savings goal & end-of-cycle review — shows only when there is something to do' },
+  kakeibo:         { label: 'Kakeibo',                desc: 'Savings goal & end-of-cycle review — shows only when there is something to do' },
   wealth_summary:  { label: 'Wealth Summary',         desc: 'Total savings, investments & money lent' },
   budget_strategy: { label: 'Budget Strategy',        desc: 'Needs/Wants/Savings allocation vs plan' },
   affordability:   { label: 'Affordability Checker', desc: 'Can I afford this purchase?' },
@@ -276,7 +275,6 @@ export function DashboardLayoutPage({ sections, settings, categories, budgetStra
     if (id === 'borrowing')    return !(settings.track_borrowings ?? true)
     if (id === 'credit_cards') return !(settings.track_credit_cards ?? false)
     if (id === 'budget_strategy') return budgetStrategy === 'none'
-    if (id === 'kakeibo')      return getIncomePattern(settings) !== 'monthly'
     return false
   }
 

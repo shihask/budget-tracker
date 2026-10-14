@@ -168,8 +168,8 @@ export function KakeiboIntro({ open, onClose }: { open: boolean; onClose: () => 
           {title('MoneyPlant does the bookkeeping', 0)}
           {body('No notebook needed — your recorded transactions do the work.', 150)}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-            {chip(<CalendarCheck size={18} />, 'Follows your salary cycle, not the calendar month', 450)}
-            {chip(<Target size={18} />, 'Set a savings goal when your salary arrives', 1100)}
+            {chip(<CalendarCheck size={18} />, 'Follows your salary cycle — or the calendar month if your income isn’t a monthly salary', 450)}
+            {chip(<Target size={18} />, 'Set a savings goal at the start of each cycle', 1100)}
             {chip(<Sparkles size={18} />, 'Generate an analysis any time — Mint AI suggests pillars, you can change any', 1750)}
           </div>
         </div>
@@ -178,7 +178,7 @@ export function KakeiboIntro({ open, onClose }: { open: boolean; onClose: () => 
         <div>
           {title('A two-minute monthly ritual', 0)}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 18 }}>
-            {chip(<CalendarCheck size={18} />, 'Payday: your last cycle is ready to review', 300)}
+            {chip(<CalendarCheck size={18} />, 'New cycle: your last one is ready to review', 300)}
             {chip(<PenLine size={18} />, 'Answer one question — “What will I do differently?”', 950)}
             {chip(<Sprout size={18} />, 'See your own lesson again at the start of next cycle', 1600)}
           </div>
