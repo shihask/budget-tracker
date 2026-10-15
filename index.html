@@ -75,7 +75,34 @@
       "operatingSystem": "Web, Android, iOS",
       "inLanguage": "en-IN",
       "description": "Free expense tracker and budget app for India. Track spending, EMIs, credit card bills and SIPs, and see what's safe to spend before payday.",
-      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" }
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+      "publisher": { "@id": "https://moneyplant.online/#organization" }
+    }
+    </script>
+    <!-- Brand identity: ties the name "MoneyPlant" to this site and its social
+         profiles, so a search for the name isn't read as "money plant online"
+         (a plant-shopping query). Add new public profiles to sameAs. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://moneyplant.online/#website",
+          "url": "https://moneyplant.online/",
+          "name": "MoneyPlant",
+          "alternateName": ["MoneyPlant expense tracker", "moneyplant.online"],
+          "publisher": { "@id": "https://moneyplant.online/#organization" }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://moneyplant.online/#organization",
+          "name": "MoneyPlant",
+          "url": "https://moneyplant.online/",
+          "logo": "https://moneyplant.online/pwa-512x512.png",
+          "sameAs": ["https://www.instagram.com/moneyplant.online"]
+        }
+      ]
     }
     </script>
   </head>
