@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant clip: Reveal into the app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<!-- Founder-story reel, scene 5 opener (2.4 s): out of the dark coding shot, the mark builds fast,
+     the name lands, then the green tile zooms past the camera — cut-scene5.mjs crossfades that
+     green into the app's green dashboard hero (out/app-dashboard.mp4). -->
+<style>
+  #s { align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at 50% 42%, #0E3A2B 0%, #061710 55%, #020806 100%); }
+  .halo { position: absolute; width: 900px; height: 900px; left: 90px; top: 330px; border-radius: 50%; background: radial-gradient(circle, rgba(22,201,138,.45), rgba(22,201,138,0) 62%); }
+  #box { width: 300px; height: 300px; position: relative; z-index: 2; }
+  #logo { position: absolute; left: 0; top: 0; width: 300px; height: 300px; }
+  .word { font-size: 112px; font-weight: 800; letter-spacing: -4px; margin-top: 56px; color: #fff; }
+  .word span { color: var(--green); }
+</style>
+</head>
+<body>
+<section class="scene" id="s">
+  <div class="halo el" id="halo"></div>
+  <div id="box"><div id="logo"></div></div>
+  <div class="word el" id="w">Money<span>Plant</span></div>
+</section>
+<script src="reel-kit.js"></script>
+<script src="logo-anim.js"></script>
+<script>
+  const DURATION = 2.4
+  const logo = mountLogo($('logo'))
+  function render(t) {
+    $('s').style.display = 'flex'
+    $('halo').style.opacity = easeOut(prog(t, 0, .8))
+    const built = logo.render(t, 0, 1.6)                // complete ≈ 1.4 s
+    rise($('w'), t, .95, .4, 40)
+    // The tile flies at the camera until its green fills the frame. Grown by real size, not a
+    // CSS scale (which stretches the raster), about a plain-green point left of the coin.
+    const z = easeInOut(prog(t, 1.7, .7)), S = 300 * (1 + 15 * z * z), PX = .14, PY = .5
+    Object.assign($('logo').style, { width: S + 'px', height: S + 'px', left: -PX * (S - 300) + 'px', top: -PY * (S - 300) + 'px' })
+    $('w').style.opacity = Math.min(+$('w').style.opacity, 1 - prog(t, 1.7, .25))
+  }
+  boot(render, DURATION, [.5, 1.0, 1.6, 2.0, 2.35])
+</script>
+</body>
+</html>

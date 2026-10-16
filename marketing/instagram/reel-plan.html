@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant reel: Your salary needs a plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<!-- Follow-up to the "where did my salary go?" reel: the payday routine (bills → save → plan),
+     ending on the real dashboard. Figures match the reels demo account after `npm run seed:reels`
+     (₹85,000 salary, Rent ₹18,000, Bike EMI ₹4,500, Balanced 50/30/20), so scene 5's real
+     Budget Health card shows the same Needs ₹42,500 / Wants ₹25,500 / Savings ₹17,000.
+     Scene 5 frames: node marketing/instagram/capture-dashboard.mjs. Preview: open this file. -->
+<style>
+  .ml { font-family: 'Noto Sans Malayalam', 'Nirmala UI', sans-serif; letter-spacing: 0; }
+  .credit { display: inline-flex; align-self: flex-start; align-items: center; gap: 22px; background: rgba(255,255,255,.16); border: 3px solid rgba(255,255,255,.35); border-radius: 999px; padding: 18px 36px 18px 22px; font-size: 40px; font-weight: 800; }
+  .credit .ico { flex-basis: 72px; height: 72px; border-radius: 999px; background: #fff; }
+  .credit .ico svg { width: 40px; height: 40px; }
+  .voice { font-size: 46px; line-height: 1.5; font-weight: 700; color: #D9FFEE; }
+
+  .step { display: inline-flex; align-self: flex-start; align-items: center; gap: 18px; }
+  .step .n { width: 64px; height: 64px; border-radius: 20px; background: var(--green-dark); color: #fff; font-size: 38px; font-weight: 800; display: grid; place-items: center; letter-spacing: 0; }
+  .head { font-size: 74px; line-height: 1.08; font-weight: 800; letter-spacing: -2px; margin-top: 26px; }
+
+  .bills { display: flex; flex-direction: column; gap: 16px; margin-top: 44px; }
+  .bill { display: flex; align-items: center; gap: 26px; background: #fff; border: 3px solid var(--rule); border-radius: 32px; padding: 20px 34px; }
+  .bill .ico { flex-basis: 84px; height: 84px; border-radius: 24px; background: var(--red-bg); }
+  .bill .ico svg { width: 44px; height: 44px; stroke: var(--red); }
+  .bill .what { flex: 1; font-size: 42px; font-weight: 800; letter-spacing: -.5px; }
+  .bill .due { display: block; font-size: 28px; font-weight: 600; color: var(--muted); margin-top: 2px; letter-spacing: 0; }
+  .bill .amt { font-size: 44px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .aside { margin-top: 22px; background: var(--ink); color: #fff; border-radius: 36px; padding: 32px 40px; display: flex; justify-content: space-between; align-items: center; }
+  .aside span { font-size: 36px; font-weight: 700; opacity: .8; display: flex; align-items: center; gap: 16px; }
+  .aside svg { width: 40px; height: 40px; stroke: #7FF0C6; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .aside b { font-size: 72px; font-weight: 800; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+
+  .salary { margin-top: 56px; padding: 34px 44px; display: flex; justify-content: space-between; align-items: center; }
+  .salary span { font-size: 38px; font-weight: 700; color: var(--muted); }
+  .salary b { font-size: 64px; font-weight: 800; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+  .lane { position: relative; height: 230px; }
+  .coin { position: absolute; left: 50%; top: 0; width: 84px; height: 84px; margin-left: -42px; border-radius: 999px; background: linear-gradient(145deg, #2BE3A1, var(--green-dark)); color: #fff; font-size: 44px; font-weight: 800; display: grid; place-items: center; box-shadow: 0 10px 24px rgba(10,122,86,.35); opacity: 0; }
+  .goal { padding: 40px 44px 44px; position: relative; }
+  .goal .top { display: flex; align-items: center; gap: 26px; }
+  .goal .ico { flex-basis: 96px; height: 96px; }
+  .goal .nm { flex: 1; font-size: 44px; font-weight: 800; }
+  .goal .nm small { display: block; font-size: 28px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+  .goal .amt { font-size: 92px; font-weight: 800; letter-spacing: -3px; color: var(--green-dark); margin-top: 26px; font-variant-numeric: tabular-nums; }
+  .track { height: 22px; border-radius: 99px; background: var(--rule); margin-top: 18px; overflow: hidden; }
+  .track i { display: block; height: 100%; border-radius: 99px; background: var(--green); width: 0; }
+  .ring { position: absolute; inset: -3px; border-radius: 44px; border: 6px solid var(--green); opacity: 0; }
+
+  .split { display: flex; height: 112px; border-radius: 30px; overflow: hidden; margin-top: 56px; background: var(--rule); }
+  .split i { display: block; height: 100%; }
+  .legend { display: flex; flex-direction: column; gap: 14px; margin-top: 30px; }
+  .lg { display: flex; align-items: center; gap: 24px; background: #fff; border: 3px solid var(--rule); border-radius: 30px; padding: 22px 32px; }
+  .lg .dot { width: 30px; height: 30px; border-radius: 10px; flex: none; }
+  .lg .nm { flex: 1; font-size: 42px; font-weight: 800; }
+  .lg .nm small { display: block; font-size: 27px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+  .lg .pc { font-size: 34px; font-weight: 700; color: var(--muted); margin-right: 18px; }
+  .lg .am { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .daily { margin-top: 22px; background: var(--green-dark); color: #fff; border-radius: 36px; padding: 30px 40px; display: flex; align-items: baseline; gap: 20px; }
+  .daily b { font-size: 76px; font-weight: 800; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+  .daily span { font-size: 40px; font-weight: 700; }
+  .daily em { font-style: normal; color: #9DF5D2; }
+
+  #s5 { padding: 200px 0 0; align-items: center; }
+  .s5head { font-size: 68px; font-weight: 800; letter-spacing: -2px; text-align: center; }
+  .phone { position: relative; margin-top: 36px; width: 498px; height: 1045px; border-radius: 70px; background: #0B0F0E; padding: 14px; box-shadow: 0 50px 120px rgba(0,0,0,.35), 0 0 0 3px rgba(255,255,255,.25); }
+  .screen { position: relative; width: 470px; height: 1017px; border-radius: 57px; overflow: hidden; background: #F6F1EA; }
+  .screen img { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+  .cta { margin-top: 44px; display: flex; align-items: center; gap: 22px; background: #fff; color: var(--green-dark); border-radius: 999px; padding: 24px 46px 24px 24px; font-size: 44px; font-weight: 800; box-shadow: 0 20px 50px rgba(0,0,0,.22); }
+  .cta img { width: 76px; height: 76px; border-radius: 20px; }
+  .url { margin-top: 18px; font-size: 36px; font-weight: 700; opacity: .9; }
+</style>
+</head>
+<body>
+
+<!-- 1 — hook -->
+<section class="scene green" id="s1">
+  <div style="flex:1"></div>
+  <div class="credit el" id="s1c"><div class="ico"><svg viewBox="0 0 24 24"><path d="M19 7V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2"/><path d="M3 6v12a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-3"/></svg></div>₹85,000 credited</div>
+  <div style="height:56px"></div>
+  <div class="big el" id="s1a">Salary credited?</div>
+  <div style="height:34px"></div>
+  <div class="mid soft el" id="s1b">Don't spend it just yet.</div>
+  <div style="height:70px"></div>
+  <div class="voice ml el" id="s1v">Salary വന്നോ? ചെലവാക്കുന്നതിന് മുൻപ് ഈ 3 കാര്യങ്ങൾ ചെയ്യൂ.</div>
+  <div style="flex:1.3"></div>
+</section>
+
+<!-- 2 — bills first -->
+<section class="scene cream" id="s2">
+  <div class="step el" id="s2k"><span class="n">1</span><span class="kicker">Bills first</span></div>
+  <div class="head el" id="s2h">Set aside money for bills.</div>
+  <div class="bills">
+    <div class="bill el" id="b0"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></div><div class="what">Rent<span class="due">Due 30th</span></div><div class="amt">₹18,000</div></div>
+    <div class="bill el" id="b1"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M15 6h3l3 7"/><path d="M5.5 17l4-7h6l3 7"/></svg></div><div class="what">Bike EMI<span class="due">Due 16th</span></div><div class="amt">₹4,500</div></div>
+    <div class="bill el" id="b2"><div class="ico"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div><div class="what">Electricity<span class="due">Due 20th</span></div><div class="amt">₹1,800</div></div>
+    <div class="bill el" id="b3"><div class="ico"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></div><div class="what">Mobile &amp; internet<span class="due">Due 22nd</span></div><div class="amt">₹1,200</div></div>
+  </div>
+  <div class="aside el" id="s2t"><span><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Kept aside</span><b id="s2n">₹0</b></div>
+</section>
+
+<!-- 3 — save first -->
+<section class="scene cream" id="s3">
+  <div class="step el" id="s3k"><span class="n">2</span><span class="kicker">Save first</span></div>
+  <div class="head el" id="s3h">Decide how much to save.</div>
+  <div class="salary card el" id="s3s"><span>Salary</span><b id="s3sal">₹85,000</b></div>
+  <div class="lane" id="lane">
+    <div class="coin" id="c0">₹</div><div class="coin" id="c1">₹</div><div class="coin" id="c2">₹</div>
+    <div class="coin" id="c3">₹</div><div class="coin" id="c4">₹</div>
+  </div>
+  <div class="goal card el" id="s3g">
+    <div class="ring" id="s3r"></div>
+    <div class="top">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z"/><path d="M2 9v1c0 1.1.9 2 2 2h1"/><circle cx="16" cy="11" r=".5"/></svg></div>
+      <div class="nm">Savings<small>On payday, before anything else</small></div>
+    </div>
+    <div class="amt" id="s3n">₹0</div>
+    <div class="track"><i id="s3bar"></i></div>
+    <div class="note" style="margin-top:14px;font-size:30px;font-weight:700">20% of salary</div>
+  </div>
+</section>
+
+<!-- 4 — plan ahead -->
+<section class="scene cream" id="s4">
+  <div class="step el" id="s4k"><span class="n">3</span><span class="kicker">Plan ahead</span></div>
+  <div class="head el" id="s4h">Plan what you can actually spend.</div>
+  <div class="split el" id="s4bar"><i id="sp0" style="background:#3B82F6"></i><i id="sp1" style="background:#F97316"></i><i id="sp2" style="background:var(--green)"></i></div>
+  <div class="legend">
+    <div class="lg el" id="l0"><div class="dot" style="background:#3B82F6"></div><div class="nm">Needs<small>Bills + groceries, fuel</small></div><span class="pc">50%</span><span class="am">₹42,500</span></div>
+    <div class="lg el" id="l1"><div class="dot" style="background:#F97316"></div><div class="nm">Wants<small>Food out, shopping, fun</small></div><span class="pc">30%</span><span class="am">₹25,500</span></div>
+    <div class="lg el" id="l2"><div class="dot" style="background:var(--green)"></div><div class="nm">Savings<small>Already set aside</small></div><span class="pc">20%</span><span class="am">₹17,000</span></div>
+  </div>
+  <div class="daily el" id="s4d"><b id="s4n">₹0</b><span>a day for wants. <em>Guilt-free.</em></span></div>
+</section>
+
+<!-- 5 — the real app (frames from capture-dashboard.mjs) + CTA -->
+<section class="scene green" id="s5">
+  <div class="s5head el" id="s5h">Plan smart. Grow better. 🌱</div>
+  <div class="phone el" id="s5p"><div class="screen" id="screen"></div></div>
+  <div class="cta el" id="s5c"><img src="../../public/email-logo.png" alt="">Try MoneyPlant free · link in bio</div>
+  <div class="url el" id="s5u">moneyplant.online</div>
+</section>
+
+<script src="reel-kit.js"></script>
+<script>
+  const DURATION = 20
+  const FRAMES = 55, SCROLL_AT = 16.9, SCROLL_DUR = 1.8   // 55 frames over 1.8 s ≈ 30 fps
+  const screen = $('screen')
+  for (let i = 0; i < FRAMES; i++) screen.insertAdjacentHTML('beforeend', `<img id="f${i}" src="out/app-dashboard-scroll/${String(i).padStart(2, '0')}.jpg" alt="">`)
+  let shown = -1
+
+  // Whoosh on each scene change, chime when the savings land (render-reel.mjs mixes these in).
+  window.REEL_SFX = [
+    { t: 2.75, kind: 'whoosh' }, { t: 6.75, kind: 'whoosh' }, { t: 10.75, kind: 'whoosh' }, { t: 15.75, kind: 'whoosh' },
+    { t: 9.35, kind: 'chime' },
+  ]
+
+  function render(t) {
+    // 1 — hook (0–3)
+    scene($('s1'), t, 0, 3)
+    rise($('s1c'), t, .05, .4); rise($('s1a'), t, .3); rise($('s1b'), t, .85); rise($('s1v'), t, 1.35)
+
+    // 2 — bills (3–7)
+    scene($('s2'), t, 3, 7)
+    rise($('s2k'), t, 3.1, .35, 30); rise($('s2h'), t, 3.2, .4, 40)
+    const BILLS = [18000, 4500, 1800, 1200]
+    let aside = 0
+    BILLS.forEach((amt, i) => {
+      const at = 3.65 + i * .42
+      rise($('b' + i), t, at, .35, 40)
+      aside += amt * easeOut(prog(t, at + .1, .4))
+    })
+    rise($('s2t'), t, 3.6, .4, 30)
+    $('s2n').textContent = inr(aside)
+
+    // 3 — save (7–11)
+    scene($('s3'), t, 7, 11)
+    rise($('s3k'), t, 7.1, .35, 30); rise($('s3h'), t, 7.2, .4, 40)
+    rise($('s3s'), t, 7.45, .4, 40); rise($('s3g'), t, 7.6, .4, 40)
+    for (let i = 0; i < 5; i++) {
+      const p = prog(t, 8.1 + i * .2, .55), c = $('c' + i)
+      c.style.opacity = p > 0 && p < 1 ? Math.min(1, p * 5, (1 - p) * 5) : 0
+      c.style.transform = `translate(${Math.sin(i * 1.7) * 60 * (1 - p)}px, ${easeInOut(p) * 330 - 60}px) scale(${1 - .3 * p})`
+    }
+    const saved = easeOut(prog(t, 8.3, 1.05))
+    $('s3n').textContent = inr(17000 * saved)
+    $('s3bar').style.width = (20 * saved) + '%'          // the bar is the salary; 20% of it moves
+    $('s3sal').textContent = inr(85000 - 17000 * saved)
+    const ring = prog(t, 9.35, .8)
+    $('s3r').style.opacity = ring > 0 && ring < 1 ? 1 - ring : 0
+    $('s3r').style.transform = `scale(${1 + .06 * ring})`
+
+    // 4 — plan (11–16)
+    scene($('s4'), t, 11, 16)
+    rise($('s4k'), t, 11.1, .35, 30); rise($('s4h'), t, 11.2, .4, 40); rise($('s4bar'), t, 11.5, .35, 30)
+    ;[50, 30, 20].forEach((pc, i) => {
+      $('sp' + i).style.width = pc * easeOut(prog(t, 11.75 + i * .5, .5)) + '%'
+      rise($('l' + i), t, 11.8 + i * .5, .35, 30)
+    })
+    rise($('s4d'), t, 13.6, .45, 40)
+    $('s4n').textContent = inr(850 * easeOut(prog(t, 13.7, .8)))   // 25,500 ÷ 30 days
+
+    // 5 — real dashboard (16–20)
+    scene($('s5'), t, 16, DURATION + 1)
+    rise($('s5h'), t, 16.05, .4, 30); rise($('s5p'), t, 16.15, .55, 140)
+    rise($('s5c'), t, 17.2, .45, 30); rise($('s5u'), t, 17.45, .4, 20)
+    const f = Math.min(FRAMES - 1, Math.max(0, Math.round(prog(t, SCROLL_AT, SCROLL_DUR) * (FRAMES - 1))))
+    if (f !== shown) { if (shown >= 0) $('f' + shown).style.display = 'none'; $('f' + f).style.display = 'block'; shown = f }
+  }
+
+  boot(render, DURATION, [2.6, 6.5, 9.6, 15.2, 16.8, 19.6])
+</script>
+</body>
+</html>

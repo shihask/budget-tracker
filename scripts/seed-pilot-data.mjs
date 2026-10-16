@@ -1,7 +1,7 @@
 // Seeds a demo Supabase account with realistic Indian pilot data for the
 // promo-reel recordings (see C:\Users\Admin\.claude\plans\i-want-to-create-abstract-book.md).
 //
-// WARNING: this WIPES all transactions and commitments for the signed-in
+// WARNING: this WIPES all transactions, commitments, savings and borrowings for the signed-in
 // account and resets its first active account's balance before reseeding.
 // Only ever point this at a dedicated demo account — never a real one.
 //
@@ -153,6 +153,31 @@ async function main() {
     weekly_budget: 12000,
   }).eq('user_id', userId)
   if (settingsError) throw settingsError
+
+  // ── Savings & investments + money lent, so the Wealth card (assets) and the
+  // Savings section have something to show. Existing holdings: no account debit.
+  await supabase.from('savings').delete().eq('user_id', userId)
+  await supabase.from('borrowings').delete().eq('user_id', userId)
+  const savingsBase = {
+    user_id: userId, is_recurring: true, frequency: 'monthly', total_target: null, maturity_date: null,
+    interest_rate: null, from_account_id: account.id, category_id: null, last_contribution_date: iso(daysFromNow(-4)),
+    paid_date: iso(daysFromNow(-4)), paid_through: null, notes: null, is_active: true, is_prized: false, prize_month: null,
+    investment_source: 'existing',
+  }
+  const { error: savingsError } = await supabase.from('savings').insert([
+    { ...savingsBase, name: 'Nifty 50 Index Fund', type: 'sip', amount: 3000, due_day: 10, total_installments: null, current_installment: 14, current_value: 46800 },
+    { ...savingsBase, name: 'Gold Savings Scheme', type: 'gold', amount: 2000, due_day: 5, total_installments: 11, current_installment: 8, current_value: 17200 },
+  ])
+  if (savingsError) throw savingsError
+  const { error: lentError } = await supabase.from('borrowings').insert({
+    user_id: userId, person_name: 'Arjun', total_amount: 5000, paid_amount: 0, notes: null, direction: 'lent',
+    repayment_date: iso(daysFromNow(20)),
+  })
+  if (lentError) throw lentError
+  console.log('Seeded savings: SIP ₹3,000/mo (14 paid), Gold ₹2,000/mo (8 of 11); lent ₹5,000 to Arjun')
+
+  const { error: trackError } = await supabase.from('settings').update({ track_savings: true, track_borrowings: true }).eq('user_id', userId)
+  if (trackError) throw trackError
 
   const { error: strategyError } = await supabase.from('budget_strategy_settings').update({ budget_strategy: 'balanced' }).eq('user_id', userId)
   if (strategyError) throw strategyError

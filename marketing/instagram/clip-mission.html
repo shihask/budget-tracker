@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MoneyPlant clip: Mission end card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<!-- Founder-story reel, scene 6 "The mission" (10 s): the mark builds, then name, tagline and
+     site; the last seconds breathe so the voice-over can finish over it. Silent — the music's
+     final piano note goes on in the editor. -->
+<style>
+  #s { align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at 50% 36%, #0F5A40 0%, #082F22 48%, #04140E 100%); }
+  .halo { position: absolute; width: 900px; height: 900px; left: 90px; top: 210px; border-radius: 50%; background: radial-gradient(circle, rgba(22,201,138,.42), rgba(22,201,138,0) 62%); }
+  #logo { width: 340px; height: 340px; filter: drop-shadow(0 30px 70px rgba(22,201,138,.45)); }
+  .word { font-size: 124px; font-weight: 800; letter-spacing: -4px; margin-top: 64px; color: #fff; }
+  .word span { color: var(--green); }
+  .tag { font-size: 62px; font-weight: 700; letter-spacing: -1px; margin-top: 18px; color: #D9FFEE; }
+  .site { margin-top: 74px; background: #fff; color: var(--green-dark); font-size: 50px; font-weight: 800; padding: 26px 58px; border-radius: 999px; box-shadow: 0 20px 50px rgba(0,40,25,.25); }
+</style>
+</head>
+<body>
+<section class="scene" id="s">
+  <div class="halo el" id="halo"></div>
+  <div id="logo"></div>
+  <div class="word el" id="w">Money<span>Plant</span></div>
+  <div class="tag el" id="g">Know Before You Spend.</div>
+  <div class="site el" id="u">moneyplant.online</div>
+</section>
+<script src="reel-kit.js"></script>
+<script src="logo-anim.js"></script>
+<script>
+  const DURATION = 10
+  const logo = mountLogo($('logo'))
+  function render(t) {
+    $('s').style.display = 'flex'
+    $('halo').style.opacity = .6 + .4 * easeOut(prog(t, .2, 1.4))
+    const built = logo.render(t, .3, 1)                  // complete at 2.5 s
+    const breathe = logo.idle(t, built) || 1
+    $('logo').style.transform = `translateY(${(1 - easeOut(prog(t, built, .7))) * 90}px) scale(${breathe})`
+    rise($('w'), t, built + .1, .55, 50)
+    rise($('g'), t, built + .55, .55, 40)
+    rise($('u'), t, built + 1.05, .5, 30)
+    $('halo').style.transform = `scale(${1 + .04 * Math.sin(t * 1.9)})`
+  }
+  boot(render, DURATION, [.9, 1.8, 2.6, 4.2, 9.8])
+</script>
+</body>
+</html>
