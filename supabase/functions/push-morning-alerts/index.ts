@@ -106,6 +106,8 @@ Deno.serve(async (req) => {
     for (const uid of enabledUserIds) {
       const settings = settingsMap.get(uid)
       const alerts: string[] = []
+      // The app screen each alert belongs to (`/?open=<screen>`, handled by App's openScreen)
+      const screens: string[] = []
 
       // 1. Credit card due dates
       if (settings?.notify_commitments !== false) {
@@ -114,6 +116,7 @@ Deno.serve(async (req) => {
           const daysLeft = getDaysUntil(card.due_day)
           if (daysLeft <= 7) {
             alerts.push(`${card.name} payment due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`)
+            screens.push('credit-cards')
           }
         }
       }
@@ -135,6 +138,7 @@ Deno.serve(async (req) => {
           }
           if (daysLeft <= 5) {
             alerts.push(`${cm.name} (${fmt(cm.amount)}) due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`)
+            screens.push('commitments')
           }
         }
       }
@@ -153,6 +157,7 @@ Deno.serve(async (req) => {
           alerts.push(pct >= 100
             ? `Budget exceeded — spent ${fmt(spent)} of ${fmt(budget)}`
             : `Budget ${Math.round(pct)}% used — ${fmt(remaining)} remaining`)
+          screens.push('analytics-trend')
         }
       }
 
@@ -181,6 +186,7 @@ Deno.serve(async (req) => {
         }
         if (topSpike) {
           alerts.push(`${topSpike.cat} spending up ${Math.round(topSpike.pct)}% vs last month`)
+          screens.push('analytics-category')
         }
       }
 
@@ -190,7 +196,7 @@ Deno.serve(async (req) => {
       const message = alerts.join('\n')
 
       const { data } = await supabase.functions.invoke('push-send', {
-        body: { user_id: uid, title, message, url: '/', tag: 'morning-alerts' },
+        body: { user_id: uid, title, message, url: `/?open=${screens.length === 1 ? screens[0] : 'notifications'}`, tag: 'morning-alerts' },
       })
       if (data?.sent) totalSent += data.sent
     }

@@ -48,7 +48,7 @@ function groupTypeColor(groupType: string | undefined, c: { good: string; warn: 
   }
 }
 
-type Tab = 'trend' | 'weeks' | 'category' | 'timeline' | 'journey' | 'kakeibo'
+export type Tab = 'trend' | 'weeks' | 'category' | 'timeline' | 'journey' | 'kakeibo'
 type TrendRange = 7 | 15 | 30
 const TABS: [Tab, string][] = [['trend', 'Trend'], ['weeks', 'Weekly'], ['category', 'Category'], ['timeline', 'Timeline'], ['journey', 'Journey']]
 const TREND_RANGES: [TrendRange, string][] = [[7, '7D'], [15, '15D'], [30, '30D']]
@@ -99,8 +99,8 @@ interface Props {
   /** Kakeibo tab content — App passes it for monthly-pattern users only; the tab
    *  doesn't exist otherwise. Self-contained (own data, own error boundary). */
   kakeiboTab?: React.ReactNode
-  /** Tab to open on. Only 'kakeibo' is passed today (dashboard Kakeibo → Review). */
-  initialTab?: 'kakeibo'
+  /** Tab to open on — 'kakeibo' from Kakeibo Review / the bell, trend/weeks/category from a push tap. */
+  initialTab?: Tab
   /** Trend day to open selected (YYYY-MM-DD, within the last 7 days) — the
    *  Daily Reflection sheet's "See where it went" lands on that day's list. */
   initialTrendDate?: string
@@ -164,7 +164,7 @@ function TxnMiniList({ transactions, categories }: { transactions: Transaction[]
 
 export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab, initialTab, initialTrendDate }: Props) {
   const c = useTheme()
-  const [tab, setTab] = useState<Tab>(initialTab === 'kakeibo' && kakeiboTab ? 'kakeibo' : 'trend')
+  const [tab, setTab] = useState<Tab>(initialTab === 'kakeibo' && !kakeiboTab ? 'trend' : initialTab ?? 'trend')
   const [trendRange, setTrendRange] = useState<TrendRange>(7)
   const [insight, setInsight] = useState<string | null>(null)
   const [loadingInsight, setLoadingInsight] = useState(false)

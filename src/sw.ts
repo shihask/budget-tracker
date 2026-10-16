@@ -4,6 +4,7 @@ import { registerRoute, NavigationRoute } from 'workbox-routing'
 import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { CacheableResponsePlugin } from 'workbox-cacheable-response'
+import { OPEN_SCREEN_MESSAGE } from './lib/open-screen'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -86,7 +87,12 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const existing = clients.find((c) => c.url.includes(self.location.origin))
-      if (existing) return existing.focus()
+      if (existing) {
+        // The app is already running: hand it the target instead of reloading it
+        // (App opens the screen; see src/lib/open-screen.ts).
+        existing.postMessage({ type: OPEN_SCREEN_MESSAGE, url: target })
+        return existing.focus()
+      }
       return self.clients.openWindow(target)
     })
   )

@@ -531,6 +531,25 @@ not the server committed it before the connection died.
 - An `uncertain` item can't be discarded offline — it may be on the server.
 - `src/sw.ts` caches Supabase GETs for 7 days so an offline open still has accounts to pick.
 
+## Push notifications — tap opens the relevant screen
+Each `push-*` Edge Function sends `url: '/?open=<screen>'`; the keys live in `src/lib/open-screen.ts`
+(`OPEN_SCREENS`) and must stay in sync with the functions. App closed → the service worker opens
+that URL; app already running → `sw.ts` posts `OPEN_SCREEN_MESSAGE` to it and focuses it (no reload).
+App reads either into `pendingScreen`, waits for `!loading`, then opens the screen and strips `?open=`.
+
+| Push | `open=` |
+|---|---|
+| daily-reminder | `quick-add` |
+| evening-recap | `reflection` (today) |
+| commitment-reminder | `commitments` |
+| morning-alerts | one alert → `credit-cards` / `commitments` / `analytics-trend` / `analytics-category`; several → `notifications` |
+| budget-alert | `analytics-trend` |
+| financial-coach | pace → `analytics-trend`, spike → `analytics-category`, progress → `analytics-weeks` |
+| weekly-summary | `analytics-weeks` |
+
+An unknown key (an older/newer push) is ignored — the dashboard shows. `AnalyticsPage` is keyed on
+`analyticsKey`, bumped per push tap, so the tab applies even when Analytics is already open.
+
 ## Sign-in — email or mobile; code to register, password to log in
 One "Email or mobile number" box on both tabs. A 6-digit code proves ownership **once**, at sign-up;
 after that the password signs in — checking email for a code on every login was too much friction.

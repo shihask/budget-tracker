@@ -91,6 +91,8 @@ Deno.serve(async (req) => {
 
         let title = ''
         let message = ''
+        // The app screen the tap opens (`/?open=<screen>`, handled by App's openScreen)
+        let screen = 'analytics-trend'
 
         // Priority 1: Budget pace (spending significantly ahead of weekly budget pace)
         if (weekPct > weekProgress * 1.25 && weekPct < 90 && weeklySpend > 200) {
@@ -128,6 +130,7 @@ Deno.serve(async (req) => {
 
           if (topSpike.category) {
             title = 'Spending Spike'
+            screen = 'analytics-category'
             message = `Your ${topSpike.category} spending is ${Math.round(topSpike.pct)}% higher than last month (₹${Math.round(topSpike.amount).toLocaleString('en-IN')}). Worth keeping an eye on.`
           }
         }
@@ -136,13 +139,14 @@ Deno.serve(async (req) => {
         if (!title && lastMonthSpend > 1000 && thisMonthSpend < lastMonthSpend * 0.8) {
           const savings = Math.round(lastMonthSpend - thisMonthSpend)
           title = 'Great Progress!'
+          screen = 'analytics-weeks'
           message = `You're spending ₹${savings.toLocaleString('en-IN')} less than this time last month. Keep it up!`
         }
 
         if (!title) return
 
         const { data } = await supabase.functions.invoke('push-send', {
-          body: { user_id: s.user_id, title, message, url: '/', tag: 'coaching' },
+          body: { user_id: s.user_id, title, message, url: `/?open=${screen}`, tag: 'coaching' },
         })
         if (data?.sent) totalSent += data.sent
       })

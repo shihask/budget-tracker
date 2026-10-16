@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
         user_id: needsReminder.length === 1 ? needsReminder[0] : undefined,
         title: 'Mint Reminder',
         message: "You haven't recorded any expenses today.\nIt only takes a few seconds to stay on track.",
-        url: '/',
+        url: '/?open=quick-add',
         tag: 'daily-reminder',
       },
     })
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
               user_id: uid,
               title: 'Mint Reminder',
               message: "You haven't recorded any expenses today.\nIt only takes a few seconds to stay on track.",
-              url: '/',
+              url: '/?open=quick-add',
               tag: 'daily-reminder',
             },
           })

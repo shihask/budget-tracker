@@ -52,7 +52,8 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
 import { AIAssistFAB } from '@/components/AIAssistFAB'
 import { AIChatSheet } from '@/components/AIChatSheet'
-import { AnalyticsPage } from '@/components/AnalyticsPage'
+import { AnalyticsPage, type Tab as AnalyticsTab } from '@/components/AnalyticsPage'
+import { parseOpenScreen, clearOpenScreenParam, OPEN_SCREEN_MESSAGE, type OpenScreen } from '@/lib/open-screen'
 import { CashFlowForecastCard } from '@/components/CashFlowForecastCard'
 import { CashFlowForecastPage } from '@/components/CashFlowForecastPage'
 import { CashFlowForecastSetup } from '@/components/CashFlowForecastSetup'
@@ -262,6 +263,9 @@ function AppContent({ session }: { session: Session }) {
   const [kakeiboOpenGoal, setKakeiboOpenGoal] = useState(false)
   // Set by the Daily Reflection sheet's "See where it went": Analytics opens on Trend with that day selected.
   const [analyticsTrendDate, setAnalyticsTrendDate] = useState<string | null>(null)
+  // Set by a push-notification tap (openScreen): Analytics opens on that tab.
+  const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab | null>(null)
+  const [analyticsKey, setAnalyticsKey] = useState(0)
   const [cashflowOpen, setCashflowOpen] = useState(false)
   const [cashflowSetupOpen, setCashflowSetupOpen] = useState(false)
   const [projectsOpen, setProjectsOpen] = useState(false)
@@ -562,6 +566,41 @@ function AppContent({ session }: { session: Session }) {
     !isSnoozed(yesterdayRecapAlertId, snoozeMap) &&
     state.transactions.some(t => t.transaction_date === yesterdayStr && t.transaction_type === 'expense')
   const reflectionAlertId = `reflection-${todayStr}`
+
+  // Push-notification taps: `?open=<screen>` on a cold start, or a service-worker
+  // message when the app is already running. Held until data has loaded.
+  const [pendingScreen, setPendingScreen] = useState<OpenScreen | null>(() => parseOpenScreen(window.location.href))
+  useEffect(() => {
+    clearOpenScreenParam()
+    const sw = navigator.serviceWorker
+    if (!sw) return
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === OPEN_SCREEN_MESSAGE) setPendingScreen(parseOpenScreen(e.data.url))
+    }
+    sw.addEventListener('message', onMessage)
+    return () => sw.removeEventListener('message', onMessage)
+  }, [])
+  useEffect(() => {
+    if (loading || !pendingScreen) return
+    setPendingScreen(null)
+    const openAnalytics = (tab: AnalyticsTab) => {
+      setAnalyticsTab(tab)
+      setAnalyticsKey(k => k + 1)   // remount if already open, so the tab applies
+      setAnalyticsOpen(true)
+    }
+    switch (pendingScreen) {
+      case 'quick-add':
+        setSheetDefaultType('expense'); setSheetDefaultCategoryId(undefined); setSheetOpen(true); break
+      case 'reflection':
+        setReflectionMode('today'); setReflectionOpen(true); recordReflection(todayStr); break
+      case 'commitments': setCommitmentsOpen(true); break
+      case 'credit-cards': setCreditCardsOpen(true); break
+      case 'notifications': setNotificationsOpen(true); break
+      case 'analytics-trend': openAnalytics('trend'); break
+      case 'analytics-weeks': openAnalytics('weeks'); break
+      case 'analytics-category': openAnalytics('category'); break
+    }
+  }, [loading, pendingScreen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const alertReminders = buildReminders(state)
   const notifications = useMemo(
@@ -1284,10 +1323,10 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {analyticsOpen && (
-            <AnalyticsPage
-              state={state} d={d} onClose={() => { setAnalyticsOpen(false); setKakeiboReviewCycle(null); setKakeiboOpenGoal(false); setAnalyticsTrendDate(null) }} onUpdateSettings={updateSettings}
+            <AnalyticsPage key={analyticsKey}
+              state={state} d={d} onClose={() => { setAnalyticsOpen(false); setKakeiboReviewCycle(null); setKakeiboOpenGoal(false); setAnalyticsTrendDate(null); setAnalyticsTab(null) }} onUpdateSettings={updateSettings}
               initialTrendDate={analyticsTrendDate ?? undefined}
-              initialTab={(kakeiboReviewCycle || kakeiboOpenGoal) && kakeibo.available ? 'kakeibo' : undefined}
+              initialTab={(kakeiboReviewCycle || kakeiboOpenGoal) && kakeibo.available ? 'kakeibo' : analyticsTab ?? undefined}
               kakeiboTab={kakeibo.available ? (
                 <KakeiboBoundary>
                   <KakeiboTab

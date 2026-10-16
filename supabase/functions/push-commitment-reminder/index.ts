@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
             : items.map(i => `${i.name} ₹${i.amount.toLocaleString('en-IN')}`).join(', ') + ' — due in 2 days.'
 
           const { data } = await supabase.functions.invoke('push-send', {
-            body: { user_id: uid, title, message, url: '/', tag: 'commitment-reminder' },
+            body: { user_id: uid, title, message, url: '/?open=commitments', tag: 'commitment-reminder' },
           })
           if (data?.sent) totalSent += data.sent
         })

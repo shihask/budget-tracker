@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       body: isOver
         ? `You've exceeded your ${period} budget. Spent ₹${Math.round(spent).toLocaleString('en-IN')} of ₹${budget.toLocaleString('en-IN')}.`
         : `You've used ${Math.round(pct)}% of your ${period} budget. ₹${Math.round(budget - spent).toLocaleString('en-IN')} remaining.`,
-      url: '/',
+      url: '/?open=analytics-trend',
       tag: 'budget-alert',
     })
 

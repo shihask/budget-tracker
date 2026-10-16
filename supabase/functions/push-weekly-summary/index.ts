@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
         }
 
         const { data } = await supabase.functions.invoke('push-send', {
-          body: { user_id: s.user_id, title, message, url: '/', tag: 'weekly-summary' },
+          body: { user_id: s.user_id, title, message, url: '/?open=analytics-weeks', tag: 'weekly-summary' },
         })
         if (data?.sent) totalSent += data.sent
       })
