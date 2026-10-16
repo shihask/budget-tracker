@@ -118,8 +118,9 @@ import { useProjectsSummary } from '@/features/shared-projects/hooks/useProjects
 import { NotificationsSheet } from '@/features/shared-projects/components/NotificationsSheet'
 import { dismissBootShell } from '@/lib/boot-shell'
 import { createActivationWatcher, trackStep } from '@/lib/funnel'
-import { isGuest, guestSetupPendingKey } from '@/lib/guest'
+import { isGuest, guestSetupPendingKey, guestSavedOnKey, guestSavedReturnKey, guestSavePromptedKey, isLaterDay } from '@/lib/guest'
 import { GuestQuickStart } from '@/components/GuestQuickStart'
+import { GuestSaveSheet } from '@/components/GuestSaveSheet'
 import { useAppDialog } from '@/components/AppDialog'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
@@ -452,6 +453,40 @@ function AppContent({ session }: { session: Session }) {
     }
     await supabase.auth.signOut()
   }, [guest, state.transactions, confirmDialog])
+
+  // ── Saving a guest account (GuestSaveSheet) ──
+  const [guestSaveOpen, setGuestSaveOpen] = useState(false)
+  const [guestSavePromptOpen, setGuestSavePromptOpen] = useState(false)
+
+  // Right after a guest's first expense: explain what's at stake, once per device.
+  useEffect(() => {
+    if (!guest || loading || expenseCount === 0 || sheetOpen) return
+    const key = guestSavePromptedKey(user.id)
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1') } catch { /* show it this once anyway */ }
+    setGuestSavePromptOpen(true)
+  }, [guest, loading, expenseCount, sheetOpen, user.id])
+
+  // A saved guest coming back on a later day: the last step of the guest funnel.
+  useEffect(() => {
+    if (guest) return
+    try {
+      if (localStorage.getItem(guestSavedReturnKey(user.id))) return
+      if (!isLaterDay(localStorage.getItem(guestSavedOnKey(user.id)), localIso(new Date()))) return
+      localStorage.setItem(guestSavedReturnKey(user.id), '1')
+    } catch { return }
+    trackStep('guest_saved_return')
+  }, [guest, user.id])
+
+  // The address already has an account: leaving is the only way to it (never merged).
+  const leaveGuestToSignIn = useCallback(async () => {
+    const ok = await confirmDialog(
+      'Sign in to that account? Your guest entries will not move to it. You lose access to them here, and they are deleted after 30 days.',
+      { confirmLabel: 'Sign in instead', cancelLabel: 'Stay', danger: true },
+    )
+    if (!ok) return
+    setGuestSaveOpen(false)
+    await supabase.auth.signOut()
+  }, [confirmDialog])
 
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
@@ -852,8 +887,8 @@ function AppContent({ session }: { session: Session }) {
             borderBottom: `1px solid ${c.faint}`,
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'none' : 'block',
           }}>
-            <PWAPrompt />
-            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onEditProfile={() => setProfileOpen(true)} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
+            <PWAPrompt guest={guest} onSaveGuest={() => setGuestSaveOpen(true)} />
+            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onEditProfile={() => guest ? setGuestSaveOpen(true) : setProfileOpen(true)} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
               onTransactions={() => setTxnsOpen(true)}
               onAnalytics={() => setAnalyticsOpen(true)}
               onCashflow={() => setCashflowOpen(true)}
@@ -880,6 +915,22 @@ function AppContent({ session }: { session: Session }) {
           }}>
             {/* Spacer to offset fixed header height */}
             <div style={{ height: 'calc(72px + env(safe-area-inset-top, 0px))' }} />
+
+            {guest && !loading && (
+              <button
+                onClick={() => setGuestSaveOpen(true)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  background: c.surface, border: `1.5px solid ${c.faint}`, borderRadius: 14,
+                  padding: '10px 14px', marginBottom: 12, cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <span style={{ font: '600 12px Plus Jakarta Sans', color: c.sub, lineHeight: 1.4 }}>
+                  You're in guest mode. Save your account to keep your entries.
+                </span>
+                <span style={{ flexShrink: 0, font: '700 12px Plus Jakarta Sans', color: c.accent }}>Save</span>
+              </button>
+            )}
 
             {loading && (
               <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${c.accent}, ${c.heroB})`, zIndex: 999 }} />
@@ -1748,6 +1799,29 @@ function AppContent({ session }: { session: Session }) {
                 </button>
               </div>
         </BottomSheet>
+        {guest && (<>
+          <BottomSheet open={guestSavePromptOpen} onClose={() => setGuestSavePromptOpen(false)} showHelpButton={false} zIndex={205}>
+            <div style={{ padding: '0 4px 16px' }}>
+              <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>First expense saved</div>
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.sub, lineHeight: 1.55, marginBottom: 16 }}>
+                If this browser loses your guest session, you may lose access to your entries. Save your account to keep access across sessions and devices.
+              </div>
+              <button
+                onClick={() => { setGuestSavePromptOpen(false); setGuestSaveOpen(true) }}
+                style={{ width: '100%', border: 'none', borderRadius: 12, padding: 13, background: c.accent, color: '#fff', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Save now
+              </button>
+              <button
+                onClick={() => setGuestSavePromptOpen(false)}
+                style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: c.muted, font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Later
+              </button>
+            </div>
+          </BottomSheet>
+          <GuestSaveSheet open={guestSaveOpen} userId={user.id} onClose={() => setGuestSaveOpen(false)} onSignInInstead={leaveGuestToSignIn} />
+        </>)}
         {dialogNode}
       </div>
     </ThemeContext.Provider>

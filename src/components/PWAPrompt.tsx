@@ -25,7 +25,12 @@ function dismiss() {
   try { localStorage.setItem(DISMISS_KEY, String(Date.now())) } catch {}
 }
 
-export function PWAPrompt() {
+/**
+ * `guest`: an unsaved guest's entries live in this browser's session only, so
+ * leaving an in-app browser loses access to them. The sheet says so first and
+ * offers to save the account (`onSaveGuest`).
+ */
+export function PWAPrompt({ guest = false, onSaveGuest }: { guest?: boolean; onSaveGuest?: () => void } = {}) {
   const c = useTheme()
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
   const [offline, setOffline] = useState(!navigator.onLine)
@@ -180,6 +185,21 @@ export function PWAPrompt() {
                 <div style={{ font: '600 14px Plus Jakarta Sans', color: c.ink, lineHeight: 1.5 }}>
                   You're in {inAppBrowser}'s browser, which can't install apps. Open MoneyPlant in {device === 'ios' ? 'Safari' : 'your browser'} and install it from there.
                 </div>
+                {guest && (
+                  <div style={{ marginTop: 12, background: c.bg, borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.5 }}>
+                      Save your account before opening in your browser. A guest session doesn't carry over, so you'd lose access to these entries.
+                    </div>
+                    {onSaveGuest && (
+                      <button
+                        onClick={() => { setShowSteps(false); onSaveGuest() }}
+                        style={{ marginTop: 10, width: '100%', border: 'none', borderRadius: 12, padding: 12, background: '#0A7A56', color: '#fff', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+                      >
+                        Save my account first
+                      </button>
+                    )}
+                  </div>
+                )}
                 <OpenInBrowserActions />
               </div>
             ) : device === 'ios' ? (

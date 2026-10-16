@@ -1,11 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/theme-context'
-import {
-  type Identifier, OTP_LENGTH, OTP_RESEND_SECONDS,
-  displayIdentifier, displayStoredPhone, isPhoneAuthOff, parseIdentifier,
-} from '@/lib/auth-identifier'
+import { type Identifier, OTP_LENGTH, displayIdentifier, displayStoredPhone } from '@/lib/auth-identifier'
+import { useAddSignInMethod } from '@/hooks/useAddSignInMethod'
 import { BottomSheet } from './BottomSheet'
 
 type Kind = Identifier['kind']
@@ -77,56 +74,12 @@ function AddSignInMethodSheet({ kind, onClose, onAdded }: {
   onAdded: (kind: Kind) => void
 }) {
   const c = useTheme()
-  const [input, setInput] = useState('')
-  const [sentTo, setSentTo] = useState<Identifier | null>(null)
-  const [otp, setOtp] = useState('')
-  const [resendIn, setResendIn] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (resendIn <= 0) return
-    const t = setTimeout(() => setResendIn(s => s - 1), 1000)
-    return () => clearTimeout(t)
-  }, [resendIn])
+  const {
+    input, setInput, otp, setOtp, sentTo, resendIn, loading, error,
+    submitAddress: handleContinue, verifyCode, resend, changeAddress,
+  } = useAddSignInMethod({ accept: kind, onVerified: onAdded })
 
   const noun = kind === 'phone' ? 'number' : 'email'
-
-  const sendCode = async (id: Identifier) => {
-    setLoading(true); setError(null)
-    const { error } = await supabase.auth.updateUser(id.kind === 'email' ? { email: id.value } : { phone: id.value })
-    if (error) {
-      setError(isPhoneAuthOff(error.message) ? "Adding a mobile number isn't available yet."
-        : /already|exists/i.test(error.message) ? `This ${noun} is already used by another MoneyPlant account.`
-          : error.message)
-    } else {
-      setSentTo(id); setOtp(''); setResendIn(OTP_RESEND_SECONDS)
-    }
-    setLoading(false)
-  }
-
-  const handleContinue = () => {
-    const id = parseIdentifier(input)
-    if (!id || id.kind !== kind) {
-      setError(kind === 'phone' ? 'Enter a valid 10-digit mobile number.' : 'Enter a valid email address.')
-      return
-    }
-    sendCode(id)
-  }
-
-  const verifyCode = async () => {
-    if (!sentTo || otp.length !== OTP_LENGTH) return
-    setLoading(true); setError(null)
-    const { error } = await supabase.auth.verifyOtp(sentTo.kind === 'email'
-      ? { email: sentTo.value, token: otp, type: 'email_change' }
-      : { phone: sentTo.value, token: otp, type: 'phone_change' })
-    setLoading(false)
-    if (error) {
-      setError(/expired|invalid/i.test(error.message) ? 'That code is wrong or has expired.' : error.message)
-      return
-    }
-    onAdded(sentTo.kind)
-  }
 
   const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`,
@@ -161,23 +114,23 @@ function AddSignInMethodSheet({ kind, onClose, onAdded }: {
         {sentTo ? (
           <>
             <input type="text" inputMode="numeric" autoComplete="one-time-code" value={otp}
-              onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH))}
+              onChange={e => setOtp(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') verifyCode() }}
               placeholder="••••••" style={{ ...inp, letterSpacing: '0.4em', textAlign: 'center' }} autoFocus />
             <button onClick={verifyCode} disabled={loading || otp.length !== OTP_LENGTH} style={primary(loading || otp.length !== OTP_LENGTH)}>
               {loading ? 'Please wait…' : 'Verify'}
             </button>
-            <button onClick={() => { if (resendIn <= 0 && !loading) sendCode(sentTo) }} style={textBtn}>
+            <button onClick={resend} style={textBtn}>
               {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
             </button>
-            <button onClick={() => { setSentTo(null); setOtp(''); setError(null) }} style={textBtn}>
+            <button onClick={changeAddress} style={textBtn}>
               &larr; Use a different {noun}
             </button>
           </>
         ) : (
           <>
             <input type={kind === 'phone' ? 'tel' : 'email'} inputMode={kind === 'phone' ? 'numeric' : 'email'}
-              value={input} onChange={e => { setInput(e.target.value); setError(null) }}
+              value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleContinue() }}
               placeholder={kind === 'phone' ? '98765 43210' : 'you@example.com'}
               autoComplete={kind === 'phone' ? 'tel-national' : 'email'} autoCapitalize="none" spellCheck={false}

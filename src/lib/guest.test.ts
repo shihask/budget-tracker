@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isGuest } from './guest'
+import { isGuest, isLaterDay } from './guest'
 
 describe('isGuest', () => {
   it('is true only for an anonymous user', () => {
@@ -12,5 +12,14 @@ describe('isGuest', () => {
     expect(isGuest({})).toBe(false)
     expect(isGuest(null)).toBe(false)
     expect(isGuest(undefined)).toBe(false)
+  })
+})
+
+describe('isLaterDay', () => {
+  it('is true only for a valid earlier local date', () => {
+    expect(isLaterDay('2026-10-15', '2026-10-16')).toBe(true)
+    expect(isLaterDay('2026-10-16', '2026-10-16')).toBe(false)
+    expect(isLaterDay(null, '2026-10-16')).toBe(false)
+    expect(isLaterDay('garbage', '2026-10-16')).toBe(false)
   })
 })

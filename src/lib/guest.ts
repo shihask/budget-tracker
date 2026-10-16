@@ -26,3 +26,15 @@ export function isGuest(user: Pick<User, 'is_anonymous'> | null | undefined): bo
  * account is saved. Per device — a guest can't be on another device anyway.
  */
 export const guestSetupPendingKey = (userId: string) => 'mp_guest_setup_pending_' + userId
+
+/** Local date (YYYY-MM-DD) the guest saved their account, for guest_saved_return. */
+export const guestSavedOnKey = (userId: string) => 'mp_guest_saved_on_' + userId
+/** guest_saved_return already counted on this device. */
+export const guestSavedReturnKey = (userId: string) => 'mp_guest_saved_return_' + userId
+/** The "save your account" prompt after the first expense was already shown. */
+export const guestSavePromptedKey = (userId: string) => 'mp_guest_save_prompted_' + userId
+
+/** A saved guest is "back" on any later calendar day than the save (local dates). */
+export function isLaterDay(savedOn: string | null, today: string): boolean {
+  return !!savedOn && /^\d{4}-\d{2}-\d{2}$/.test(savedOn) && savedOn < today
+}

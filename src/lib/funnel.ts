@@ -12,6 +12,8 @@ export type FunnelStep =
   | 'first_expense'   // a new account saved its first expense: the first real use
   | 'guest_started'        // "Try MoneyPlant Free" opened a guest session
   | 'guest_first_expense'  // first_expense, but by a guest (kept apart from registered sign-ups)
+  | 'guest_saved'          // a guest linked an email/mobile: same uid, now permanent
+  | 'guest_saved_return'   // a saved guest opened the app again on a later day
 
 /** Each step counts once per page load — StrictMode and re-opens don't inflate it. */
 const recorded = new Set<FunnelStep>()
