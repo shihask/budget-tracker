@@ -988,7 +988,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 onPaste={e => {
                   const items = e.clipboardData.items
                   for (const item of items) {
-                    if (item.type.startsWith('image/')) {
+                    if (item.type.startsWith('image/') && onUploadReceipt) {
                       e.preventDefault()
                       const file = item.getAsFile()
                       if (file) receiptFieldRef.current?.receiveFile(file)
@@ -1000,7 +1000,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                 enterKeyHint="done"
                 style={{ ...inputStyle, paddingLeft: 36, paddingRight: SpeechRec ? 80 : 44 }}
               />
-              {isExpense && !offline && (
+              {isExpense && !offline && !!onUploadReceipt && (
                 <button
                   type="button"
                   onClick={() => receiptFieldRef.current?.pick()}
@@ -1065,7 +1065,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                   <div style={{ flex: 1 }}>
                     <div style={{ font: '700 12px Plus Jakarta Sans', color: c.ink, marginBottom: 2 }}>Try Smart Input</div>
                     <div style={{ font: '500 11.5px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>
-                      Type naturally, like "paid electricity bill 1200 via HDFC", and it fills in the details for you. Or paste a screenshot, or tap the camera icon, to attach a receipt photo — it reads the details automatically.
+                      Type naturally, like "paid electricity bill 1200 via HDFC", and it fills in the details for you.{onUploadReceipt && ' Or paste a screenshot, or tap the camera icon, to attach a receipt photo — it reads the details automatically.'}
                     </div>
                   </div>
                 </div>

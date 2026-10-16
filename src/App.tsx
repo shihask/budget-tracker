@@ -983,9 +983,13 @@ function AppContent({ session }: { session: Session }) {
                     el = <CustomGroupSection section={s} state={state} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} />
                     return el ? <div key={s.id} data-tour={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 80 }}>{el}</div> : null
                   }
+                  // A guest skipped income setup (it resumes once they save), so cards that
+                  // only ask for a salary date stay hidden until then: the budget hero,
+                  // the daily challenge and the cash-flow forecast.
+                  if (guest && (s.id === 'daily_challenge' || s.id === 'cashflow')) return null
                   switch (s.id as DashboardSectionId) {
                     case 'hero':
-                      el = <><HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} /><RemindersBar state={state} reminders={alertReminders} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} isSnoozed={id => isSnoozed(id, snoozeMap)} onDismiss={id => snoozeNotif(id, 'permanent')} /></>
+                      el = <>{!guest && <HeroWeekly d={d} settings={state.settings} categories={state.categories} groups={state.groups} transactions={state.transactions} onUpdateSettings={updateSettings} editOpen={budgetEditOpen} onEditClose={() => setBudgetEditOpen(false)} onEditOpen={() => setBudgetEditOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} />}<RemindersBar state={state} reminders={alertReminders} onMarkPaid={(cm, recordExpense, accountId) => markCommitmentPaid(cm, recordExpense, accountId)} isSnoozed={id => isSnoozed(id, snoozeMap)} onDismiss={id => snoozeNotif(id, 'permanent')} /></>
                       break
                     case 'kakeibo':
                       // Only when something is asked — an empty section wrapper would add a gap.
