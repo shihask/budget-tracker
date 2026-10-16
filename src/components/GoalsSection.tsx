@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { X, AlertTriangle, Flame } from 'lucide-react'
+import { X, AlertTriangle, Flame, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
@@ -242,9 +242,10 @@ export function GoalsSection({
           </div>
           <button
             onClick={openAdd}
-            style={{ background: '#10B98118', color: '#10B981', border: 'none', borderRadius: 20, padding: '5px 11px', font: '700 18px Plus Jakarta Sans', cursor: 'pointer', lineHeight: 1 }}
+            aria-label="Add goal"
+            style={{ width: 28, height: 28, borderRadius: 9, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
           >
-            +
+            <Plus size={16} strokeWidth={2.5} />
           </button>
         </div>
 
