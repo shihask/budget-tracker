@@ -633,9 +633,10 @@ function LandingScreen({ onSignIn, onSignUp, onLegal }: {
             ))}
           </ul>
           <div className="mp-hero__actions">
-            <button className="mp-btn mp-btn--primary" onClick={onSignUp}>Create Free Account</button>
+            <button className="mp-btn mp-btn--primary" onClick={onSignUp}>Try MoneyPlant Free</button>
             <a className="mp-btn mp-btn--secondary" href="#how-it-works">See How It Works</a>
           </div>
+          <p className="mp-hero__note">Free · no bank login · sign up with just your email or mobile</p>
         </div>
         <div className="mp-hero__visual" aria-hidden="true">
           <div className="mp-hero__stack">
@@ -791,7 +792,7 @@ function LandingScreen({ onSignIn, onSignUp, onLegal }: {
           <h2 id="cta-title">Ready to know before you spend?</h2>
           <p>Join MoneyPlant and make smarter financial decisions every day.</p>
           <div className="mp-cta__actions">
-            <button className="mp-btn mp-btn--primary mp-btn--lg" onClick={onSignUp}>Create Free Account</button>
+            <button className="mp-btn mp-btn--primary mp-btn--lg" onClick={onSignUp}>Try MoneyPlant Free</button>
             <a className="mp-btn mp-btn--secondary mp-btn--lg" href="#features">Explore Features</a>
           </div>
         </section>

@@ -35,6 +35,20 @@ const source = (() => {
   } catch { return null }
 })()
 
+/** Per-device opt-out for our own phones and test profiles: open the site once
+ *  with `?internal=1` (and `?internal=0` to undo). localStorage, so it survives
+ *  new tabs and the installed app; it holds a flag, never an identifier. */
+const INTERNAL_KEY = 'mp_funnel_internal'
+
+const internal = (() => {
+  try {
+    const flag = new URLSearchParams(window.location.search).get('internal')
+    if (flag === '1') localStorage.setItem(INTERNAL_KEY, '1')
+    else if (flag === '0') localStorage.removeItem(INTERNAL_KEY)
+    return localStorage.getItem(INTERNAL_KEY) === '1'
+  } catch { return false }
+})()
+
 function platform() {
   const ua = navigator.userAgent
   if (/android/i.test(ua)) return 'android'
@@ -78,7 +92,7 @@ export function createActivationWatcher() {
 }
 
 export function trackStep(step: FunnelStep) {
-  if (recorded.has(step) || !import.meta.env.PROD) return
+  if (recorded.has(step) || internal || !import.meta.env.PROD) return
   recorded.add(step)
   void supabase.from('funnel_events')
     .insert({ step, source, platform: platform(), in_app: inAppBrowserName()?.slice(0, 20) ?? null })

@@ -409,6 +409,13 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   gap: 12px;
 }
 
+.mp-hero__note {
+  margin: 12px 0 0;
+  color: #7a6a5e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .mp-hero__visual {
   display: flex;
   align-items: center;
