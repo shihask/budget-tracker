@@ -1710,8 +1710,8 @@ function AppContent({ session }: { session: Session }) {
                         font: '700 16px Plus Jakarta Sans', color: c.ink, outline: 'none',
                       }}
                     />
-                    {challengeWinFocused && <AmountOperatorRow inputRef={challengeWinRef} onChange={setChallengeWinInput} />}
                   </div>
+                  {challengeWinFocused && <AmountOperatorRow inputRef={challengeWinRef} onChange={setChallengeWinInput} />}
                 </div>
 
                 {activeGoals.length > 0 ? (
@@ -1765,7 +1765,8 @@ function AppContent({ session }: { session: Session }) {
         <BottomSheet open={emergencyEditOpen} onClose={() => setEmergencyEditOpen(false)} zIndex={300}>
               <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 4, letterSpacing: '-0.02em' }}>Emergency Fund</div>
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 18 }}>Amount reserved and excluded from spendable balance</div>
-              <div style={{ position: 'relative', marginBottom: 14 }}>
+              <div style={{ marginBottom: 14 }}>
+              <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', font: '700 14px Plus Jakarta Sans', color: c.muted, pointerEvents: 'none' }}>₹</span>
                 <input
                   ref={emergencyAmountRef}
@@ -1786,6 +1787,7 @@ function AppContent({ session }: { session: Session }) {
                   }}
                   style={{ width: '100%', boxSizing: 'border-box', background: c.surface2, border: `1.5px solid ${c.faint}`, borderRadius: 13, padding: '13px 14px 13px 30px', font: '800 18px Plus Jakarta Sans', color: c.ink, outline: 'none' }}
                 />
+              </div>
                 {emergencyAmountFocused && <AmountOperatorRow inputRef={emergencyAmountRef} onChange={setEmergencyInput} />}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>

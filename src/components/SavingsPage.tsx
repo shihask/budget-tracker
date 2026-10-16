@@ -1165,8 +1165,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                     value={form.current_value === '0' ? '' : form.current_value}
                     onChange={e => set('current_value', sanitizeAmountInput(e.target.value) || '0')} placeholder="e.g. 43,000"
                     style={{ ...inp, paddingLeft: 28 }} />
-                  {currentValueFocused && <AmountOperatorRow inputRef={currentValueRef} onChange={v => set('current_value', v || '0')} />}
                 </div>
+                {currentValueFocused && <AmountOperatorRow inputRef={currentValueRef} onChange={v => set('current_value', v || '0')} />}
               </div>
             </div>
           )}
@@ -1195,8 +1195,8 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                   value={form.current_value === '0' ? '' : form.current_value}
                   onChange={e => set('current_value', sanitizeAmountInput(e.target.value) || '0')} placeholder="As per latest NAV"
                   style={{ ...inp, paddingLeft: 28 }} />
-                {currentValueFocused && <AmountOperatorRow inputRef={currentValueRef} onChange={v => set('current_value', v || '0')} />}
               </div>
+              {currentValueFocused && <AmountOperatorRow inputRef={currentValueRef} onChange={v => set('current_value', v || '0')} />}
             </div>
           )}
 
