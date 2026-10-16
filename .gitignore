@@ -44,3 +44,6 @@ supabase/.temp/
 
 # Private service-account notes (repo is public)
 ACCOUNTS.local.md
+
+# Screen recordings of real accounts (personal financial data; repo is public)
+marketing/instagram/private/
