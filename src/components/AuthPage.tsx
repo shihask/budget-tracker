@@ -254,6 +254,8 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
   const [resendIn, setResendIn]     = useState(0)
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
+  const [guestBusy, setGuestBusy]   = useState(false)
+  const [guestError, setGuestError] = useState(false)
 
   useEffect(() => {
     if (resendIn <= 0) return
@@ -290,6 +292,17 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
   if (legalPage === 'terms') return <TermsOfService onBack={() => setLegalPage(null)} />
   if (legalPage === 'about') return <AboutPage onBack={() => setLegalPage(null)} />
   if (legalPage === 'contact') return <ContactPage onBack={() => setLegalPage(null)} />
+
+  // "Try MoneyPlant Free": an anonymous session, so a visitor reaches their first
+  // expense before being asked for an email or mobile (see src/lib/guest.ts).
+  // On success the auth listener swaps this page for the app.
+  const startGuest = async () => {
+    if (guestBusy) return
+    setGuestBusy(true); setGuestError(false)
+    const { error } = await supabase.auth.signInAnonymously()
+    if (error) { setGuestError(true); setGuestBusy(false); return }
+    trackStep('guest_started')
+  }
 
   const handleOAuth = async (provider: 'google') => {
     trackStep('google_clicked')
@@ -561,6 +574,9 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
       <LandingScreen
         onSignIn={() => openAuth('login')}
         onSignUp={() => openAuth('signup')}
+        onTryGuest={startGuest}
+        guestBusy={guestBusy}
+        guestError={guestError}
         onLegal={setLegalPage}
       />
       {showAuth && (
@@ -577,11 +593,25 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
   )
 }
 
+function GuestStartNote({ error, onSignUp }: { error: boolean; onSignUp: () => void }) {
+  if (!error) return <p className="mp-hero__note">No sign-up to start. Save your data whenever you like.</p>
+  return (
+    <p className="mp-hero__note mp-hero__note--error" role="alert">
+      Couldn't open MoneyPlant just now.{' '}
+      <button type="button" className="mp-hero__note-link" onClick={onSignUp}>Create an account instead</button>
+    </p>
+  )
+}
+
 // ── Landing Screen ────────────────────────────────────────────────────────────
 
-function LandingScreen({ onSignIn, onSignUp, onLegal }: {
+function LandingScreen({ onSignIn, onSignUp, onTryGuest, guestBusy, guestError, onLegal }: {
   onSignIn: () => void
   onSignUp: () => void
+  onTryGuest: () => void
+  guestBusy: boolean
+  /** Guest start failed (offline, rate limit): offer the normal sign-up instead. */
+  guestError: boolean
   onLegal: (page: Exclude<LegalPage, null>) => void
 }) {
   const [navStuck, setNavStuck] = useState(false)
@@ -633,10 +663,10 @@ function LandingScreen({ onSignIn, onSignUp, onLegal }: {
             ))}
           </ul>
           <div className="mp-hero__actions">
-            <button className="mp-btn mp-btn--primary" onClick={onSignUp}>Try MoneyPlant Free</button>
+            <button className="mp-btn mp-btn--primary" onClick={onTryGuest} disabled={guestBusy}>{guestBusy ? 'Opening…' : 'Try MoneyPlant Free'}</button>
             <a className="mp-btn mp-btn--secondary" href="#how-it-works">See How It Works</a>
           </div>
-          <p className="mp-hero__note">Free · no bank login · sign up with just your email or mobile</p>
+          <GuestStartNote error={guestError} onSignUp={onSignUp} />
         </div>
         <div className="mp-hero__visual" aria-hidden="true">
           <div className="mp-hero__stack">
@@ -792,9 +822,10 @@ function LandingScreen({ onSignIn, onSignUp, onLegal }: {
           <h2 id="cta-title">Ready to know before you spend?</h2>
           <p>Join MoneyPlant and make smarter financial decisions every day.</p>
           <div className="mp-cta__actions">
-            <button className="mp-btn mp-btn--primary mp-btn--lg" onClick={onSignUp}>Try MoneyPlant Free</button>
+            <button className="mp-btn mp-btn--primary mp-btn--lg" onClick={onTryGuest} disabled={guestBusy}>{guestBusy ? 'Opening…' : 'Try MoneyPlant Free'}</button>
             <a className="mp-btn mp-btn--secondary mp-btn--lg" href="#features">Explore Features</a>
           </div>
+          {guestError && <GuestStartNote error onSignUp={onSignUp} />}
         </section>
       </Reveal>
 

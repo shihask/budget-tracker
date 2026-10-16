@@ -118,6 +118,9 @@ import { useProjectsSummary } from '@/features/shared-projects/hooks/useProjects
 import { NotificationsSheet } from '@/features/shared-projects/components/NotificationsSheet'
 import { dismissBootShell } from '@/lib/boot-shell'
 import { createActivationWatcher, trackStep } from '@/lib/funnel'
+import { isGuest, guestSetupPendingKey } from '@/lib/guest'
+import { GuestQuickStart } from '@/components/GuestQuickStart'
+import { useAppDialog } from '@/components/AppDialog'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
 export default function App() {
@@ -187,7 +190,8 @@ export default function App() {
   if (resettingByCode) return <ResetPasswordPage onDone={() => setResettingByCode(false)} />
 
   // A new email/phone account has no name or password yet (Google and older accounts have a name).
-  if (!session.user.user_metadata?.full_name) {
+  // A guest has neither until they save; a saved guest has no name, so lands here next.
+  if (!isGuest(session.user) && !session.user.user_metadata?.full_name) {
     return <CompleteProfilePage username={session.user.email || (session.user.phone ? `+${session.user.phone}` : '')} />
   }
 
@@ -206,9 +210,10 @@ const FIRST_EXPENSE_WINDOW_DAYS = 7
 // ── AppContent: all hooks live here, no early returns before them ─────────────
 function AppContent({ session }: { session: Session }) {
   const user = session.user
-  const userName  = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
+  const guest = isGuest(user)
+  const userName  = guest ? 'Guest' : user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
   // Phone-OTP accounts have no email; show the number wherever the email would go.
-  const userEmail = user.email || (user.phone ? `+${user.phone}` : '')
+  const userEmail = guest ? 'Not saved yet' : user.email || (user.phone ? `+${user.phone}` : '')
 
   const [accent, setAccent] = useState('#10B981')
   const [dark, setDark] = useState(() => {
@@ -239,8 +244,12 @@ function AppContent({ session }: { session: Session }) {
   const [chatOpen, setChatOpen] = useState(false)
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
   const [aiProcessing, setAiProcessing] = useState(false)
+  // Guests get GuestQuickStart instead; the rest of onboarding resumes once they save.
   const [showOnboardingFlow, setShowOnboardingFlow] = useState(() => {
-    try { return localStorage.getItem('mp_onboarded_' + user.id) === null } catch (_) { return false }
+    try { return !guest && localStorage.getItem('mp_onboarded_' + user.id) === null } catch (_) { return false }
+  })
+  const [guestSetupPending, setGuestSetupPending] = useState(() => {
+    try { return localStorage.getItem(guestSetupPendingKey(user.id)) !== null } catch { return false }
   })
   const [showDashboardWelcome, setShowDashboardWelcome] = useState(false)
   const [txnsOpen, setTxnsOpen] = useState(false)
@@ -399,11 +408,14 @@ function AppContent({ session }: { session: Session }) {
   const [challengeWinFocused, setChallengeWinFocused] = useState(false)
 
   useEffect(() => {
+    // A guest's account comes from GuestQuickStart, not onboarding: the rest of
+    // onboarding still has to run after they save, so don't mark it done.
+    if (guest || guestSetupPending) return
     if (!loading && state.accounts.length > 0) {
       setShowOnboardingFlow(false)
       try { localStorage.setItem('mp_onboarded_' + session.user.id, '1') } catch (_) {}
     }
-  }, [loading, state.accounts.length])
+  }, [loading, state.accounts.length, guest, guestSetupPending])
 
   // Anonymous funnel step: a new account's first saved expense (see createActivationWatcher).
   // Only accounts younger than FIRST_EXPENSE_WINDOW_DAYS, once per device, so an old
@@ -422,8 +434,24 @@ function AppContent({ session }: { session: Session }) {
     if (!isNewAccount || !activationWatcher.current?.observe(loading, expenseCount)) return
     const flag = 'mp_first_expense_tracked_' + session.user.id
     try { if (localStorage.getItem(flag)) return; localStorage.setItem(flag, '1') } catch { /* still count once this load */ }
-    trackStep('first_expense')
-  }, [isNewAccount, loading, expenseCount, session.user.id])
+    trackStep(guest ? 'guest_first_expense' : 'first_expense')
+  }, [isNewAccount, loading, expenseCount, session.user.id, guest])
+
+  // A guest's entries are reachable only through this session: signing out
+  // loses them, so ask first. Registered users sign out as before.
+  const { confirm: confirmDialog, dialogNode } = useAppDialog()
+  const handleSignOut = useCallback(async () => {
+    if (guest) {
+      const entries = state.transactions.filter(t => t.transaction_type !== 'opening_balance').length
+      const what = entries === 1 ? '1 entry' : `${entries} entries`
+      const ok = await confirmDialog(
+        `Leave guest mode? Your ${what} can only be reached from this guest session. Once you leave, you lose access to them, and they are deleted after 30 days.`,
+        { confirmLabel: 'Leave', cancelLabel: 'Stay', danger: true },
+      )
+      if (!ok) return
+    }
+    await supabase.auth.signOut()
+  }, [guest, state.transactions, confirmDialog])
 
   const c = useMemo(() => makeColors(accent, dark), [accent, dark])
   const d = useMemo(() => derive(state), [state])
@@ -825,7 +853,7 @@ function AppContent({ session }: { session: Session }) {
             display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt />
-            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onEditProfile={() => setProfileOpen(true)} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
+            <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onEditProfile={() => setProfileOpen(true)} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
               onTransactions={() => setTxnsOpen(true)}
               onAnalytics={() => setAnalyticsOpen(true)}
               onCashflow={() => setCashflowOpen(true)}
@@ -1165,12 +1193,28 @@ function AppContent({ session }: { session: Session }) {
             <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} eventLedger={eventLedger} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} allTransactionsLoaded={allTransactionsLoaded} onSearchTransactions={searchTransactions} onViewAllTransactions={f => { setChatOpen(false); setTxnsInitialFilters(f); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} initialMessage={pendingChatMessage} onInitialMessageConsumed={() => setPendingChatMessage(null)} />
           </>)}
 
-          {showOnboardingFlow && (
+          {guest && !loading && state.accounts.length === 0 && (
+            <GuestQuickStart
+              onAddAccount={addAccount}
+              onDone={() => {
+                try { localStorage.setItem(guestSetupPendingKey(user.id), '1') } catch { /* storage blocked: resume just won't run on this device */ }
+                setGuestSetupPending(true)
+                setSheetDefaultType('expense'); setSheetDefaultCategoryId(undefined); setSheetOpen(true)
+              }}
+            />
+          )}
+
+          {showOnboardingFlow && !guest && (
             <OnboardingFlow
               onAddAccount={addAccount}
               onUpdateSettings={updateSettings}
+              resumeAfterGuest={guestSetupPending}
               onComplete={() => {
                 setShowOnboardingFlow(false)
+                if (guestSetupPending) {
+                  try { localStorage.removeItem(guestSetupPendingKey(session.user.id)) } catch { /* storage blocked: the state flag below still ends it */ }
+                  setGuestSetupPending(false)
+                }
                 const tourDone = localStorage.getItem('mp_tour_completed_' + session.user.id)
                 if (!tourDone) {
                   setTimeout(() => setTourOpen(true), 600)
@@ -1235,7 +1279,7 @@ function AppContent({ session }: { session: Session }) {
           }} />
 
           {txnsOpen && (
-            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null); setTxnsInitialFilters(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onAddMaster={addMaster} onAddEvent={addEvent} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} initialFilters={txnsInitialFilters} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onSearchTransactions={searchTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} onRecordReimbursement={(expense, remaining) => { setSheetDefaultType('income'); setSheetReimbursement({ targetId: expense.id, remaining }); setSheetOpen(true) }} />
+            <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null); setTxnsInitialFilters(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onAddMaster={addMaster} onAddEvent={addEvent} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} initialFilters={txnsInitialFilters} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onSearchTransactions={searchTransactions} onUploadReceipt={uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} onRecordReimbursement={(expense, remaining) => { setSheetDefaultType('income'); setSheetReimbursement({ targetId: expense.id, remaining }); setSheetOpen(true) }} />
           )}
 
           {commitmentsOpen && (
@@ -1545,11 +1589,11 @@ function AppContent({ session }: { session: Session }) {
         />
 
         {profileOpen && <ProfileSheet open={profileOpen} user={session.user} onClose={() => setProfileOpen(false)} />}
-        {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} d={d} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
+        {plantSheetOpen && <PlantPage open={plantSheetOpen} onClose={() => setPlantSheetOpen(false)} state={state} d={d} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onSwipeProgress={setSwipePct} />}
 
         {adminOpen && <AdminPage open={adminOpen} onClose={() => setAdminOpen(false)} onSwipeProgress={setSwipePct} />}
 
-        {growOpen && <GrowPage open={growOpen} onClose={() => setGrowOpen(false)} state={state} d={d} challenge={challenge} insights={growInsights} onUpdateSettings={updateSettings} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onOpenAchievements={() => setAchievementsOpen(true)} onOpenHabits={() => setHabitsOpen(true)} onGoalContribution={async (goalId, amount) => { await addGoalSavings(goalId, amount, 'daily_challenge') }} onRecordReflection={recordReflection} onRecordHabitCompletion={recordHabitCompletion} onOpenChat={msg => { setPendingChatMessage(msg); setChatOpen(true) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={() => supabase.auth.signOut()} onSwipeProgress={setSwipePct} />}
+        {growOpen && <GrowPage open={growOpen} onClose={() => setGrowOpen(false)} state={state} d={d} challenge={challenge} insights={growInsights} onUpdateSettings={updateSettings} onOpenSalaryDateEdit={() => setBudgetEditOpen(true)} onOpenPlant={() => setPlantSheetOpen(true)} onOpenAchievements={() => setAchievementsOpen(true)} onOpenHabits={() => setHabitsOpen(true)} onGoalContribution={async (goalId, amount) => { await addGoalSavings(goalId, amount, 'daily_challenge') }} onRecordReflection={recordReflection} onRecordHabitCompletion={recordHabitCompletion} onOpenChat={msg => { setPendingChatMessage(msg); setChatOpen(true) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onSwipeProgress={setSwipePct} />}
 
         {achievementsOpen && <AchievementsPage open={achievementsOpen} onClose={() => setAchievementsOpen(false)} state={state} onSwipeProgress={setSwipePct} />}
 
@@ -1704,6 +1748,7 @@ function AppContent({ session }: { session: Session }) {
                 </button>
               </div>
         </BottomSheet>
+        {dialogNode}
       </div>
     </ThemeContext.Provider>
   )

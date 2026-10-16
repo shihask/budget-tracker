@@ -22,6 +22,8 @@ interface Props {
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>
   onComplete: () => void
   userId: string
+  /** A saved guest: accounts already exist (GuestQuickStart), so skip Splash and Accounts. */
+  resumeAfterGuest?: boolean
 }
 
 const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
@@ -43,15 +45,15 @@ function BackArrow() {
 // Steps: 1=Splash, 2=IncomePattern, 3=Accounts, 4=PatternSetup, 5=FeatureOnboarding, 6=InstallApp
 type Step = 1 | 2 | 3 | 4 | 5 | 6
 
-export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, userId }: Props) {
-  const [step, setStep]       = useState<Step>(1)
+export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, userId, resumeAfterGuest = false }: Props) {
+  const [step, setStep]       = useState<Step>(resumeAfterGuest ? 2 : 1)
   const [splashPhase, setSplashPhase] = useState<1 | 2 | 3>(1)
 
   // Income pattern
   const [incomePattern, setIncomePattern] = useState<IncomePattern>('monthly')
 
   // Accounts
-  const [accounts, setAccounts] = useState<AccountDraft[]>([
+  const [accounts, setAccounts] = useState<AccountDraft[]>(() => resumeAfterGuest ? [] : [
     { name: '', type: 'bank', balance: '' },
   ])
   const balanceRefs = useRef<Array<HTMLInputElement | null>>([])
@@ -208,8 +210,8 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
     <InstallAppStep onComplete={onComplete} />
   )
 
-  // Progress: 3 segments for steps 2, 3, 4
-  const progressStep = step - 1 // 1, 2, 3
+  // Progress: one segment per form step (2, 3, 4); a resumed guest has no Accounts step
+  const progressSteps: Step[] = resumeAfterGuest ? [2, 4] : [2, 3, 4]
 
   return (
     <div style={{
@@ -225,10 +227,10 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
 
         {/* Progress bar — 3 segments */}
         <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-          {[1, 2, 3].map(s => (
+          {progressSteps.map(s => (
             <div key={s} style={{
               flex: 1, height: 3.5, borderRadius: 999,
-              background: s <= progressStep ? ACCENT : BORDER,
+              background: s <= step ? ACCENT : BORDER,
               transition: 'background 0.3s',
             }} />
           ))}
@@ -237,12 +239,14 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
         {/* ── Step 2: Income Pattern ───────────────────────────────────── */}
         {step === 2 && (
           <div>
-            <button
-              style={backBtn}
-              onClick={() => { setSplashPhase(3); setStep(1) }}
-            >
-              <BackArrow /> Back
-            </button>
+            {!resumeAfterGuest && (
+              <button
+                style={backBtn}
+                onClick={() => { setSplashPhase(3); setStep(1) }}
+              >
+                <BackArrow /> Back
+              </button>
+            )}
 
             <div style={{ marginBottom: 22 }}>
               <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
@@ -286,7 +290,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
               })}
             </div>
 
-            <button style={primary} onClick={() => setStep(3)}>
+            <button style={primary} onClick={() => setStep(resumeAfterGuest ? 4 : 3)}>
               Continue
             </button>
           </div>
@@ -438,7 +442,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
         {/* ── Step 4: Pattern-specific Setup ────────────────────────────── */}
         {step === 4 && (
           <div>
-            <button style={backBtn} onClick={() => setStep(3)}>
+            <button style={backBtn} onClick={() => setStep(resumeAfterGuest ? 2 : 3)}>
               <BackArrow /> Back
             </button>
 

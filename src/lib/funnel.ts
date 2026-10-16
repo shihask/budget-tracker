@@ -10,6 +10,8 @@ export type FunnelStep =
   | 'signup_code_sent' | 'code_send_failed' | 'signup_code_verified'
   | 'account_created' | 'signin_success'
   | 'first_expense'   // a new account saved its first expense: the first real use
+  | 'guest_started'        // "Try MoneyPlant Free" opened a guest session
+  | 'guest_first_expense'  // first_expense, but by a guest (kept apart from registered sign-ups)
 
 /** Each step counts once per page load — StrictMode and re-opens don't inflate it. */
 const recorded = new Set<FunnelStep>()
