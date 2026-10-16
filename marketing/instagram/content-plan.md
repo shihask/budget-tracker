@@ -374,7 +374,7 @@ MoneyPlant-ൽ ഇത് free ആയി ചെയ്യാം: Analytics → Kak
 
 ### Kakeibo long reel (~54 s, Manglish, educational + real app demo)
 Three clips joined in Instagram's reel editor (or CapCut), in this order:
-1. `out/vreel-ml-kakeibo-long-1.mp4` (35 s): hook → what Kakeibo is (Japan, 1904, Hani Motoko) →
+1. `out/vreel-ml-kakeibo-long-1.mp4` (35 s): hook ("സമ്പാദ്യം കൂട്ടാൻ സഹായിക്കുന്ന ഒരു Japanese technique അറിയാമോ?") → what Kakeibo is (Japan, 1904, Hani Motoko) →
    Needs / Wants / Culture / Unexpected → how to practise → "Analytics → Kakeibo". Soft whooshes + chime.
 2. **Your own screen recording, ~12 s** (phone screen recorder, a test account with real-looking
    data, nothing personal visible): open MoneyPlant → Analytics → Kakeibo → show the cycle, the
@@ -387,7 +387,7 @@ instrumental at low volume under it, and use the hook frame as the cover. **Chec
 
 Voice-over script:
 ```
-ചെലവുകൾ track ചെയ്തിട്ടും പണം എവിടെ പോകുന്നു എന്ന് മനസ്സിലാകുന്നില്ലേ? ജപ്പാനിൽ നിന്നുള്ള ഒരു budgeting method പരിചയപ്പെടാം — Kakeibo!
+സമ്പാദ്യം കൂട്ടാൻ സഹായിക്കുന്ന ഒരു Japanese technique അറിയാമോ? ഇതാണ് Kakeibo!
 
 Kakeibo എന്നതിന്റെ അർത്ഥം ഏകദേശം "household account book" എന്നാണ്. 1904-ൽ ജപ്പാനിൽ Hani Motoko ആണ് ഈ രീതി അവതരിപ്പിച്ചത്.
 
