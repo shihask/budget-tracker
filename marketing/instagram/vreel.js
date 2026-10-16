@@ -6,7 +6,7 @@
 //   { type: 'rows',  dur, kicker, rows: [[label, value, hl?]], note? }   card rows appear in turn
 //   { type: 'steps', dur, kicker, steps: [...] }                numbered steps appear in turn
 //   { type: 'quote', dur, text, em, bg? }                        words appear one by one
-//   { type: 'follow', dur }                                      the closing follow card
+//   { type: 'follow', dur, tagline?, cta?, save? }               the closing follow card (texts overridable, e.g. Malayalam)
 // Every figure must be arithmetic the viewer can check (see content-plan.md guardrails).
 
 (function () {
@@ -48,9 +48,9 @@
       html = `<section class="scene green end" id="${id}">
         <img class="logo el" src="../../public/email-logo.png" alt="">
         <div class="name el" style="font-size:84px">@moneyplant.online</div>
-        <div class="tagline el">Practical money ideas for salaried families</div>
-        <div class="pill el vfollow"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Follow for more</div>
-        <div class="vsave el">Save this for later</div>
+        <div class="tagline el">${esc(s.tagline || 'Practical money ideas for salaried families')}</div>
+        <div class="pill el vfollow"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>${esc(s.cta || 'Follow for more')}</div>
+        <div class="vsave el">${esc(s.save || 'Save this for later')}</div>
       </section>`
     }
     root.insertAdjacentHTML('beforeend', html)

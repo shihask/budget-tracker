@@ -355,3 +355,19 @@ Share this with someone who just got paid.
 
 #moneyquotes #savemoney #personalfinanceindia #moneytipsindia #reelsindia
 ```
+
+### Kakeibo reel (Malayalam, includes the app — counts as the app post for its fortnight)
+File: `out/vreel-ml-kakeibo.mp4` (25 s). Source: `vreel-ml-kakeibo.html`. **Check the Malayalam with a
+native reader before posting.** App claims match CLAUDE.md "Kakeibo" (payday goal, 4 pillars in
+Analytics → Kakeibo, end-of-cycle review with the 4 questions, one thing to change next month).
+```
+ജപ്പാൻകാരുടെ പണം സൂക്ഷിക്കുന്ന രീതി: Kakeibo 🇯🇵🌱
+
+ചെലവുകൾ 4 വിഭാഗമായി തിരിക്കുക: ആവശ്യങ്ങൾ, ആഗ്രഹങ്ങൾ, സംസ്കാരം, അപ്രതീക്ഷിതം. മാസാദ്യം 4 ചോദ്യങ്ങൾ ചോദിക്കുക.
+
+MoneyPlant-ൽ ഇത് സൗജന്യമായി ചെയ്യാം: Analytics → Kakeibo. ലിങ്ക് ബയോയിൽ 👆
+
+നിങ്ങളുടെ ഏറ്റവും വലിയ ചെലവ് ഏത് വിഭാഗത്തിലാണ്? കമന്റ് ചെയ്യൂ 👇
+
+#kakeibo #malayali #kerala #moneytipsmalayalam #personalfinanceindia #savingtips #reelsindia
+```
