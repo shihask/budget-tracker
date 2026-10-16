@@ -371,3 +371,42 @@ MoneyPlant-ൽ ഇത് free ആയി ചെയ്യാം: Analytics → Kak
 
 #kakeibo #malayali #kerala #moneytipsmalayalam #personalfinanceindia #savingtips #reelsindia
 ```
+
+### Kakeibo long reel (~54 s, Manglish, educational + real app demo)
+Three clips joined in Instagram's reel editor (or CapCut), in this order:
+1. `out/vreel-ml-kakeibo-long-1.mp4` (35 s): hook → what Kakeibo is (Japan, 1904, Hani Motoko) →
+   Needs / Wants / Culture / Unexpected → how to practise → "Analytics → Kakeibo". Soft whooshes + chime.
+2. **Your own screen recording, ~12 s** (phone screen recorder, a test account with real-looking
+   data, nothing personal visible): open MoneyPlant → Analytics → Kakeibo → show the cycle, the
+   four groups, change one category's group, then the savings goal / reflection.
+3. `out/vreel-ml-kakeibo-long-2.mp4` (7 s): "പണം track ചെയ്താൽ മാത്രം പോരാ, മനസ്സിലാക്കണം." → logo card.
+
+Then: record the voice-over over the joined reel (Instagram → Voiceover, or a TTS tool), add a calm
+instrumental at low volume under it, and use the hook frame as the cover. **Check the Malayalam
+(screen text and voice-over) with a native reader before posting.** Counts as the app post for its fortnight.
+
+Voice-over script:
+```
+ചെലവുകൾ track ചെയ്തിട്ടും പണം എവിടെ പോകുന്നു എന്ന് മനസ്സിലാകുന്നില്ലേ? ജപ്പാനിൽ നിന്നുള്ള ഒരു budgeting method പരിചയപ്പെടാം — Kakeibo!
+
+Kakeibo എന്നതിന്റെ അർത്ഥം ഏകദേശം "household account book" എന്നാണ്. 1904-ൽ ജപ്പാനിൽ Hani Motoko ആണ് ഈ രീതി അവതരിപ്പിച്ചത്.
+
+Kakeibo-യിൽ ചെലവുകളെ നാല് വിഭാഗങ്ങളായി കാണാം: Needs — അത്യാവശ്യങ്ങൾ, Wants — ആഗ്രഹങ്ങൾ, Culture — പഠനവും വിനോദവും, Unexpected — അപ്രതീക്ഷിത ചെലവുകൾ.
+
+മാസത്തിന്റെ തുടക്കത്തിൽ ഒരു savings goal വെക്കുക. ചെലവുകൾ രേഖപ്പെടുത്തുക. മാസാവസാനം സ്വയം ചോദിക്കുക: എന്താണ് നന്നായി ചെയ്തത്? എവിടെയാണ് കൂടുതൽ ചെലവായത്? അടുത്ത മാസം എന്ത് മാറ്റണം?
+
+ഇതേ ആശയം MoneyPlant-ലും ഉപയോഗിക്കാം! Analytics-ൽ Kakeibo തുറന്ന് നിങ്ങളുടെ monthly spending review ചെയ്യാം. ചെലവുകൾ നാല് വിഭാഗങ്ങളായി മനസ്സിലാക്കാം, ആവശ്യമെങ്കിൽ category മാറ്റാം, അടുത്ത മാസത്തേക്കുള്ള goal വെക്കാം.
+
+പണം track ചെയ്യുന്നത് മാത്രം പോരാ, അത് മനസ്സിലാക്കുകയും വേണം. MoneyPlant — Know Before You Spend.
+```
+
+Caption:
+```
+Ever heard of Kakeibo? 🇯🇵 A Japanese method for spending more mindfully.
+
+Kakeibo എന്നാൽ "household account book". Needs, Wants, Culture, Unexpected: 4 groups. മാസാവസാനം ഒരു review.
+
+Try a monthly money reflection with MoneyPlant: Analytics → Kakeibo. Free, link in bio 🌱
+
+#kakeibo #malayali #kerala #moneytipsmalayalam #personalfinanceindia #budgeting #reelsindia
+```
