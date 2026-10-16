@@ -4,9 +4,9 @@ import { localIso } from '@/lib/utils'
 import type { FinancialCycle } from '@/lib/financial-cycle'
 import type { AppState, KakeiboReflection } from '@/types'
 import {
-  planCycleSync, dashboardActions, reviewableRecords, previousRecord, currentRecord, nextReviewState,
+  planCycleSync, dashboardActions, bellItems, reviewableRecords, previousRecord, currentRecord, nextReviewState,
   kakeiboStrategy, kakeiboCycle, kindOf, monthBounds,
-  type DashboardActions, type ReviewAction, type KakeiboCycle, type KakeiboStrategy,
+  type DashboardActions, type ReviewAction, type KakeiboCycle, type KakeiboStrategy, type KakeiboBellItem,
 } from '../lib/kakeibo'
 
 /** Enough history for the Analytics list and the previous-cycle comparison. */
@@ -32,6 +32,8 @@ export interface Kakeibo {
   previous: KakeiboReflection | null
   reviewable: KakeiboReflection[]
   actions: DashboardActions
+  /** Items for the notification bell — see bellItems. */
+  bell: KakeiboBellItem[]
   setGoal: (r: KakeiboReflection, amount: number | null) => Promise<void>
   review: (r: KakeiboReflection, action: ReviewAction) => Promise<void>
   /** Dashboard "Not now": hides the reminder only — the review stays pending. */
@@ -182,7 +184,7 @@ export function useKakeibo(args: {
 
   return useMemo<Kakeibo>(() => {
     const base = { available, strategy, setGoal, review, dismissReviewReminder, recordPastCycle }
-    const empty = { records: [], history: [], current: null, previous: null, reviewable: [], actions: NO_ACTIONS }
+    const empty = { records: [], history: [], current: null, previous: null, reviewable: [], actions: NO_ACTIONS, bell: [] }
     if (!cycle) return { ...base, ...empty, status: 'off', cycle: null }
     if (failed) return { ...base, ...empty, status: 'unavailable', cycle }
     if (allRecords == null) return { ...base, ...empty, status: 'loading', cycle }
@@ -196,6 +198,7 @@ export function useKakeibo(args: {
       previous: previousRecord(records, cycle),
       reviewable: reviewableRecords(records, cycle),
       actions: dashboardActions(records, cycle, new Date(), cycle.kind),
+      bell: bellItems(records, cycle, new Date(), cycle.kind),
     }
   }, [available, strategy, setGoal, review, dismissReviewReminder, recordPastCycle, cycle, failed, allRecords, records])
 }

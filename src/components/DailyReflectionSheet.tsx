@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef } from 'react'
-import { Check } from 'lucide-react'
+import { Check, ChevronRight } from 'lucide-react'
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import { useTheme } from '@/lib/theme-context'
@@ -16,6 +16,8 @@ interface Props {
   d: DerivedMetrics
   mode?: 'today' | 'yesterday'
   onGoalContribution: (goalId: string, amount: number) => Promise<void>
+  /** Opens Analytics on this day's spending (date is YYYY-MM-DD). */
+  onSeeDetails?: (date: string) => void
 }
 
 function localDateStr(offsetDays: number): string {
@@ -24,7 +26,7 @@ function localDateStr(offsetDays: number): string {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
 }
 
-export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', onGoalContribution }: Props) {
+export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', onGoalContribution, onSeeDetails }: Props) {
   const c = useTheme()
   const isYesterday = mode === 'yesterday'
   const dayLabel = isYesterday ? 'yesterday' : 'today'
@@ -87,7 +89,9 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
         </div>
 
         {/* Day summary */}
-        <div style={{ background: c.surface2, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+        <div
+          onClick={onSeeDetails ? () => onSeeDetails(targetStr) : undefined}
+          style={{ background: c.surface2, borderRadius: 14, padding: 16, marginBottom: 16, cursor: onSeeDetails ? 'pointer' : 'default' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>Spent {dayLabel}</span>
             <span style={{ font: '800 20px Plus Jakarta Sans', color: c.ink }}>{fmt(Math.round(todaySpend))}</span>
@@ -97,6 +101,11 @@ export function DailyReflectionSheet({ open, onClose, state, d, mode = 'today', 
               {underLimit
                 ? `Nicely under your ₹${Math.round(safeLimit)} limit — ${fmt(surplus)} to spare. That's a win.`
                 : `A bit over your ₹${Math.round(safeLimit)} limit ${dayLabel}. No drama — fresh start tomorrow.`}
+            </div>
+          )}
+          {onSeeDetails && (
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 4, font: '700 12px Plus Jakarta Sans', color: c.accent }}>
+              See where it went <ChevronRight size={14} />
             </div>
           )}
         </div>

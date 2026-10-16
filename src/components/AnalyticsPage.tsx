@@ -101,6 +101,9 @@ interface Props {
   kakeiboTab?: React.ReactNode
   /** Tab to open on. Only 'kakeibo' is passed today (dashboard Kakeibo → Review). */
   initialTab?: 'kakeibo'
+  /** Trend day to open selected (YYYY-MM-DD, within the last 7 days) — the
+   *  Daily Reflection sheet's "See where it went" lands on that day's list. */
+  initialTrendDate?: string
 }
 
 
@@ -159,7 +162,7 @@ function TxnMiniList({ transactions, categories }: { transactions: Transaction[]
   )
 }
 
-export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab, initialTab }: Props) {
+export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab, initialTab, initialTrendDate }: Props) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>(initialTab === 'kakeibo' && kakeiboTab ? 'kakeibo' : 'trend')
   const [trendRange, setTrendRange] = useState<TrendRange>(7)
@@ -168,7 +171,7 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab,
   const [insightError, setInsightError] = useState<string | null>(null)
   const [timelineView, setTimelineView] = useState<'day' | 'category' | 'group'>('day')
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
-  const [selectedTrendDate, setSelectedTrendDate] = useState<string | null>(null)
+  const [selectedTrendDate, setSelectedTrendDate] = useState<string | null>(initialTrendDate ?? null)
   const [selectedWeekLabel, setSelectedWeekLabel] = useState<string | null>(null)
   const [replayExpanded, setReplayExpanded] = useState(false)
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())

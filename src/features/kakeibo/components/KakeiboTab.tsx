@@ -24,6 +24,8 @@ interface Props {
   onAiUsed?: OnAiUsed
   /** From the dashboard's Review button — open the workspace on this cycle. */
   initialCycleStart?: string | null
+  /** From the bell's "Set goal" — open the goal sheet straight away. */
+  initialGoalOpen?: boolean
 }
 
 /** "1 Nov" — the day after a calendar month's last day. */
@@ -32,9 +34,9 @@ const nextMonthLabel = (end: Date) =>
 
 /** Analytics → Kakeibo. This cycle's goal (the payday ritual) on top, then the
  *  analysis workspace for any cycle; explains itself when it can't run. */
-export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, suggestedGoal, autopilotEnabled, onAiUsed, initialCycleStart }: Props) {
+export function KakeiboTab({ kakeibo, state, userId, allTransactionsLoaded, suggestedGoal, autopilotEnabled, onAiUsed, initialCycleStart, initialGoalOpen = false }: Props) {
   const c = useTheme()
-  const [goalOpen, setGoalOpen] = useState(false)
+  const [goalOpen, setGoalOpen] = useState(initialGoalOpen)
   // First open on this device → the intro story; afterwards only on request.
   const [introOpen, setIntroOpen] = useState(() => !introSeen(userId))
   const closeIntro = () => { markIntroSeen(userId); setIntroOpen(false) }

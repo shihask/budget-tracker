@@ -259,6 +259,41 @@ export function dashboardActions(
   return { review, goal, lesson }
 }
 
+/** One Kakeibo item in the notification bell. `id` is unique per user, cycle
+ *  and type (the bell is per user), so the same reminder can never appear twice. */
+export interface KakeiboBellItem {
+  id: string
+  type: 'review' | 'goal'
+  record: KakeiboReflection
+  /** The month the item is about — "October". */
+  month: string
+}
+
+/** The bell's Kakeibo items. Unlike the dashboard card, the review item has no
+ *  day limit and ignores "Not now": it stays until that review is completed or
+ *  explicitly skipped, so someone who opens the app twice a month still finds
+ *  it. The goal item follows the same 7-day window as the dashboard row. */
+export function bellItems(
+  records: KakeiboReflection[],
+  cycle: Pick<FinancialCycle, 'cycleStart' | 'cycleEnd'>,
+  today: Date,
+  kind: KakeiboStrategy,
+): KakeiboBellItem[] {
+  const out: KakeiboBellItem[] = []
+  const prev = previousRecord(records, cycle)
+  if (prev && prev.review_status == null) {
+    out.push({ id: `kakeibo:review:${kind}:${prev.cycle_start}`, type: 'review', record: prev, month: cycleMonthName(prev) })
+  }
+  const { goal } = dashboardActions(records, cycle, today, kind)
+  if (goal) {
+    out.push({
+      id: `kakeibo:goal:${kind}:${goal.cycle_start}`, type: 'goal', record: goal,
+      month: cycleMonthName({ cycle_start: goal.cycle_start, cycle_end: localIso(cycle.cycleEnd) }),
+    })
+  }
+  return out
+}
+
 /** Day of the reminder window, 1-based — see dashboardActions. */
 export function reminderDay(
   cur: KakeiboReflection | null, prev: KakeiboReflection | null,

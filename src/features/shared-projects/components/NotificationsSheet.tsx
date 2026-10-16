@@ -36,6 +36,10 @@ interface Props {
   eventSuggestion?: EventSuggestion | null
   onEventSuggestion?: () => void
   onDismissEventSuggestion?: () => void
+  /** Kakeibo's items (review / savings goal) — rendered as given, inside
+   *  Kakeibo's own error boundary. `kakeiboCount` says whether there are any. */
+  kakeiboSlot?: React.ReactNode
+  kakeiboCount?: number
 }
 
 const TONE_KEY: Record<NotificationTone, ToneKey> = {
@@ -68,6 +72,7 @@ export function NotificationsSheet({
   yesterdayRecapAlertId, reflectionAlertId,
   notifications, onSnoozeNotification, onNavigate, onClearAll,
   eventSuggestion, onEventSuggestion, onDismissEventSuggestion,
+  kakeiboSlot, kakeiboCount = 0,
 }: Props) {
   const c = useTheme()
   const [processing, setProcessing] = useState<string | null>(null)
@@ -80,6 +85,7 @@ export function NotificationsSheet({
     sharedProjects.length > 0 ||
     notifications.length > 0 ||
     !!eventSuggestion ||
+    kakeiboCount > 0 ||
     !!showReflection ||
     !!showYesterdayRecap
 
@@ -139,6 +145,8 @@ export function NotificationsSheet({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {kakeiboCount > 0 && kakeiboSlot}
 
             {/* Mint's life-event suggestion — where its toast files itself. Tap
                 to review it; ✕ is "Not an event". */}

@@ -718,6 +718,12 @@ On any failure it renders nothing, and Dashboard and Analytics are unaffected.
   - The workspace's **"Skip this review"** sets `review_status = 'skipped'`.
   - The goal's "Skip for now" stores `goal_decided_at` with a null `savings_goal`: no goal is created.
 - The lesson row needs a non-blank `reflection_note`. Empty notes are saved as null.
+- **Notification bell (v1.95, `bellItems`).** A Kakeibo slot in `NotificationsSheet` (`kakeiboSlot` / `kakeiboCount`, the same pattern as the Life Event suggestion) adds to the badge.
+  - **Review item:** has **no day limit and ignores "Not now"**. It leaves only when the review is completed or skipped.
+  - **Goal item:** follows the dashboard's 7-day window.
+  - Ids are `kakeibo:<type>:<kind>:<cycle_start>`, so an item can't appear twice.
+  - Tapping opens Analytics → Kakeibo on that cycle, or with the goal sheet open.
+  - Nothing is added to `notification-engine.ts`, and there is no push. Push waits for completion data, which can be read from `review_status` / `reviewed_at` on `kakeibo_reflections`.
 - `planCycleSync` re-closes the predecessor **only when adjacent**: it is open, it ends inside the new cycle, or it was adjacent to the re-keyed row. A past cycle recorded later from history must never be stretched.
 
 ### v2 — the four pillars

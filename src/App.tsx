@@ -99,6 +99,8 @@ import { useKakeibo } from '@/features/kakeibo/hooks/useKakeibo'
 import { KakeiboDashboardCard } from '@/features/kakeibo/components/KakeiboDashboardCard'
 import { KakeiboTab } from '@/features/kakeibo/components/KakeiboTab'
 import { KakeiboBoundary } from '@/features/kakeibo/components/ui'
+import { KakeiboBellItems } from '@/features/kakeibo/components/KakeiboBellItems'
+import { isFirstReview } from '@/features/kakeibo/lib/kakeibo'
 import { computeStrategyData } from '@/lib/budget-strategy'
 import type { EventSuggestion } from '@/lib/event-suggestions'
 import type { EventFormValues } from '@/features/events/components/EventFormSheet'
@@ -256,6 +258,10 @@ function AppContent({ session }: { session: Session }) {
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   // Set by the Kakeibo dashboard card's Review: Analytics opens on the Kakeibo tab, on that cycle.
   const [kakeiboReviewCycle, setKakeiboReviewCycle] = useState<string | null>(null)
+  // Set by the bell's "Set goal": Analytics opens on the Kakeibo tab with the goal sheet open.
+  const [kakeiboOpenGoal, setKakeiboOpenGoal] = useState(false)
+  // Set by the Daily Reflection sheet's "See where it went": Analytics opens on Trend with that day selected.
+  const [analyticsTrendDate, setAnalyticsTrendDate] = useState<string | null>(null)
   const [cashflowOpen, setCashflowOpen] = useState(false)
   const [cashflowSetupOpen, setCashflowSetupOpen] = useState(false)
   const [projectsOpen, setProjectsOpen] = useState(false)
@@ -581,6 +587,7 @@ function AppContent({ session }: { session: Session }) {
     + (showReflectionBanner && !isSnoozed(reflectionAlertId, snoozeMap) ? 1 : 0)
     + (showYesterdayRecap ? 1 : 0)
     + (suggestionInBell ? 1 : 0)
+    + kakeibo.bell.length
 
   // The toast only starts on a clear dashboard — never over a sheet or page
   // the user is in the middle of. Once started it plays out even if one opens.
@@ -1278,8 +1285,9 @@ function AppContent({ session }: { session: Session }) {
 
           {analyticsOpen && (
             <AnalyticsPage
-              state={state} d={d} onClose={() => { setAnalyticsOpen(false); setKakeiboReviewCycle(null) }} onUpdateSettings={updateSettings}
-              initialTab={kakeiboReviewCycle && kakeibo.available ? 'kakeibo' : undefined}
+              state={state} d={d} onClose={() => { setAnalyticsOpen(false); setKakeiboReviewCycle(null); setKakeiboOpenGoal(false); setAnalyticsTrendDate(null) }} onUpdateSettings={updateSettings}
+              initialTrendDate={analyticsTrendDate ?? undefined}
+              initialTab={(kakeiboReviewCycle || kakeiboOpenGoal) && kakeibo.available ? 'kakeibo' : undefined}
               kakeiboTab={kakeibo.available ? (
                 <KakeiboBoundary>
                   <KakeiboTab
@@ -1288,6 +1296,7 @@ function AppContent({ session }: { session: Session }) {
                     autopilotEnabled={state.settings.autopilot_enabled ?? false}
                     onAiUsed={(n, pct, enf) => updateSettings(aiUsagePatch(n, pct, enf))}
                     initialCycleStart={kakeiboReviewCycle}
+                    initialGoalOpen={kakeiboOpenGoal}
                   />
                 </KakeiboBoundary>
               ) : undefined}
@@ -1307,6 +1316,7 @@ function AppContent({ session }: { session: Session }) {
             d={d}
             mode={reflectionMode}
             onGoalContribution={async (goalId, amount) => { await addGoalSavings(goalId, amount, 'daily_challenge') }}
+            onSeeDetails={date => { setReflectionOpen(false); setAnalyticsTrendDate(date); setAnalyticsOpen(true) }}
           />
 
           {layoutOpen && (
@@ -1343,6 +1353,21 @@ function AppContent({ session }: { session: Session }) {
           eventSuggestion={suggestionInBell ? eventSuggestion.suggestion : null}
           onEventSuggestion={openSuggestionReview}
           onDismissEventSuggestion={() => { eventSuggestion.dismiss(); setSuggestionUndoOpen(true) }}
+          kakeiboCount={kakeibo.bell.length}
+          kakeiboSlot={
+            <KakeiboBoundary>
+              <KakeiboBellItems
+                items={kakeibo.bell}
+                firstReview={isFirstReview(kakeibo.records)}
+                onOpen={item => {
+                  setNotificationsOpen(false)
+                  if (item.type === 'review') setKakeiboReviewCycle(item.record.cycle_start)
+                  else setKakeiboOpenGoal(true)
+                  setAnalyticsOpen(true)
+                }}
+              />
+            </KakeiboBoundary>
+          }
         />
 
         {settingsOpen && (
