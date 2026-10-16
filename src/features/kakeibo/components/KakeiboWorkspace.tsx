@@ -14,10 +14,11 @@ import { useKakeiboPillars } from '../hooks/useKakeiboPillars'
 import { computeCycleSummary, cycleLabel, cycleMonthName, kakeiboInsight, NOTE_MAX, type ReviewAction } from '../lib/kakeibo'
 import { buildCycleOptions, buildMonthOptions, withHistory, historyFrom, type CycleOption } from '../lib/cycles'
 import {
-  PILLARS, PILLAR_LABEL, PILLAR_HINT, computePillarTotals, categoriesNeedingAi, validatePillarSuggestions,
+  PILLARS, PILLAR_LABEL, PILLAR_HINT, PILLAR_COLOR, computePillarTotals, categoriesNeedingAi, validatePillarSuggestions,
   buildInsightFacts, insightNumbersAreGrounded, factsFingerprint,
 } from '../lib/pillars'
 import { PillarReview } from './PillarReview'
+import { PillarIcon } from './pillarStyle'
 import { KButton, Row, SectionLabel } from './ui'
 
 interface Props {
@@ -325,15 +326,18 @@ export function KakeiboWorkspace({ kakeibo, state, userId, allTransactionsLoaded
                   return (
                     <div key={p} style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                        <div>
-                          <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{PILLAR_LABEL[p]}</span>
-                          <span style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}> · {PILLAR_HINT[p]}</span>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+                          <span style={{ marginTop: 1 }}><PillarIcon pillar={p} size={15} /></span>
+                          <span>
+                            <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{PILLAR_LABEL[p]}</span>
+                            <span style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}> · {PILLAR_HINT[p]}</span>
+                          </span>
                         </div>
                         <span style={{ font: '800 13px Plus Jakarta Sans', color: c.ink, fontVariantNumeric: 'tabular-nums' }}>{money(v)}</span>
                       </div>
                       <div role="img" aria-label={`${PILLAR_LABEL[p]} ${Math.round(share)}% of spending`}
                         style={{ height: 6, borderRadius: 999, background: c.faint, marginTop: 4, overflow: 'hidden' }}>
-                        <div style={{ width: `${share}%`, height: '100%', background: c.good, borderRadius: 999 }} />
+                        <div style={{ width: `${share}%`, height: '100%', background: PILLAR_COLOR[p], borderRadius: 999 }} />
                       </div>
                     </div>
                   )

@@ -18,6 +18,15 @@ export const PILLAR_PLAIN: Record<Pillar, string> = {
   culture: 'Learning and enrichment',
   unexpected: 'Unplanned expenses',
 }
+/** One colour per pillar, readable on both themes. Kept off the theme's
+ *  good/warn/bad tokens on purpose: a pillar is a kind of spending, not a
+ *  verdict — "Unexpected" must not look like an error. */
+export const PILLAR_COLOR: Record<Pillar, string> = {
+  survival: '#10B981',
+  optional: '#F59E0B',
+  culture: '#8B5CF6',
+  unexpected: '#3B82F6',
+}
 export const PILLAR_EXAMPLES: Record<Pillar, string> = {
   survival: 'Groceries, rent, utilities, transport, medicine',
   optional: 'Shopping, eating out, treats',
