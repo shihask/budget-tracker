@@ -2,7 +2,7 @@
 // scenes and loads this file after reel-kit.js; this builds the DOM and the render(t) timeline.
 //
 // Scene types:
-//   { type: 'hook',  dur, lines: [...], soft?: '...' }          big lines on green
+//   { type: 'hook',  dur, lines: [...], soft?, kicker?, bg? }    big lines (green unless bg: 'cream' / 'ink')
 //   { type: 'rows',  dur, kicker, rows: [[label, value, hl?]], note? }   card rows appear in turn
 //   { type: 'steps', dur, kicker, steps: [...] }                numbered steps appear in turn
 //   { type: 'quote', dur, text, em, bg? }                        words appear one by one
@@ -21,7 +21,8 @@
     const id = 'v' + i
     let html = ''
     if (s.type === 'hook') {
-      html = `<section class="scene green" id="${id}"><div style="flex:1"></div>
+      html = `<section class="scene ${s.bg || 'green'}" id="${id}"><div style="flex:1"></div>
+        ${s.kicker ? `<div class="kicker el" id="${id}k" style="margin-bottom:30px">${esc(s.kicker)}</div>` : ''}
         ${s.lines.map((l, j) => `<div class="big el" id="${id}l${j}">${esc(l)}</div>`).join('')}
         ${s.soft ? `<div style="height:70px"></div><div class="mid soft el" id="${id}s">${esc(s.soft)}</div>` : ''}
         <div style="flex:1.3"></div></section>`
@@ -64,6 +65,7 @@
       if (s.type === 'follow') { endCard($(id), t, a, DURATION); rise(document.querySelector(`#${id} .vsave`), t, a + 1.2); continue }
       scene($(id), t, a, a + s.dur, .3)
       if (s.type === 'hook') {
+        if (s.kicker) rise(q('k'), t, a + .05, .35, 30)
         s.lines.forEach((_, j) => rise(q('l' + j), t, a + .1 + j * .3, .4))
         if (s.soft) rise(q('s'), t, a + .2 + s.lines.length * .3 + .25, .45)
       } else if (s.type === 'rows' || s.type === 'steps') {

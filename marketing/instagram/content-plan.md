@@ -356,18 +356,18 @@ Share this with someone who just got paid.
 #moneyquotes #savemoney #personalfinanceindia #moneytipsindia #reelsindia
 ```
 
-### Kakeibo reel (Malayalam, includes the app — counts as the app post for its fortnight)
-File: `out/vreel-ml-kakeibo.mp4` (25 s). Source: `vreel-ml-kakeibo.html`. **Check the Malayalam with a
-native reader before posting.** App claims match CLAUDE.md "Kakeibo" (payday goal, 4 pillars in
-Analytics → Kakeibo, end-of-cycle review with the 4 questions, one thing to change next month).
+### Kakeibo reel (Manglish, includes the app — counts as the app post for its fortnight)
+File: `out/vreel-ml-kakeibo.mp4` (22 s). Source: `vreel-ml-kakeibo.html`. **Check the Malayalam with a
+native reader before posting.** What it is ("household account book"), history (Japan, 1904, journalist
+Hani Motoko), 4 simple steps, then MoneyPlant's Analytics → Kakeibo (claims per CLAUDE.md "Kakeibo").
 ```
-ജപ്പാൻകാരുടെ പണം സൂക്ഷിക്കുന്ന രീതി: Kakeibo 🇯🇵🌱
+Kakeibo എന്താണ്? Japan-ന്റെ simple money method 🇯🇵🌱
 
-ചെലവുകൾ 4 വിഭാഗമായി തിരിക്കുക: ആവശ്യങ്ങൾ, ആഗ്രഹങ്ങൾ, സംസ്കാരം, അപ്രതീക്ഷിതം. മാസാദ്യം 4 ചോദ്യങ്ങൾ ചോദിക്കുക.
+1904-ൽ Hani Motoko എന്ന journalist തുടങ്ങിയ ഒരു household account book. Salary വന്നാൽ saving goal വെക്കുക, എല്ലാ expenses-ഉം എഴുതുക, 4 groups ആയി തിരിക്കുക (Needs, Wants, Culture, Unexpected), month end-ൽ review ചെയ്യുക.
 
-MoneyPlant-ൽ ഇത് സൗജന്യമായി ചെയ്യാം: Analytics → Kakeibo. ലിങ്ക് ബയോയിൽ 👆
+MoneyPlant-ൽ ഇത് free ആയി ചെയ്യാം: Analytics → Kakeibo. Link in bio 👆
 
-നിങ്ങളുടെ ഏറ്റവും വലിയ ചെലവ് ഏത് വിഭാഗത്തിലാണ്? കമന്റ് ചെയ്യൂ 👇
+നിങ്ങൾ expenses എഴുതി വെക്കാറുണ്ടോ? Comment ചെയ്യൂ 👇
 
 #kakeibo #malayali #kerala #moneytipsmalayalam #personalfinanceindia #savingtips #reelsindia
 ```

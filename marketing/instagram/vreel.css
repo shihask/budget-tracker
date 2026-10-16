@@ -25,3 +25,4 @@
 .ml .kicker { letter-spacing: 1px; text-transform: none; font-size: 38px; }
 .ml .end .tagline { font-size: 46px; line-height: 1.4; }
 .ml .vsave { font-size: 36px; }
+.cream .soft { color: var(--green-dark); }

@@ -2,40 +2,31 @@
 <html lang="ml">
 <head>
 <meta charset="utf-8">
-<title>MoneyPlant reel: Kakeibo (Malayalam)</title>
+<title>MoneyPlant reel: Kakeibo (Manglish)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="reel-kit.css">
 <link rel="stylesheet" href="vreel.css">
-<!-- Kakeibo in Malayalam: the method (4 groups, 4 questions), then how MoneyPlant does it.
-     App claims follow CLAUDE.md "Kakeibo": payday savings goal, Analytics → Kakeibo sorts spending
-     into the 4 pillars (unplaceable → "needs review"), end-of-cycle review with the 4 questions,
-     one thing to do differently shown again next payday. Malayalam to be checked by a native reader. -->
+<!-- Kakeibo, simple, in Manglish (Malayalam + everyday English words): what it is, where it comes
+     from, how to do it, then MoneyPlant's Analytics → Kakeibo. History kept to well-documented facts:
+     kakeibo = "household account book", introduced in Japan in 1904 by journalist Hani Motoko.
+     App claims follow CLAUDE.md "Kakeibo". Malayalam to be checked by a native reader. -->
 </head>
 <body class="ml">
 <script src="reel-kit.js"></script>
 <script>
 window.VREEL = [
-  { type: 'hook', dur: 3, lines: ['ജപ്പാൻകാരുടെ', 'പണം സൂക്ഷിക്കുന്ന', 'രീതി.'], soft: 'Kakeibo: 4 വിഭാഗം, 4 ചോദ്യം' },
-  { type: 'steps', dur: 6.2, kicker: 'ചെലവുകൾ 4 ആയി തിരിക്കാം', steps: [
-    'ആവശ്യങ്ങൾ: വാടക, ഭക്ഷണം, ബില്ലുകൾ',
-    'ആഗ്രഹങ്ങൾ: ഹോട്ടൽ, ഷോപ്പിംഗ്',
-    'സംസ്കാരം: പുസ്തകം, കോഴ്സ്, യാത്ര',
-    'അപ്രതീക്ഷിതം: ആശുപത്രി, റിപ്പയർ',
+  { type: 'hook', dur: 2.6, lines: ['Kakeibo', 'എന്താണ്?'], soft: 'Japan-ന്റെ simple money method' },
+  { type: 'hook', dur: 3.6, bg: 'cream', kicker: 'Kakeibo = Household account book', lines: ['പണം എഴുതി', 'വെക്കുന്ന', 'ഒരു ബുക്ക്.'] },
+  { type: 'hook', dur: 3.8, bg: 'cream', kicker: 'History', lines: ['1904-ൽ', 'Japan-ൽ', 'Hani Motoko', 'തുടങ്ങിയത്.'], soft: 'ഒരു journalist ആയിരുന്നു അവർ' },
+  { type: 'steps', dur: 6.6, kicker: 'എങ്ങനെ ചെയ്യാം?', steps: [
+    'Salary വന്നാൽ saving goal വെക്കുക',
+    'എല്ലാ expenses-ഉം എഴുതുക',
+    '4 groups: Needs, Wants, Culture, Unexpected',
+    'Month end-ൽ review ചെയ്യുക',
   ] },
-  { type: 'steps', dur: 6.2, kicker: 'മാസാദ്യം 4 ചോദ്യങ്ങൾ', steps: [
-    'എന്റെ കയ്യിൽ എത്ര പണമുണ്ട്?',
-    'എത്ര സേവ് ചെയ്യണം?',
-    'ഇപ്പോൾ എത്ര ചെലവാക്കുന്നു?',
-    'എങ്ങനെ മെച്ചപ്പെടുത്താം?',
-  ] },
-  { type: 'steps', dur: 6.6, kicker: 'MoneyPlant-ൽ ഇത് എളുപ്പം', steps: [
-    'ശമ്പള ദിവസം ഒരു സേവിംഗ്സ് ലക്ഷ്യം വെക്കൂ',
-    'ചെലവുകൾ 4 Kakeibo വിഭാഗങ്ങളായി കാണാം',
-    'മാസാവസാനം 4 ചോദ്യങ്ങളോടെ റിവ്യൂ',
-    'അടുത്ത മാസം മാറ്റേണ്ട ഒരു കാര്യം എഴുതൂ',
-  ] },
-  { type: 'follow', dur: 3, tagline: 'Analytics → Kakeibo · സൗജന്യം', cta: 'ലിങ്ക് ബയോയിൽ', save: 'പിന്നീട് കാണാൻ സേവ് ചെയ്യൂ' },
+  { type: 'hook', dur: 3.2, kicker: 'MoneyPlant-ൽ ഇത് easy', lines: ['Analytics →', 'Kakeibo'], soft: 'Free. Link in bio.' },
+  { type: 'follow', dur: 2.6, tagline: 'Simple money tips, Malayalam-ൽ', cta: 'Follow ചെയ്യൂ', save: 'Save ചെയ്ത് വെക്കൂ' },
 ]
 </script>
 <script src="vreel.js"></script>
