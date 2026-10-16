@@ -497,8 +497,8 @@ export function AffordabilityChecker({ state, d, settings, transactions, onUpdat
             </svg>
           </div>
           <div style={{ textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ font: '800 16px Plus Jakarta Sans', letterSpacing: '-0.01em' }}>Can I Afford This?</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', rowGap: 4 }}>
+              <span style={{ font: '800 16px Plus Jakarta Sans', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>Can I Afford This?</span>
               {settings.autopilot_enabled && (
                 <span style={{
                   font: '700 10px Plus Jakarta Sans', letterSpacing: '0.04em',

@@ -211,6 +211,15 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     )
   }
 
+  // iPhone mini / SE widths: shrink the ring and headline so the amount keeps one line
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 400px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 400px)')
+    const onChange = () => setNarrow(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
   const streak = useMemo(() => {
     if (transactions.length === 0) return 0
     const dates = new Set(transactions.map(t => t.transaction_date.slice(0, 10)))
@@ -442,34 +451,36 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               {/* Cash Shortfall — urgent, temporarily promoted above the budget summary */}
               {d.cashHealth?.status === 'shortfall' && (
                 <div style={{ marginBottom: 14, background: 'rgba(255,90,90,0.18)', border: '1px solid rgba(255,120,120,0.35)', borderRadius: 16, padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    <span style={{ font: '800 14px Plus Jakarta Sans', color: '#fff' }}>{d.cashHealth.message}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      <span style={{ font: '800 14px Plus Jakarta Sans', color: '#fff', whiteSpace: 'nowrap' }}>{d.cashHealth.message}</span>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)' }}>Free Money</div>
+                      <div style={{ font: '800 20px Plus Jakarta Sans', color: 'rgba(255,150,150,1)', letterSpacing: '-0.02em', lineHeight: 1.15, whiteSpace: 'nowrap' }}>{fmt(d.realFreeMoney)}</div>
+                    </div>
                   </div>
-                  <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.85)', marginTop: 6, lineHeight: 1.5 }}>
+                  <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.85)', marginTop: 8, lineHeight: 1.5 }}>
                     {d.cashHealth.description}
-                  </div>
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ font: '600 12px Plus Jakarta Sans', color: 'rgba(255,255,255,0.7)' }}>Free Money</div>
-                    <div style={{ font: '800 32px Plus Jakarta Sans', color: 'rgba(255,150,150,1)', letterSpacing: '-0.02em', marginTop: 2 }}>{fmt(d.realFreeMoney)}</div>
                   </div>
                 </div>
               )}
 
               {/* Header row */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ font: '600 13px Plus Jakarta Sans', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.02em' }}>Cycle Budget Remaining</div>
-                    <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.65)' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                    </button>
-                    <button onClick={onEditOpen} style={{ background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: 8, padding: '3px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.85)' }}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-                    </button>
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+                <div style={{ font: '600 13px Plus Jakarta Sans', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Cycle Budget Remaining</div>
+                <button onClick={() => setInfoOpen(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.65)', flexShrink: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                </button>
+                <button onClick={onEditOpen} style={{ background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: 8, padding: '3px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.85)', flexShrink: 0 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                </button>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, position: 'relative' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   {d.cycleTrackingReady ? (
-                    <div style={{ font: '800 40px Plus Jakarta Sans', color: d.cycleRemaining < 0 ? 'rgba(255,150,150,1)' : '#fff', letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 6 }}>
+                    <div style={{ font: `800 ${narrow ? 34 : 40}px Plus Jakarta Sans`, whiteSpace: 'nowrap', color: d.cycleRemaining < 0 ? 'rgba(255,150,150,1)' : '#fff', letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 6 }}>
                       {d.cycleRemaining < 0 ? '-' : ''}{fmt(Math.abs(d.cycleRemaining))}
                     </div>
                   ) : (
@@ -495,8 +506,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                 </div>
 
                 {d.cycleTrackingReady && (
-                  <ProgressRing pct={cyclePct} color="#fff" track="rgba(255,255,255,0.28)" size={104} stroke={10}>
-                    <div style={{ font: '800 22px Plus Jakarta Sans', color: '#fff', lineHeight: 1 }}>{Math.round(Math.min(cyclePct, 999))}%</div>
+                  <ProgressRing pct={cyclePct} color="#fff" track="rgba(255,255,255,0.28)" size={narrow ? 84 : 104} stroke={narrow ? 9 : 10}>
+                    <div style={{ font: `800 ${narrow ? 19 : 22}px Plus Jakarta Sans`, color: '#fff', lineHeight: 1 }}>{Math.round(Math.min(cyclePct, 999))}%</div>
                     <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>used</div>
                   </ProgressRing>
                 )}
