@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Landmark } from 'lucide-react'
+import { Landmark, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, round2, selectOnFocus } from '@/lib/utils'
@@ -170,7 +170,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
               background: c.accentSoft, color: c.accent, cursor: 'pointer',
               font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-          >+</button>
+          ><Plus size={16} strokeWidth={2.5} /></button>
         </div>
 
         {/* Distribution bar */}

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Check } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, fmtDate, localIso, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
@@ -325,7 +325,7 @@ export function BorrowingPage({ state, onAdd, onUpdate, onDelete, onPayment, onA
               </button>
             )}
             {/* Add button */}
-            <button onClick={openAdd} style={{ width: 36, height: 36, borderRadius: 999, background: c.accentSoft, color: c.accent, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, font: '700 20px Plus Jakarta Sans' }}>+</button>
+            <button onClick={openAdd} style={{ width: 36, height: 36, borderRadius: 999, background: c.accentSoft, color: c.accent, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, font: '700 20px Plus Jakarta Sans' }}><Plus size={18} strokeWidth={2.5} /></button>
             {/* Filter toggle */}
             <button
               onClick={() => setFiltersVisible(v => !v)}

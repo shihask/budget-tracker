@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Contact, Search } from 'lucide-react'
+import { Contact, Search, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import {
   searchMasters, sortMasters, MASTER_ACCENTS,
@@ -211,7 +211,7 @@ export function MastersPage({
               </div>
               <span style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Masters</span>
             </div>
-            <button onClick={openCreate} aria-label="New master" style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+            <button onClick={openCreate} aria-label="New master" style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={18} strokeWidth={2.5} /></button>
           </div>
 
           <div style={{ padding: '0 16px 12px', maxWidth: 540, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>

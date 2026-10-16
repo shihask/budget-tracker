@@ -6,6 +6,7 @@ import { useProjectsData } from '../hooks/useProjectsData'
 import { ProjectFormSheet } from './ProjectFormSheet'
 import { ProjectDetailPage } from './ProjectDetailPage'
 import type { Project, ProjectStatus, ProjectRole } from '../types'
+import { Plus } from 'lucide-react'
 
 interface Props {
   userId: string
@@ -172,7 +173,7 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             lineHeight: 1,
           }}
-        >+</button>
+        ><Plus size={18} strokeWidth={2.5} /></button>
       </div>
 
       {/* Search */}

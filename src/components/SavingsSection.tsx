@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
@@ -47,7 +47,7 @@ export function SavingsSection({ state, onSeeAll, onAdd }: Props) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span onClick={onSeeAll} style={{ font: '600 13px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>See all</span>
-            <button onClick={onAdd} aria-label="Add investment" style={{ width: 28, height: 28, borderRadius: 9, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 18px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: 0 }}>+</button>
+            <button onClick={onAdd} aria-label="Add investment" style={{ width: 28, height: 28, borderRadius: 9, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 18px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: 0 }}><Plus size={16} strokeWidth={2.5} /></button>
           </div>
         </div>
 

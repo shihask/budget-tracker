@@ -1,4 +1,4 @@
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from '@/components/Card'
@@ -42,7 +42,7 @@ export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               lineHeight: 1, padding: 0,
             }}
-          >+</button>
+          ><Plus size={16} strokeWidth={2.5} /></button>
         </div>
       </div>
 

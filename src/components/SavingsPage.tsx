@@ -12,6 +12,7 @@ import { getRecurringPeriodLabel, getNextRecurringDueDate, isPaidForCycle, paidF
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { PaidForPicker, PaidForSheet } from './PaidForPicker'
 import type { AppState, Savings, SavingsType, SavingsFrequency } from '@/types'
+import { Plus } from 'lucide-react'
 
 // ── Type config ───────────────────────────────────────────────────────────────
 
@@ -499,7 +500,7 @@ export function SavingsPage({ state, onClose, onAdd, onUpdate, onDelete, onRecor
                 </span>
               )}
             </button>
-            <button onClick={openAdd} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+            <button onClick={openAdd} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: c.accentSoft, color: c.accent, cursor: 'pointer', font: '700 20px Plus Jakarta Sans', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={18} strokeWidth={2.5} /></button>
           </div>
         </div>
 

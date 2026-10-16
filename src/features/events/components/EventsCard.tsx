@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarHeart } from 'lucide-react'
+import { CalendarHeart, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { Card } from '@/components/Card'
 import { eventSpent } from '@/lib/events'
@@ -48,7 +48,7 @@ export function EventsCard({ state, eventLedger, onAdd, onSeeAll, onOpenEvent, o
               font: '700 18px Plus Jakarta Sans', lineHeight: 1, padding: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-          >+</button>
+          ><Plus size={16} strokeWidth={2.5} /></button>
         </div>
       </div>
 
