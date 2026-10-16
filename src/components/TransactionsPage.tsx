@@ -1214,7 +1214,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               </div>
             )}
 
-            {editMoreOpen && editingTx && editForm?.transaction_type === 'expense' && (
+            {editMoreOpen && editingTx && editForm?.transaction_type === 'expense' && !!onUploadReceipt && (
               <div style={{ marginTop: 12 }}>
                 <ReceiptField
                   pendingReceipt={pendingReceipt}

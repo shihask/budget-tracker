@@ -55,6 +55,9 @@ interface SettingsPageProps {
   onBudgetStrategy: (v: boolean) => void
   onChallengeEnabled: (v: boolean) => Promise<void>
   onAutopilot: (v: boolean) => Promise<void>
+  /** Guest mode: AI and shared projects need a saved account (the server refuses them too). */
+  guest?: boolean
+  onSaveGuest?: () => void
   onNotificationsEnabled: (v: boolean) => Promise<void>
   onNotifyDailyReminder: (v: boolean) => Promise<void>
   onNotifyBudgetAlert: (v: boolean) => Promise<void>
@@ -68,7 +71,7 @@ interface SettingsPageProps {
   tourHighlight?: boolean
 }
 
-export function SettingsPage({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiUsagePct, aiUsageEnforcing, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, onClose, onSwipeProgress, tourHighlight }: SettingsPageProps) {
+export function SettingsPage({ accent, dark, layout, incomePattern, salaryDate, monthlySalary, weeklyIncome, incomeDay, averageDailyIncome, workingDaysPerWeek, businessMonthlyDrawings, historicalDailyIncome, trackCreditCards, trackBorrowings, trackSavings, trackProjects, trackAaSync, budgetStrategyEnabled, challengeEnabled, autopilotEnabled, aiUsagePct, aiUsageEnforcing, aiRequestsResetAt, notificationsEnabled, notifyDailyReminder, notifyBudgetAlert, notifyCommitments, notifyWeeklySummary, notifyEveningRecap, onAccent, onDark, onLayout, onIncomePattern, onSalaryDate, onMonthlySalary, onIncomeSettings, onTrackCreditCards, onTrackBorrowings, onTrackSavings, onTrackProjects, onTrackAaSync, onOpenAaSync, onBudgetStrategy, onChallengeEnabled, onAutopilot, onNotificationsEnabled, onNotifyDailyReminder, onNotifyBudgetAlert, onNotifyCommitments, onNotifyWeeklySummary, onNotifyEveningRecap, onDashboardLayout, onExportData, onClose, onSwipeProgress, tourHighlight, guest = false, onSaveGuest }: SettingsPageProps) {
   const c = useTheme()
   const [salaryInput, setSalaryInput] = useState(String(salaryDate || ''))
   const [salaryAmountInput, setSalaryAmountInput] = useState(monthlySalary != null ? String(monthlySalary) : '')
@@ -725,6 +728,7 @@ export function SettingsPage({ accent, dark, layout, incomePattern, salaryDate, 
         </button>
       )}
 
+      {!guest && (
       <div style={rowStyle}>
         <div>
           <div style={labelStyle}>Projects</div>
@@ -737,6 +741,7 @@ export function SettingsPage({ accent, dark, layout, incomePattern, salaryDate, 
           <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: trackProjects ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </button>
       </div>
+      )}
 
       <div style={rowStyle}>
         <div>
@@ -820,15 +825,24 @@ export function SettingsPage({ accent, dark, layout, incomePattern, salaryDate, 
                     <span style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Mint AI</span>
                     <span style={{ font: '700 7px Plus Jakarta Sans', color: '#F97316', background: '#F9731622', borderRadius: 4, padding: '1px 4px', letterSpacing: '0.05em' }}>BETA</span>
                   </div>
-                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>Enable all AI features (chat, insights, categorization)</div>
+                  <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>{guest ? 'Save your account to use Mint AI' : 'Enable all AI features (chat, insights, categorization)'}</div>
                 </div>
               </div>
+              {guest ? (
+                <button
+                  onClick={onSaveGuest}
+                  style={{ flexShrink: 0, background: 'none', border: `1.5px solid ${c.accent}`, borderRadius: 999, padding: '5px 14px', font: '700 12px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}
+                >
+                  Save account
+                </button>
+              ) : (
               <button
                 onClick={() => onAutopilot(!autopilotEnabled)}
                 style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: autopilotEnabled ? c.accent : c.faint, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
               >
                 <span style={{ position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.2s', left: autopilotEnabled ? 21 : 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
               </button>
+              )}
             </div>
 
             {/* Divider */}

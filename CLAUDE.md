@@ -602,6 +602,52 @@ must not register).
 - **TODO — identity linking**: Google `x@gmail.com` and phone `+91…` are separate accounts today;
   linking Google + email + phone (+ Apple) to one account is a future feature.
 
+## Guest mode — try before signing up
+"Try MoneyPlant Free" opens a Supabase **anonymous session**: a real user (own uid, same RLS) with
+no email, phone or name. Saving the account links an email/mobile to the **same uid**, so no row
+ever moves. Behind the build flag `VITE_GUEST_MODE=true` (`GUEST_MODE_ENABLED`); off, the CTA
+opens sign-up and the page promises nothing about "no sign-up". With the flag on but Supabase's
+anonymous sign-ins off, the button falls back to sign-up (`anonymous_provider_disabled`).
+
+| From | Action | Then |
+|---|---|---|
+| Landing | `signInAnonymously()` | `GuestQuickStart` (one account) → Quick Add on an expense |
+| Guest | `GuestSaveSheet`: `updateUser({email\|phone})` → code → `verifyOtp(email_change\|phone_change)` → `refreshSession()` | `CompleteProfilePage` (no name yet) → resumed onboarding |
+| Guest | Sign out | confirm first: leaving loses access to the entries |
+
+| File | Purpose |
+|---|---|
+| `src/lib/guest.ts` | `isGuest(user)` — the **one** client test (never "no email" / "no name"); flag; localStorage keys |
+| `src/components/GuestQuickStart.tsx` | A guest's whole onboarding: Cash / Bank / UPI wallet + optional balance |
+| `src/components/GuestSaveSheet.tsx` | Save the account; refuses a taken address (never merged), offers "sign in instead" |
+| `src/hooks/useAddSignInMethod.ts` | The one add-email/mobile flow, shared with Profile → Sign-in methods |
+| `supabase/migrations/20261016000002_guest_mode.sql` | `mp_is_guest()`, restrictive policies, activity, purge + cron |
+
+- **App gate:** `!isGuest(user) && !full_name` → `CompleteProfilePage`. Guests skip it; a saved guest has
+  no name, so lands on it — that reuses the name + password + `account_created` step unchanged.
+- **Onboarding:** guests never see `OnboardingFlow`. `mp_guest_setup_pending_<uid>` (set by
+  GuestQuickStart) makes it run after saving with `resumeAfterGuest` (no Splash, no Accounts), and
+  stops the accounts-exist auto-dismiss from marking onboarding done meanwhile.
+- **Server is the boundary, hiding is courtesy.** Guests are refused by `refuseGuest`
+  (`_shared/guest.ts`, 403 `guest_not_allowed`) in `ai-categorize` (every mode), `send-invite-email`,
+  `aa-connect`; and by restrictive INSERT policies on `import_batches`, `sync_connections`,
+  `account_connections`, `projects`, `project_collaborators` and `storage.objects` in the three
+  buckets. New paid / outward-facing feature ⇒ add it to one of those lists. Restrictive policies are
+  `TO authenticated`, INSERT only, `NOT mp_is_guest()` — a no-op for registered users (claim missing
+  or false reads as not-guest).
+- **Purge:** `mp_purge_stale_guests` (pg_cron `purge-stale-guests`, 04:00 UTC) deletes guests idle
+  30 days. Idle = `mp_guest_last_active_at`: auth activity (user row, sessions, refresh tokens) plus
+  the newest timestamp in every guest-writable table that has one (settings, categories,
+  commitments, borrowings … have none — the session refresh covers them). Candidates are locked
+  `FOR UPDATE SKIP LOCKED` and re-checked before DELETE, so a guest being saved is skipped. CASCADE
+  removes their rows; guests can't upload, so there are no files. A new guest-writable table with
+  timestamps belongs in `mp_guest_last_active_at`.
+- **Funnel:** `guest_started` → `guest_first_expense` → `guest_saved` → `guest_saved_return`
+  (later local day, per device). `first_expense` stays registered-only; `account_created` counts
+  both paths. `?internal=1` stops counting on that device. Admin totals exclude guests (`guestCount`).
+- Tests: `supabase/tests/guest_mode.sql` (rolled back, non-prod only) and
+  `scripts/test-guest-purge-race.mjs` (two connections, localhost only).
+
 ## Sign-up funnel — anonymous step counts
 `trackStep(step)` (`src/lib/funnel.ts`) inserts one row into `funnel_events` per step per page
 load: `landing_view → signup_opened / signin_opened / google_clicked → signup_code_sent

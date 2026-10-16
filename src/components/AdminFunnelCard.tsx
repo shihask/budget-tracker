@@ -15,6 +15,14 @@ const SIDE_STEPS: { step: string; label: string }[] = [
   { step: 'signin_success', label: 'Signed in' },
   { step: 'google_clicked', label: 'Google tapped' },
   { step: 'code_send_failed', label: 'Code failed' },
+  { step: 'first_expense', label: 'First expense (registered)' },
+]
+/** Guest mode: try first, save later. Each step is shown as a share of the step before it. */
+const GUEST_STEPS: { step: string; label: string }[] = [
+  { step: 'guest_started', label: 'Started as guest' },
+  { step: 'guest_first_expense', label: 'First expense' },
+  { step: 'guest_saved', label: 'Saved account' },
+  { step: 'guest_saved_return', label: 'Came back another day' },
 ]
 
 type Range = 1 | 7 | 30
@@ -126,10 +134,25 @@ export function AdminFunnelCard({ refreshKey }: { refreshKey: number }) {
                   </span>
                 ))}
               </div>
+              <div style={{ paddingTop: 8, borderTop: `1px solid ${c.faint}` }}>
+                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.sub, marginBottom: 6 }}>Guest mode</div>
+                {GUEST_STEPS.map(({ step, label }, i) => {
+                  const n = totals.get(step)?.total ?? 0
+                  const prev = i === 0 ? base : (totals.get(GUEST_STEPS[i - 1].step)?.total ?? 0)
+                  return (
+                    <div key={step} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '3px 0' }}>
+                      <span style={{ font: '600 12px Plus Jakarta Sans', color: c.ink }}>{label}</span>
+                      <span style={{ font: '700 12px Plus Jakarta Sans', color: c.ink }}>
+                        {n}{prev > 0 && <span style={{ color: c.muted, fontWeight: 600 }}> · {Math.round((n / prev) * 100)}%</span>}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
           <div style={{ font: '500 10.5px Plus Jakarta Sans', color: c.muted, marginTop: 10, lineHeight: 1.5 }}>
-            Anonymous counts, once per step per visit. Google sign-ups skip "Account created".
+            Anonymous counts, once per step per visit. Google sign-ups skip "Account created", which counts direct sign-ups and saved guests alike. Guest percentages are of the step above.
           </div>
         </div>
       )}

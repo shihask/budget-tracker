@@ -107,7 +107,11 @@ Deno.serve(async (req) => {
       const { data: listData, error: listError } = await db.auth.admin.listUsers()
       if (listError) return json({ error: 'list_users_failed' }, 500)
 
-      const ids = listData.users.map(u => u.id)
+      // Guests (anonymous sign-ins) are not accounts yet: kept out of the roster
+      // and every total, counted on their own. Unsaved ones are purged after 30 idle days.
+      const registered = listData.users.filter(u => !u.is_anonymous)
+      const guestCount = listData.users.length - registered.length
+      const ids = registered.map(u => u.id)
       const now = new Date()
       const [
         { data: settingsRows },
@@ -128,7 +132,7 @@ Deno.serve(async (req) => {
       const onboardedIds = new Set<string>((accountOwnerRows ?? []).map((r: { user_id: string }) => r.user_id))
       const adminIds = new Set<string>((adminRoleRows ?? []).map((r: { user_id: string }) => r.user_id))
 
-      const users = listData.users.map(u => {
+      const users = registered.map(u => {
         const s = settingsByUser.get(u.id)
         const features: Record<ToggleableField, boolean> = {} as Record<ToggleableField, boolean>
         for (const f of TOGGLEABLE_FIELDS) features[f] = s ? Boolean(s[f]) : DEFAULT_FIELD_VALUES[f]
@@ -169,6 +173,7 @@ Deno.serve(async (req) => {
 
       const summary = {
         totalUsers,
+        guestCount,
         activeUsers30d,
         adminCount: adminIds.size,
         totalTransactions: totalTransactions ?? 0,

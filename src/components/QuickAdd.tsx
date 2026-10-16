@@ -1516,7 +1516,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
 
                     {/* Offline: hidden, unless one is already picked — then it stays so
                         the user can remove it (Save explains why it's blocked). */}
-                    {isExpense && (!offline || !!pendingReceipt) && (
+                    {isExpense && !!onUploadReceipt && (!offline || !!pendingReceipt) && (
                       <ReceiptField
                         ref={receiptFieldRef}
                         pendingReceipt={pendingReceipt}

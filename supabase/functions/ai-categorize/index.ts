@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { refuseGuest } from '../_shared/guest.ts'
 
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY')!
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -359,6 +360,8 @@ Deno.serve(async (req) => {
     })
     const { data: { user }, error: authError } = await anonClient.auth.getUser()
     if (authError || !user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: cors })
+    const guestRefused = refuseGuest(user, cors)
+    if (guestRefused) return guestRefused
 
     const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
