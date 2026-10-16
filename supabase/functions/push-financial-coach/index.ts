@@ -1,6 +1,7 @@
 // Triggered by pg_cron every Wednesday and Saturday at 9 AM.
 // Sends proactive financial coaching notifications: budget pace, category spikes, good progress.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireServiceRole } from '../_shared/requireServiceRole.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +10,8 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const denied = requireServiceRole(req, corsHeaders)
+  if (denied) return denied
 
   try {
     const supabase = createClient(

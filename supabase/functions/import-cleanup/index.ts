@@ -12,6 +12,7 @@
 // this cannot be a pure-SQL cron job — it has to call the Storage API, which
 // is why it is an Edge Function rather than another cron.schedule() body.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireServiceRole } from '../_shared/requireServiceRole.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,6 +28,8 @@ const CLAIM_LIMIT = 200
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const denied = requireServiceRole(req, corsHeaders)
+  if (denied) return denied
 
   try {
     const supabase = createClient(

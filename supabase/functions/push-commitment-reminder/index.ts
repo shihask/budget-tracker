@@ -2,6 +2,7 @@
 // Finds active recurring commitments due in exactly 2 days (by due_day),
 // skips ones already paid this month, then sends a push per user.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireServiceRole } from '../_shared/requireServiceRole.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,6 +11,8 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const denied = requireServiceRole(req, corsHeaders)
+  if (denied) return denied
 
   try {
     const supabase = createClient(

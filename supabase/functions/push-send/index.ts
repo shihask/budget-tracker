@@ -1,6 +1,7 @@
 // Internal helper — sends a push notification to one or all users
 // Called by other Edge Functions; not exposed to the client directly.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireServiceRole } from '../_shared/requireServiceRole.ts'
 // @ts-ignore — web-push has no Deno types
 import webpush from 'npm:web-push'
 
@@ -17,6 +18,8 @@ webpush.setVapidDetails(
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const denied = requireServiceRole(req, corsHeaders)
+  if (denied) return denied
 
   try {
     const supabase = createClient(

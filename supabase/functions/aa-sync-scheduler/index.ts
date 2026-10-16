@@ -11,6 +11,7 @@
 //       5 attempts)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireServiceRole } from '../_shared/requireServiceRole.ts'
 import { createSession } from '../_shared/setu-client.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -32,6 +33,8 @@ function backoffElapsed(lastAttemptedAt: string, retryCount: number): boolean {
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+  const denied = requireServiceRole(req, cors)
+  if (denied) return denied
 
   try {
     const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)

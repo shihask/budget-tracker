@@ -1,6 +1,7 @@
 // Triggered by pg_cron at 8 PM daily (or via Supabase scheduled invocation).
 // Sends a Mint reminder to users who have no expense transaction today.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireServiceRole } from '../_shared/requireServiceRole.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +10,8 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const denied = requireServiceRole(req, corsHeaders)
+  if (denied) return denied
 
   try {
     const supabase = createClient(
