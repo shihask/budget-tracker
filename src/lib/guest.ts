@@ -8,6 +8,14 @@
 
 import type { User } from '@supabase/supabase-js'
 
+/**
+ * Build-time switch. Off: the landing CTA opens the normal sign-up and makes no
+ * "no sign-up" promise. Turn it on (VITE_GUEST_MODE=true in Vercel) only after
+ * anonymous sign-ins are enabled in Supabase *and* the server-side guest blocks
+ * are deployed — so main is always safe to push.
+ */
+export const GUEST_MODE_ENABLED = import.meta.env.VITE_GUEST_MODE === 'true'
+
 export function isGuest(user: Pick<User, 'is_anonymous'> | null | undefined): boolean {
   return user?.is_anonymous === true
 }

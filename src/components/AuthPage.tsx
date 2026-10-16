@@ -13,6 +13,7 @@ import { MintAnimation } from './MintAnimation'
 import { OpenInBrowserNotice } from './OpenInBrowserNotice'
 import { inAppBrowserName, isStandalone } from '@/lib/browser-env'
 import { trackStep } from '@/lib/funnel'
+import { GUEST_MODE_ENABLED } from '@/lib/guest'
 import {
   type Identifier, OTP_LENGTH, OTP_RESEND_SECONDS, PHONE_AUTH_OFF,
   displayIdentifier, isPhoneAuthOff, parseIdentifier,
@@ -300,7 +301,13 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
     if (guestBusy) return
     setGuestBusy(true); setGuestError(false)
     const { error } = await supabase.auth.signInAnonymously()
-    if (error) { setGuestError(true); setGuestBusy(false); return }
+    if (error) {
+      setGuestBusy(false)
+      // Switched off server-side while the flag is on: just sign up, no error.
+      if (error.code === 'anonymous_provider_disabled') openAuth('signup')
+      else setGuestError(true)
+      return
+    }
     trackStep('guest_started')
   }
 
@@ -574,7 +581,7 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
       <LandingScreen
         onSignIn={() => openAuth('login')}
         onSignUp={() => openAuth('signup')}
-        onTryGuest={startGuest}
+        onTryGuest={GUEST_MODE_ENABLED ? startGuest : () => openAuth('signup')}
         guestBusy={guestBusy}
         guestError={guestError}
         onLegal={setLegalPage}
@@ -594,6 +601,7 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
 }
 
 function GuestStartNote({ error, onSignUp }: { error: boolean; onSignUp: () => void }) {
+  if (!GUEST_MODE_ENABLED) return <p className="mp-hero__note">Free · no bank login · sign up with just your email or mobile</p>
   if (!error) return <p className="mp-hero__note">No sign-up to start. Save your data whenever you like.</p>
   return (
     <p className="mp-hero__note mp-hero__note--error" role="alert">
