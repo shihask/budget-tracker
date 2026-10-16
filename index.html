@@ -30,9 +30,11 @@
     <meta name="twitter:description" content="Free expense tracker and budget app for India. Track spending, EMIs, credit card bills and SIPs, and see what's safe to spend before payday." />
     <meta name="twitter:image" content="https://moneyplant.online/og-image.png" />
 
-    <!-- index.css @imports the font; start the connections before that stylesheet asks -->
+    <!-- The app font. A <link>, not an @import in index.css: Tailwind v4 inlines index.css and
+         the build drops a url() @import that is no longer first, so the font never loaded. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" />
 
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/pwa.svg" sizes="any" type="image/svg+xml" />
