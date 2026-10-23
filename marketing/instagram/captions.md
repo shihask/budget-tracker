@@ -225,3 +225,22 @@ Turn on Autopilot in Settings to use it. Free.
 #moneyplant #receipt #expensetracker #personalfinance #budgeting #moneytips #financeindia #productivity #reelsindia
 ```
 For a Meta ad: headline "Snap. Check. Saved.", URL ending `utm_campaign=receipt_reel`.
+
+---
+
+## Reel: Manu & Maaman S1 EP 01 "ശമ്പളം വന്നാൽ പാർട്ടിയാണോ?" (Salary Reset Challenge)
+File: `out/manu-maaman/s1-ep01/toon-s1-ep01.mp4` (45 s, sound effects only: add the voice-over before posting). Cover: the salary-breakdown frame (~19.8 s).
+Source: `toon-s1-ep01.html`, cast in `toon-cast.js`. Regenerate: `node marketing/instagram/render-reel.mjs toon-s1-ep01`.
+```
+Salary വന്നോ? 🎉
+
+ചെലവാക്കുന്നതിന് മുൻപ് ഒരു പ്ലാൻ ഉണ്ടാക്കൂ.
+
+നിങ്ങൾക്ക് ഈ മാസം എത്ര സേവ് ചെയ്യാൻ കഴിയും?
+
+🌱 Follow Manu & Maaman for the 30-day Salary Reset Challenge.
+
+Illustrative example. Your budget may differ.
+
+#moneyplant #manuandmaaman #salary #savings #budgeting #personalfinance #malayalam #kerala #moneytips #reelsindia
+```

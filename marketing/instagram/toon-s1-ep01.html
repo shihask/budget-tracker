@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu & Maaman S1 EP 01</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="toon-s1.css">
+<!-- Manu & Maaman, Season 1 "Salary Reset Challenge", EP 01: ശമ്പളം വന്നാൽ പാർട്ടിയാണോ?
+     Cast and home set from toon-cast.js; timings follow the screenplay's scenes (0–4, 4–10,
+     10–21, 21–33, 33–41, end 41–45) until the voice-over is recorded, then get refitted to it.
+     Example amounts, all arithmetic checkable on screen:
+     9,000 + 4,500 + 8,000 + 3,500 + 5,000 = 30,000; 45,000 − 30,000 = 15,000;
+     400 × 30 = 12,000; 15,000 − 12,000 = 3,000. -->
+<style>
+  #closeup { position: absolute; inset: 0; z-index: 7; background: linear-gradient(#F7E8CF 0 62%, #8A5A33 62% 64%, #A86C3A 64%); }
+  #closeup::after { content: ''; position: absolute; left: 0; right: 0; top: 64%; height: 6px; background: rgba(0,0,0,.15); }
+  #lock { left: 210px; top: 440px; width: 660px; height: 1180px; opacity: 1; transform: rotate(-3deg); }
+  #lock .scr { background: linear-gradient(170deg, #1F5F4F, #0E2E27); color: #fff; text-align: center; }
+  #lock .time { margin-top: 140px; font-size: 150px; font-weight: 700; letter-spacing: -4px; }
+  #lock .date { font-size: 34px; opacity: .8; }
+  #lock .notif { margin: 70px 30px 0; background: rgba(255,255,255,.95); color: #1C1410; border-radius: 34px; padding: 26px 26px; display: flex; gap: 20px; align-items: center; text-align: left; opacity: 0; }
+  #lock .notif .ic { flex: 0 0 84px; height: 84px; border-radius: 22px; background: #E3F8EF; display: grid; place-items: center; font-size: 46px; font-weight: 800; color: #0A7A56; }
+  #lock .notif b { display: block; font-size: 28px; color: #6B5F57; }
+  #lock .notif span { font-size: 44px; font-weight: 800; letter-spacing: -1px; }
+  #app { left: 190px; top: 480px; width: 700px; height: 850px; }
+  #app .scr { background: #F6F1EA; }
+</style>
+</head>
+<body>
+<div id="stage">
+<svg id="world" viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg"></svg>
+
+<div class="badge"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">EP 01</div></div>
+<div class="title" id="title">ശമ്പളം വന്നാൽ പാർട്ടിയാണോ?</div>
+
+<div class="ledger" id="ledger">
+  <span class="tag">Example</span>
+  <div class="row head" id="r0"><span>Salary</span><b>₹45,000</b></div>
+  <div class="row minus" id="r1"><span>വാടക<small>Rent</small></span><b>− ₹9,000</b></div>
+  <div class="row minus" id="r2"><span>Bike EMI</span><b>− ₹4,500</b></div>
+  <div class="row minus" id="r3"><span>വീട്ടിലേക്ക്<small>Home</small></span><b>− ₹8,000</b></div>
+  <div class="row minus" id="r4"><span>Credit-card bill</span><b>− ₹3,500</b></div>
+  <div class="row minus" id="r5"><span>Planned savings</span><b>− ₹5,000</b></div>
+  <div class="row total" id="r6"><span>Total allocated</span><b>₹30,000</b></div>
+  <div class="row left" id="r7"><span>ബാക്കി<small>Remaining</small></span><b>₹15,000</b></div>
+</div>
+
+<div class="phone" id="app"><div class="scr">
+  <div class="appbar"><img src="../../public/email-logo.png" alt="">MoneyPlant<span>Mint</span></div>
+  <div class="chat"><div id="mintFace"></div><div class="say" id="say"></div></div>
+  <div class="calc">
+    <span class="tag">Example</span>
+    <div class="row" id="c0"><span>ബാക്കി · Remaining</span><b>₹15,000</b></div>
+    <div class="row" id="c1"><span>₹400 × 30 days</span><b>₹12,000</b></div>
+    <div class="row" id="c2"><span>₹15,000 − ₹12,000</span><b>=</b></div>
+    <div class="res" id="c3"><b>₹3,000</b><span>kept this month</span></div>
+  </div>
+</div></div>
+
+<div class="pill-card" id="challenge"><b>₹3,000 Challenge</b><span>30 days · starts today</span></div>
+
+<div class="lesson" id="lesson">
+  <div class="k">EP 01 · LESSON</div>
+  <div class="l" id="l0">Save first.</div>
+  <div class="l g" id="l1">Then spend what’s left.</div>
+</div>
+
+<div id="bubbles"></div>
+
+<div id="closeup">
+  <div class="phone" id="lock"><div class="scr">
+    <div class="time">9:41</div><div class="date">Payday</div>
+    <div class="notif" id="notif"><div class="ic">₹</div><div><b>Bank · now</b><span>Salary credited — ₹45,000</span></div></div>
+  </div></div>
+</div>
+
+<div class="sub" id="sub"></div>
+
+<section class="scene green end" id="end">
+  <img class="logo" src="../../public/email-logo.png" alt="">
+  <div class="name">₹3,000 IN 30 DAYS</div>
+  <div class="tagline">MANU &amp; MAAMAN — EP 02 NEXT</div>
+  <div class="pill">Follow @moneyplant.online</div>
+  <div class="disc" id="disc">Example amounts · not financial advice</div>
+</section>
+</div>
+
+<script src="reel-kit.js"></script>
+<script src="toon-cast.js"></script>
+<script>
+  mountCast($('world'))
+  $('mintFace').innerHTML = mintSvg()
+
+  // Manu's day-dream (scene 2): thought cloud above his head with three wants in turn.
+  $('world').insertAdjacentHTML('beforeend', `
+  <g id="thought" opacity="0" transform="translate(800 650) scale(.85) translate(-800 -700)">
+    <circle cx="800" cy="1010" r="16" fill="#fff"/><circle cx="830" cy="960" r="26" fill="#fff"/>
+    <g fill="#fff" stroke="#E6D7BE" stroke-width="4">
+      <ellipse cx="800" cy="700" rx="230" ry="150"/><ellipse cx="660" cy="660" rx="100" ry="90"/><ellipse cx="940" cy="650" rx="100" ry="90"/>
+      <ellipse cx="800" cy="580" rx="130" ry="80"/><ellipse cx="700" cy="790" rx="110" ry="70"/><ellipse cx="900" cy="790" rx="110" ry="70"/>
+    </g>
+    <ellipse cx="800" cy="700" rx="226" ry="146" fill="#fff"/><ellipse cx="660" cy="660" rx="96" ry="86" fill="#fff"/><ellipse cx="940" cy="650" rx="96" ry="86" fill="#fff"/>
+    <ellipse cx="800" cy="584" rx="126" ry="76" fill="#fff"/><ellipse cx="700" cy="786" rx="106" ry="66" fill="#fff"/><ellipse cx="900" cy="786" rx="106" ry="66" fill="#fff"/>
+    <g id="th0" transform="translate(800 700)">
+      <path d="M-150 30 Q -150 -40 -100 -50 L -40 -60 Q -10 -20 40 -10 Q 120 0 150 30 L 150 60 H -150 Z" fill="#E8493A"/>
+      <rect x="-156" y="50" width="312" height="26" rx="12" fill="#fff" stroke="#C9C9C9" stroke-width="4"/>
+      <path d="M-70 -40 l 20 30 M-40 -46 l 18 30 M-12 -40 l 16 26" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+      <path d="M40 0 Q 90 10 130 30" stroke="#fff" stroke-width="10" fill="none" stroke-linecap="round"/>
+    </g>
+    <g id="th1" transform="translate(800 700)">
+      <ellipse cx="0" cy="40" rx="170" ry="44" fill="#E9E2D0" stroke="#C9BFA8" stroke-width="5"/>
+      <path d="M-120 34 Q -110 -70 0 -76 Q 110 -70 120 34 Z" fill="#F2B52C"/>
+      <g fill="#C96A2B"><circle cx="-50" cy="-20" r="9"/><circle cx="10" cy="-44" r="9"/><circle cx="56" cy="-6" r="9"/><circle cx="-10" cy="4" r="9"/></g>
+      <path d="M-30 -60 q 10 -14 22 -2" stroke="#3FAE6A" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path d="M150 -60 V 30 M134 -60 V -20 Q 150 -6 166 -20 V -60" stroke="#8C8C8C" stroke-width="7" fill="none" stroke-linecap="round"/>
+    </g>
+    <g id="th2" transform="translate(800 700)">
+      <rect x="-150" y="-50" width="140" height="130" rx="10" fill="#E05A8A"/><path d="M-115 -50 q 0 -50 35 -50 q 35 0 35 50" stroke="#A8355F" stroke-width="10" fill="none"/>
+      <rect x="10" y="-80" width="150" height="160" rx="10" fill="#4F7FA8"/><path d="M50 -80 q 0 -50 35 -50 q 35 0 35 50" stroke="#2F5A80" stroke-width="10" fill="none"/>
+      <path d="M85 -10 l 12 24 l 26 4 l -19 18 l 5 26 l -24 -12 l -24 12 l 5 -26 l -19 -18 l 26 -4 Z" fill="#FFE066"/>
+    </g>
+  </g>`)
+
+  // Dialogue: the screenplay's Malayalam, unchanged, in the bubble; English in the subtitle.
+  const LINES = [
+    { who: 'manu',   a: 2.2,  b: 4.4,  ml: 'മാമാ! Salary വന്നു! ഈ മാസം അടിച്ചുപൊളിക്കാം!', en: 'Maaman! Salary is here! Let’s enjoy this month!' },
+    { who: 'manu',   a: 4.5,  b: 7.0,  ml: 'പുതിയ ഷൂസ് വാങ്ങണം, ഫ്രണ്ട്സിന്റെ കൂടെ പാർട്ടിക്കും പോണം!', en: 'New shoes! And a party with my friends!' },
+    { who: 'maaman', a: 7.1,  b: 9.3,  ml: 'അടിപൊളി! പക്ഷേ ഈ മാസം എത്ര പൈസ ബാക്കി ഉണ്ടാകുമെന്ന് അറിയാമോ?', en: 'Great! But do you know how much will be left this month?' },
+    { who: 'manu',   a: 9.5,  b: 10.8, ml: 'അത്... നോക്കിയിട്ടില്ല!', en: 'I haven’t checked!' },
+    { who: 'maaman', a: 11.2, b: 17.2, ml: 'ആദ്യം ഈ ചെലവുകൾ മാറ്റിവെക്കണം. പിന്നെ ബാക്കി എങ്ങനെ ഉപയോഗിക്കണമെന്ന് പ്ലാൻ ചെയ്യാം.', en: 'Set aside your commitments first. Then plan how to use what’s left.', bubble: false },
+    { who: 'mint',   a: 22.0, b: 27.8, ml: 'മാനുവേ, ദിവസവും ശരാശരി ₹400 ചെലവാക്കിയാൽ, ₹3,000 ബാക്കി വെക്കാം!', en: 'Manu, if you spend an average of ₹400 a day, you can keep ₹3,000!' },
+    { who: 'manu',   a: 28.4, b: 31.8, ml: 'അപ്പോൾ ഈ മാസം ₹3,000 Challenge!', en: 'Then this month, it’s the ₹3,000 Challenge!' },
+    { who: 'maaman', a: 33.8, b: 40.6, ml: 'ശമ്പളം കിട്ടിയിട്ട് സേവ് ചെയ്യുന്നതല്ല. സേവ് ചെയ്തിട്ട് ബാക്കി ചെലവാക്കണം!', en: 'Don’t save only what’s left after spending. Plan your savings first.' },
+  ]
+  const NARRATION = [
+    { a: 0.5,  b: 2.1,  en: 'Payday.' },
+    { a: 18.4, b: 21.0, en: '₹45,000 − ₹30,000 = ₹15,000 left' },
+  ]
+  const CLOSEUP_OUT = 2.0, THOUGHT = [4.4, 7.4], LEDGER = [10.8, 21.0]
+  const ROW_T = [11.0, 12.0, 13.3, 14.6, 15.9, 17.2, 18.4, 19.4]
+  const APP = [21.2, 28.0], CALC_T = [22.8, 24.0, 25.2, 26.2]
+  const CHALLENGE = [28.2, 33.0], WALK = [32.4, 33.6], PAT = [33.8, 35.8], LESSON = [36.2, 41.0]
+  const END = 41.0, DURATION = 45
+  window.REEL_OUT_DIR = 'manu-maaman/s1-ep01'
+  const MAAMAN_HOME = 290, MAAMAN_PAT = 480, MANU_X = 760
+  window.REEL_SFX = [
+    { t: 0.5, kind: 'chime' }, { t: CLOSEUP_OUT, kind: 'whoosh' }, { t: 2.3, kind: 'chime' },
+    { t: THOUGHT[0], kind: 'whoosh' }, { t: 9.3, kind: 'boing' }, { t: LEDGER[0], kind: 'whoosh' },
+    ...ROW_T.slice(1, 7).map(t => ({ t, kind: 'register' })), { t: ROW_T[7], kind: 'chime' },
+    { t: APP[0], kind: 'whoosh' }, { t: CALC_T[3], kind: 'chime' }, { t: APP[1], kind: 'whoosh' },
+    { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
+  ]
+
+  const bubbles = makeBubbles(LINES)
+  const maamanX = t => MAAMAN_HOME + (MAAMAN_PAT - MAAMAN_HOME) * easeInOut(prog(t, WALK[0], WALK[1] - WALK[0]))
+  const xOf = (who, t) => who === 'manu' ? MANU_X : maamanX(t)
+  const during = (t, a, b) => t >= a && t < b
+
+  function render(t) {
+    animateHome(t)
+
+    // Manu: excited on payday, dreamy, caught out, staring at the list, reading Mint, determined
+    const hop = during(t, 2.2, 3.4) ? Math.abs(Math.sin((t - 2.2) * Math.PI * 2.5)) * 70 : 0
+    const manuMood = t < 4.5 ? 'grin' : t < 7.1 ? 'dreamy' : t < 9.2 ? 'smile' : t < LEDGER[0] ? 'embarrassed'
+      : t < 15 ? 'shocked' : t < APP[0] ? 'worried' : t < CALC_T[3] ? 'interested' : t < 28.2 ? 'grin' : 'determined'
+    poseManu(t, {
+      x: MANU_X, mood: manuMood, talking: speaking(LINES, 'manu', t), jump: hop,
+      phone: easeOut(prog(t, APP[0] - .4, .4)) - easeOut(prog(t, APP[1], .4)),
+      fist: easeOut(prog(t, 28.4, .3)) - easeOut(prog(t, 29.8, .3)),
+      look: during(t, LEDGER[0], APP[1]) ? [0, -5] : during(t, PAT[0], 40) ? [-5, 0] : [0, 0],
+    })
+
+    // Maaman: amused while Manu dreams, knowing look on his question, points at the list, then walks over and pats
+    const maamanMood = during(t, 4.5, 7.0) ? 'amused' : during(t, 7.0, 9.4) ? 'knowing' : during(t, 26.2, 28.4) ? 'amused'
+      : during(t, 40.6, 45) ? 'laugh' : 'smile'
+    poseMaaman(t, {
+      x: maamanX(t), mood: maamanMood, talking: speaking(LINES, 'maaman', t),
+      point: easeOut(prog(t, 11.0, .5)) - easeOut(prog(t, 20.4, .5)),
+      pat: easeOut(prog(t, PAT[0], .4)) - easeOut(prog(t, PAT[1], .4)),
+      look: during(t, 2.2, 10.8) || t > 33.6 ? [5, 0] : [0, 0],
+      bob: during(t, WALK[0], WALK[1]) ? 10 : 3,
+    })
+    if (during(t, WALK[0], WALK[1])) $('maamanBob').setAttribute('transform', `translate(0 ${-Math.abs(Math.sin(t * 10)) * 14})`)
+
+    // scene 1: the phone on the table, the salary notification, then out to the room
+    const out = easeInOut(prog(t, CLOSEUP_OUT, .45))
+    $('closeup').style.display = t < CLOSEUP_OUT + .5 ? 'block' : 'none'
+    $('closeup').style.opacity = 1 - out
+    $('closeup').style.transform = `scale(${1 + out * .6})`
+    rise($('notif'), t, .5, .4, -40)
+    $('notif').style.transform += ` scale(${.9 + .1 * backOut(prog(t, .5, .4))})`
+
+    const tp = backOut(prog(t, CLOSEUP_OUT + .2, .4))
+    $('title').style.opacity = prog(t, CLOSEUP_OUT + .2, .2); $('title').style.transform = `scale(${.4 + .6 * tp})`
+
+    // scene 2: the day-dream
+    const th = Math.min(prog(t, THOUGHT[0], .3), 1 - prog(t, THOUGHT[1] - .3, .3))
+    $('thought').setAttribute('opacity', th)
+    ;['th0', 'th1', 'th2'].forEach((id, i) => {
+      const a = THOUGHT[0] + .2 + i * .95, k = backOut(prog(t, a, .3)) * (t < a + .95 || i === 2 ? 1 : 0)
+      $(id).setAttribute('transform', `translate(800 700) scale(${k}) rotate(${Math.sin(t * 6) * 4})`)
+    })
+
+    // scene 3: the breakdown
+    popWindow($('ledger'), t, LEDGER[0], LEDGER[1], .85)
+    ROW_T.forEach((a, i) => rise($('r' + i), t, a, .35, 24))
+
+    // scene 4: Mint on the phone
+    popWindow($('app'), t, APP[0], APP[1], .6)
+    poseMint(t, { talking: speaking(LINES, 'mint', t), happy: during(t, CALC_T[3], APP[1]) })
+    const mintLine = LINES.find(l => l.who === 'mint')
+    $('say').textContent = typed(mintLine.ml, t, mintLine.a, 1.6)
+    CALC_T.forEach((a, i) => rise($('c' + i), t, a, .4, 20))
+    $('c3').querySelector('b').style.transform = `scale(${.6 + .4 * backOut(prog(t, CALC_T[3], .4))})`
+
+    // scene 4 → 5: the challenge, then the lesson
+    popWindow($('challenge'), t, CHALLENGE[0], CHALLENGE[1], .5)
+    popWindow($('lesson'), t, LESSON[0], LESSON[1] + .3, .85)
+    ;['l0', 'l1'].forEach((id, i) => rise($(id), t, LESSON[0] + .25 + i * .5, .4, 30))
+
+    renderDialogue(t, LINES, NARRATION, bubbles, xOf)
+    endCard($('end'), t, END, DURATION)
+    rise($('disc'), t, END + 1.3)
+  }
+  boot(render, DURATION, [1.2, 3.0, 5.5, 8.2, 10.0, 15.0, 19.8, 24.0, 27.0, 30.0, 34.8, 38.5, 43.5])
+</script>
+</body>
+</html>
