@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu & Maaman S1 EP 02</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="toon-s1.css">
+<!-- Manu & Maaman, Season 1 "Salary Reset Challenge", EP 02: പൈസ ചോരുന്നത് എവിടെയാണ്?
+     (ചെറിയ ചെലവുകൾ, വലിയ നഷ്ടം). Cast and home set from toon-cast.js; timings follow the
+     screenplay's scenes (0–4, 4–14, 14–26, 26–36, end 36–42) until the voice-over is recorded.
+     Example amounts, all arithmetic checkable on screen:
+     50 + 180 + 300 + 200 = 730; 100 × 30 = 3,000 (labelled as an example, not Manu's spending).
+     Scene 4 is the real Quick Add sheet, recorded on the reels demo account by record-app.mjs
+     (out/app-quickadd.mp4, 1.4–7.6 s only: the dashboard on either side shows the demo account's
+     balance, which isn't Manu's story). Cut to VP9 with a keyframe on every frame so the
+     frame-by-frame renderer can seek it exactly:
+       ffmpeg -ss 1.4 -t 6.2 -i out/app-quickadd.mp4 -vf scale=405:720 -an -c:v libvpx-vp9 -crf 42 -b:v 0 -g 1 out/app-quickadd-sheet.webm -->
+<style>
+  .wallet { position: absolute; left: 70px; top: 490px; width: 440px; background: #FFFDF6; border-radius: 36px; padding: 14px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.25); opacity: 0; z-index: 4; transform-origin: 30% 50%; }
+  .wallet svg { display: block; width: 400px; height: 240px; }
+  .spends { position: absolute; left: 90px; right: 90px; top: 490px; background: #FFFDF6; border-radius: 36px; padding: 18px 42px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.25); opacity: 0; z-index: 4; }
+  .spends .tag { position: absolute; right: 30px; top: -20px; }
+  .spends .row { display: flex; align-items: center; gap: 22px; padding: 6px 0; font-size: 36px; font-weight: 700; color: #1C1410; }
+  .spends .row b { margin-left: auto; font-size: 40px; font-weight: 800; color: #B4372B; }
+  .spends .ic { flex: 0 0 56px; height: 56px; border-radius: 18px; background: #FDECEA; display: grid; place-items: center; }
+  .spends .ic svg { width: 36px; height: 36px; stroke: #B4372B; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .spends .total { border-top: 3px solid #1C1410; margin-top: 8px; padding-top: 14px; }
+  .spends .total b { color: #B4372B; font-size: 56px; }
+  #app { left: 190px; top: 480px; width: 700px; height: 850px; }
+  #app .scr { background: #F6F1EA; }
+  .dots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 10px; padding: 12px 4px 8px; }
+  .dots i { display: block; height: 34px; border-radius: 50%; background: #EDE5DB; }
+  .dots i.on { background: #F2B52C; box-shadow: inset 0 -4px 0 #C48D12; }
+  #sum { display: inline-block; transform-origin: right center; }
+  .calc .note { font-size: 22px; font-weight: 600; color: #6B5F57; text-align: center; margin-top: 8px; }
+  #qa { left: 316px; top: 530px; width: 449px; height: 764px; }
+  #qa video { display: block; width: 405px; height: 720px; }
+  #qa .real { position: absolute; left: 50%; top: -30px; transform: translateX(-50%); white-space: nowrap; background: #0A7A56; color: #fff; }
+  #ripple { position: absolute; left: 202px; top: 693px; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: rgba(255,255,255,.55); opacity: 0; }
+  .end .pill { font-size: 40px; line-height: 1.35; padding: 26px 44px; max-width: 900px; }
+</style>
+</head>
+<body>
+<div id="stage">
+<svg id="world" viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg"></svg>
+
+<div class="badge"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">EP 02</div></div>
+<div class="title" id="title">പൈസ ചോരുന്നത് എവിടെയാണ്?</div>
+
+<!-- scene 1: an almost empty wallet, and a moth flies out -->
+<div class="wallet" id="wallet">
+  <svg viewBox="0 0 600 360" xmlns="http://www.w3.org/2000/svg">
+    <g id="notes">
+      <rect x="190" y="70" width="230" height="110" rx="10" fill="#9BD3A4" stroke="#5E9E68" stroke-width="5" transform="rotate(-8 300 120)"/>
+      <rect x="200" y="86" width="230" height="110" rx="10" fill="#B9E2BF" stroke="#5E9E68" stroke-width="5" transform="rotate(4 300 140)"/>
+      <circle cx="315" cy="142" r="30" fill="none" stroke="#5E9E68" stroke-width="5"/>
+      <text x="315" y="156" text-anchor="middle" font-family="Plus Jakarta Sans" font-weight="800" font-size="40" fill="#3E7D48">₹</text>
+    </g>
+    <path d="M110 150 H 490 Q 510 150 510 170 V 320 Q 510 340 490 340 H 110 Q 90 340 90 320 V 170 Q 90 150 110 150Z" fill="#8A5A33"/>
+    <path d="M90 200 H 510" stroke="#6E4524" stroke-width="6" stroke-dasharray="14 10"/>
+    <rect x="400" y="230" width="110" height="64" rx="14" fill="#6E4524"/><circle cx="440" cy="262" r="10" fill="#D4A93A"/>
+    <g id="moth">
+      <ellipse cx="0" cy="0" rx="8" ry="20" fill="#7A7068"/>
+      <g id="mothWings" fill="#B8AFA6" stroke="#7A7068" stroke-width="3"><path d="M-4 -6 Q -46 -40 -42 4 Q -30 20 -4 6Z"/><path d="M4 -6 Q 46 -40 42 4 Q 30 20 4 6Z"/></g>
+    </g>
+    <g fill="#B4372B" font-family="Plus Jakarta Sans" font-weight="800" font-size="64">
+      <text id="q1" x="60" y="110">?</text><text id="q2" x="520" y="96">?</text>
+    </g>
+  </svg>
+</div>
+
+<!-- scene 2: the small spends -->
+<div class="spends" id="spends">
+  <span class="tag">Example</span>
+  <div class="row" id="s0"><div class="ic"><svg viewBox="0 0 24 24"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></svg></div><span>ചായ, snacks</span><b>₹50</b></div>
+  <div class="row" id="s1"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 18h6l3-7h4M15 11l-2-4H9"/><path d="M3 9h5v4H3z"/></svg></div><span>Food delivery</span><b>₹180</b></div>
+  <div class="row" id="s2"><div class="ic"><svg viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg></div><span>Online purchase<small style="font-size:26px;color:#6B5F57;margin-left:8px">unplanned</small></span><b>₹300</b></div>
+  <div class="row" id="s3"><div class="ic"><svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg></div><span>Extra shopping</span><b>₹200</b></div>
+  <div class="row total" id="s4"><span>ആകെ<small style="font-size:28px;color:#6B5F57;margin-left:10px">Total</small></span><b>₹730</b></div>
+</div>
+
+<!-- scene 3: Mint shows the pattern -->
+<div class="phone" id="app"><div class="scr">
+  <div class="appbar"><img src="../../public/email-logo.png" alt="">MoneyPlant<span>Mint</span></div>
+  <div class="chat"><div id="mintFace"></div><div class="say" id="say"></div></div>
+  <div class="calc">
+    <span class="tag">Example</span>
+    <div class="row" id="c0"><span>ദിവസവും · every day</span><b>₹100</b></div>
+    <div class="dots" id="dots"></div>
+    <div class="row" id="c1"><span id="days">× 1 day</span><b id="sum">₹100</b></div>
+    <div class="note" id="c2">Example, not Manu’s actual spending</div>
+  </div>
+</div></div>
+
+<!-- scene 4: the real Quick Add -->
+<div class="phone" id="qa">
+  <span class="tag real">Real app · demo account</span>
+  <div class="scr"><video id="qaVid" src="out/app-quickadd-sheet.webm" muted playsinline preload="auto"></video><div id="ripple"></div></div>
+</div>
+
+<div id="bubbles"></div>
+<div class="sub" id="sub"></div>
+
+<section class="scene green end" id="end">
+  <img class="logo" src="../../public/email-logo.png" alt="">
+  <div class="name">DAY 1: TRACK EVERY EXPENSE</div>
+  <div class="tagline">EP 03 — SET YOUR DAILY BUDGET</div>
+  <div class="pill">നിങ്ങളുടെ money leak എന്താണ്? Comment ചെയ്യൂ!</div>
+  <div class="disc" id="disc">Example amounts · not financial advice</div>
+</section>
+</div>
+
+<script src="reel-kit.js"></script>
+<script src="toon-cast.js"></script>
+<script>
+  mountCast($('world'))
+  $('mintFace').innerHTML = mintSvg()
+  $('dots').innerHTML = '<i></i>'.repeat(30)
+  const DOTS = [...$('dots').children]
+
+  // Dialogue: the screenplay's Malayalam, unchanged, in the bubble; English in the subtitle.
+  const LINES = [
+    { who: 'manu',   a: 0.5,  b: 4.1,  ml: 'മാമാ, ഞാൻ വലിയ ഷോപ്പിങ്ങൊന്നും ചെയ്തില്ലല്ലോ. പിന്നെ പൈസ എവിടെപ്പോയി?', en: 'I didn’t do any big shopping. Where did my money go?' },
+    { who: 'manu',   a: 9.5,  b: 10.9, ml: 'ഇതൊക്കെ ചെറിയ തുകയല്ലേ!', en: 'These are all small amounts!' },
+    { who: 'maaman', a: 11.0, b: 14.0, ml: 'ചെറുതാണ്. പക്ഷേ ആവർത്തിക്കുമ്പോൾ വലിയ തുകയാകും!', en: 'Small expenses can become a big amount when repeated.' },
+    { who: 'mint',   a: 15.0, b: 20.8, ml: 'ദിവസവും ₹100 വീതം ശ്രദ്ധിക്കാതെ ചെലവാക്കിയാൽ, ഒരു മാസം ₹3,000 ആകും.', en: 'Spend ₹100 a day without noticing, and it becomes ₹3,000 a month.' },
+    { who: 'manu',   a: 21.6, b: 25.4, ml: 'അപ്പോൾ ചെറിയ ചെലവുകളും ട്രാക്ക് ചെയ്യണം!', en: 'Even small expenses need tracking!' },
+    { who: 'maaman', a: 29.6, b: 35.6, ml: 'എല്ലാ ചെലവും നിർത്തേണ്ട. എവിടെയാണ് പൈസ പോകുന്നതെന്ന് അറിയണം!', en: 'You don’t have to stop every expense. Understand where your money goes.', bubble: false },
+  ]
+  const NARRATION = [
+    { a: 4.4, b: 9.3, en: 'Small spends, one after another…' },
+  ]
+  const WALLET = [0.2, 4.2], SPENDS = [4.2, 10.9], ROW_T = [4.6, 5.8, 7.0, 8.2, 9.2]
+  const APP = [14.2, 21.4], COUNT = [16.4, 19.4], RESULT = 19.6
+  // The clip's last ~0.4 s is the sheet sliding shut, so playback holds at CLIP_HOLD (Save
+  // button showing) and the tap lands on it there.
+  const QA = [26.2, 36.0], CLIP = 26.8, CLIP_HOLD = 5.75, TAP = CLIP + 5.6
+  const END = 36.0, DURATION = 42
+  window.REEL_OUT_DIR = 'manu-maaman/s1-ep02'
+  window.REEL_SFX = [
+    { t: WALLET[0], kind: 'whoosh' }, { t: 1.3, kind: 'boing' }, { t: SPENDS[0], kind: 'whoosh' },
+    ...ROW_T.slice(0, 4).map(t => ({ t, kind: 'register' })), { t: ROW_T[4], kind: 'chime' },
+    { t: APP[0], kind: 'whoosh' }, { t: RESULT, kind: 'chime' }, { t: APP[1], kind: 'whoosh' },
+    { t: QA[0], kind: 'whoosh' }, { t: TAP + .1, kind: 'chime' }, { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
+  ]
+
+  const bubbles = makeBubbles(LINES)
+  const MANU_X = 760, MAAMAN_X = 290
+  const xOf = who => who === 'manu' ? MANU_X : MAAMAN_X
+  const during = (t, a, b) => t >= a && t < b
+
+  /** Seek the Quick Add clip; returns a promise the renderer awaits until the frame is ready. */
+  function seekClip(time) {
+    const v = $('qaVid')
+    if (Math.abs(v.currentTime - time) < 1 / 120) return
+    return new Promise(res => {
+      v.addEventListener('seeked', () => requestAnimationFrame(() => res()), { once: true })
+      v.currentTime = time
+    })
+  }
+
+  function render(t) {
+    animateHome(t)
+
+    const manuMood = t < WALLET[1] ? 'worried' : t < 9.4 ? 'shocked' : t < 11.0 ? 'smile' : t < 14.2 ? 'embarrassed'
+      : t < RESULT ? 'interested' : t < 26.0 ? 'determined' : t < TAP ? 'interested' : 'grin'
+    poseManu(t, {
+      x: MANU_X, mood: manuMood, talking: speaking(LINES, 'manu', t),
+      phone: easeOut(prog(t, 2.0, .4)) - easeOut(prog(t, 4.0, .4)) + easeOut(prog(t, QA[0] - .4, .4)) - easeOut(prog(t, QA[1] - .2, .4)),
+      fist: easeOut(prog(t, 21.8, .3)) - easeOut(prog(t, 23.2, .3)),
+      look: during(t, WALLET[0], APP[1]) ? [0, -5] : [0, 0],
+    })
+    poseMaaman(t, {
+      x: MAAMAN_X, mood: during(t, 9.5, 14.0) ? 'knowing' : t > TAP ? 'amused' : 'smile',
+      talking: speaking(LINES, 'maaman', t),
+      point: easeOut(prog(t, 11.2, .4)) - easeOut(prog(t, 13.8, .4)),
+      look: [5, 0],
+    })
+
+    const tp = backOut(prog(t, .2, .4))
+    $('title').style.opacity = prog(t, .2, .2); $('title').style.transform = `scale(${.4 + .6 * tp})`
+
+    // scene 1: wallet, moth, question marks
+    popWindow($('wallet'), t, WALLET[0], WALLET[1], .7)
+    const fly = prog(t, 1.2, 2.4)
+    $('moth').setAttribute('transform', `translate(${300 + fly * 220 + Math.sin(t * 7) * 30} ${250 - fly * 230}) scale(${fly > 0 ? 1 : 0})`)
+    $('mothWings').setAttribute('transform', `scale(1 ${.4 + .6 * Math.abs(Math.sin(t * 22))})`)
+    $('notes').setAttribute('transform', `translate(0 ${-20 * easeOut(prog(t, .6, .4))})`)
+    ;['q1', 'q2'].forEach((id, i) => $(id).setAttribute('opacity', prog(t, 2.2 + i * .4, .2) * (.7 + .3 * Math.sin(t * 6 + i))))
+
+    // scene 2: the spends add up
+    popWindow($('spends'), t, SPENDS[0], SPENDS[1], .85)
+    ROW_T.forEach((a, i) => rise($('s' + i), t, a, .35, 24))
+
+    // scene 3: ₹100 a day, thirty times
+    popWindow($('app'), t, APP[0], APP[1], .6)
+    poseMint(t, { talking: speaking(LINES, 'mint', t), happy: during(t, RESULT, APP[1]) })
+    const mintLine = LINES.find(l => l.who === 'mint')
+    $('say').textContent = typed(mintLine.ml, t, mintLine.a, 1.6)
+    rise($('c0'), t, 15.8, .4, 20); rise($('c1'), t, COUNT[0], .3, 20); rise($('c2'), t, RESULT, .4, 20)
+    const days = Math.max(1, Math.ceil(30 * prog(t, COUNT[0], COUNT[1] - COUNT[0])))
+    DOTS.forEach((d, i) => d.classList.toggle('on', t >= COUNT[0] && i < days))
+    $('days').textContent = `× ${days} ${days === 1 ? 'day' : 'days'}`
+    $('sum').textContent = inr(100 * days)
+    // the counter becomes the result: thirty days of ₹100 lands green and large
+    const done = backOut(prog(t, RESULT, .4))
+    $('sum').style.transform = `scale(${1 + .7 * done})`
+    $('sum').style.color = t >= RESULT ? '#0A7A56' : ''
+
+    // scene 4: the real Quick Add, held on its last frame after Save
+    popWindow($('qa'), t, QA[0], QA[1], .6)
+    const r = prog(t, TAP, .5)
+    $('ripple').style.opacity = r > 0 && r < 1 ? 1 - r : 0
+    $('ripple').style.transform = `scale(${.3 + r})`
+
+    renderDialogue(t, LINES, NARRATION, bubbles, xOf)
+    endCard($('end'), t, END, DURATION)
+    rise($('disc'), t, END + 1.3)
+
+    if (during(t, QA[0] - .5, QA[1] + .5)) return seekClip(clamp(t - CLIP, 0, CLIP_HOLD))
+  }
+  boot(render, DURATION, [1.8, 6.5, 10.0, 12.5, 18.0, 20.5, 23.5, 28.5, 31.0, 32.6, 34.5, 39.0])
+</script>
+</body>
+</html>

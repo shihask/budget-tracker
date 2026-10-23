@@ -244,3 +244,20 @@ Illustrative example. Your budget may differ.
 
 #moneyplant #manuandmaaman #salary #savings #budgeting #personalfinance #malayalam #kerala #moneytips #reelsindia
 ```
+
+## Reel: Manu & Maaman S1 EP 02 "പൈസ ചോരുന്നത് എവിടെയാണ്?" (small spends add up)
+File: `out/manu-maaman/s1-ep02/toon-s1-ep02.mp4` (42 s, sound effects only: add the voice-over before posting). Cover: the ₹730 spends list (~10 s).
+Source: `toon-s1-ep02.html`. Scene 4 is the real Quick Add sheet on the reels demo account (`out/app-quickadd-sheet.webm`).
+```
+ചെറിയ ചെലവുകൾ കണക്കിൽ വരാത്തപ്പോഴാണ് പൈസ എവിടെ പോയെന്ന് അറിയാതാകുന്നത്.
+
+ഇന്ന് മുതൽ എല്ലാ ചെലവും റെക്കോർഡ് ചെയ്യൂ.
+
+നിങ്ങളുടെ money leak എന്താണ്? Comment ചെയ്യൂ 👇
+
+🌱 Manu & Maaman · 30-day Salary Reset Challenge, EP 02
+
+Illustrative example. Your budget may differ.
+
+#moneyplant #manuandmaaman #expensetracker #savings #budgeting #personalfinance #malayalam #kerala #moneytips #reelsindia
+```
