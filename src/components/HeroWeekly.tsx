@@ -34,7 +34,8 @@ function Row({ label, value, muted, accent, bad, bold }: { label: string; value:
 }
 
 const DEFAULT_SCOPE_GROUPS = ['Lifestyle']
-// ₹ swing large enough to pause for an explicit confirmation before re-anchoring the cycle budget
+// ₹ swing large enough to pause for an explicit confirmation before re-anchoring the cycle budget.
+// Anything smaller is folded in silently — a banner for a few hundred rupees was noise.
 const BASELINE_CONFIRM_THRESHOLD = 5000
 
 function scopeLabel(scope: WeeklyBudgetScope | null | undefined, categories: AppState['categories']): string {
@@ -264,10 +265,13 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
     : { t: 'On track', col: c.good }
 
   // ── Auto mode card values ─────────────────────────────────────────────────────
-  const cyclePct = d.cycleStartFreeMoney > 0 ? Math.min((d.cycleSpent / d.cycleStartFreeMoney) * 100, 999) : 0
+  // An envelope ≤ 0 (cash shortfall) has no meaningful %: the old `: 0` read a
+  // −₹76k remaining as "0% used · Budget On Track". Any shortfall is over budget.
+  const envelopeExhausted = d.cycleStartFreeMoney <= 0 && d.cycleRemaining < 0
+  const cyclePct = d.cycleStartFreeMoney > 0 ? Math.min((d.cycleSpent / d.cycleStartFreeMoney) * 100, 999) : envelopeExhausted ? 100 : 0
   const autoStatus = d.isWaitingForIncome
     ? { t: `Waiting for your ${pattern === 'monthly' ? 'salary' : 'income'}`, col: c.warn }
-    : cyclePct > 100
+    : envelopeExhausted || cyclePct > 100
     ? { t: 'Over Budget', col: c.bad }
     : cyclePct >= 75
     ? { t: 'Budget Warning', col: c.warn }
@@ -282,6 +286,23 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
   // with an Update button that writes the same value back.
   const driftThreshold = Math.max(1, Math.min(100, Math.abs(d.cycleStartFreeMoney) * 0.01))
   const hasDrift = d.cycleTrackingReady && Math.abs(baselineDrift) >= driftThreshold
+  const driftNeedsConfirmation = hasDrift && Math.abs(baselineDrift) >= BASELINE_CONFIRM_THRESHOLD
+
+  // Small drift is applied in the background; only a large swing (a salary
+  // credit, a big new loan) waits for the user's Update Budget tap.
+  // `autoAppliedKey` stops a failed write from retrying on every render.
+  const autoAppliedKey = useRef<string | null>(null)
+  const cycleKey = d.financialCycle ? localIso(d.financialCycle.cycleStart) : null
+  const driftAutoApplies = isAutoMode && hasSalaryDate && (pattern === 'monthly' || pattern === 'weekly')
+    && hasDrift && !driftNeedsConfirmation && !d.isWaitingForIncome && cycleKey !== null
+  useEffect(() => {
+    if (!driftAutoApplies || updatingBaseline) return
+    const key = `${cycleKey}:${liveBaseline}`
+    if (autoAppliedKey.current === key) return
+    autoAppliedKey.current = key
+    onUpdateSettings({ cycle_start_free_money: liveBaseline, cycle_snapshot_key: cycleKey })
+      .catch(err => console.error('Failed to auto-update budget baseline:', err))
+  }, [driftAutoApplies, updatingBaseline, cycleKey, liveBaseline, onUpdateSettings])
 
   // ── Shared chip row ───────────────────────────────────────────────────────────
   const StreakChip = () => streak >= 2 ? (
@@ -507,8 +528,8 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
 
                 {d.cycleTrackingReady && (
                   <ProgressRing pct={cyclePct} color="#fff" track="rgba(255,255,255,0.28)" size={narrow ? 84 : 104} stroke={narrow ? 9 : 10}>
-                    <div style={{ font: `800 ${narrow ? 19 : 22}px Plus Jakarta Sans`, color: '#fff', lineHeight: 1 }}>{Math.round(Math.min(cyclePct, 999))}%</div>
-                    <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>used</div>
+                    <div style={{ font: `800 ${narrow ? 19 : 22}px Plus Jakarta Sans`, color: '#fff', lineHeight: 1 }}>{envelopeExhausted ? 'Over' : `${Math.round(Math.min(cyclePct, 999))}%`}</div>
+                    <div style={{ font: '600 10px Plus Jakarta Sans', color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>{envelopeExhausted ? 'budget' : 'used'}</div>
                   </ProgressRing>
                 )}
               </div>
@@ -537,7 +558,7 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
               </div>
 
               {/* Budget baseline drift banner */}
-              {((hasDrift && !d.isWaitingForIncome) || lastUpdateDelta !== null) && (
+              {((driftNeedsConfirmation && !d.isWaitingForIncome) || lastUpdateDelta !== null) && (
                 <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: '12px 14px' }}>
                   {lastUpdateDelta !== null ? (
                     <div style={{ font: '700 12px Plus Jakarta Sans', color: '#fff', lineHeight: 1.5 }}>
@@ -794,14 +815,14 @@ export function HeroWeekly({ d, settings, categories, groups, transactions, onUp
                     ) : (
                       <>
                         <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, background: c.surface2, borderRadius: 10, padding: '8px 10px' }}>
-                          "Free money" above is live, right now. Your budget for this cycle was locked in at <strong style={{ color: c.ink }}>{fmt(d.cycleStartFreeMoney)}</strong> when the cycle started, and stays fixed until your next {pattern === 'monthly' ? 'salary' : 'income'}.
+                          "Free money" above is live, right now. Your budget for this cycle was locked in at <strong style={{ color: c.ink }}>{fmt(d.cycleStartFreeMoney)}</strong> when the cycle started. Small changes are folded in automatically; a large one waits for you to update it.
                         </div>
                         <div style={{ height: 1, background: c.faint }} />
                         <Row label="Cycle budget (frozen at cycle start)" value={fmt(d.cycleStartFreeMoney)} muted />
                         <Row label="Cycle spent" value={`− ${fmt(d.cycleSpent)}`} muted />
                         <div style={{ height: 1, background: c.faint }} />
                         <Row label="Budget remaining" value={fmt(d.cycleRemaining)} accent={d.cycleRemaining >= 0} bad={d.cycleRemaining < 0} bold />
-                        {(hasDrift || lastUpdateDelta !== null) && (
+                        {(driftNeedsConfirmation || lastUpdateDelta !== null) && (
                           <>
                             <div style={{ height: 1, background: c.faint }} />
                             {lastUpdateDelta !== null ? (
