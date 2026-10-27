@@ -82,6 +82,11 @@ BEGIN
 END $$;
 RESET ROLE;
 
+-- Admin steps run with NO user identity: request.jwt.claims would otherwise still
+-- name the last impersonated user, and the household write triggers (rightly)
+-- refuse a non-member. auth.uid() IS NULL is the service-role/SQL-editor path.
+SELECT set_config('request.jwt.claims', '', true);
+
 -- Admin: an archived category in H, for the category check.
 INSERT INTO public.household_categories (household_id, name, kind, is_archived, created_by_member_id, updated_by_member_id)
 VALUES (current_setting('hs.h')::uuid, 'Old stuff', 'expense', true, current_setting('hs.m_a')::uuid, current_setting('hs.m_a')::uuid);
@@ -323,6 +328,7 @@ END $$;
 RESET ROLE;
 
 -- Admin: make household updates above ₹5,000 fail (NOT VALID: existing rows untouched).
+SELECT set_config('request.jwt.claims', '', true);
 ALTER TABLE public.household_transactions ADD CONSTRAINT hs_test_force_failure CHECK (amount < 5000) NOT VALID;
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-e500-00000000000a","role":"authenticated"}', true);
@@ -440,7 +446,9 @@ BEGIN
 END $$;
 RESET ROLE;
 
--- As admin.auth.admin.deleteUser does: one DELETE on auth.users, everything else by cascade.
+-- As admin.auth.admin.deleteUser does: one DELETE on auth.users, everything else by
+-- cascade — with no user identity, like the service role.
+SELECT set_config('request.jwt.claims', '', true);
 DELETE FROM auth.users WHERE id = '00000000-0000-4000-e500-00000000000a';
 
 DO $$
