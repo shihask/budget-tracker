@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   PENDING_INVITE_KEY, PENDING_INVITE_TTL_MS, buildInviteLink, clearPendingInvite, isInviteToken,
-  parseInviteHash, readPendingInvite, savePendingInvite,
+  parseInviteHash, pendingInviteFragment, readPendingInvite, savePendingInvite,
 } from '../lib/invite'
 import { householdErrorMessage } from '../lib/errors'
 
@@ -73,6 +73,14 @@ describe('pending invite storage', () => {
     const s = memoryStore()
     savePendingInvite(TOKEN, 10_000, s)
     expect(readPendingInvite(0, s)).toBeNull()
+  })
+
+  it('rebuilds the fragment for handing the page to another browser', () => {
+    const s = memoryStore()
+    expect(pendingInviteFragment(0, s)).toBe('')
+    savePendingInvite(TOKEN, 0, s)
+    expect(pendingInviteFragment(1, s)).toBe(`#household_invite=${TOKEN}`)
+    expect(parseInviteHash(pendingInviteFragment(1, s))).toBe(TOKEN)
   })
 
   it('survives blocked storage', () => {

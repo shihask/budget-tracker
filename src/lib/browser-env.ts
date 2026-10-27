@@ -7,6 +7,8 @@
 // and there is no Add to Home Screen / Install app. The only fix is getting the
 // user into Safari or Chrome.
 
+import { pendingInviteFragment } from '@/features/household/lib/invite'
+
 export type Device = 'ios' | 'android' | 'desktop'
 
 export function isStandalone(): boolean {
@@ -47,5 +49,6 @@ export function inAppBrowserName(): string | null {
  */
 export function openInBrowserIntentUrl(): string {
   const { host, pathname, search, hash } = window.location
-  return `intent://${host}${pathname}${search}${hash}#Intent;scheme=https;end`
+  // A household invite's fragment was stripped on arrival; carry it to the real browser.
+  return `intent://${host}${pathname}${search}${hash || pendingInviteFragment()}#Intent;scheme=https;end`
 }

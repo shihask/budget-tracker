@@ -56,6 +56,14 @@ export function readPendingInvite(now = Date.now(), store: Store | null = defaul
   return null
 }
 
+/** '#household_invite=<token>' while an invite is pending, else ''. For handing the
+ *  page to another browser (in-app browser escape, copy link): the fragment was
+ *  stripped from the URL on arrival, and sessionStorage doesn't travel with it. */
+export function pendingInviteFragment(now = Date.now(), store: Store | null = defaultStore()): string {
+  const token = readPendingInvite(now, store)
+  return token ? INVITE_HASH_PREFIX + token : ''
+}
+
 export function clearPendingInvite(store: Store | null = defaultStore()): void {
   try { store?.removeItem(PENDING_INVITE_KEY) } catch { /* nothing to clear */ }
 }

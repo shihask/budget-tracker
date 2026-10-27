@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Copy, ExternalLink, MoreHorizontal } from 'lucide-react'
 import { getDevice, openInBrowserIntentUrl } from '@/lib/browser-env'
+import { pendingInviteFragment } from '@/features/household/lib/invite'
 
 // Shown when MoneyPlant is opened inside a social app's built-in browser
 // (see browser-env.ts for why that breaks Google sign-in and installing).
@@ -34,7 +35,9 @@ export function OpenInBrowserActions() {
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.origin)
+      // A pending household invite goes along, or the other browser opens without it.
+      const invite = pendingInviteFragment()
+      await navigator.clipboard.writeText(window.location.origin + (invite ? `/${invite}` : ''))
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch { /* clipboard blocked: the steps above still work */ }

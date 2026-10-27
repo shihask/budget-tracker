@@ -14,6 +14,8 @@ import { OpenInBrowserNotice } from './OpenInBrowserNotice'
 import { inAppBrowserName, isStandalone } from '@/lib/browser-env'
 import { trackStep } from '@/lib/funnel'
 import { GUEST_MODE_ENABLED } from '@/lib/guest'
+import { HOUSEHOLD_ENABLED } from '@/features/household/lib/flag'
+import { readPendingInvite } from '@/features/household/lib/invite'
 import {
   type Identifier, OTP_LENGTH, OTP_RESEND_SECONDS, PHONE_AUTH_OFF,
   displayIdentifier, isPhoneAuthOff, parseIdentifier,
@@ -247,6 +249,9 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
   const [tab, setTab] = useState<Tab>('login')
   const [codeStep, setCodeStep] = useState(false)
   const [showAuth, setShowAuth] = useState(false)
+  // Arrived through a household invite link (index.html saved its token): say so,
+  // or the landing page reads as if the link went nowhere.
+  const [householdInvite] = useState(() => HOUSEHOLD_ENABLED && readPendingInvite() !== null)
   const [legalPage, setLegalPage] = useState<LegalPage>(null)
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword]     = useState('')
@@ -585,6 +590,7 @@ export function AuthPage({ onPasswordResetPending }: { onPasswordResetPending?: 
         guestBusy={guestBusy}
         guestError={guestError}
         onLegal={setLegalPage}
+        householdInvite={householdInvite}
       />
       {showAuth && (
         <div className="mp-auth-overlay" onClick={e => { if (e.target === e.currentTarget) closeAuth() }}>
@@ -613,7 +619,38 @@ function GuestStartNote({ error, onSignUp }: { error: boolean; onSignUp: () => v
 
 // ── Landing Screen ────────────────────────────────────────────────────────────
 
-function LandingScreen({ onSignIn, onSignUp, onTryGuest, guestBusy, guestError, onLegal }: {
+/** Top of the hero when a household invite is pending. The join screen opens by
+ *  itself once the visitor is signed in, in this tab. */
+function HouseholdInviteNotice({ onSignIn, onSignUp }: { onSignIn: () => void; onSignUp: () => void }) {
+  const btn: React.CSSProperties = {
+    borderRadius: 10, padding: '9px 14px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer', minHeight: 40,
+  }
+  return (
+    <div role="status" style={{
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 22,
+      background: '#FFFFFF', border: '1.5px solid #CDE9DD', borderRadius: 16, padding: '14px 16px',
+      boxShadow: '0 4px 18px rgba(10,122,86,0.08)',
+    }}>
+      <span aria-hidden style={{ width: 36, height: 36, borderRadius: 11, background: '#E3F5EE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Users size={18} color="#0A7A56" />
+      </span>
+      <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+        <div style={{ font: '800 14px Plus Jakarta Sans', color: '#1C1410' }}>You've been invited to a shared household</div>
+        <div style={{ font: '500 13px Plus Jakarta Sans', color: '#6B625A', lineHeight: 1.45, marginTop: 2 }}>
+          Sign in or create a free account to join. Your personal finances stay private.
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onSignIn} style={{ ...btn, background: 'transparent', color: '#0A7A56', border: '1.5px solid #CDE9DD' }}>Sign in</button>
+        <button onClick={onSignUp} style={{ ...btn, background: '#0A7A56', color: '#fff', border: 'none' }}>Create account</button>
+      </div>
+    </div>
+  )
+}
+
+function LandingScreen({ onSignIn, onSignUp, onTryGuest, guestBusy, guestError, onLegal, householdInvite }: {
+  /** A household invite link brought the visitor here: show what to do next. */
+  householdInvite: boolean
   onSignIn: () => void
   onSignUp: () => void
   onTryGuest: () => void
@@ -657,6 +694,7 @@ function LandingScreen({ onSignIn, onSignUp, onTryGuest, guestBusy, guestError, 
       {/* ── Hero ────────────────────────────────────────────────────────────── */}
       <section className="mp-hero" aria-labelledby="hero-title">
         <div className="mp-hero__content">
+          {householdInvite && <HouseholdInviteNotice onSignIn={onSignIn} onSignUp={onSignUp} />}
           <div className="mp-hero__eyebrow">
             <Sprout size={15} />
             Personal finance that grows with you
