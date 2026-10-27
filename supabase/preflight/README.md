@@ -1,0 +1,114 @@
+# Household — database deployment notes
+
+Covers `supabase/migrations/20261027000001_household.sql` and its companion scripts.
+Nothing here has been applied to production. **Never use `supabase db push`**:
+the remote migration history is stale, so push would try to re-run old migrations.
+
+## Files
+
+| File | What it is |
+|---|---|
+| `supabase/migrations/20261027000001_household.sql` | The additive migration: 6 tables, 15 functions, RLS, grants. One transaction |
+| `supabase/preflight/household_preflight.sql` | **Read-only** catalog check for production. One `SELECT`, writes nothing |
+| `supabase/preflight/household_rollback.sql` | **Destructive** rollback: drops every household object and its data. Has a confirm guard |
+| `supabase/tests/household.sql` | Security suite. One `BEGIN … ROLLBACK`. **Non-production only** |
+| `scripts/test-household-accept-race.mjs` | Concurrency tests on two connections. **Localhost only** |
+
+## Dependencies outside the migration
+
+The migration creates only new objects and alters nothing that already exists. It relies on:
+
+| Dependency | Used for | Pre-flight row |
+|---|---|---|
+| PostgreSQL ≥ 14 | — | 1 |
+| `extensions.gen_random_bytes(integer)` (pgcrypto) | 32-byte invite tokens | 2, 3 |
+| `sha256(bytea)`, `hashtextextended(text,bigint)`, `gen_random_uuid()` (core) | token hashing, per-user advisory lock, ids | 4 |
+| `auth.uid()`, `auth.jwt()` | caller identity in RPCs, triggers, RLS | 5 |
+| `auth.users(id)` | `household_members.user_id` FK (`ON DELETE SET NULL`) | 6 |
+| roles `anon`, `authenticated`, `service_role`, with no RLS bypass for the first two | grants and policies | 7, 8 |
+| `public.mp_is_guest()`, as defined in `20261016000002_guest_mode.sql` | refusing guests | 9 |
+
+The migration does **not** depend on `mp_touch_updated_at`, on any Shared Projects object, or on any of the functions that exist only in the live database (pre-flight row 24 lists those for the record).
+
+Name collisions (rows 10–13) must all read `none`. The migration uses plain `CREATE`, so a collision fails the whole transaction instead of replacing an object.
+
+## Apply order
+
+1. **Pre-flight on production.** Run `household_preflight.sql` in the SQL editor and send back the result. Any `ATTENTION` row stops the process until it has been reviewed.
+2. **Review** the migration, especially the RLS policies, grants, triggers and foreign keys.
+3. **Rehearse on a non-production database** (local `supabase start`, or a branch or staging project):
+   ```
+   psql "$NON_PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261027000001_household.sql
+   psql "$NON_PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/household.sql   # → HOUSEHOLD SQL CHECKS PASSED
+   psql "$NON_PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/guest_mode.sql  # existing suite still passes
+   npm i --no-save pg && node scripts/test-household-accept-race.mjs <local url>   # → HOUSEHOLD RACE CHECKS PASSED
+   # rollback rehearsal: uncomment the SET LOCAL line in a scratch copy, run it, then re-apply the migration and re-run the suite
+   ```
+4. **Apply on production by hand** in the SQL editor, pasting the migration file, only after explicit approval.
+5. *(Optional)* Record it in history so tooling knows it is applied:
+   `INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('20261027000001', 'household');`
+   Check the table's columns on the live database first.
+
+## Behaviour worth knowing before review
+
+- **One gate for access.** Every policy goes through `mp_is_active_household_member(household_id)`, which means an active member of an active household. Leaving, removal, account deletion and archiving all remove access at that single point.
+- **RPC-only tables.** `households`, `household_members` and `household_invites` have no INSERT, UPDATE or DELETE privilege for clients, so they change only through the `SECURITY DEFINER` RPCs.
+- **Column-limited reads.** Clients can't select `household_invites.token_hash` or `household_members.user_id`. A client asking for `select('*')` on those two tables therefore gets a permission error, so the client must list its columns. It learns its own member id from `mp_household_current()`.
+- **Cross-household references are impossible.** `category_id`, `paid_by_member_id` and the created-by / updated-by columns are composite foreign keys that include `household_id`. The category key also includes the kind, so an expense can't carry an income category and a budget can't target one. This replaces the trigger described in the plan; it is declarative and can't be bypassed.
+- **Authorship is server-stamped.** `trg_household_*_stamp` sets created-by and updated-by from `auth.uid()` and keeps `household_id`, created-by and `created_at` from changing on edit.
+- **Invites.**
+  - Only the sha256 of the token is stored. The raw token is returned once by `mp_household_create_invite` (43 characters, base64url, 7-day expiry) and never again.
+  - A household has at most one pending invite, and at most 20 invites are created per household per day.
+  - `mp_household_preview_invite` returns the household name and inviter only for a usable invite. Every other case returns exactly `{"valid": false}`.
+  - Accepting locks the household row and then the invite row, re-checks every condition and marks the invite accepted in the same transaction, so a token works once.
+  - Guests and signed-out callers are refused before the token is even looked at.
+- **Two-member cap**, enforced twice: in the RPCs, and by `trg_household_members_b_cap_*`. The trigger takes the household row lock before counting, so concurrent inserts can't both pass.
+- **Personal data is never touched.** Nothing reads or writes `transactions`, `accounts`, `categories`, `settings` or Shared Projects. Section 12 of the test suite fingerprints personal rows before and after every household operation.
+
+## Account deletion
+
+Accounts are deleted through `admin-api` (`auth.admin.deleteUser`) and the guest purge. Guests can't join a household. Both are a `DELETE` on `auth.users`.
+
+- `household_members.user_id` is the **only** household column that references `auth.users`, with `ON DELETE SET NULL`. Every other person reference is a member id. Every FK between household tables is `RESTRICT`, and nothing deletes members or households. **No cascade can reach shared transactions, categories or budgets.**
+- The FK's SET NULL is an ordinary `UPDATE` on `household_members`, so two row triggers fire on it:
+  - `trg_household_members_a_identity_erased` (BEFORE) sets `status = 'left'`, `role = 'member'` and `left_at`, and erases the chosen name to "Former member". It returns `NEW` and never changes `user_id`; skipping the row would make the FK action fail.
+  - `trg_household_members_after_identity_erased` (AFTER) runs `mp_household_settle_after_exit`. That promotes the remaining active member to owner, or archives the household and revokes its pending invites when nobody active is left. Both triggers fire only on the `user_id` non-NULL → NULL change, so settle's own UPDATE can't re-trigger them.
+- If the owner is deleted while the partner remains, the partner becomes owner and keeps full access to everything, including the deleted member's rows, which now show as "Former member". If the last member is deleted, the household is archived and every record is kept. Several members deleted in one statement behave the same way, because each user's FK action runs in turn. Sections 13 and 14 of the test cover all three cases.
+- Pre-flight row 25 lists existing FKs to `auth.users` that have no delete action. These are context for how account deletion behaves today; the migration doesn't change them.
+
+## Archive and recovery runbook
+
+**When a household is archived:** this happens when its last active member leaves, is removed, or deletes their account.
+- It gets `status = 'archived'` and every pending invite is revoked.
+- No ordinary read or write succeeds, because the access gate requires an active household. That includes former members and anyone holding an old link.
+- Records are **preserved, not deleted**.
+- No client or RPC path un-archives a household.
+
+**Recovery is administrative only.** Do it only on a documented request from a former member, through the SQL editor as the service role or postgres, and record who asked and when. A member row whose `user_id` is NULL belongs to a deleted account and can't be restored. Recovery needs a member who left or was removed and still has a `user_id`.
+
+```sql
+BEGIN;
+-- 1. Inspect the household and its members.
+SELECT h.id, h.name, h.status, h.archived_at, m.id AS member_id, m.user_id, m.status, m.role, m.left_at
+FROM public.households h JOIN public.household_members m ON m.household_id = h.id
+WHERE h.id = '<household id>';
+
+-- 2. The returning user must not be active in another household (expect 0 rows).
+SELECT household_id FROM public.household_members WHERE user_id = '<user id>' AND status = 'active';
+
+-- 3. Reactivate: household first (the cap trigger requires it active), then one member as owner.
+UPDATE public.households SET status = 'active', archived_at = NULL, updated_at = now()
+WHERE id = '<household id>' AND status = 'archived';
+UPDATE public.household_members SET status = 'active', role = 'owner', left_at = NULL
+WHERE id = '<member id>' AND household_id = '<household id>' AND user_id = '<user id>';
+
+-- 4. Check: exactly one active owner, then COMMIT (or ROLLBACK if anything looks wrong).
+SELECT id, status, role FROM public.household_members WHERE household_id = '<household id>' AND status = 'active';
+COMMIT;
+```
+
+The restored owner can then invite a partner again through the app. Old invite links stay revoked.
+
+## Not yet verified
+
+No Supabase CLI, psql or Docker was available on the machine where these files were written. **None of the SQL above, and neither test, has been executed.** The rehearsal in step 3 is the first real run. Until it passes, treat the migration as unverified.

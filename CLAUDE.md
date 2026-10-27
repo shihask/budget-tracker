@@ -820,6 +820,29 @@ On any failure it renders nothing, and Dashboard and Analytics are unaffected.
   - An engine cycle is offered only if it is salary-anchored, 16–46 days long, doesn't overlap a record or another offered cycle, and has **no other salary within 15 days before its anchor**. A split or late salary is excluded, never guessed.
   - Notes on older cycles go through `mp_kakeibo_record_past_cycle`, which returns `'conflict'` on any overlap.
 
+## Household — shared finances for two users (in progress; DB layer only so far)
+A separate shared ledger (income, expenses, monthly budgets) for two MoneyPlant users. It never reads or
+writes personal `transactions` / `accounts` / `categories` / `settings`, and is deliberately **not** built
+on Shared Projects (no tokened invites, free-text members, live-only SQL functions). Client UI ships behind
+the `VITE_HOUSEHOLD` build flag (not built yet).
+
+| File | Purpose |
+|---|---|
+| `supabase/migrations/20261027000001_household.sql` | Tables, RLS, grants, RPCs, triggers. **Not applied to prod yet** |
+| `supabase/preflight/README.md` | Dependencies, apply order, account-deletion behaviour, **archive recovery runbook** |
+| `supabase/preflight/household_preflight.sql` / `household_rollback.sql` | Read-only prod check / destructive rollback |
+| `supabase/tests/household.sql`, `scripts/test-household-accept-race.mjs` | Security suite (non-prod) / race tests (localhost) |
+
+- One access gate: `mp_is_active_household_member(household_id)` = an active member of an active household.
+  Leave, removal, account deletion and archive all cut access there.
+- `households` / `household_members` / `household_invites` change only through `mp_household_*` RPCs.
+  Clients can't select `household_members.user_id` or `household_invites.token_hash` — always list columns,
+  never `select('*')` on those two; your own member id comes from `mp_household_current()`.
+- Cross-household references are impossible by composite FK (`household_id` is part of every key).
+- Invite tokens: only sha256 stored; raw token returned once; single-use; 7 days; one pending per household.
+- `household_members.user_id` is the only `auth.users` reference (`ON DELETE SET NULL`); every household FK
+  is RESTRICT and nothing deletes members or households — account deletion can't cascade into shared history.
+
 ## Git conventions
 - Commit directly to `main` — no feature branches
 - Never `git push` unless the user explicitly says so in that message
