@@ -125,6 +125,8 @@ import { HOUSEHOLD_ENABLED } from '@/features/household/lib/flag'
 import { readPendingInvite, clearPendingInvite } from '@/features/household/lib/invite'
 import { HouseholdPage } from '@/features/household/components/HouseholdPage'
 import { HouseholdBoundary } from '@/features/household/components/ui'
+import { HouseholdBellItems } from '@/features/household/components/HouseholdBellItems'
+import { useHouseholdBell } from '@/features/household/hooks/useHouseholdBell'
 import { useAppDialog } from '@/components/AppDialog'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
@@ -580,6 +582,7 @@ function AppContent({ session }: { session: Session }) {
 
   // Kakeibo — isolated: own table, own queries, renders nothing on any failure.
   const kakeibo = useKakeibo({ userId: session.user.id, state, cycle: d.financialCycle, loading, usingSupabase })
+  const householdBell = useHouseholdBell({ enabled: HOUSEHOLD_ENABLED && !guest, userId: session.user.id })
   const kakeiboSuggestedGoal = useMemo(
     () => (kakeibo.status === 'ready' ? computeStrategyData(state, d)?.targets.savings ?? null : null),
     [kakeibo.status, state, d],
@@ -665,6 +668,7 @@ function AppContent({ session }: { session: Session }) {
       case 'commitments': setCommitmentsOpen(true); break
       case 'credit-cards': setCreditCardsOpen(true); break
       case 'notifications': setNotificationsOpen(true); break
+      case 'household': if (HOUSEHOLD_ENABLED && !guest) setHouseholdOpen(true); break
       case 'analytics-trend': openAnalytics('trend'); break
       case 'analytics-weeks': openAnalytics('weeks'); break
       case 'analytics-category': openAnalytics('category'); break
@@ -704,6 +708,7 @@ function AppContent({ session }: { session: Session }) {
     + (showYesterdayRecap ? 1 : 0)
     + (suggestionInBell ? 1 : 0)
     + kakeibo.bell.length
+    + householdBell.items.length
 
   // The toast only starts on a clear dashboard — never over a sheet or page
   // the user is in the middle of. Once started it plays out even if one opens.
@@ -1518,6 +1523,19 @@ function AppContent({ session }: { session: Session }) {
           eventSuggestion={suggestionInBell ? eventSuggestion.suggestion : null}
           onEventSuggestion={openSuggestionReview}
           onDismissEventSuggestion={() => { eventSuggestion.dismiss(); setSuggestionUndoOpen(true) }}
+          householdCount={householdBell.items.length}
+          householdSlot={
+            <HouseholdBellItems
+              items={householdBell.items}
+              householdName={householdBell.householdName}
+              onOpen={() => {
+                householdBell.dismiss(householdBell.items.map(i => i.memberId))
+                setNotificationsOpen(false)
+                setHouseholdOpen(true)
+              }}
+              onDismiss={id => householdBell.dismiss([id])}
+            />
+          }
           kakeiboCount={kakeibo.bell.length}
           kakeiboSlot={
             <KakeiboBoundary>

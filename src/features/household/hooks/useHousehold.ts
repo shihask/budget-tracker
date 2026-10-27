@@ -146,6 +146,11 @@ export function useHousehold({ enabled }: { enabled: boolean }) {
 
   const acceptInvite = useCallback(async (token: string, displayName: string) => {
     await call(() => supabase.rpc('mp_household_accept_invite', { p_token: token, p_display_name: displayName }))
+    // Tell the partner (push + email). Fire-and-forget: joining never waits on it,
+    // and the function sends at most once per membership however often it's called.
+    supabase.functions.invoke('household-member-joined', { body: {} })
+      .then(({ error }) => { if (error) console.warn('Household: join notice not sent') })
+      .catch(() => { /* offline: the bell still shows it to the partner */ })
     await reload()
   }, [call, reload])
 

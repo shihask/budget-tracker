@@ -12,6 +12,7 @@ export const OPEN_SCREENS = [
   'analytics-trend',
   'analytics-weeks',
   'analytics-category',
+  'household',          // household-member-joined (ignored while VITE_HOUSEHOLD is off)
 ] as const
 
 export type OpenScreen = typeof OPEN_SCREENS[number]

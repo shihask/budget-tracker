@@ -546,6 +546,7 @@ App reads either into `pendingScreen`, waits for `!loading`, then opens the scre
 | budget-alert | `analytics-trend` |
 | financial-coach | pace → `analytics-trend`, spike → `analytics-category`, progress → `analytics-weeks` |
 | weekly-summary | `analytics-weeks` |
+| household-member-joined | `household` (ignored while `VITE_HOUSEHOLD` is off) |
 
 An unknown key (an older/newer push) is ignored — the dashboard shows. `AnalyticsPage` is keyed on
 `analyticsKey`, bumped per push tap, so the tab applies even when Analytics is already open.
@@ -847,6 +848,12 @@ NavMenu row is hidden. **Turn it on only after the migration is applied** (`supa
   accept, invalid preview, dismiss and sign-out. Never log it — errors are reported by `code` only.
 - App opens Household by itself when a pending token exists, once loading, onboarding and the guest
   quick start are out of the way. Guests get "Save your account to join"; the token waits for them.
+- **Join notice.** After `mp_household_accept_invite`, the joiner's app invokes `household-member-joined`
+  (fire-and-forget). The function finds the caller's own fresh membership (≤ 15 min), claims
+  `household_members.join_notified_at` (`WHERE … IS NULL`, so once ever), then pushes (via `push-send`) and
+  emails (Brevo) the household's other active members at their own confirmed address. Recipients never come from
+  the request. The bell item ("Bilal joined Our Home") is client-derived by `useHouseholdBell` /
+  `joinBellItems` — members who joined after me, within 14 days, not yet seen on this device.
 - The page renders inside `HouseholdBoundary`, whose fallback is a **closable** page (rendering nothing would
   leave App's scrim up with no way out).
 
