@@ -54,7 +54,7 @@ FROM (
   UNION ALL
   SELECT 7, 'roles anon / authenticated / service_role exist',
          CASE WHEN (SELECT count(*) FROM pg_roles WHERE rolname IN ('anon', 'authenticated', 'service_role')) = 3 THEN 'ok' ELSE 'ATTENTION' END,
-         (SELECT string_agg(rolname || CASE WHEN rolbypassrls THEN ' (BYPASSRLS)' ELSE '' END, ', ' ORDER BY rolname)
+         (SELECT string_agg(rolname::text || CASE WHEN rolbypassrls THEN ' (BYPASSRLS)' ELSE '' END, ', ' ORDER BY rolname)
           FROM pg_roles WHERE rolname IN ('anon', 'authenticated', 'service_role'))
 
   UNION ALL
@@ -79,7 +79,7 @@ FROM (
   UNION ALL
   SELECT 10, 'no existing relation (table/view/index/sequence) named household*',
          CASE WHEN count(*) = 0 THEN 'ok' ELSE 'ATTENTION' END,
-         coalesce(string_agg(c.relname || ' (' || c.relkind || ')', ', ' ORDER BY c.relname), 'none')
+         coalesce(string_agg(c.relname::text || ' (' || c.relkind::text || ')', ', ' ORDER BY c.relname), 'none')
   FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relname ~ '^household'
 
   UNION ALL
@@ -92,13 +92,13 @@ FROM (
   UNION ALL
   SELECT 12, 'no existing trigger named trg_household*',
          CASE WHEN count(*) = 0 THEN 'ok' ELSE 'ATTENTION' END,
-         coalesce(string_agg(t.tgname || ' on ' || t.tgrelid::regclass::text, ', ' ORDER BY t.tgname), 'none')
+         coalesce(string_agg(t.tgname::text || ' on ' || t.tgrelid::regclass::text, ', ' ORDER BY t.tgname), 'none')
   FROM pg_trigger t WHERE NOT t.tgisinternal AND t.tgname ~ '^trg_household'
 
   UNION ALL
   SELECT 13, 'no existing type named household*',
          CASE WHEN count(*) = 0 THEN 'ok' ELSE 'ATTENTION' END,
-         coalesce(string_agg(t.typname, ', ' ORDER BY t.typname), 'none')
+         coalesce(string_agg(t.typname::text, ', ' ORDER BY t.typname), 'none')
   FROM pg_type t WHERE t.typnamespace = 'public'::regnamespace AND t.typname ~ '^_?household' AND t.typrelid = 0
 
   -- ── Context (no action needed unless something looks unexpected) ──────────
@@ -112,7 +112,7 @@ FROM (
 
   UNION ALL
   SELECT 21, 'event triggers (fire on CREATE TABLE/FUNCTION)', 'info',
-         coalesce((SELECT string_agg(e.evtname || ' [' || e.evtevent || '] ' || e.evtfoid::regproc::text
+         coalesce((SELECT string_agg(e.evtname::text || ' [' || e.evtevent::text || '] ' || e.evtfoid::regproc::text
                                      || CASE WHEN e.evtenabled = 'D' THEN ' (disabled)' ELSE '' END, '; ' ORDER BY e.evtname)
                    FROM pg_event_trigger e), 'none')
 
