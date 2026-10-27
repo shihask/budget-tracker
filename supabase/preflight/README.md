@@ -14,6 +14,7 @@ the remote migration history is stale, so push would try to re-run old migration
 | `supabase/tests/household.sql` | Security suite. One `BEGIN … ROLLBACK`. **Non-production only** |
 | `scripts/test-household-accept-race.mjs` | Concurrency tests on two connections. **Localhost only** |
 | `supabase/preflight/household_dryrun.sql` | Migration plus suite in one transaction ending in `ROLLBACK`, safe on production. **Generated**, so never edit it by hand |
+| `supabase/preflight/household_verify.sql` | **Read-only** check, run after applying: RLS, policies, grants, definer settings, foreign keys, leftover test rows |
 
 ## Dependencies outside the migration
 
