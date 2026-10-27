@@ -11,6 +11,7 @@ import { withTimeout, iso, localIso, txTime, TODAY, fmt, round2 } from '@/lib/ut
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { delta, cardDelta, txDeltas, applyDeltas } from '@/lib/transaction-deltas'
 import { executeTransaction } from '@/lib/execute-transaction'
+import { ShareNotConfirmedError } from '@/features/household/lib/share'
 import { paidForChoices, type PaidSchedule } from '@/lib/recurring'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { amountBounds, escapeIlike, SEARCH_MAX_ROWS, type TransactionFilterState } from '@/lib/transactionFilters'
@@ -528,12 +529,34 @@ export function useSupabaseData(userId: string) {
     load()
   }, [userId, setOfflineQueue])
 
-  const addTransaction = useCallback(async (form: NewTransactionInput): Promise<Transaction | undefined> => {
+  const addTransaction = useCallback(async (
+    form: NewTransactionInput,
+    /** "Share with Household". `id` is held by the caller across retries of the
+     *  same form, so a retry after a lost answer returns the existing pair. */
+    share?: { id: string; householdCategoryId: string },
+  ): Promise<Transaction | undefined> => {
     const s0 = stateRef.current
     const d = txDeltas(form, new Set(s0.credit_cards.map(c => c.id)))
     // Generated ONCE, here. It is the queue key, the p_id on every attempt, and the
     // final server id — never regenerated on retry. That is what makes retries safe.
-    const id = crypto.randomUUID()
+    const id = share?.id ?? crypto.randomUUID()
+
+    // A shared save needs the server end to end: never queued on this device, and
+    // an unanswered attempt is reported, not queued — the caller keeps the form
+    // and retries with the same id.
+    if (share) {
+      if (!isOnline() || form.reimbursement_for) throw new ShareNotConfirmedError()
+      const res = await executeTransaction(supabase, userId, form, id, d, { householdCategoryId: share.householdCategoryId })
+      if (res.kind === 'network') throw new ShareNotConfirmedError()
+      if (res.kind === 'failed') throw res.error
+      const sharedTx: Transaction = { ...res.row, category: stateRef.current.categories.find(c => c.id === form.category_id) }
+      setState(s => {
+        if (s.transactions.some(t => t.id === sharedTx.id)) return s   // a retry that found the saved pair
+        const { accounts, cards } = applyDeltas(s.accounts, s.credit_cards, d, 1)
+        return { ...s, transactions: [sharedTx, ...s.transactions], accounts, credit_cards: cards }
+      })
+      return sharedTx
+    }
 
     // Offline entry: store on this device, show it at once, save later on review.
     const queueLocally = (syncState: 'offline' | 'uncertain'): Transaction => {

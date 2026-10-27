@@ -29,10 +29,14 @@ export async function executeTransaction(
   form: NewTransactionInput,
   id: string,
   d: TxDeltas,
+  /** "Share with Household": the same save through mp_execute_shared_transaction,
+   *  which also writes the household copy in the same database transaction. Never
+   *  set for a queued (offline) item — sharing needs the server. */
+  share?: { householdCategoryId: string },
 ): Promise<ExecuteResult> {
   let row: Transaction
   try {
-    const { data, error } = await client.rpc('mp_execute_transaction', {
+    const { data, error } = await client.rpc(share ? 'mp_execute_shared_transaction' : 'mp_execute_transaction', {
       p_user_id:          userId,
       p_transaction_date: form.transaction_date,
       p_description:      form.description,
@@ -50,9 +54,13 @@ export async function executeTransaction(
       p_to_delta:         d.toDelta,
       p_cc_delta:         d.ccDelta,
       p_id:               id,
+      ...(share ? { p_household_category_id: share.householdCategoryId } : {}),
     })
     if (error) return isNetworkError(error) ? { kind: 'network', error } : { kind: 'failed', error, saved: false }
-    row = data as Transaction
+    // The shared RPC adds household_transaction_id; the personal row is the rest.
+    const personal = { ...(data as Record<string, unknown>) }
+    delete personal.household_transaction_id
+    row = personal as unknown as Transaction
   } catch (err) {
     return isNetworkError(err) ? { kind: 'network', error: err } : { kind: 'failed', error: err, saved: false }
   }

@@ -23,6 +23,8 @@ import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpre
 import { INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP } from '@/lib/constants'
 import { findCategoryMatches, guessCategory, findHistoricalCategory } from '@/lib/categorize'
 import { LinkReimbursementSheet } from './LinkReimbursementSheet'
+import { ShareWithHouseholdField } from '@/features/household/components/ShareWithHouseholdField'
+import { matchHouseholdCategory, shareBlock, ShareNotConfirmedError, SHARE_BLOCK_TEXT, type HouseholdShareContext } from '@/features/household/lib/share'
 
 const schema = z.object({
   date: z.string().min(1),
@@ -94,10 +96,25 @@ export function FAB({ onClick }: FABProps) {
   )
 }
 
+/** What a failed shared save tells the user. The shared save is atomic, so every
+ *  server refusal means nothing was saved; an unanswered one may have been. */
+function shareErrorText(err: unknown): string {
+  if (err instanceof ShareNotConfirmedError) return err.message
+  const e = err as { code?: string; message?: string } | null
+  if (e?.code === 'PT409') return 'This may already be saved with different details. Check your transactions before saving again.'
+  if (e?.message === 'guest_not_allowed') return 'Save your account to share with a household. Nothing was saved.'
+  if (e?.code?.startsWith('PT') && e.message) return `${e.message} Nothing was saved.`
+  return 'Couldn’t save. Nothing was saved — try again.'
+}
+
 interface QuickAddSheetProps {
   open: boolean
   onClose: () => void
-  onSave: (data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }) => Promise<Transaction | undefined>
+  onSave: (
+    data: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null },
+    /** Set only when "Share with Household" is on (see HouseholdShareContext). */
+    share?: { id: string; householdCategoryId: string },
+  ) => Promise<Transaction | undefined>
   /** Saves one expense funded by several accounts. Absent = split mode unavailable. */
   onSaveSplit?: (
     form: { transaction_date: string; transaction_time?: string | null; description: string; amount: number; category_id: string | null; master_id?: string | null },
@@ -128,9 +145,18 @@ interface QuickAddSheetProps {
    *  receipt, reimbursement, creating categories/masters and AI parsing all need
    *  the server, so they are hidden — or, if already set, block Save with a reason. */
   offline?: boolean
+  /** The user's active household, or null/absent when not in one (or VITE_HOUSEHOLD
+   *  is off): "Share with Household" appears only with a household. */
+  household?: HouseholdShareContext | null
 }
 
-export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled: autopilotSetting = false, offline = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultMasterId, onAddMaster, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled: autopilotSetting = false, offline = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultMasterId, onAddMaster, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip, household = null }: QuickAddSheetProps) {
+  // "Share with Household": OFF on every open, never remembered. shareKey is this
+  // form's idempotency key — reused by a retry, so a lost answer can't double-save.
+  const [shareOn, setShareOn] = useState(false)
+  const [shareCategoryId, setShareCategoryId] = useState<string | null>(null)
+  const [shareKey, setShareKey] = useState(() => crypto.randomUUID())
+  const [sharing, setSharing] = useState(false)
   // AI parsing needs the network; offline the local keyword parser takes over.
   const autopilotEnabled = autopilotSetting && !offline
   const c = useTheme()
@@ -374,6 +400,10 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       setPickerOpen(false)
       setSaveError(null)
       setReceiptSuggestion(null)
+      setShareOn(false)
+      setShareCategoryId(null)
+      setShareKey(crypto.randomUUID())
+      setSharing(false)
     }
   }, [open, reset])
 
@@ -673,7 +703,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         }
       })
     } else {
-      const saved = onSave({
+      const payload = {
         transaction_date: data.date,
         transaction_time: pickedTime,
         description: data.description,
@@ -691,7 +721,23 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         // moves money between the user's own accounts, so it names nobody.
         master_id: isMasterTaggable(txType) && masterId ? masterId : null,
         reimbursement_for: isReimbursing ? reimbursementFor : null,
-      })
+      }
+      // Shared: personal + household copy in one database transaction. Unlike an
+      // ordinary save, hold the sheet until both are confirmed, and keep it (with
+      // its idempotency key) if they aren't — never report a success that didn't happen.
+      if (shareActive) {
+        if (!shareCategoryEffective) { setSaveError('Pick a household category for the shared copy.'); return }
+        setSharing(true)
+        onSave(payload, { id: shareKey, householdCategoryId: shareCategoryEffective })
+          .then(tx => {
+            if (receiptToUpload && tx) onUploadReceipt?.(tx.id, receiptToUpload)?.catch(err => onReceiptFailed?.(tx, receiptToUpload, err))
+            onClose()
+          })
+          .catch(err => setSaveError(shareErrorText(err)))
+          .finally(() => setSharing(false))
+        return
+      }
+      const saved = onSave(payload)
       pending = saved
       const withReceipt = (tx: Transaction | undefined) => {
         if (receiptToUpload && tx) {
@@ -781,6 +827,16 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
   // the toggle opens onto nothing. Transfers name nobody and hold no receipt.
   const hasAdvancedFields = isExpense || (txType === 'income' && state.masters.length > 0)
   const isReimbursing = txType === 'income' && incomePurpose === 'reimbursement'
+  // Share with Household — offered only with a household and a shareable form.
+  // Derived, not reset by an effect: switching to a transfer / reimbursement /
+  // split turns sharing off visibly (shareBlocked note) and never saves a share.
+  const shareBlockReason = household ? shareBlock({ txType, reimbursing: isReimbursing, split: !!splitLegs, offline }) : null
+  const shareActive = !!household && shareOn && shareBlockReason === null
+  const shareKind: 'expense' | 'income' = txType === 'income' ? 'income' : 'expense'
+  const pickedShareCategory = household?.categories.find(cat => cat.id === shareCategoryId && cat.kind === shareKind && !cat.is_archived)
+  const shareCategoryEffective = household
+    ? pickedShareCategory?.id ?? matchHouseholdCategory(state.categories.find(cat => cat.id === categoryVal)?.name, shareKind, household.categories)
+    : null
   const linkedExpense = reimbursementFor
     ? state.transactions.find(t => t.id === reimbursementFor) ?? null
     : null
@@ -1549,6 +1605,24 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
               </div>
             )}
 
+            {household && shareBlockReason === null && (
+              <ShareWithHouseholdField
+                on={shareOn}
+                onToggle={setShareOn}
+                householdName={household.householdName}
+                kind={shareKind}
+                categories={household.categories}
+                categoryId={shareCategoryEffective}
+                onCategory={setShareCategoryId}
+                disabled={sharing}
+              />
+            )}
+            {household && shareOn && shareBlockReason !== null && (
+              <div role="status" style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, textAlign: 'center', lineHeight: 1.5 }}>
+                Sharing with Household is off — {SHARE_BLOCK_TEXT[shareBlockReason]}
+              </div>
+            )}
+
             {offline && (
               <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, textAlign: 'center', lineHeight: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <CloudOff size={13} strokeWidth={2.5} /> Offline. This will be saved when you review it online.
@@ -1568,13 +1642,15 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
             )}
           </div>
 
-          <button type="submit" disabled={!valid} style={{
+          <button type="submit" disabled={!valid || sharing} aria-busy={sharing || undefined} style={{
             width: '100%', marginTop: 20, border: 'none', borderRadius: 15, padding: '15px 0',
             font: '800 16px Plus Jakarta Sans', cursor: valid ? 'pointer' : 'not-allowed',
             background: valid ? typeColor : c.faint, color: valid ? '#fff' : c.muted,
             boxShadow: valid ? `0 6px 16px ${typeColor}55` : 'none', transition: 'all 0.2s',
           }}>
-            {valid
+            {sharing
+              ? 'Saving to you and your household…'
+              : valid
               ? isTransfer
                 ? `Transfer  ·  ${fmt(amountVal)}`
                 : `${isExpense ? 'Save Expense' : isReimbursing ? 'Save Reimbursement' : 'Add Income'}  ·  ${fmt(amountVal)}`

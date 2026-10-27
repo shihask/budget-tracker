@@ -854,6 +854,18 @@ NavMenu row is hidden. **Turn it on only after the migration is applied** (`supa
   emails (Brevo) the household's other active members at their own confirmed address. Recipients never come from
   the request. The bell item ("Bilal joined Our Home") is client-derived by `useHouseholdBell` /
   `joinBellItems` — members who joined after me, within 14 days, not yet seen on this device.
+- **Share with Household (Quick Add, v1.98).** An off-by-default switch, shown only with an active household
+  (`useHouseholdBell().share`) for a plain expense/income — not transfer, reimbursement, split, offline, or the
+  one-tap chip. `mp_execute_shared_transaction` (INVOKER) calls `mp_execute_transaction` then
+  `mp_household_share_recorded_transaction` (DEFINER, all checks explicit) in ONE transaction: both rows or
+  neither. Household + payer come from the caller's membership, never the client. Idempotent on the
+  form-held id (`shareKey`); an unanswered shared save is **never queued offline** — the sheet stays open.
+  `household_transaction_links` (owner-read-only, no client writes) ties the pair. Triggers on
+  `transactions`: edit → copy follows (amount, date, note ≤ 120); type change / reimbursement link → unlink,
+  copy kept; delete → copy deleted, **except account deletion**, recognised by the owner's `auth.users` row
+  already being gone (not `pg_trigger_depth()`). Household-side edits/deletes never touch the personal row.
+  Sync never fails a personal write: errors are caught and recorded in `household_sync_events` (ids, outcome,
+  SQLSTATE only). Tests: `supabase/tests/household_share.sql`.
 - The page renders inside `HouseholdBoundary`, whose fallback is a **closable** page (rendering nothing would
   leave App's scrim up with no way out).
 

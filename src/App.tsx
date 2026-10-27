@@ -774,9 +774,9 @@ function AppContent({ session }: { session: Session }) {
     setRetryingReceipt(false)
   }
 
-  const handleSave = async (form: Parameters<typeof addTransaction>[0]) => {
+  const handleSave = async (form: Parameters<typeof addTransaction>[0], share?: Parameters<typeof addTransaction>[1]) => {
     const prevPct = d.weeklyPct
-    const newTx = await addTransaction(form)
+    const newTx = await addTransaction(form, share)
     setFlash(form.description)
     setTimeout(() => setFlash(null), 2200)
 
@@ -1202,7 +1202,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet offline={!online} onAddMaster={addMaster} open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultReimbursement={sheetReimbursement} onUploadReceipt={guest ? undefined : uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} showReimbursementTip={!reimbursementTipSeen} onDismissReimbursementTip={dismissReimbursementTip} />
+            <QuickAddSheet household={householdBell.share} offline={!online} onAddMaster={addMaster} open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultReimbursement={sheetReimbursement} onUploadReceipt={guest ? undefined : uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} showReimbursementTip={!reimbursementTipSeen} onDismissReimbursementTip={dismissReimbursementTip} />
           </div>
 
           <CreateMenuSheet
@@ -1384,7 +1384,7 @@ function AppContent({ session }: { session: Session }) {
               <HouseholdPage
                 userName={userName}
                 guest={guest}
-                onClose={() => setHouseholdOpen(false)}
+                onClose={() => { setHouseholdOpen(false); void householdBell.reload() }}
                 onSwipeProgress={setSwipePct}
                 onSaveGuest={() => { setHouseholdOpen(false); setGuestSaveOpen(true) }}
               />
