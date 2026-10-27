@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN?: string
   /** 'true' turns on guest mode (see GUEST_MODE_ENABLED in src/lib/guest.ts). */
   readonly VITE_GUEST_MODE?: string
+  /** 'true' turns on Household (see HOUSEHOLD_ENABLED in src/features/household/lib/flag.ts). */
+  readonly VITE_HOUSEHOLD?: string
 }
 
 interface ImportMeta {

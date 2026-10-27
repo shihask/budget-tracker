@@ -19,6 +19,8 @@ interface NavMenuProps {
   onMasters: () => void
   onCategories: () => void
   onSettings: () => void
+  /** Household (shared finances). Undefined hides the row — App passes it only when VITE_HOUSEHOLD is on. */
+  onHousehold?: () => void
   trackSavings: boolean
   trackBorrowings: boolean
   trackCreditCards: boolean
@@ -36,7 +38,7 @@ function NavIcon({ children, color }: { children: React.ReactNode; color: string
 
 export function NavMenu({
   open, onClose,
-  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onCreditCards, onProjects, onEvents, onCreate, onGrow, onPlant, onMasters, onCategories, onSettings,
+  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onCreditCards, onProjects, onEvents, onCreate, onGrow, onPlant, onMasters, onCategories, onSettings, onHousehold,
   trackSavings, trackBorrowings, trackCreditCards, trackProjects, hasEvents,
 }: NavMenuProps) {
   const c = useTheme()
@@ -84,6 +86,11 @@ export function NavMenu({
     {
       id: 'projects', label: 'Projects', onClick: onProjects, hidden: !trackProjects,
       icon: <NavIcon color={c.ink}><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></NavIcon>,
+    },
+    {
+      // Not settings-gated: the menu row is how Household is found (same lesson as Life Events).
+      id: 'household', label: 'Household', onClick: () => onHousehold?.(), hidden: !onHousehold,
+      icon: <NavIcon color={c.ink}><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9v11h14V9"/><circle cx="9.5" cy="14" r="1.6"/><circle cx="14.5" cy="14" r="1.6"/></NavIcon>,
     },
     {
       id: 'grow', label: 'Grow', onClick: onGrow,

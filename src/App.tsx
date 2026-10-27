@@ -121,6 +121,10 @@ import { createActivationWatcher, trackStep } from '@/lib/funnel'
 import { isGuest, guestSetupPendingKey, guestSavedOnKey, guestSavedReturnKey, guestSavePromptedKey, isLaterDay } from '@/lib/guest'
 import { GuestQuickStart } from '@/components/GuestQuickStart'
 import { GuestSaveSheet } from '@/components/GuestSaveSheet'
+import { HOUSEHOLD_ENABLED } from '@/features/household/lib/flag'
+import { readPendingInvite, clearPendingInvite } from '@/features/household/lib/invite'
+import { HouseholdPage } from '@/features/household/components/HouseholdPage'
+import { HouseholdBoundary } from '@/features/household/components/ui'
 import { useAppDialog } from '@/components/AppDialog'
 
 // ── Root: only handles auth state ────────────────────────────────────────────
@@ -284,6 +288,7 @@ function AppContent({ session }: { session: Session }) {
   const [eventFormOpen, setEventFormOpen] = useState(false)
   const [eventEditing, setEventEditing] = useState<LifeEvent | null>(null)
   const [eventsListOpen, setEventsListOpen] = useState(false)
+  const [householdOpen, setHouseholdOpen] = useState(false)
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
   const [eventsAddOnOpen, setEventsAddOnOpen] = useState(false)
   const [eventDetailId, setEventDetailId] = useState<string | null>(null)
@@ -451,6 +456,7 @@ function AppContent({ session }: { session: Session }) {
       )
       if (!ok) return
     }
+    if (HOUSEHOLD_ENABLED) clearPendingInvite()   // a pending invite belongs to whoever opened the link
     await supabase.auth.signOut()
   }, [guest, state.transactions, confirmDialog])
 
@@ -665,6 +671,14 @@ function AppContent({ session }: { session: Session }) {
     }
   }, [loading, pendingScreen]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A household invite link was opened (index.html moved its token to sessionStorage):
+  // open Household once the app has loaded and onboarding / guest quick start is out of the way.
+  const guestQuickStartShowing = guest && state.accounts.length === 0
+  useEffect(() => {
+    if (!HOUSEHOLD_ENABLED || loading || showOnboardingFlow || guestQuickStartShowing) return
+    if (readPendingInvite()) setHouseholdOpen(true)
+  }, [loading, showOnboardingFlow, guestQuickStartShowing])
+
   const alertReminders = buildReminders(state)
   const notifications = useMemo(
     () => getAppNotifications(state, d, alertReminders, snoozeMap),
@@ -695,7 +709,7 @@ function AppContent({ session }: { session: Session }) {
   // the user is in the middle of. Once started it plays out even if one opens.
   const overlayOpen = sheetOpen || chatOpen || txnsOpen || settingsOpen || eventFormOpen || eventsListOpen ||
     !!linkExpensesForId || notificationsOpen || createMenuOpen || commitmentsOpen || borrowingOpen || savingsOpen ||
-    creditCardsOpen || catsOpen || mastersOpen || analyticsOpen || cashflowOpen || projectsOpen || growOpen ||
+    creditCardsOpen || catsOpen || mastersOpen || analyticsOpen || cashflowOpen || projectsOpen || householdOpen || growOpen ||
     achievementsOpen || habitsOpen || reflectionOpen || aaSyncOpen || importStatementOpen || tourOpen || adminOpen ||
     layoutOpen || budgetEditOpen || emergencyEditOpen || suggestionReviewOpen || !!challengeWin
   // toastId stays the same when the AI answer arrives and renames the suggestion,
@@ -885,7 +899,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt guest={guest} onSaveGuest={() => setGuestSaveOpen(true)} />
             <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onEditProfile={() => guest ? setGuestSaveOpen(true) : setProfileOpen(true)} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
@@ -901,6 +915,7 @@ function AppContent({ session }: { session: Session }) {
               onCreate={() => setCreateMenuOpen(true)}
               onGrow={() => setGrowOpen(true)}
               onPlant={() => setPlantSheetOpen(true)}
+              onHousehold={HOUSEHOLD_ENABLED ? () => setHouseholdOpen(true) : undefined}
               trackSavings={state.settings.track_savings ?? false}
               hasEvents={state.events.length > 0}
               trackBorrowings={state.settings.track_borrowings ?? true}
@@ -1328,8 +1343,8 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
-            pointerEvents: (txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'auto' : 'none',
+            background: `rgba(0,0,0,${(txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            pointerEvents: (txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'auto' : 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
 
@@ -1357,6 +1372,18 @@ function AppContent({ session }: { session: Session }) {
               onSwipeProgress={setSwipePct}
               initialAddOpen={projectsAddOnOpen}
             />
+          )}
+
+          {HOUSEHOLD_ENABLED && householdOpen && (
+            <HouseholdBoundary onClose={() => { setSwipePct(0); setHouseholdOpen(false) }}>
+              <HouseholdPage
+                userName={userName}
+                guest={guest}
+                onClose={() => setHouseholdOpen(false)}
+                onSwipeProgress={setSwipePct}
+                onSaveGuest={() => { setHouseholdOpen(false); setGuestSaveOpen(true) }}
+              />
+            </HouseholdBoundary>
           )}
 
           {eventsListOpen && (

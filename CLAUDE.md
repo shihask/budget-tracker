@@ -820,18 +820,35 @@ On any failure it renders nothing, and Dashboard and Analytics are unaffected.
   - An engine cycle is offered only if it is salary-anchored, 16–46 days long, doesn't overlap a record or another offered cycle, and has **no other salary within 15 days before its anchor**. A split or late salary is excluded, never guessed.
   - Notes on older cycles go through `mp_kakeibo_record_past_cycle`, which returns `'conflict'` on any overlap.
 
-## Household — shared finances for two users (in progress; DB layer only so far)
+## Household — shared finances for two users
 A separate shared ledger (income, expenses, monthly budgets) for two MoneyPlant users. It never reads or
 writes personal `transactions` / `accounts` / `categories` / `settings`, and is deliberately **not** built
-on Shared Projects (no tokened invites, free-text members, live-only SQL functions). Client UI ships behind
-the `VITE_HOUSEHOLD` build flag (not built yet).
+on Shared Projects (no tokened invites, free-text members, live-only SQL functions). Behind the build flag
+`VITE_HOUSEHOLD=true` (`HOUSEHOLD_ENABLED`); off, none of the feature's code is in the bundle and the
+NavMenu row is hidden. **Turn it on only after the migration is applied** (`supabase/preflight/README.md`).
 
 | File | Purpose |
 |---|---|
 | `supabase/migrations/20261027000001_household.sql` | Tables, RLS, grants, RPCs, triggers. **Not applied to prod yet** |
 | `supabase/preflight/README.md` | Dependencies, apply order, account-deletion behaviour, **archive recovery runbook** |
 | `supabase/preflight/household_preflight.sql` / `household_rollback.sql` | Read-only prod check / destructive rollback |
+| `supabase/preflight/household_dryrun.sql` | Migration + suite in one transaction ending in ROLLBACK. **Generated** by `scripts/build-household-dryrun.mjs` — re-run it after editing either source |
 | `supabase/tests/household.sql`, `scripts/test-household-accept-race.mjs` | Security suite (non-prod) / race tests (localhost) |
+| `src/features/household/hooks/useHousehold.ts` | The feature's own queries (never `useSupabaseData`), RPC wrappers, optimistic edit check |
+| `src/features/household/lib/budget.ts` | `summarize` / `budgetLine` — the one definition of a household total (calendar month, paise, expenses only) |
+| `src/features/household/lib/invite.ts` | Link format, pending-token storage (mirrored by the inline script at the top of `index.html`) |
+| `src/features/household/components/HouseholdPage.tsx` | The page: Overview / Transactions / Budgets / Members tabs, all sheets |
+
+- **Months are calendar months**, never a member's salary cycle (two people's cycles rarely match).
+  Budgets count expense rows only; income never reduces them; over budget reads "₹X over", never >100%.
+- **Invite token privacy.** Links are `/#household_invite=<token>` — a fragment, so no server, Referer or
+  preview crawler sees it. The first `<script>` in `index.html` moves it to sessionStorage
+  (`mp_household_invite`, 24 h TTL) and strips the URL before analytics/Sentry/Supabase load. It's cleared on
+  accept, invalid preview, dismiss and sign-out. Never log it — errors are reported by `code` only.
+- App opens Household by itself when a pending token exists, once loading, onboarding and the guest
+  quick start are out of the way. Guests get "Save your account to join"; the token waits for them.
+- The page renders inside `HouseholdBoundary`, whose fallback is a **closable** page (rendering nothing would
+  leave App's scrim up with no way out).
 
 - One access gate: `mp_is_active_household_member(household_id)` = an active member of an active household.
   Leave, removal, account deletion and archive all cut access there.

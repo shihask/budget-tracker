@@ -32,6 +32,7 @@ interface HeaderProps {
   onCreate: () => void
   onGrow: () => void
   onPlant: () => void
+  onHousehold?: () => void
   trackSavings: boolean
   trackBorrowings: boolean
   trackCreditCards: boolean
@@ -41,7 +42,7 @@ interface HeaderProps {
 
 export function Header({
   dark, onToggleTheme, userName, userEmail, synced, onSignOut, onEditProfile, onSettings, onMasters, onCategories, notificationCount = 0, onNotifications, onTour, onAdmin,
-  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onCreditCards, onProjects, onEvents, onCreate, onGrow, onPlant,
+  onTransactions, onAnalytics, onCashflow, onCommitments, onSavings, onBorrowing, onCreditCards, onProjects, onEvents, onCreate, onGrow, onPlant, onHousehold,
   trackSavings, trackBorrowings, trackCreditCards, trackProjects, hasEvents,
 }: HeaderProps) {
   const c = useTheme()
@@ -311,6 +312,7 @@ export function Header({
         onMasters={onMasters}
         onCategories={onCategories}
         onSettings={onSettings}
+        onHousehold={onHousehold}
         trackSavings={trackSavings}
         trackBorrowings={trackBorrowings}
         trackCreditCards={trackCreditCards}

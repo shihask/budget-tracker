@@ -3,6 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      // Household invite links carry a bearer token in the fragment (#household_invite=…),
+      // which browsers never send to a server. Move it to sessionStorage and strip it from
+      // the URL before any other script (analytics, Sentry, Supabase) can read location.
+      // Mirrors src/features/household/lib/invite.ts. Inert unless built with VITE_HOUSEHOLD=true.
+      (function () {
+        if ('%VITE_HOUSEHOLD%' !== 'true') return;
+        var prefix = '#household_invite=';
+        if (location.hash.indexOf(prefix) !== 0) return;
+        var token = location.hash.slice(prefix.length);
+        if (/^[A-Za-z0-9_-]{43}$/.test(token)) {
+          try { sessionStorage.setItem('mp_household_invite', JSON.stringify({ token: token, savedAt: Date.now() })); } catch (e) {}
+        }
+        history.replaceState(history.state, '', location.pathname + location.search);
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
