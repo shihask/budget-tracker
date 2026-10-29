@@ -122,22 +122,23 @@
 
   // Dialogue: the screenplay's Malayalam, unchanged, in the bubble; English in the subtitle.
   const LINES = [
-    { who: 'manu',   a: 0.5,  b: 4.1,  ml: 'മാമാ, ഞാൻ വലിയ ഷോപ്പിങ്ങൊന്നും ചെയ്തില്ലല്ലോ. പിന്നെ പൈസ എവിടെപ്പോയി?', en: 'I didn’t do any big shopping. Where did my money go?' },
-    { who: 'manu',   a: 9.5,  b: 10.9, ml: 'ഇതൊക്കെ ചെറിയ തുകയല്ലേ!', en: 'These are all small amounts!' },
-    { who: 'maaman', a: 11.0, b: 14.0, ml: 'ചെറുതാണ്. പക്ഷേ ആവർത്തിക്കുമ്പോൾ വലിയ തുകയാകും!', en: 'Small expenses can become a big amount when repeated.' },
-    { who: 'mint',   a: 15.0, b: 20.8, ml: 'ദിവസവും ₹100 വീതം ശ്രദ്ധിക്കാതെ ചെലവാക്കിയാൽ, ഒരു മാസം ₹3,000 ആകും.', en: 'Spend ₹100 a day without noticing, and it becomes ₹3,000 a month.' },
-    { who: 'manu',   a: 21.6, b: 25.4, ml: 'അപ്പോൾ ചെറിയ ചെലവുകളും ട്രാക്ക് ചെയ്യണം!', en: 'Even small expenses need tracking!' },
-    { who: 'maaman', a: 29.6, b: 35.6, ml: 'എല്ലാ ചെലവും നിർത്തേണ്ട. എവിടെയാണ് പൈസ പോകുന്നതെന്ന് അറിയണം!', en: 'You don’t have to stop every expense. Understand where your money goes.', bubble: false },
+    { who: 'manu',   a: 0.5,  b: 5.8,  ml: 'മാമാ, ഞാൻ വലിയ ഷോപ്പിങ്ങൊന്നും ചെയ്തില്ലല്ലോ. പിന്നെ പൈസ എവിടെപ്പോയി?', en: 'I didn’t do any big shopping. Where did my money go?' },
+    { who: 'manu',   a: 11.2, b: 12.9, ml: 'ഇതൊക്കെ ചെറിയ തുകയല്ലേ!', en: 'These are all small amounts!' },
+    { who: 'maaman', a: 13.0, b: 17.7, ml: 'ചെറുതാണ്. പക്ഷേ ആവർത്തിക്കുമ്പോൾ വലിയ തുകയാകും!', en: 'Small expenses can become a big amount when repeated.' },
+    { who: 'mint',   a: 18.6, b: 25.2, ml: 'ദിവസവും ₹100 വീതം ശ്രദ്ധിക്കാതെ ചെലവാക്കിയാൽ, ഒരു മാസം ₹3,000 ആകും.', en: 'Spend ₹100 a day without noticing, and it becomes ₹3,000 a month.' },
+    { who: 'manu',   a: 25.6, b: 28.8, ml: 'അപ്പോൾ ചെറിയ ചെലവുകളും ട്രാക്ക് ചെയ്യണം!', en: 'Even small expenses need tracking!' },
+    { who: 'maaman', a: 32.8, b: 37.6, ml: 'എല്ലാ ചെലവും നിർത്തേണ്ട. എവിടെയാണ് പൈസ പോകുന്നതെന്ന് അറിയണം!', en: 'You don’t have to stop every expense. Understand where your money goes.', bubble: false },
   ]
   const NARRATION = [
-    { a: 4.4, b: 9.3, en: 'Small spends, one after another…' },
+    { a: 6.1, b: 11.0, en: 'Small spends, one after another…' },
   ]
-  const WALLET = [0.2, 4.2], SPENDS = [4.2, 10.9], ROW_T = [4.6, 5.8, 7.0, 8.2, 9.2]
-  const APP = [14.2, 21.4], COUNT = [16.4, 19.4], RESULT = 19.6
+  const WALLET = [0.2, 5.8], SPENDS = [5.9, 12.8], ROW_T = [6.3, 7.5, 8.7, 9.9, 10.9]
+  const APP = [17.8, 25.4], COUNT = [20.2, 23.6], RESULT = 23.8
   // The clip's last ~0.4 s is the sheet sliding shut, so playback holds at CLIP_HOLD (Save
   // button showing) and the tap lands on it there.
-  const QA = [26.2, 36.0], CLIP = 26.8, CLIP_HOLD = 5.75, TAP = CLIP + 5.6
-  const END = 36.0, DURATION = 42
+  const QA = [29.4, 39.2], CLIP = 30.0, CLIP_HOLD = 5.75, TAP = CLIP + 5.6
+  const END = 39.2, DURATION = 45.2
+  // Voice-over: clip i (private/voice/s1-ep02/<i+1>.mp3) starts at LINES[i].a
   window.REEL_OUT_DIR = 'manu-maaman/s1-ep02'
   window.REEL_SFX = [
     { t: WALLET[0], kind: 'whoosh' }, { t: 1.3, kind: 'boing' }, { t: SPENDS[0], kind: 'whoosh' },
@@ -164,18 +165,18 @@
   function render(t) {
     animateHome(t)
 
-    const manuMood = t < WALLET[1] ? 'worried' : t < 9.4 ? 'shocked' : t < 11.0 ? 'smile' : t < 14.2 ? 'embarrassed'
-      : t < RESULT ? 'interested' : t < 26.0 ? 'determined' : t < TAP ? 'interested' : 'grin'
+    const manuMood = t < WALLET[1] ? 'worried' : t < 11.1 ? 'shocked' : t < 13.0 ? 'smile' : t < APP[0] ? 'embarrassed'
+      : t < RESULT ? 'interested' : t < QA[0] - .2 ? 'determined' : t < TAP ? 'interested' : 'grin'
     poseManu(t, {
       x: MANU_X, mood: manuMood, talking: speaking(LINES, 'manu', t),
       phone: easeOut(prog(t, 2.0, .4)) - easeOut(prog(t, 4.0, .4)) + easeOut(prog(t, QA[0] - .4, .4)) - easeOut(prog(t, QA[1] - .2, .4)),
-      fist: easeOut(prog(t, 21.8, .3)) - easeOut(prog(t, 23.2, .3)),
+      fist: easeOut(prog(t, 25.8, .3)) - easeOut(prog(t, 27.2, .3)),
       look: during(t, WALLET[0], APP[1]) ? [0, -5] : [0, 0],
     })
     poseMaaman(t, {
-      x: MAAMAN_X, mood: during(t, 9.5, 14.0) ? 'knowing' : t > TAP ? 'amused' : 'smile',
+      x: MAAMAN_X, mood: during(t, 11.2, 17.7) ? 'knowing' : t > TAP ? 'amused' : 'smile',
       talking: speaking(LINES, 'maaman', t),
-      point: easeOut(prog(t, 11.2, .4)) - easeOut(prog(t, 13.8, .4)),
+      point: easeOut(prog(t, 13.2, .4)) - easeOut(prog(t, 17.5, .4)),
       look: [5, 0],
     })
 
@@ -199,7 +200,7 @@
     poseMint(t, { talking: speaking(LINES, 'mint', t), happy: during(t, RESULT, APP[1]) })
     const mintLine = LINES.find(l => l.who === 'mint')
     $('say').textContent = typed(mintLine.ml, t, mintLine.a, 1.6)
-    rise($('c0'), t, 15.8, .4, 20); rise($('c1'), t, COUNT[0], .3, 20); rise($('c2'), t, RESULT, .4, 20)
+    rise($('c0'), t, APP[0] + 1.6, .4, 20); rise($('c1'), t, COUNT[0], .3, 20); rise($('c2'), t, RESULT, .4, 20)
     const days = Math.max(1, Math.ceil(30 * prog(t, COUNT[0], COUNT[1] - COUNT[0])))
     DOTS.forEach((d, i) => d.classList.toggle('on', t >= COUNT[0] && i < days))
     $('days').textContent = `× ${days} ${days === 1 ? 'day' : 'days'}`
@@ -221,7 +222,7 @@
 
     if (during(t, QA[0] - .5, QA[1] + .5)) return seekClip(clamp(t - CLIP, 0, CLIP_HOLD))
   }
-  boot(render, DURATION, [1.8, 6.5, 10.0, 12.5, 18.0, 20.5, 23.5, 28.5, 31.0, 32.6, 34.5, 39.0])
+  boot(render, DURATION, [2.5, 8.0, 12.0, 15.0, 21.0, 24.5, 27.0, 31.5, 34.0, 35.8, 37.5, 42.5])
 </script>
 </body>
 </html>

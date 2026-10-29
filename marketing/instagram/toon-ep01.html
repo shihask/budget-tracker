@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu & Maaman EP 01: Salary vannu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<!-- Character series "Manu & Maaman", EP 01. Flat-vector characters drawn in SVG, animated from
+     render(t) (reel-kit), rendered by render-reel.mjs. Malayalam in the speech bubbles, English in
+     the subtitle. Example amounts, all arithmetic checkable on screen:
+     9,000 + 4,500 + 8,000 + 3,500 + 5,000 = 30,000; 45,000 - 30,000 = 15,000; 15,000 / 30 = 500. -->
+<style>
+  body { font-family: 'Plus Jakarta Sans', 'Noto Sans Malayalam', sans-serif; }
+  #stage { position: absolute; inset: 0; }
+  .badge { position: absolute; left: 70px; top: 250px; display: flex; gap: 16px; align-items: center; }
+  .handle { background: rgba(255,255,255,.92); color: #0A7A56; font-weight: 800; font-size: 34px; padding: 14px 28px; border-radius: 999px; display: flex; gap: 14px; align-items: center; }
+  .handle img { width: 48px; height: 48px; border-radius: 12px; }
+  .ep { background: #F2B52C; color: #3b2a00; font-weight: 800; font-size: 32px; padding: 14px 26px; border-radius: 999px; }
+  .title { position: absolute; left: 70px; top: 360px; background: #0A7A56; color: #fff; font-weight: 800; font-size: 76px; padding: 18px 40px; border-radius: 30px; box-shadow: 0 14px 0 #075c41; transform-origin: left center; }
+  .bubble { position: absolute; bottom: 825px; max-width: 520px; background: #fff; border-radius: 40px; padding: 24px 34px; font-size: 46px; line-height: 1.35; font-weight: 800; color: #1C1410; box-shadow: 0 10px 30px rgba(0,0,0,.18); opacity: 0; }
+  .bubble::after { content: ''; position: absolute; bottom: -26px; border: 18px solid transparent; border-top: 26px solid #fff; }
+  .bubble.manu { left: 500px; transform-origin: 30% bottom; } .bubble.manu::after { left: 150px; }
+  .bubble.vasu { left: 80px; transform-origin: 20% bottom; } .bubble.vasu::after { left: 130px; }
+  .notif { position: absolute; left: 110px; right: 110px; top: 560px; background: #fff; border-radius: 34px; padding: 26px 30px; display: flex; gap: 22px; align-items: center; box-shadow: 0 20px 50px rgba(0,0,0,.25); opacity: 0; }
+  .notif .ic { width: 84px; height: 84px; border-radius: 22px; background: #E3F8EF; display: grid; place-items: center; font-size: 44px; font-weight: 800; color: #0A7A56; }
+  .notif b { display: block; font-size: 30px; color: #6B5F57; }
+  .notif span { font-size: 50px; font-weight: 800; color: #1C1410; letter-spacing: -1px; }
+  .sub { position: absolute; left: 60px; right: 60px; bottom: 330px; text-align: center; font-size: 58px; line-height: 1.2; font-weight: 800; color: #FFE066; -webkit-text-stroke: 3px #2b1d00; paint-order: stroke fill; text-shadow: 0 6px 0 #2b1d00; }
+  .ledger { position: absolute; left: 90px; right: 90px; top: 500px; background: #FFFDF6; border-radius: 36px; padding: 26px 44px; box-shadow: 0 24px 60px rgba(0,0,0,.25); opacity: 0; }
+  .ledger .row { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0; font-size: 42px; font-weight: 700; color: #1C1410; }
+  .ledger .row b { font-size: 46px; font-weight: 800; }
+  .ledger .row small { font-size: 30px; color: #6B5F57; font-weight: 600; margin-left: 10px; }
+  .ledger .head { border-bottom: 3px dashed #E6DCCB; padding-bottom: 18px; }
+  .ledger .head b { color: #0A7A56; }
+  .ledger .minus b { color: #B4372B; }
+  .ledger .left { border-top: 3px solid #1C1410; margin-top: 8px; padding-top: 18px; }
+  .ledger .left b { color: #0A7A56; font-size: 60px; }
+  .daily { position: absolute; left: 90px; right: 90px; top: 520px; background: #0A7A56; color: #fff; border-radius: 40px; padding: 40px 44px; text-align: center; box-shadow: 0 16px 0 #075c41; opacity: 0; }
+  .daily .eq { font-size: 54px; font-weight: 800; opacity: .9; }
+  .daily .big2 { font-size: 120px; font-weight: 800; letter-spacing: -3px; line-height: 1.1; }
+  .daily .for { font-size: 36px; font-weight: 600; opacity: .85; }
+  .moral { position: absolute; left: 90px; right: 90px; top: 540px; background: #FFFDF6; border-radius: 44px; padding: 50px 50px; box-shadow: 0 24px 60px rgba(0,0,0,.25); text-align: center; opacity: 0; }
+  .moral .k { font-size: 36px; font-weight: 800; color: #0A7A56; letter-spacing: 1px; }
+  .moral .l { font-size: 84px; font-weight: 800; line-height: 1.35; color: #1C1410; }
+  .moral .l.g { color: #0A7A56; }
+  .ml-end .tagline { font-size: 46px; line-height: 1.4; }
+  .disc { margin-top: 40px; font-size: 32px; font-weight: 600; opacity: .8; }
+</style>
+</head>
+<body>
+<div id="stage">
+<svg viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FD3F4"/><stop offset="1" stop-color="#D7F0E3"/></linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C98B52"/><stop offset="1" stop-color="#A86C3A"/></linearGradient>
+    <g id="palm">
+      <path d="M150 1300 C 140 1150 170 1010 205 900" stroke="#8A5A33" stroke-width="26" fill="none" stroke-linecap="round"/>
+      <g fill="#2F9E5B"><path d="M205 900 q -120 -30 -190 40 q 110 -10 190 -40"/><path d="M205 900 q 110 -60 210 0 q -110 -20 -210 0"/><path d="M205 900 q -40 -110 -150 -130 q 70 60 150 130"/><path d="M205 900 q 60 -120 170 -120 q -90 50 -170 120"/><path d="M205 900 q -10 120 -110 170 q 50 -90 110 -170"/></g>
+    </g>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#sky)"/>
+  <g id="clouds" fill="#fff" opacity=".85">
+    <g id="cloud1"><ellipse cx="0" cy="0" rx="90" ry="34"/><ellipse cx="50" cy="-22" rx="60" ry="40"/><ellipse cx="-40" cy="-14" rx="46" ry="30"/></g>
+    <g id="cloud2"><ellipse cx="0" cy="0" rx="70" ry="26"/><ellipse cx="34" cy="-18" rx="46" ry="30"/></g>
+  </g>
+  <path d="M0 1000 Q 200 880 420 960 T 820 930 T 1080 960 V 1200 H0Z" fill="#7CC59A"/>
+  <path d="M0 1080 Q 260 980 520 1050 T 1080 1040 V 1250 H0Z" fill="#5DAF7F"/>
+  <use href="#palm"/>
+  <use href="#palm" transform="translate(830 -40) scale(.9)"/>
+  <rect y="1250" width="1080" height="670" fill="url(#ground)"/>
+  <!-- tea stall -->
+  <g transform="translate(330 860)">
+    <path d="M-40 120 L 220 30 L 480 120 Z" fill="#7A8B99"/><path d="M-40 120 L 480 120 L 470 140 L -30 140Z" fill="#5E6C78"/>
+    <rect x="0" y="140" width="440" height="300" fill="#C7894F"/>
+    <rect x="30" y="180" width="380" height="150" fill="#3B2A1E"/>
+    <rect x="-10" y="330" width="460" height="40" fill="#8F5E33"/>
+    <rect x="60" y="230" width="60" height="100" rx="8" fill="#B9C2C8"/><rect x="70" y="210" width="40" height="24" rx="6" fill="#9AA4AB"/>
+    <path id="steam" d="M90 200 q -14 -20 0 -40 q 14 -20 0 -40" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" opacity=".7"/>
+    <circle cx="200" cy="300" r="20" fill="#E8B04A"/><circle cx="240" cy="300" r="20" fill="#E8B04A"/>
+    <rect x="300" y="250" width="70" height="80" rx="10" fill="#E9E2D0" opacity=".9"/>
+    <rect x="90" y="40" width="260" height="70" rx="10" fill="#8F5E33"/>
+    <text x="220" y="88" text-anchor="middle" font-family="Noto Sans Malayalam" font-weight="800" font-size="38" fill="#FFE9C2">ചായക്കട</text>
+  </g>
+
+  <!-- Vasu-maaman: older, white shirt, mundu, moustache -->
+  <g id="vasu" transform="translate(250 1180)">
+    <ellipse cx="0" cy="560" rx="120" ry="18" fill="rgba(0,0,0,.18)"/>
+    <rect x="-70" y="330" width="140" height="230" rx="20" fill="#F7F3EA"/><path d="M-70 520 h140" stroke="#D8C9A0" stroke-width="10"/>
+    <rect x="-46" y="545" width="34" height="18" rx="8" fill="#5A3B26"/><rect x="12" y="545" width="34" height="18" rx="8" fill="#5A3B26"/>
+    <rect x="-90" y="150" width="180" height="200" rx="50" fill="#FFFFFF"/>
+    <path d="M-30 150 L 0 200 L 30 150" fill="#EDE5D6"/>
+    <rect x="-114" y="170" width="44" height="150" rx="22" fill="#FFFFFF"/><circle cx="-92" cy="325" r="24" fill="#C98A5E"/>
+    <g id="vasuArm"><rect x="70" y="170" width="44" height="150" rx="22" fill="#FFFFFF"/><circle cx="92" cy="325" r="24" fill="#C98A5E"/></g>
+    <rect x="-22" y="120" width="44" height="40" fill="#C98A5E"/>
+    <ellipse cx="0" cy="60" rx="86" ry="96" fill="#C98A5E"/>
+    <path d="M-86 40 Q -80 -50 0 -40 Q 80 -50 86 40 Q 70 -10 0 -10 Q -70 -10 -86 40" fill="#D9D9D9"/>
+    <g id="vasuEyes"><ellipse cx="-30" cy="50" rx="10" ry="13" fill="#2B1D12"/><ellipse cx="30" cy="50" rx="10" ry="13" fill="#2B1D12"/></g>
+    <path d="M-52 22 q 20 -12 40 -2 M12 20 q 20 -10 40 2" stroke="#9A9A9A" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <path id="vasuMouth" d="M-14 122 Q 0 132 14 122" stroke="#5A2E1E" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M-42 100 Q 0 80 42 100 Q 20 112 0 104 Q -20 112 -42 100" fill="#CFCFCF"/>
+    <ellipse cx="-86" cy="64" rx="12" ry="20" fill="#B97D52"/><ellipse cx="86" cy="64" rx="12" ry="20" fill="#B97D52"/>
+  </g>
+
+  <!-- Manu: young, check shirt, jeans, phone -->
+  <g id="manu" transform="translate(720 1150)">
+    <ellipse cx="0" cy="590" rx="120" ry="18" fill="rgba(0,0,0,.18)"/>
+    <rect x="-62" y="350" width="56" height="240" rx="20" fill="#2F4A7A"/><rect x="6" y="350" width="56" height="240" rx="20" fill="#2F4A7A"/>
+    <rect x="-66" y="575" width="64" height="22" rx="10" fill="#EDEDED"/><rect x="2" y="575" width="64" height="22" rx="10" fill="#EDEDED"/>
+    <rect x="-95" y="150" width="190" height="220" rx="50" fill="#D2483A"/>
+    <path d="M-95 200 H95 M-95 260 H95 M-95 320 H95 M-40 150 V370 M40 150 V370" stroke="#A8352A" stroke-width="10" opacity=".55"/>
+    <rect x="-30" y="150" width="60" height="220" fill="#F4F4F4"/>
+    <rect x="-118" y="175" width="44" height="160" rx="22" fill="#D2483A"/><circle cx="-96" cy="340" r="24" fill="#D9A07A"/>
+    <g id="manuArm">
+      <rect x="74" y="175" width="44" height="150" rx="22" fill="#D2483A"/><circle cx="96" cy="325" r="24" fill="#D9A07A"/>
+      <g transform="translate(70 230)"><rect x="0" y="0" width="56" height="96" rx="12" fill="#1C1410"/><rect x="6" y="10" width="44" height="74" rx="6" fill="#16C98A"/></g>
+    </g>
+    <rect x="-22" y="120" width="44" height="40" fill="#D9A07A"/>
+    <ellipse cx="0" cy="60" rx="86" ry="96" fill="#D9A07A"/>
+    <path d="M-90 40 Q -96 -70 0 -66 Q 96 -70 90 40 Q 84 -20 40 -24 Q 0 -10 -40 -24 Q -84 -20 -90 40" fill="#2B1D12"/>
+    <path d="M-60 104 Q 0 170 60 104 Q 60 150 0 160 Q -60 150 -60 104" fill="#2B1D12"/>
+    <g id="manuEyes"><ellipse cx="-30" cy="50" rx="10" ry="13" fill="#2B1D12"/><ellipse cx="30" cy="50" rx="10" ry="13" fill="#2B1D12"/></g>
+    <path id="manuBrows" d="M-52 24 q 20 -10 40 0 M12 24 q 20 -10 40 0" stroke="#2B1D12" stroke-width="9" fill="none" stroke-linecap="round"/>
+    <path id="manuMouth" d="M-22 110 Q 0 128 22 110" stroke="#FFFFFF" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <ellipse cx="-86" cy="64" rx="12" ry="20" fill="#C98A5E"/><ellipse cx="86" cy="64" rx="12" ry="20" fill="#C98A5E"/>
+  </g>
+</svg>
+
+<div class="badge"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">EP 01</div></div>
+<div class="title" id="title">Salary വന്നു!</div>
+<div class="notif" id="notif"><div class="ic">₹</div><div><b>Bank · just now</b><span>₹45,000 credited</span></div></div>
+
+<div class="ledger" id="ledger">
+  <div class="row head" id="r0"><span>Salary</span><b>₹45,000</b></div>
+  <div class="row minus" id="r1"><span>വാടക<small>Rent</small></span><b>− ₹9,000</b></div>
+  <div class="row minus" id="r2"><span>Bike EMI</span><b>− ₹4,500</b></div>
+  <div class="row minus" id="r3"><span>വീട്ടിലേക്ക്<small>Home</small></span><b>− ₹8,000</b></div>
+  <div class="row minus" id="r4"><span>Card bill</span><b>− ₹3,500</b></div>
+  <div class="row minus" id="r5"><span>Savings<small>first!</small></span><b>− ₹5,000</b></div>
+  <div class="row left" id="r6"><span>ബാക്കി<small>Left</small></span><b>₹15,000</b></div>
+</div>
+
+<div class="daily" id="daily">
+  <div class="eq">₹15,000 ÷ 30 days</div>
+  <div class="big2">₹500 / day</div>
+  <div class="for">food · travel · fun</div>
+</div>
+
+<div class="moral" id="moral">
+  <div class="k">EP 01 · LESSON</div>
+  <div class="l" id="m0">Salary വന്നാൽ</div>
+  <div class="l g" id="m1">ആദ്യം plan,</div>
+  <div class="l" id="m2">പിന്നെ party.</div>
+</div>
+
+<div id="bubbles"></div>
+<div class="sub" id="sub"></div>
+
+<section class="scene green end ml-end" id="end">
+  <img class="logo" src="../../public/email-logo.png" alt="">
+  <div class="name" style="font-size:84px">@moneyplant.online</div>
+  <div class="tagline">Manu &amp; Maaman · money stories</div>
+  <div class="pill">Follow for EP 02</div>
+  <div class="disc" id="disc">Example amounts · not financial advice</div>
+</section>
+</div>
+
+<script src="reel-kit.js"></script>
+<script>
+  // Dialogue: Malayalam in the bubble, English as the subtitle.
+  const LINES = [
+    { who: 'manu', a: 3.4,  b: 6.6,  ml: 'ഇന്ന് party! പുതിയ shoes-ഉം വാങ്ങണം!', en: 'Party tonight! And new shoes!' },
+    { who: 'vasu', a: 6.8,  b: 10.0, ml: 'നിൽക്ക് മോനേ! ആദ്യം ഇതൊക്കെ മാറ്റിവെക്ക്.', en: 'Wait! Set these aside first.' },
+    { who: 'vasu', a: 21.2, b: 25.0, ml: 'ബാക്കി ₹15,000. ദിവസം ₹500.', en: '₹15,000 left. That’s ₹500 a day.' },
+    { who: 'manu', a: 25.2, b: 27.8, ml: 'അപ്പോ… party ഇല്ലേ?', en: 'So… no party?' },
+    { who: 'vasu', a: 28.0, b: 31.6, ml: '₹500-ൽ ഒതുങ്ങുന്ന party ആവാം!', en: 'A ₹500 party is fine!' },
+  ]
+  // Subtitles with no bubble (narration).
+  const NARRATION = [
+    { a: 0.9,  b: 3.3,  en: 'Salary day. ₹45,000 credited.' },
+    { a: 10.2, b: 21.0, en: 'Pay these before you spend.' },
+    { a: 33.0, b: 37.0, en: 'Plan first. Party after.' },
+  ]
+  const ROW_T = [10.5, 11.9, 13.3, 14.7, 16.1, 17.5, 19.0]
+  const LEDGER = [10.2, 21.0], DAILY = [21.1, 25.0], MORAL = [33.0, 37.0], END = 37.0
+  const DURATION = 41.5
+  window.REEL_SFX = [
+    { t: 0.9, kind: 'chime' }, { t: 10.1, kind: 'whoosh' }, { t: 19.0, kind: 'chime' },
+    { t: 21.0, kind: 'whoosh' }, { t: 32.9, kind: 'whoosh' }, { t: 37.2, kind: 'chime' },
+  ]
+
+  const bubbles = LINES.map((l, i) => {
+    const el = document.createElement('div')
+    el.className = 'bubble ' + l.who; el.textContent = l.ml
+    $('bubbles').appendChild(el); return el
+  })
+  const set = (id, attr, v) => $(id).setAttribute(attr, v)
+  const within = (t, [a, b]) => t >= a && t < b
+  // pop in at a, fade out at b
+  function popWindow(el, t, a, b, from = .5) {
+    const p = backOut(prog(t, a, .35))
+    el.style.opacity = Math.min(prog(t, a, .2), 1 - prog(t, b - .25, .25))
+    el.style.transform = `scale(${from + (1 - from) * p})`
+  }
+  const speaking = (who, t) => LINES.some(l => l.who === who && t >= l.a + .1 && t < l.b - .3)
+
+  function render(t) {
+    // ambient
+    set('cloud1', 'transform', `translate(${(160 + t * 14) % 1300 - 110} 560)`)
+    set('cloud2', 'transform', `translate(${(820 + t * 9) % 1300 - 110} 700)`)
+    set('steam', 'opacity', .45 + .3 * Math.sin(t * 3))
+
+    // moods
+    const shocked = t > 10.6 && t < 21.0
+    const worried = t > 25.2 && t < 28.0
+    const laugh = t > 30.8 && t < 33.4
+    const bobAmp = laugh ? 12 : 4, bobSpeed = laugh ? 16 : 3
+    set('vasu', 'transform', `translate(250 ${1180 + Math.sin(t * bobSpeed + 1) * bobAmp})`)
+    set('manu', 'transform', `translate(720 ${1150 + Math.sin(t * bobSpeed) * bobAmp})`)
+
+    // eyes: blink, wide when shocked, squint when laughing
+    const blink = (o, per) => ((t + o) % per < .12) ? .15 : 1
+    const manuEye = laugh ? .3 : shocked ? 1.35 : blink(0, 3.1)
+    const vasuEye = laugh ? .3 : blink(1.4, 3.7)
+    set('manuEyes', 'transform', `translate(0 ${50 * (1 - manuEye)}) scale(1 ${manuEye})`)
+    set('vasuEyes', 'transform', `translate(0 ${50 * (1 - vasuEye)}) scale(1 ${vasuEye})`)
+    set('manuBrows', 'd', worried ? 'M-52 30 q 20 -4 40 -16 M12 14 q 20 4 40 16'
+      : shocked ? 'M-52 10 q 20 -12 40 -2 M12 8 q 20 -10 40 2' : 'M-52 24 q 20 -10 40 0 M12 24 q 20 -10 40 0')
+
+    // mouths
+    const open = Math.sin(t * 21) > 0
+    const manuMouth = laugh ? ['M-26 106 Q 0 150 26 106 Z', '#5A2E1E']
+      : speaking('manu', t) ? [open ? 'M-22 108 Q 0 140 22 108 Z' : 'M-22 110 Q 0 128 22 110', open ? '#5A2E1E' : 'none']
+      : shocked ? ['M-11 118 a11 14 0 1 0 22 0 a11 14 0 1 0 -22 0', '#5A2E1E']
+      : worried ? ['M-20 124 Q 0 110 20 124', 'none'] : ['M-22 110 Q 0 128 22 110', 'none']
+    set('manuMouth', 'd', manuMouth[0]); set('manuMouth', 'fill', manuMouth[1])
+    const vasuMouth = laugh ? ['M-20 116 Q 0 146 20 116 Z', '#5A2E1E']
+      : speaking('vasu', t) && open ? ['M-14 118 Q 0 140 14 118 Z', '#5A2E1E'] : ['M-14 122 Q 0 132 14 122', 'none']
+    set('vasuMouth', 'd', vasuMouth[0]); set('vasuMouth', 'fill', vasuMouth[1])
+
+    // arms: Manu shows the phone on salary day; Maaman points up at the list and the daily figure
+    const phone = easeOut(prog(t, 1.0, .5)) - easeOut(prog(t, 6.6, .5))
+    set('manuArm', 'transform', `rotate(${-70 * phone} 96 180)`)
+    const point = easeOut(prog(t, 7.0, .5)) - easeOut(prog(t, 24.6, .5))
+    set('vasuArm', 'transform', `rotate(${-125 * point} 92 180)`)
+
+    // overlays
+    const tp = backOut(prog(t, .2, .4))
+    $('title').style.opacity = prog(t, .2, .2); $('title').style.transform = `scale(${.4 + .6 * tp})`
+    popWindow($('notif'), t, .9, 6.4)
+    popWindow($('ledger'), t, LEDGER[0], LEDGER[1], .85)
+    ROW_T.forEach((a, i) => rise($('r' + i), t, a, .35, 24))
+    popWindow($('daily'), t, DAILY[0], DAILY[1], .6)
+    popWindow($('moral'), t, MORAL[0], MORAL[1] + .3, .85)
+    ;['m0', 'm1', 'm2'].forEach((id, i) => rise($(id), t, MORAL[0] + .25 + i * .45, .4, 30))
+    LINES.forEach((l, i) => popWindow(bubbles[i], t, l.a, l.b))
+
+    // subtitle
+    const cue = [...LINES, ...NARRATION].find(c => t >= c.a && t < c.b)
+    $('sub').textContent = cue ? cue.en : ''
+    $('sub').style.opacity = cue ? Math.min(prog(t, cue.a, .15), 1 - prog(t, cue.b - .15, .15)) : 0
+
+    endCard($('end'), t, END, DURATION)
+    rise($('disc'), t, END + 1.3)
+  }
+  boot(render, DURATION, [2.4, 5.2, 8.5, 19.6, 23.0, 26.5, 31.8, 35.6, 40.5])
+</script>
+</body>
+</html>

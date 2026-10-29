@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu & Maaman S1 EP 04</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="toon-s1.css">
+<!-- Manu & Maaman, Season 1 "Salary Reset Challenge", EP 04: Credit Card ഉണ്ടെങ്കിൽ പണമുണ്ടെന്നല്ല!
+     Cast and home set from toon-cast.js; timings follow the screenplay's scenes (0–5, 5–14,
+     14–29, 29–38, end 38–43) until the voice-over is recorded, then get refitted to it.
+     The script gives no amounts for this episode, so none are shown: the cart has no prices and
+     the bill reads as "a lot" through a statement that keeps unrolling, never through a total.
+     Mint's three rules are the script's, and match the product: card purchases are recorded when
+     made, and paying the bill is not a second expense. -->
+<style>
+  .cart { position: absolute; left: 90px; right: 90px; top: 490px; background: #FFFDF6; border-radius: 36px; padding: 22px 36px 26px; box-shadow: 0 24px 60px rgba(0,0,0,.25); opacity: 0; z-index: 4; }
+  .cart .top { display: flex; justify-content: space-between; align-items: center; font-size: 34px; font-weight: 800; color: #1C1410; }
+  .cart .count { background: #E8493A; color: #fff; font-size: 28px; min-width: 52px; height: 52px; border-radius: 26px; display: grid; place-items: center; padding: 0 12px; }
+  .cart .item { display: flex; align-items: center; gap: 22px; padding: 10px 0; border-top: 3px solid #EDE5DB; font-size: 36px; font-weight: 700; color: #1C1410; opacity: 0; position: relative; }
+  .cart .item:first-of-type { border-top: 0; }
+  .cart .ic { flex: 0 0 80px; height: 80px; border-radius: 22px; background: #F6F1EA; display: grid; place-items: center; }
+  .cart .ic svg { width: 48px; height: 48px; stroke: #1C1410; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .cart .item .rm { margin-left: auto; width: 56px; height: 56px; border-radius: 50%; background: #F6F1EA; color: #6B5F57; font-size: 38px; font-weight: 800; display: grid; place-items: center; position: relative; }
+  .cart .pay { display: flex; align-items: center; gap: 12px; background: #1C1410; color: #fff; font-size: 28px; font-weight: 800; padding: 12px 22px; border-radius: 999px; margin-left: auto; margin-right: 16px; }
+  .cart .pay svg { width: 38px; height: 38px; stroke: #F2B52C; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  #tapRm { position: absolute; inset: -14px; border-radius: 50%; background: rgba(28,20,16,.18); opacity: 0; }
+  .stmt { position: absolute; left: 140px; right: 140px; top: 480px; background: #fff; border-radius: 30px 30px 0 0; box-shadow: 0 24px 60px rgba(0,0,0,.25); opacity: 0; z-index: 4; transform-origin: 50% 0; }
+  .stmt .hd { display: flex; align-items: center; gap: 18px; background: #1C1410; color: #fff; border-radius: 30px 30px 0 0; padding: 24px 30px; font-size: 34px; font-weight: 800; }
+  .stmt .hd svg { width: 50px; height: 50px; stroke: #F2B52C; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .stmt .roll { overflow: hidden; padding: 0 30px; background: repeating-linear-gradient(#fff 0 78px, #F4EEE4 78px 81px); }
+  .stmt .ln { display: flex; align-items: center; gap: 16px; height: 81px; font-size: 32px; font-weight: 700; color: #1C1410; }
+  .stmt .ln i { flex: 0 0 18px; height: 18px; border-radius: 50%; background: #E8493A; }
+  .stmt .ln.more { color: #A99C90; }
+  .stmt .tear { height: 26px; background: linear-gradient(135deg, #fff 50%, transparent 50%) 0 0 / 26px 26px repeat-x, linear-gradient(-135deg, #fff 50%, transparent 50%) 0 0 / 26px 26px repeat-x; }
+  .stamp { position: absolute; right: -40px; top: 200px; border: 8px solid #E8493A; color: #E8493A; font-size: 46px; font-weight: 800; letter-spacing: 3px; padding: 10px 24px; border-radius: 18px; background: rgba(255,255,255,.85); opacity: 0; transform: rotate(-12deg); }
+  #app { left: 190px; top: 470px; width: 700px; height: 960px; }
+  #app .scr { background: #F6F1EA; }
+  .rule { display: flex; gap: 18px; align-items: flex-start; padding: 10px 0; font-size: 28px; font-weight: 700; line-height: 1.35; color: #1C1410; opacity: 0; }
+  .rule + .rule { border-top: 3px solid #EDE5DB; }
+  .rule .n { flex: 0 0 56px; height: 56px; border-radius: 18px; background: #E3F8EF; color: #0A7A56; display: grid; place-items: center; font-size: 30px; font-weight: 800; }
+  .rule small { display: block; font-size: 22px; color: #6B5F57; font-weight: 600; }
+  .title { font-size: 38px; }
+  #app .say { font-size: 27px; }
+  .end .name { font-size: 70px; line-height: 1.15; }
+  .end .tagline { font-size: 42px; }
+  .end .pill { font-size: 38px; }
+</style>
+</head>
+<body>
+<div id="stage">
+<svg id="world" viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg"></svg>
+
+<div class="badge"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">EP 04</div></div>
+<div class="title" id="title">Credit Card ഉണ്ടെങ്കിൽ പണമുണ്ടെന്നല്ല!</div>
+
+<!-- scenes 1 and 4: the shopping cart (no prices: the script gives none) -->
+<div class="cart" id="cart">
+  <div class="top"><span>Cart</span><div class="pay"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg>Pay with Credit Card</div><span class="count" id="count">0</span></div>
+  <div class="item" id="i0"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="2" y="14" width="5" height="7" rx="2"/><rect x="17" y="14" width="5" height="7" rx="2"/></svg></span>Headphones</div>
+  <div class="item" id="i1"><span class="ic"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3"/><path d="M9 6l1-4h4l1 4M9 18l1 4h4l1-4M12 10v2l1.5 1.5"/></svg></span>Smartwatch<span class="rm">×<span id="tapRm"></span></span></div>
+  <div class="item" id="i2"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17v-3l5-1 3-5h2l1 4 7 2v3z"/><path d="M3 17h18"/></svg></span>Shoes</div>
+</div>
+
+<!-- scene 2: the statement that keeps unrolling -->
+<div class="stmt" id="stmt">
+  <div class="hd"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg>Credit card statement</div>
+  <div class="roll" id="roll">
+    <div class="ln"><i></i>Headphones</div>
+    <div class="ln"><i></i>Smartwatch</div>
+    <div class="ln"><i></i>Shoes</div>
+    <div class="ln"><i></i>Food delivery</div>
+    <div class="ln"><i></i>Online sale</div>
+    <div class="ln"><i></i>Movie tickets</div>
+    <div class="ln"><i></i>Food delivery</div>
+    <div class="ln more"><i></i>…</div>
+  </div>
+  <div class="tear"></div>
+  <div class="stamp" id="stamp">PAY BY DUE DATE</div>
+</div>
+
+<!-- scene 3: Mint's three rules -->
+<div class="phone" id="app"><div class="scr">
+  <div class="appbar"><img src="../../public/email-logo.png" alt="">MoneyPlant<span>Mint</span></div>
+  <div class="chat"><div class="face" id="mintFace"></div><div class="say" id="say"></div></div>
+  <div class="calc">
+    <div class="rule" id="r0"><span class="n">1</span><span>Record purchases when you make them<small>വാങ്ങുമ്പോൾ തന്നെ രേഖപ്പെടുത്തുക</small></span></div>
+    <div class="rule" id="r1"><span class="n">2</span><span>Check the statement and due date<small>Statement-ഉം due date-ഉം നോക്കുക</small></span></div>
+    <div class="rule" id="r2"><span class="n">3</span><span>Plan to pay the full statement on time, when possible<small>Essential needs ആദ്യം സംരക്ഷിച്ചുകൊണ്ട്</small></span></div>
+  </div>
+</div></div>
+
+<div id="bubbles"></div>
+<div class="sub" id="sub"></div>
+
+<section class="scene green end" id="end">
+  <img class="logo" src="../../public/email-logo.png" alt="">
+  <div class="name">CREDIT LIMIT ≠<br>SPENDING BUDGET</div>
+  <div class="tagline">EP 05 — DID MANU SAVE ₹3,000?</div>
+  <div class="pill">ഈ അനുഭവം ഉണ്ടായിട്ടുണ്ടോ? Comment ചെയ്യൂ!</div>
+  <div class="disc" id="disc">Example · not financial advice</div>
+</section>
+</div>
+
+<script src="reel-kit.js"></script>
+<script src="toon-cast.js"></script>
+<script>
+  mountCast($('world'))
+  $('mintFace').innerHTML = mintSvg()
+
+  // Dialogue: the screenplay's Malayalam, unchanged, in the bubble; English in the subtitle.
+  const LINES = [
+    { who: 'manu',   a: 0.6,  b: 4.2,  ml: 'Cash ഇല്ലെങ്കിലും പ്രശ്നമില്ല! Credit Card ഉണ്ടല്ലോ!', en: 'No cash? No problem! I have a credit card!' },
+    { who: 'manu',   a: 6.0,  b: 8.3,  ml: 'അയ്യോ! ഇത്രയും ബില്ലോ?', en: 'Oh no! This big a bill?' },
+    { who: 'maaman', a: 8.4,  b: 15.1, ml: 'കാർഡ് ഉപയോഗിച്ചപ്പോൾ ചെലവ് പോയില്ലെന്നല്ല. പണം കൊടുക്കേണ്ട സമയം പിന്നത്തേക്ക് മാറ്റിയതാണ്!', en: 'A credit card delays payment; it doesn’t eliminate the expense.', bubble: false },
+    { who: 'mint',   a: 16.4, b: 24.0, ml: 'കാർഡ് ഉപയോഗിക്കുന്ന ഓരോ ചെലവും ട്രാക്ക് ചെയ്യൂ. ബിൽ പേയ്‌മെന്റിനെ വീണ്ടും ഒരു പുതിയ ചെലവായി കണക്കാക്കരുത്.', en: 'Track purchases when they happen. Don’t count the card payment as a second expense.' },
+    { who: 'manu',   a: 29.8, b: 35.3, ml: 'വാങ്ങാൻ പറ്റും എന്നതും വാങ്ങേണ്ടതുണ്ട് എന്നതും രണ്ടാണ്!', en: 'Being able to buy it and needing to buy it are two different things!' },
+    { who: 'maaman', a: 35.5, b: 38.6, ml: 'ഇപ്പോഴാണ് നീ പഠിക്കുന്നത്!', en: 'Now you’re learning!' },
+  ]
+  const NARRATION = []
+  const CART = [0.3, 5.0], ADD_T = [1.0, 2.0, 3.0]
+  const STMT = [5.2, 15.6], ROLL = [5.6, 9.0], ZOOM = 6.0, STAMP = 10.0
+  const APP = [15.8, 27.6], RULE_T = [17.6, 20.6, 23.6]
+  const CART2 = [27.8, 40.4], TAP_RM = 28.8, GONE = [29.0, 29.6]
+  const LAUGH = [38.6, 40.6]
+  const END = 40.6, DURATION = 45.6
+  // Voice-over: clip i (private/voice/s1-ep04/<i+1>.mp3) starts at LINES[i].a
+  window.REEL_OUT_DIR = 'manu-maaman/s1-ep04'
+  window.REEL_SFX = [
+    { t: CART[0], kind: 'whoosh' }, ...ADD_T.map(t => ({ t, kind: 'register' })),
+    { t: STMT[0], kind: 'whoosh' }, { t: ZOOM, kind: 'boing' }, { t: STAMP, kind: 'register' },
+    { t: APP[0], kind: 'whoosh' }, ...RULE_T.map(t => ({ t, kind: 'chime' })),
+    { t: CART2[0], kind: 'whoosh' }, { t: TAP_RM + .1, kind: 'whoosh' },
+    { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
+  ]
+
+  const bubbles = makeBubbles(LINES)
+  const MANU_X = 760, MAAMAN_X = 290
+  const xOf = who => who === 'manu' ? MANU_X : MAAMAN_X
+  const during = (t, a, b) => t >= a && t < b
+  const ROLL_FULL = 8 * 81
+
+  function render(t) {
+    animateHome(t)
+
+    const manuMood = t < STMT[0] ? 'grin' : t < LINES[2].a ? 'shocked' : t < APP[0] ? 'embarrassed'
+      : t < RULE_T[2] + 1 ? 'interested' : t < TAP_RM ? 'determined' : t < LAUGH[0] ? 'smile' : 'grin'
+    poseManu(t, {
+      x: MANU_X, mood: manuMood, talking: speaking(LINES, 'manu', t),
+      jump: during(t, ZOOM, ZOOM + .5) ? Math.sin((t - ZOOM) / .5 * Math.PI) * 40 : 0,
+      phone: easeOut(prog(t, .2, .4)) - easeOut(prog(t, CART[1], .4)) + easeOut(prog(t, APP[0] - .4, .4)) - easeOut(prog(t, APP[1], .4))
+        + easeOut(prog(t, CART2[0] - .2, .4)) - easeOut(prog(t, GONE[1] + .2, .4)),
+      look: during(t, CART[0], CART2[1]) ? [0, -5] : [-5, 0],
+    })
+    poseMaaman(t, {
+      x: MAAMAN_X, talking: speaking(LINES, 'maaman', t), look: [5, 0],
+      mood: during(t, 1.2, 5.2) ? 'knowing' : during(t, LAUGH[0], DURATION) ? 'laugh' : during(t, LINES[5].a, LAUGH[0]) ? 'amused' : 'smile',
+      point: easeOut(prog(t, 8.6, .4)) - easeOut(prog(t, 14.9, .4)),
+      pat: easeOut(prog(t, 35.7, .4)) - easeOut(prog(t, 38.3, .4)),
+    })
+
+    const tp = backOut(prog(t, .2, .4))
+    $('title').style.opacity = prog(t, .2, .2); $('title').style.transform = `scale(${.4 + .6 * tp})`
+
+    // scenes 1 and 4: the cart fills, then later loses the smartwatch
+    const inCart2 = t >= CART2[0] - .3
+    popWindow($('cart'), t, inCart2 ? CART2[0] : CART[0], inCart2 ? CART2[1] : CART[1], .85)
+    ADD_T.forEach((a, i) => rise($('i' + i), t, inCart2 ? -1 : a, .35, 24))
+    const gone = easeInOut(prog(t, GONE[0], GONE[1] - GONE[0]))
+    const watch = $('i1')
+    watch.style.transform = inCart2 ? `translateX(${-900 * gone}px)` : watch.style.transform
+    if (inCart2) watch.style.opacity = 1 - gone
+    watch.style.maxHeight = inCart2 && gone >= 1 ? '0px' : ''
+    watch.style.padding = inCart2 && gone >= 1 ? '0' : ''
+    watch.style.borderTopWidth = inCart2 && gone >= 1 ? '0' : ''
+    $('count').textContent = inCart2 ? (gone >= 1 ? 2 : 3) : ADD_T.filter(a => t >= a).length
+    $('count').style.transform = `scale(${1 + .35 * Math.max(0, ...ADD_T.map(a => 1 - Math.abs(t - a - .15) / .15).filter(v => v > 0), 0)})`
+    const tr = prog(t, TAP_RM - .2, .45)
+    $('tapRm').style.opacity = tr > 0 && tr < 1 ? 1 - tr : 0
+
+    // scene 2: the statement pops, zooms in on Manu's "ayyo", and keeps unrolling
+    popWindow($('stmt'), t, STMT[0], STMT[1], .7)
+    const z = during(t, ZOOM, ZOOM + .6) ? Math.sin((t - ZOOM) / .6 * Math.PI) : 0
+    if (t >= STMT[0] + .35) $('stmt').style.transform = `scale(${1 + .12 * z}) rotate(${Math.sin(t * 40) * 1.5 * z}deg)`
+    $('roll').style.height = 81 + (ROLL_FULL - 81) * easeInOut(prog(t, ROLL[0], ROLL[1] - ROLL[0])) + 'px'
+    const st = backOut(prog(t, STAMP, .35))
+    $('stamp').style.opacity = prog(t, STAMP, .15)
+    $('stamp').style.transform = `rotate(-12deg) scale(${1.8 - .8 * st})`
+
+    // scene 3: Mint's rules, one at a time
+    popWindow($('app'), t, APP[0], APP[1], .6)
+    poseMint(t, { talking: speaking(LINES, 'mint', t), happy: t > RULE_T[2] + 1.2 })
+    const m = LINES[3]
+    $('say').textContent = typed(m.ml, t, m.a, 1.8)
+    RULE_T.forEach((a, i) => rise($('r' + i), t, a, .4, 20))
+
+    renderDialogue(t, LINES, NARRATION, bubbles, xOf)
+    endCard($('end'), t, END, DURATION)
+    rise($('disc'), t, END + 1.3)
+  }
+  boot(render, DURATION, [2.6, 7.0, 10.6, 13.0, 19.2, 25.2, 29.4, 32.0, 37.0, 39.5, 44.0])
+</script>
+</body>
+</html>

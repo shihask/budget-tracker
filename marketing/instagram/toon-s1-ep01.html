@@ -125,29 +125,30 @@
 
   // Dialogue: the screenplay's Malayalam, unchanged, in the bubble; English in the subtitle.
   const LINES = [
-    { who: 'manu',   a: 2.2,  b: 4.4,  ml: 'മാമാ! Salary വന്നു! ഈ മാസം അടിച്ചുപൊളിക്കാം!', en: 'Maaman! Salary is here! Let’s enjoy this month!' },
-    { who: 'manu',   a: 4.5,  b: 7.0,  ml: 'പുതിയ ഷൂസ് വാങ്ങണം, ഫ്രണ്ട്സിന്റെ കൂടെ പാർട്ടിക്കും പോണം!', en: 'New shoes! And a party with my friends!' },
-    { who: 'maaman', a: 7.1,  b: 9.3,  ml: 'അടിപൊളി! പക്ഷേ ഈ മാസം എത്ര പൈസ ബാക്കി ഉണ്ടാകുമെന്ന് അറിയാമോ?', en: 'Great! But do you know how much will be left this month?' },
-    { who: 'manu',   a: 9.5,  b: 10.8, ml: 'അത്... നോക്കിയിട്ടില്ല!', en: 'I haven’t checked!' },
-    { who: 'maaman', a: 11.2, b: 17.2, ml: 'ആദ്യം ഈ ചെലവുകൾ മാറ്റിവെക്കണം. പിന്നെ ബാക്കി എങ്ങനെ ഉപയോഗിക്കണമെന്ന് പ്ലാൻ ചെയ്യാം.', en: 'Set aside your commitments first. Then plan how to use what’s left.', bubble: false },
-    { who: 'mint',   a: 22.0, b: 27.8, ml: 'മാനുവേ, ദിവസവും ശരാശരി ₹400 ചെലവാക്കിയാൽ, ₹3,000 ബാക്കി വെക്കാം!', en: 'Manu, if you spend an average of ₹400 a day, you can keep ₹3,000!' },
-    { who: 'manu',   a: 28.4, b: 31.8, ml: 'അപ്പോൾ ഈ മാസം ₹3,000 Challenge!', en: 'Then this month, it’s the ₹3,000 Challenge!' },
-    { who: 'maaman', a: 33.8, b: 40.6, ml: 'ശമ്പളം കിട്ടിയിട്ട് സേവ് ചെയ്യുന്നതല്ല. സേവ് ചെയ്തിട്ട് ബാക്കി ചെലവാക്കണം!', en: 'Don’t save only what’s left after spending. Plan your savings first.' },
+    { who: 'manu',   a: 2.2,  b: 6.5,  ml: 'മാമാ! Salary വന്നു! ഈ മാസം അടിച്ചുപൊളിക്കാം!', en: 'Maaman! Salary is here! Let’s enjoy this month!' },
+    { who: 'manu',   a: 6.6,  b: 10.5, ml: 'പുതിയ ഷൂസ് വാങ്ങണം, ഫ്രണ്ട്സിന്റെ കൂടെ പാർട്ടിക്കും പോണം!', en: 'New shoes! And a party with my friends!' },
+    { who: 'maaman', a: 10.6, b: 15.9, ml: 'അടിപൊളി! പക്ഷേ ഈ മാസം എത്ര പൈസ ബാക്കി ഉണ്ടാകുമെന്ന് അറിയാമോ?', en: 'Great! But do you know how much will be left this month?' },
+    { who: 'manu',   a: 16.0, b: 18.7, ml: 'അത്... നോക്കിയിട്ടില്ല!', en: 'I haven’t checked!' },
+    { who: 'maaman', a: 19.2, b: 25.0, ml: 'ആദ്യം ഈ ചെലവുകൾ മാറ്റിവെക്കണം. പിന്നെ ബാക്കി എങ്ങനെ ഉപയോഗിക്കണമെന്ന് പ്ലാൻ ചെയ്യാം.', en: 'Set aside your commitments first. Then plan how to use what’s left.', bubble: false },
+    { who: 'mint',   a: 30.0, b: 36.5, ml: 'മനുവേ, ദിവസവും ശരാശരി ₹400 ചെലവാക്കിയാൽ, ₹3,000 ബാക്കി വെക്കാം!', en: 'Manu, if you spend an average of ₹400 a day, you can keep ₹3,000!' },
+    { who: 'manu',   a: 37.0, b: 40.3, ml: 'അപ്പോൾ ഈ മാസം ₹3,000 Challenge!', en: 'Then this month, it’s the ₹3,000 Challenge!' },
+    { who: 'maaman', a: 42.4, b: 47.7, ml: 'ശമ്പളം കിട്ടിയിട്ട് സേവ് ചെയ്യുന്നതല്ല. സേവ് ചെയ്തിട്ട് ബാക്കി ചെലവാക്കണം!', en: 'Don’t save only what’s left after spending. Plan your savings first.' },
   ]
   const NARRATION = [
     { a: 0.5,  b: 2.1,  en: 'Payday.' },
-    { a: 18.4, b: 21.0, en: '₹45,000 − ₹30,000 = ₹15,000 left' },
+    { a: 26.4, b: 29.0, en: '₹45,000 − ₹30,000 = ₹15,000 left' },
   ]
-  const CLOSEUP_OUT = 2.0, THOUGHT = [4.4, 7.4], LEDGER = [10.8, 21.0]
-  const ROW_T = [11.0, 12.0, 13.3, 14.6, 15.9, 17.2, 18.4, 19.4]
-  const APP = [21.2, 28.0], CALC_T = [22.8, 24.0, 25.2, 26.2]
-  const CHALLENGE = [28.2, 33.0], WALK = [32.4, 33.6], PAT = [33.8, 35.8], LESSON = [36.2, 41.0]
-  const END = 41.0, DURATION = 45
+  const CLOSEUP_OUT = 2.0, THOUGHT = [6.5, 10.6], LEDGER = [18.8, 29.0]
+  const ROW_T = [19.0, 20.0, 21.3, 22.6, 23.9, 25.2, 26.4, 27.4]
+  const APP = [29.2, 36.6], CALC_T = [30.8, 32.3, 33.8, 35.2]
+  const CHALLENGE = [36.8, 41.6], WALK = [41.0, 42.2], PAT = [42.4, 44.4], LESSON = [44.8, 49.6]
+  const END = 49.6, DURATION = 53.6
+  // Voice-over: clip i (private/voice/s1-ep01/<i+1>.mp3) starts at LINES[i].a
   window.REEL_OUT_DIR = 'manu-maaman/s1-ep01'
   const MAAMAN_HOME = 290, MAAMAN_PAT = 480, MANU_X = 760
   window.REEL_SFX = [
     { t: 0.5, kind: 'chime' }, { t: CLOSEUP_OUT, kind: 'whoosh' }, { t: 2.3, kind: 'chime' },
-    { t: THOUGHT[0], kind: 'whoosh' }, { t: 9.3, kind: 'boing' }, { t: LEDGER[0], kind: 'whoosh' },
+    { t: THOUGHT[0], kind: 'whoosh' }, { t: 15.9, kind: 'boing' }, { t: LEDGER[0], kind: 'whoosh' },
     ...ROW_T.slice(1, 7).map(t => ({ t, kind: 'register' })), { t: ROW_T[7], kind: 'chime' },
     { t: APP[0], kind: 'whoosh' }, { t: CALC_T[3], kind: 'chime' }, { t: APP[1], kind: 'whoosh' },
     { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
@@ -163,23 +164,23 @@
 
     // Manu: excited on payday, dreamy, caught out, staring at the list, reading Mint, determined
     const hop = during(t, 2.2, 3.4) ? Math.abs(Math.sin((t - 2.2) * Math.PI * 2.5)) * 70 : 0
-    const manuMood = t < 4.5 ? 'grin' : t < 7.1 ? 'dreamy' : t < 9.2 ? 'smile' : t < LEDGER[0] ? 'embarrassed'
-      : t < 15 ? 'shocked' : t < APP[0] ? 'worried' : t < CALC_T[3] ? 'interested' : t < 28.2 ? 'grin' : 'determined'
+    const manuMood = t < 6.6 ? 'grin' : t < 10.6 ? 'dreamy' : t < 15.8 ? 'smile' : t < LEDGER[0] ? 'embarrassed'
+      : t < 23 ? 'shocked' : t < APP[0] ? 'worried' : t < CALC_T[3] ? 'interested' : t < CHALLENGE[0] ? 'grin' : 'determined'
     poseManu(t, {
       x: MANU_X, mood: manuMood, talking: speaking(LINES, 'manu', t), jump: hop,
       phone: easeOut(prog(t, APP[0] - .4, .4)) - easeOut(prog(t, APP[1], .4)),
-      fist: easeOut(prog(t, 28.4, .3)) - easeOut(prog(t, 29.8, .3)),
-      look: during(t, LEDGER[0], APP[1]) ? [0, -5] : during(t, PAT[0], 40) ? [-5, 0] : [0, 0],
+      fist: easeOut(prog(t, 37.0, .3)) - easeOut(prog(t, 38.4, .3)),
+      look: during(t, LEDGER[0], APP[1]) ? [0, -5] : during(t, PAT[0], 48.6) ? [-5, 0] : [0, 0],
     })
 
     // Maaman: amused while Manu dreams, knowing look on his question, points at the list, then walks over and pats
-    const maamanMood = during(t, 4.5, 7.0) ? 'amused' : during(t, 7.0, 9.4) ? 'knowing' : during(t, 26.2, 28.4) ? 'amused'
-      : during(t, 40.6, 45) ? 'laugh' : 'smile'
+    const maamanMood = during(t, 6.6, 10.5) ? 'amused' : during(t, 10.5, 16.0) ? 'knowing' : during(t, CALC_T[3], CHALLENGE[0] + .2) ? 'amused'
+      : during(t, 48.0, DURATION) ? 'laugh' : 'smile'
     poseMaaman(t, {
       x: maamanX(t), mood: maamanMood, talking: speaking(LINES, 'maaman', t),
-      point: easeOut(prog(t, 11.0, .5)) - easeOut(prog(t, 20.4, .5)),
+      point: easeOut(prog(t, 19.0, .5)) - easeOut(prog(t, 28.4, .5)),
       pat: easeOut(prog(t, PAT[0], .4)) - easeOut(prog(t, PAT[1], .4)),
-      look: during(t, 2.2, 10.8) || t > 33.6 ? [5, 0] : [0, 0],
+      look: during(t, 2.2, LEDGER[0]) || t > WALK[1] ? [5, 0] : [0, 0],
       bob: during(t, WALK[0], WALK[1]) ? 10 : 3,
     })
     if (during(t, WALK[0], WALK[1])) $('maamanBob').setAttribute('transform', `translate(0 ${-Math.abs(Math.sin(t * 10)) * 14})`)
@@ -224,7 +225,7 @@
     endCard($('end'), t, END, DURATION)
     rise($('disc'), t, END + 1.3)
   }
-  boot(render, DURATION, [1.2, 3.0, 5.5, 8.2, 10.0, 15.0, 19.8, 24.0, 27.0, 30.0, 34.8, 38.5, 43.5])
+  boot(render, DURATION, [1.2, 4.0, 8.5, 13.0, 17.3, 22.0, 27.8, 32.0, 35.5, 38.6, 43.4, 47.0, 52.0])
 </script>
 </body>
 </html>

@@ -229,7 +229,7 @@ For a Meta ad: headline "Snap. Check. Saved.", URL ending `utm_campaign=receipt_
 ---
 
 ## Reel: Manu & Maaman S1 EP 01 "ശമ്പളം വന്നാൽ പാർട്ടിയാണോ?" (Salary Reset Challenge)
-File: `out/manu-maaman/s1-ep01/toon-s1-ep01.mp4` (45 s, sound effects only: add the voice-over before posting). Cover: the salary-breakdown frame (~19.8 s).
+File: **`out/manu-maaman/s1-ep01/toon-s1-ep01-voice.mp4`** (53.6 s, ElevenLabs voices from `private/voice/s1-ep01/1–8.mp3`, each starting at its `LINES[i].a`; turn on Instagram's AI info label). Silent-voice render: `toon-s1-ep01.mp4`. Cover: the salary-breakdown frame (~27.8 s).
 Source: `toon-s1-ep01.html`, cast in `toon-cast.js`. Regenerate: `node marketing/instagram/render-reel.mjs toon-s1-ep01`.
 ```
 Salary വന്നോ? 🎉
@@ -246,7 +246,7 @@ Illustrative example. Your budget may differ.
 ```
 
 ## Reel: Manu & Maaman S1 EP 02 "പൈസ ചോരുന്നത് എവിടെയാണ്?" (small spends add up)
-File: `out/manu-maaman/s1-ep02/toon-s1-ep02.mp4` (42 s, sound effects only: add the voice-over before posting). Cover: the ₹730 spends list (~10 s).
+File: **`out/manu-maaman/s1-ep02/toon-s1-ep02-voice.mp4`** (45.2 s, ElevenLabs voices from `private/voice/s1-ep02/1–6.mp3`, each starting at its `LINES[i].a`; turn on Instagram's AI info label). Silent-voice render: `toon-s1-ep02.mp4`. Cover: the ₹730 spends list (~12 s).
 Source: `toon-s1-ep02.html`. Scene 4 is the real Quick Add sheet on the reels demo account (`out/app-quickadd-sheet.webm`).
 ```
 ചെറിയ ചെലവുകൾ കണക്കിൽ വരാത്തപ്പോഴാണ് പൈസ എവിടെ പോയെന്ന് അറിയാതാകുന്നത്.
@@ -260,4 +260,53 @@ Source: `toon-s1-ep02.html`. Scene 4 is the real Quick Add sheet on the reels de
 Illustrative example. Your budget may differ.
 
 #moneyplant #manuandmaaman #expensetracker #savings #budgeting #personalfinance #malayalam #kerala #moneytips #reelsindia
+```
+
+## Reel: Manu & Maaman S1 EP 03 "ദിവസവും ₹400-ൽ ജീവിക്കാമോ?" (a daily guide, not a rigid limit)
+File: **`out/manu-maaman/s1-ep03/toon-s1-ep03-voice.mp4`** (47 s, ElevenLabs voices from `private/voice/s1-ep03/1–6.mp3`, each starting at its `LINES[i].a`; turn on Instagram's AI info label). Silent-voice render: `toon-s1-ep03.mp4`. Cover: Mint's ₹400 breakdown (~16 s).
+Source: `toon-s1-ep03.html`.
+```
+Budget എന്നത് സ്വയം ശിക്ഷിക്കാനുള്ള നിയമമല്ല. പണം എവിടെ പോകണമെന്ന് തീരുമാനിക്കാനുള്ള പ്ലാനാണ്.
+
+നിങ്ങളുടെ daily budget എത്രയാണ്? 👇
+
+🌱 Manu & Maaman · 30-day Salary Reset Challenge, EP 03
+
+Illustrative example. Your budget may differ.
+
+#moneyplant #manuandmaaman #dailybudget #budgeting #savings #personalfinance #malayalam #kerala #moneytips #reelsindia
+```
+
+## Reel: Manu & Maaman S1 EP 04 "Credit Card ഉണ്ടെങ്കിൽ പണമുണ്ടെന്നല്ല!" (credit limit ≠ spending budget)
+File: `out/manu-maaman/s1-ep04/toon-s1-ep04.mp4` (42.6 s, sound effects only: add the voice-over before posting). Cover: the unrolling statement with the PAY BY DUE DATE stamp (~10.6 s).
+Source: `toon-s1-ep04.html`. No amounts: the screenplay gives none for this episode.
+```
+Credit Card ഒരു payment tool ആണ്, extra salary അല്ല.
+
+നിങ്ങളുടെ ചെലവുകൾ ട്രാക്ക് ചെയ്യൂ, ബിൽ ഡ്യൂ ഡേറ്റ് ശ്രദ്ധിക്കൂ, തിരിച്ചടവ് പ്ലാൻ ചെയ്യൂ.
+
+ഈ അനുഭവം ഉണ്ടായിട്ടുണ്ടോ? Comment ചെയ്യൂ 👇
+
+🌱 Manu & Maaman · 30-day Salary Reset Challenge, EP 04
+
+Illustrative example. Not financial advice.
+
+#moneyplant #manuandmaaman #creditcard #budgeting #savings #personalfinance #malayalam #kerala #moneytips #reelsindia
+```
+
+## Reel: Manu & Maaman S1 EP 05 "30 ദിവസം കഴിഞ്ഞപ്പോൾ എന്ത് സംഭവിച്ചു?" (season finale: Manu's ₹3,000 result)
+File: `out/manu-maaman/s1-ep05/toon-s1-ep05.mp4` (45 s, sound effects only: add the voice-over before posting). Cover: "Challenge goal achieved!" with the ₹3,000 kept (~11 s).
+Source: `toon-s1-ep05.html`. Illustrative success scenario (the script's): ₹15,000 − ₹12,000 = ₹3,000.
+```
+30 ദിവസത്തെ ചലഞ്ചിൽ ഏറ്റവും വലിയ വിജയം ₹3,000 മാത്രമല്ല — പണം എവിടെ പോകുന്നു എന്ന് മനസ്സിലാക്കാൻ പഠിച്ചതാണ്.
+
+നിങ്ങളുടെ വരുമാനത്തിനും ആവശ്യങ്ങൾക്കും അനുയോജ്യമായ ഒരു ചെറിയ ലക്ഷ്യത്തിൽ നിന്ന് തുടങ്ങൂ. 🌱
+
+നിങ്ങളുടെ അടുത്ത savings goal എത്രയാണ്? 👇
+
+🌱 Manu & Maaman · 30-day Salary Reset Challenge, EP 05 (season finale)
+
+Illustrative example. Your budget may differ.
+
+#moneyplant #manuandmaaman #savingsgoal #emergencyfund #budgeting #savings #personalfinance #malayalam #kerala #reelsindia
 ```

@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu & Maaman S1 EP 03</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="reel-kit.css">
+<link rel="stylesheet" href="toon-s1.css">
+<!-- Manu & Maaman, Season 1 "Salary Reset Challenge", EP 03: ദിവസവും ₹400-ൽ ജീവിക്കാമോ?
+     Cast and home set from toon-cast.js; timings follow the screenplay's scenes (0–5, 5–17,
+     17–28, 28–38, end 38–43) until the voice-over is recorded.
+     Example amounts, all from the script and checkable on screen:
+     15,000 − 12,000 = 3,000; 12,000 ÷ 30 = 400; 400 × 7 = 2,800.
+     The script gives no amounts for lunch, travel or the sale item, so scene 3's meter is drawn in
+     proportion to the ₹400 day with no other figures. Scene 4's week bars are proportions too
+     (0.9 0.8 1.3 0.7 0.8 0.75 0.75 of a ₹400 day = 6.0 days' worth, inside the 7-day ₹2,800). -->
+<style>
+  #app { left: 190px; top: 480px; width: 700px; height: 850px; }
+  #app .scr, #app2 .scr { background: #F6F1EA; }
+  #app2 { left: 190px; top: 480px; width: 700px; height: 850px; }
+  .calc .row.hi b { color: #0A7A56; font-size: 64px; letter-spacing: -2px; }
+  .calc .row.hi { color: #1C1410; }
+  .calc .row.kept b { color: #0A7A56; }
+  .calc .eq { display: block; font-size: 24px; font-weight: 700; color: #6B5F57; }
+  .meter { position: absolute; left: 90px; right: 90px; top: 490px; background: #FFFDF6; border-radius: 36px; padding: 22px 36px 24px; box-shadow: 0 24px 60px rgba(0,0,0,.25); opacity: 0; z-index: 4; }
+  .meter .top { display: flex; justify-content: space-between; align-items: baseline; font-size: 34px; font-weight: 800; color: #1C1410; }
+  .meter .top b { color: #0A7A56; font-size: 40px; }
+  .meter .bar { position: relative; height: 58px; margin: 18px 0 6px; border-radius: 27px; background: #EDE5DB; }
+  .meter .bar i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 27px; }
+  #fill { background: #F2B52C; }
+  #ghost { background: repeating-linear-gradient(-45deg, #E8493A 0 14px, #F07A6E 14px 28px); opacity: 0; }
+  .meter .limit { position: absolute; top: -12px; bottom: -12px; left: calc(100% / 1.2); width: 6px; margin-left: -3px; background: #1C1410; border-radius: 3px; }
+  .meter .chip2 { position: absolute; top: 0; bottom: 0; display: flex; gap: 8px; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; color: #3b2a00; opacity: 0; }
+  .meter .chip2 svg { width: 32px; height: 32px; stroke: #3b2a00; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .meter .over { color: #B4372B; font-size: 30px; font-weight: 800; opacity: 0; }
+  .sale { position: absolute; left: 150px; right: 150px; top: 680px; height: 170px; background: #fff; border-radius: 34px; box-shadow: 0 24px 60px rgba(0,0,0,.25); display: flex; align-items: center; gap: 24px; padding: 0 30px; opacity: 0; z-index: 4; }
+  .sale svg.shoe { flex: 0 0 190px; height: 120px; }
+  .sale .badge2 { display: inline-block; background: #E8493A; color: #fff; font-size: 26px; font-weight: 800; letter-spacing: 2px; padding: 4px 14px; border-radius: 8px; }
+  .sale .nm { font-size: 28px; font-weight: 700; color: #6B5F57; margin: 4px 0 8px; }
+  .sale .buy { display: inline-block; background: #F2B52C; color: #3b2a00; font-size: 32px; font-weight: 800; padding: 12px 30px; border-radius: 999px; }
+  .sale .x { position: absolute; right: 18px; top: 14px; width: 48px; height: 48px; border-radius: 50%; background: #F6F1EA; color: #6B5F57; font-size: 34px; font-weight: 800; display: grid; place-items: center; }
+  #tapX { position: absolute; right: 2px; top: -2px; width: 80px; height: 80px; border-radius: 50%; background: rgba(28,20,16,.18); opacity: 0; }
+  .week { position: relative; display: flex; align-items: flex-end; gap: 14px; height: 170px; margin: 14px 4px 6px; }
+  .week .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .week .col i { display: block; width: 100%; border-radius: 10px 10px 4px 4px; background: #9FD9BF; transform-origin: bottom; }
+  .week .col i.hot { background: #E8493A; }
+  .week .col span { font-size: 22px; font-weight: 700; color: #6B5F57; }
+  .week .line { position: absolute; left: 0; right: 0; border-top: 4px dashed #1C1410; opacity: .55; }
+  .week .line em { position: absolute; right: 0; top: -36px; font-style: normal; font-size: 22px; font-weight: 800; }
+  .end .tagline { font-size: 42px; }
+  .end .pill { font-size: 42px; }
+</style>
+</head>
+<body>
+<div id="stage">
+<svg id="world" viewBox="0 0 1080 1920" width="1080" height="1920" xmlns="http://www.w3.org/2000/svg"></svg>
+
+<div class="badge"><div class="handle"><img src="../../public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">EP 03</div></div>
+<div class="title" id="title">ദിവസവും ₹400-ൽ ജീവിക്കാമോ?</div>
+
+<!-- scene 2: where ₹400 comes from -->
+<div class="phone" id="app"><div class="scr">
+  <div class="appbar"><img src="../../public/email-logo.png" alt="">MoneyPlant<span>Mint</span></div>
+  <div class="chat"><div class="face" id="mintFace"></div><div class="say" id="say"></div></div>
+  <div class="calc">
+    <span class="tag">Example</span>
+    <div class="row" id="c0"><span>ബാക്കി · Remaining</span><b>₹15,000</b></div>
+    <div class="row" id="c1"><span>Planned spending<span class="eq">over 30 days</span></span><b>₹12,000</b></div>
+    <div class="row hi" id="c2"><span>Daily average<span class="eq">₹12,000 ÷ 30</span></span><b>₹400</b></div>
+    <div class="row kept" id="c3"><span>Planned to keep</span><b>₹3,000</b></div>
+  </div>
+</div></div>
+
+<!-- scene 3: today's spending against ₹400 -->
+<div class="meter" id="meter">
+  <div class="top"><span>ഇന്ന് · Today</span><span class="over" id="over">over budget!</span><b>₹400 / day</b></div>
+  <div class="bar"><i id="fill"></i><i id="ghost"></i><div class="limit"></div>
+    <div class="chip2" id="k0" style="left:0;width:37.5%"><svg viewBox="0 0 24 24"><path d="M3 11h18a8 8 0 0 1-16 0"/><path d="M12 3v3M8 4.5v2M16 4.5v2"/></svg>Lunch</div>
+    <div class="chip2" id="k1" style="left:37.5%;width:27.5%"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8 21l1-3M16 21l-1-3"/><circle cx="8.5" cy="14.5" r="1"/><circle cx="15.5" cy="14.5" r="1"/></svg>Travel</div>
+  </div>
+</div>
+<div class="sale" id="sale">
+  <svg class="shoe" viewBox="-160 -70 320 150">
+    <path d="M-150 30 Q -150 -40 -100 -50 L -40 -60 Q -10 -20 40 -10 Q 120 0 150 30 L 150 60 H -150 Z" fill="#E8493A"/>
+    <rect x="-156" y="50" width="312" height="26" rx="12" fill="#fff" stroke="#C9C9C9" stroke-width="4"/>
+    <path d="M-70 -40 l 20 30 M-40 -46 l 18 30 M-12 -40 l 16 26" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+  </svg>
+  <div><span class="badge2">SALE</span><div class="nm">Today only</div><span class="buy" id="buy">Buy Now</span></div>
+  <div class="x">×<div id="tapX"></div></div>
+</div>
+
+<!-- scene 4: look at the week, not just the day -->
+<div class="phone" id="app2"><div class="scr">
+  <div class="appbar"><img src="../../public/email-logo.png" alt="">MoneyPlant<span>Mint</span></div>
+  <div class="chat"><div class="face" id="mintFace2"></div><div class="say" id="say2"></div></div>
+  <div class="calc">
+    <span class="tag">Example</span>
+    <div class="row" id="w0"><span>₹400 × 7 days</span><b>₹2,800 / week</b></div>
+    <div class="week" id="week"></div>
+    <div class="note" id="w1" style="font-size:24px;font-weight:700;color:#0A7A56;text-align:center;opacity:0">One day over, the week still fits</div>
+  </div>
+</div></div>
+
+<div id="bubbles"></div>
+<div class="sub" id="sub"></div>
+
+<section class="scene green end" id="end">
+  <img class="logo" src="../../public/email-logo.png" alt="">
+  <div class="name">TRACK. ADJUST. REPEAT.</div>
+  <div class="tagline">EP 04 — CREDIT-CARD TRAP</div>
+  <div class="pill">നിങ്ങളുടെ daily budget എത്രയാണ്?</div>
+  <div class="disc" id="disc">Example amounts · not financial advice</div>
+</section>
+</div>
+
+<script src="reel-kit.js"></script>
+<script src="toon-cast.js"></script>
+<script>
+  mountCast($('world'))
+  // Two phones, two Mints: ids inside the second copy are renamed so poseMint drives the visible one.
+  $('mintFace').innerHTML = mintSvg()
+  $('mintFace2').innerHTML = mintSvg().replace(/id="mint/g, 'id="mint2')
+
+  const WEEK = [0.9, 0.8, 1.3, 0.7, 0.8, 0.75, 0.75], MAX = 1.5
+  $('week').innerHTML = WEEK.map((h, i) =>
+    `<div class="col"><i style="height:${h / MAX * 130}px" class="${h > 1 ? 'hot' : ''}"></i><span>${'MTWTFSS'[i]}</span></div>`).join('')
+    + `<div class="line" style="bottom:${1 / MAX * 130 + 34}px"><em>₹400</em></div>`
+  const BARS = [...$('week').querySelectorAll('i')]
+
+  // Dialogue: the screenplay's Malayalam, unchanged, in the bubble; English in the subtitle.
+  const LINES = [
+    { who: 'manu',   a: 0.4,  b: 4.6,  ml: 'മാമാ! ഇനി ദിവസവും ₹400-ൽ കൂടുതൽ ചെലവാക്കില്ല!', en: 'Maaman! From now on, not more than ₹400 a day!' },
+    { who: 'maaman', a: 4.7,  b: 8.9,  ml: 'അത് കൊള്ളാം. പക്ഷേ ₹400 എങ്ങനെ കിട്ടി?', en: 'That’s good. But how did you get ₹400?' },
+    { who: 'mint',   a: 9.2,  b: 16.5, ml: 'നിന്റെ ഉദാഹരണ ബജറ്റിൽ, ₹12,000-നെ 30 ദിവസം കൊണ്ട് പങ്കിട്ടാൽ ദിവസവും ₹400.', en: '₹12,000 divided over 30 days gives you ₹400 a day.' },
+    { who: 'manu',   a: 25.6, b: 28.7, ml: 'ഇത് വാങ്ങിയാൽ ഇന്നത്തെ ബജറ്റ് കൂടും!', en: 'If I buy this, I’ll go over today’s budget!' },
+    { who: 'maaman', a: 28.8, b: 33.0, ml: 'വാങ്ങേണ്ടതാണോ, അതോ തോന്നിയതുകൊണ്ട് വാങ്ങുന്നതാണോ?', en: 'Do you need it, or do you just feel like buying it?' },
+    { who: 'mint',   a: 34.2, b: 40.7, ml: 'ഒരു ദിവസം കൂടുതൽ ചെലവായാൽ പേടിക്കേണ്ട. ആഴ്ചയിലെ മൊത്തം ചെലവും നോക്കി പ്ലാൻ ക്രമീകരിക്കാം.', en: 'If one day costs more, review your weekly spending and adjust.' },
+  ]
+  const NARRATION = [
+    { a: 16.8, b: 20.4, en: '₹15,000 − ₹12,000 = ₹3,000 kept' },
+    { a: 21.2, b: 25.4, en: 'Lunch… travel… and then a sale.' },
+  ]
+  const APP = [8.4, 20.6], CALC_T = [9.6, 11.6, 15.6, 16.6]
+  const METER = [21.0, 33.8], SPEND_T = [21.6, 23.0], SALE = [24.2, 33.4], CLOSE = 33.0
+  const APP2 = [33.8, 41.8], WEEK_T = 36.6, OVER = 39.0
+  const END = 42.0, DURATION = 47
+  // Voice-over: clip i (private/voice/s1-ep03/<i+1>.mp3) starts at LINES[i].a
+  const TEMPT = 24.8
+  // meter fill as a share of the bar; the ₹400 limit sits at 1/1.2 of it
+  const LIMIT = 1 / 1.2, FILL = [0, .45 * LIMIT, .78 * LIMIT], GHOST = 1.15 * LIMIT
+  window.REEL_OUT_DIR = 'manu-maaman/s1-ep03'
+  window.REEL_SFX = [
+    { t: APP[0], kind: 'whoosh' }, ...CALC_T.slice(0, 2).map(t => ({ t, kind: 'register' })), { t: CALC_T[2], kind: 'chime' },
+    { t: CALC_T[3], kind: 'register' }, { t: APP[1], kind: 'whoosh' }, { t: METER[0], kind: 'whoosh' },
+    ...SPEND_T.map(t => ({ t, kind: 'register' })), { t: SALE[0], kind: 'whoosh' }, { t: 25.0, kind: 'boing' },
+    { t: CLOSE, kind: 'whoosh' }, { t: APP2[0] + .2, kind: 'whoosh' }, { t: WEEK_T, kind: 'chime' },
+    { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
+  ]
+
+  const bubbles = makeBubbles(LINES)
+  const MANU_X = 760, MAAMAN_X = 290
+  const xOf = who => who === 'manu' ? MANU_X : MAAMAN_X
+  const during = (t, a, b) => t >= a && t < b
+
+  function render(t) {
+    animateHome(t)
+
+    const manuMood = t < 4.7 ? 'grin' : t < APP[0] ? 'worried' : t < CALC_T[2] ? 'interested' : t < METER[0] ? 'grin'
+      : t < 25.0 ? 'smile' : t < 28.8 ? 'shocked' : t < CLOSE ? 'embarrassed' : t < APP2[0] ? 'determined'
+      : t < WEEK_T ? 'interested' : 'grin'
+    poseManu(t, {
+      x: MANU_X, mood: manuMood, talking: speaking(LINES, 'manu', t),
+      phone: easeOut(prog(t, .3, .4)) - easeOut(prog(t, 4.6, .4)) + easeOut(prog(t, APP[0] - .6, .4)) - easeOut(prog(t, APP[1], .4))
+        + easeOut(prog(t, SALE[0] - .2, .4)) - easeOut(prog(t, CLOSE + .2, .4)) + easeOut(prog(t, APP2[0] - .2, .4)) - easeOut(prog(t, APP2[1], .4)),
+      look: during(t, APP[0], METER[1]) ? [0, -5] : [0, 0],
+    })
+    poseMaaman(t, {
+      x: MAAMAN_X, mood: during(t, 4.7, 8.9) || during(t, 28.8, 33.0) ? 'knowing' : during(t, CLOSE, APP2[0] + 1) ? 'amused' : 'smile',
+      talking: speaking(LINES, 'maaman', t), look: [5, 0],
+      point: easeOut(prog(t, 29.0, .4)) - easeOut(prog(t, 32.8, .4)),
+    })
+
+    const tp = backOut(prog(t, .2, .4))
+    $('title').style.opacity = prog(t, .2, .2); $('title').style.transform = `scale(${.4 + .6 * tp})`
+
+    // scene 2
+    popWindow($('app'), t, APP[0], APP[1], .6)
+    poseMint(t, { talking: speaking(LINES, 'mint', t) && t < APP[1], happy: during(t, CALC_T[2], APP[1]) })
+    const m1 = LINES[2]
+    $('say').textContent = typed(m1.ml, t, m1.a, 1.6)
+    CALC_T.forEach((a, i) => rise($('c' + i), t, a, .4, 20))
+    $('c2').querySelector('b').style.transform = `scale(${.6 + .4 * backOut(prog(t, CALC_T[2], .4))})`
+
+    // scene 3: the meter climbs, the sale tempts, the ghost shows where Buy Now would take today
+    popWindow($('meter'), t, METER[0], METER[1], .85)
+    const step = SPEND_T.reduce((f, a, i) => f + (FILL[i + 1] - FILL[i]) * easeOut(prog(t, a, .5)), 0)
+    $('fill').style.width = step * 100 + '%'
+    const tempt = Math.min(easeOut(prog(t, TEMPT, .4)), 1 - easeOut(prog(t, CLOSE, .4)))
+    $('ghost').style.left = step * 100 + '%'
+    $('ghost').style.width = (GHOST - FILL[2]) * 100 * tempt + '%'
+    $('ghost').style.opacity = tempt * (.75 + .25 * Math.sin(t * 8))
+    $('over').style.opacity = tempt
+    ;['k0', 'k1'].forEach((id, i) => { $(id).style.opacity = prog(t, SPEND_T[i] + .3, .3) })
+    const s = backOut(prog(t, SALE[0], .4)), gone = easeInOut(prog(t, CLOSE + .15, .45))
+    $('sale').style.opacity = Math.min(prog(t, SALE[0], .2), 1 - gone)
+    $('sale').style.transform = `translateX(${-700 * gone}px) scale(${.6 + .4 * s})`
+    $('buy').style.transform = `scale(${1 + .06 * Math.sin(t * 9) * (t > TEMPT && t < CLOSE ? 1 : 0)})`
+    const tx = prog(t, CLOSE - .25, .4)
+    $('tapX').style.opacity = tx > 0 && tx < 1 ? 1 - tx : 0
+
+    // scene 4: the week
+    popWindow($('app2'), t, APP2[0], APP2[1], .6)
+    const m2 = LINES[5]
+    attr('mint2', 'transform', `translate(0 ${Math.sin(t * 2.4) * 6}) rotate(${Math.sin(t * 1.7) * 5})`)
+    const talk2 = speaking(LINES, 'mint', t) && t > APP2[0], happy2 = t > OVER + .6
+    attr('mint2Eyes', 'transform', happy2 ? 'translate(0 -10) scale(1 .3)' : `translate(0 0) scale(1 ${blinkAt(t, 2.1, 3.3)})`)
+    attr('mint2Mouth', 'd', happy2 ? 'M-4 18 Q 16 46 40 12 Z' : talk2 && mouthFlap(t) ? 'M0 18 Q 16 42 36 12 Z' : 'M0 22 Q 16 34 34 14')
+    attr('mint2Mouth', 'fill', happy2 || (talk2 && mouthFlap(t)) ? '#0B3B2A' : 'none')
+    $('say2').textContent = typed(m2.ml, t, m2.a, 1.8)
+    rise($('w0'), t, APP2[0] + 1.6, .4, 20)
+    BARS.forEach((b, i) => { b.style.transform = `scaleY(${easeOut(prog(t, WEEK_T + i * .25, .35))})` })
+    rise($('w1'), t, OVER + .4, .4, 16)
+
+    renderDialogue(t, LINES, NARRATION, bubbles, xOf)
+    endCard($('end'), t, END, DURATION)
+    rise($('disc'), t, END + 1.3)
+  }
+  boot(render, DURATION, [2.5, 7.0, 13.0, 18.0, 23.6, 27.0, 31.0, 35.5, 38.0, 40.2, 45.0])
+</script>
+</body>
+</html>
