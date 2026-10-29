@@ -15,8 +15,12 @@ import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText } from './BottomSheet'
 import { ReceiptField } from './ReceiptField'
+import { MoreOptions } from './MoreOptions'
 import { ExportTransactionsSheet } from './ExportTransactionsSheet'
-import { CloudOff, Receipt, X } from 'lucide-react'
+import { CloudOff, Receipt, User, Users, X } from 'lucide-react'
+import { useSharedTransactions } from '@/features/household/hooks/useSharedTransactions'
+import { ShareTransactionSheet, type ShareableTransaction } from '@/features/household/components/ShareTransactionSheet'
+import { canShareRecorded, type HouseholdShareContext } from '@/features/household/lib/share'
 import { filterAndSortTransactions, narrowsTransactions, DEFAULT_TXN_FILTERS, type TxnSortKey, type TransactionFilterState } from '@/lib/transactionFilters'
 import { groupSplitTransactions, splitGroupLegs, isSplitValid, type TransactionGroup } from '@/lib/splitGroups'
 import { SplitLegsEditor } from './SplitLegsEditor'
@@ -102,6 +106,9 @@ interface TransactionsPageProps {
   /** Opens Quick Add prefilled to reimburse `expense` for `remaining` — the reverse
    *  entry point, from the expense you are already looking at. */
   onRecordReimbursement?: (expense: Transaction, remaining: number) => void
+  /** Set only while the user is in an active household: rows then show whether
+   *  they're shared, and an unshared one can be shared from its icon. */
+  household?: HouseholdShareContext | null
 }
 
 type SplitEditState = {
@@ -114,8 +121,10 @@ type SplitEditState = {
   originalLegIds: string[]
 }
 
-export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddMaster, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, initialFilters, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onSearchTransactions, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement }: TransactionsPageProps) {
+export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipeProgress, dark, onToggleTheme, userName, userEmail, synced, onSignOut, onSettings, onCategories, onAddCategory, onAddMaster, onAddEvent, onReversePayment, onDeleteSavings, initialEditTx, initialFilters, onAdd, onToggleChallengeExclusion, allTransactionsLoaded, loadingMore, onLoadMore, onSearchTransactions, onUploadReceipt, onRemoveReceipt, getReceiptUrl, userId, onUpdateSplitGroup, onDeleteSplitGroup, onDeleteSplitLeg, onRecordReimbursement, household }: TransactionsPageProps) {
   const c = useTheme()
+  const { sharedIds, share: shareWithHousehold } = useSharedTransactions({ enabled: !!household })
+  const [shareTx, setShareTx] = useState<ShareableTransaction | null>(null)
   const { confirm, alert, dialogNode } = useAppDialog()
   // A queued offline row isn't on the server: no edit, no quick-category write.
   const explainPending = () => alert('This transaction is waiting to be saved online. You can remove it from the Offline transactions review.')
@@ -976,6 +985,40 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                         </div>
                         <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>{fmtTxTime(t)}</div>
                       </div>
+                      {/* Household: two people = shared, one = tap to share. No icon
+                          until the links have loaded, and none on rows that can't be
+                          shared (transfers, splits, reimbursements, unsynced). */}
+                      {household && sharedIds && (sharedIds.has(t.id) ? (
+                        <span
+                          role="img"
+                          aria-label="Shared with household"
+                          title="Shared with household"
+                          onClick={e => e.stopPropagation()}
+                          style={{ background: c.accentSoft, color: c.accent, borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                        >
+                          <Users size={14} strokeWidth={2.4} />
+                        </span>
+                      ) : canShareRecorded(t) && (
+                        <button
+                          type="button"
+                          aria-label="Share with household"
+                          title="Share with household"
+                          onClick={e => {
+                            e.stopPropagation()
+                            setShareTx({
+                              id: t.id,
+                              type: t.transaction_type as 'expense' | 'income',
+                              amount: t.amount,
+                              description: t.description,
+                              date: t.transaction_date,
+                              personalCategoryName: cat?.name ?? null,
+                            })
+                          }}
+                          style={{ background: c.surface2, color: c.muted, border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                        >
+                          <User size={14} strokeWidth={2.4} />
+                        </button>
+                      ))}
                       <button
                         onClick={e => { e.stopPropagation(); onDeleteClick() }}
                         disabled={isDeleting}
@@ -1192,29 +1235,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 actually cost. */}
             {editingTx && editForm && (
               <div style={{ marginTop: 16 }}>
-                <button
-                  type="button"
-                  onClick={toggleEditMore}
-                  style={{
-                    width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 12,
-                    border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted,
-                    font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 7,
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ flexShrink: 0, transition: 'transform 0.2s', transform: editMoreOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                  <span>
-                    More options
-                    {!editMoreOpen && editMoreCount > 0 && ` · ${editMoreCount} set`}
-                  </span>
-                </button>
-              </div>
-            )}
+              <MoreOptions open={editMoreOpen} onToggle={toggleEditMore} setCount={editMoreCount}>
 
-            {editMoreOpen && editingTx && editForm?.transaction_type === 'expense' && !!onUploadReceipt && (
+            {editForm.transaction_type === 'expense' && !!onUploadReceipt && (
               <div style={{ marginTop: 12 }}>
                 <ReceiptField
                   pendingReceipt={pendingReceipt}
@@ -1230,7 +1253,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 realise a run of expenses belongs together. Always rendered on an
                 expense, including when no event exists yet, because the chip is
                 itself a discovery surface. */}
-            {editMoreOpen && editingTx && editForm?.transaction_type === 'expense' && (() => {
+            {editForm.transaction_type === 'expense' && (() => {
               const attached = state.events.find(ev => ev.id === editForm.event_id)
               return (
                 <div style={{ marginTop: 16 }}>
@@ -1249,7 +1272,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
             {/* Who / where. v1.61 shipped this as create-only, which left a
                 mistagged expense permanently wrong — this is the fix. */}
-            {editMoreOpen && editingTx && editForm && isMasterTaggable(editForm.transaction_type) && state.masters.length > 0 && (
+            {isMasterTaggable(editForm.transaction_type) && state.masters.length > 0 && (
               <div style={{ marginTop: 16 }}>
                 <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
                   {editForm.transaction_type === 'income' ? 'Who from' : 'Who / where'}
@@ -1269,7 +1292,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
             {/* Reimbursement summary — what this expense actually cost, plus the
                 reverse entry point. This is where the need usually arises: you are
                 looking at the ₹408 gift when the friend pays you back. */}
-            {editMoreOpen && editingTx && editForm && (editForm.transaction_type === 'expense' || editForm.transaction_type === 'commitment') && (() => {
+            {(editForm.transaction_type === 'expense' || editForm.transaction_type === 'commitment') && (() => {
               const linked = reimbursementsFor(editingTx, state.transactions)
               const summary = reimbursementSummary(editingTx, state.transactions)
               // Nothing linked and no way to link: a bare section header would be
@@ -1339,7 +1362,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
 
             {/* The other side of the link: an incoming row that repays an expense.
                 Never rendered as salary or plain income. */}
-            {editMoreOpen && editingTx && editForm?.transaction_type === 'income' && (() => {
+            {editForm.transaction_type === 'income' && (() => {
               const target = editForm.reimbursement_for
                 ? state.transactions.find(t => t.id === editForm.reimbursement_for) ?? null
                 : null
@@ -1385,6 +1408,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 </div>
               )
             })()}
+
+              </MoreOptions>
+              </div>
+            )}
 
             {/* Challenge exclusion toggle — only for expenses when challenge is active */}
             {editingTx && editForm?.transaction_type === 'expense' && (state.settings.challenge_enabled ?? false) && onToggleChallengeExclusion && (() => {
@@ -1530,25 +1557,8 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 if (linked.length === 0 && !onRecordReimbursement) return null
                 const open = showEditMore || linked.length > 0
                 return (
-                  <>
-                    <button
-                      type="button"
-                      onClick={toggleEditMore}
-                      style={{
-                        width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 12,
-                        border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted,
-                        font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 7,
-                      }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                        style={{ flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                      <span>More options{!open && linked.length > 0 && ` · ${linked.length} set`}</span>
-                    </button>
-                    {open && (
-                  <div>
+                  <MoreOptions open={open} onToggle={toggleEditMore} setCount={linked.length}>
+                  <div style={{ paddingTop: 12 }}>
                     <Label>Reimbursement</Label>
                     {linked.length > 0 && (
                       <div style={{ background: c.surface2, borderRadius: 14, padding: '12px 14px', marginBottom: 8 }}>
@@ -1583,8 +1593,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       </button>
                     )}
                   </div>
-                    )}
-                  </>
+                  </MoreOptions>
                 )
               })()}
 
@@ -1619,7 +1628,11 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       </BottomSheet>
 
       {/* Quick categorize sheet */}
-      <BottomSheet open={!!quickCatTx} onClose={() => setQuickCatTx(null)} zIndex={350} showHelpButton={false}>
+      {household && shareTx && (
+        <ShareTransactionSheet tx={shareTx} household={household} onShare={shareWithHousehold} onClose={() => setShareTx(null)} />
+      )}
+
+      <BottomSheet open={!!quickCatTx}onClose={() => setQuickCatTx(null)} zIndex={350} showHelpButton={false}>
         <div style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Set Category</div>
         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 16 }}>{quickCatTx?.description}</div>
         <CategorySelect

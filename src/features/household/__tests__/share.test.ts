@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { matchHouseholdCategory, shareBlock, sharedNote } from '../lib/share'
+import { canShareRecorded, matchHouseholdCategory, shareBlock, sharedNote } from '../lib/share'
 import type { HouseholdCategory } from '../types'
 
 const cat = (id: string, name: string, kind: 'expense' | 'income', is_archived = false): HouseholdCategory =>
@@ -46,5 +46,21 @@ describe('sharedNote', () => {
   it('is trimmed and capped at 120 characters, like the database', () => {
     expect(sharedNote('  Big Basket  ')).toBe('Big Basket')
     expect(sharedNote('x'.repeat(150))).toHaveLength(120)
+  })
+})
+
+describe('canShareRecorded', () => {
+  const row = { transaction_type: 'expense', reimbursement_for: null, split_group_id: null, pending_sync: false }
+  it('offers plain recorded expenses and income', () => {
+    expect(canShareRecorded(row)).toBe(true)
+    expect(canShareRecorded({ ...row, transaction_type: 'income' })).toBe(true)
+  })
+  it('never offers transfers, card payments, reimbursements, split legs or unsynced rows', () => {
+    expect(canShareRecorded({ ...row, transaction_type: 'transfer' })).toBe(false)
+    expect(canShareRecorded({ ...row, transaction_type: 'credit_card_payment' })).toBe(false)
+    expect(canShareRecorded({ ...row, transaction_type: 'opening_balance' })).toBe(false)
+    expect(canShareRecorded({ ...row, transaction_type: 'income', reimbursement_for: 'x' })).toBe(false)
+    expect(canShareRecorded({ ...row, split_group_id: 'g' })).toBe(false)
+    expect(canShareRecorded({ ...row, pending_sync: true })).toBe(false)
   })
 })

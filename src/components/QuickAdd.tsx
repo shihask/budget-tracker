@@ -11,6 +11,7 @@ import { matchMasterByName, normalizeMasterName, isMasterTaggable, MASTER_TYPE_L
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { QuickAmountBody } from './QuickAmountSheet'
 import { ReceiptField, type ReceiptFieldHandle } from './ReceiptField'
+import { MoreOptions } from './MoreOptions'
 import { Camera, Clock, CloudOff, Sparkles, Undo2 } from 'lucide-react'
 import type { PickedReceipt } from '@/lib/imageCompress'
 import { SplitLegsEditor } from './SplitLegsEditor'
@@ -1483,33 +1484,8 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
             </div>
 
             {hasAdvancedFields && (
-              <div>
-                <button
-                  type="button"
-                  onClick={toggleAdvanced}
-                  style={{
-                    width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 12,
-                    border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.muted,
-                    font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 7,
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ flexShrink: 0, transition: 'transform 0.2s', transform: effectiveShowAdvanced ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                  {/* "More options", not "Advanced": nothing in here is advanced,
-                      it's just optional, and "Advanced" wrongly signals risky or
-                      expert. The count only appears while collapsed — once open
-                      the fields speak for themselves, and showing both is noise. */}
-                  <span>
-                    More options
-                    {!effectiveShowAdvanced && advancedCount > 0 && ` · ${advancedCount} set`}
-                  </span>
-                </button>
-
-                {effectiveShowAdvanced && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+              <MoreOptions open={effectiveShowAdvanced} onToggle={toggleAdvanced} setCount={advancedCount}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 12 }}>
                     <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>
                       {isExpense && !offline ? 'Optional tags and receipt' : 'Optional tags'}
                     </div>
@@ -1601,8 +1577,7 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
                       </button>
                     )}
                   </div>
-                )}
-              </div>
+              </MoreOptions>
             )}
 
             {household && shareBlockReason === null && (

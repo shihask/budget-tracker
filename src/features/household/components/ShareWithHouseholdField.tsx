@@ -16,7 +16,6 @@ export function ShareWithHouseholdField({ on, onToggle, householdName, kind, cat
   disabled?: boolean
 }) {
   const c = useTheme()
-  const choosable = categories.filter(cat => cat.kind === kind && !cat.is_archived)
   return (
     <div style={{ background: on ? c.accentSoft : c.surface2, borderRadius: 14, padding: '12px 14px', transition: 'background 0.2s' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: disabled ? 'default' : 'pointer' }}>
@@ -42,28 +41,47 @@ export function ShareWithHouseholdField({ on, onToggle, householdName, kind, cat
 
       {on && (
         <div style={{ marginTop: 12 }}>
-          <label htmlFor="qa-household-category" style={{ display: 'block', font: '700 12px Plus Jakarta Sans', color: c.sub, marginBottom: 6 }}>
-            Household category
-          </label>
-          <select
-            id="qa-household-category"
-            value={categoryId ?? ''}
-            onChange={e => onCategory(e.target.value)}
-            disabled={disabled}
-            aria-invalid={!categoryId}
-            style={{
-              width: '100%', boxSizing: 'border-box', border: `1.5px solid ${categoryId ? c.faint : c.warn}`, background: c.surface,
-              borderRadius: 12, padding: '10px 12px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none', cursor: 'pointer',
-            }}
-          >
-            <option value="" disabled>Pick a household category</option>
-            {choosable.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-          </select>
-          <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 8, lineHeight: 1.45 }}>
-            Your partner sees the amount, date, note and this category — never your account or balance. Later edits to the amount, date or note update the shared copy; deleting this deletes it too.
-          </div>
+          <HouseholdCategoryPicker id="qa-household-category" kind={kind} categories={categories} categoryId={categoryId} onCategory={onCategory} disabled={disabled} />
         </div>
       )}
     </div>
+  )
+}
+
+/** The household category select and the what-is-shared line under it. Shared by
+ *  Quick Add's switch and the Transactions list's share sheet. */
+export function HouseholdCategoryPicker({ id, kind, categories, categoryId, onCategory, disabled }: {
+  id: string
+  kind: 'expense' | 'income'
+  categories: HouseholdCategory[]
+  categoryId: string | null
+  onCategory: (id: string) => void
+  disabled?: boolean
+}) {
+  const c = useTheme()
+  const choosable = categories.filter(cat => cat.kind === kind && !cat.is_archived)
+  return (
+    <>
+      <label htmlFor={id} style={{ display: 'block', font: '700 12px Plus Jakarta Sans', color: c.sub, marginBottom: 6 }}>
+        Household category
+      </label>
+      <select
+        id={id}
+        value={categoryId ?? ''}
+        onChange={e => onCategory(e.target.value)}
+        disabled={disabled}
+        aria-invalid={!categoryId}
+        style={{
+          width: '100%', boxSizing: 'border-box', border: `1.5px solid ${categoryId ? c.faint : c.warn}`, background: c.surface,
+          borderRadius: 12, padding: '10px 12px', font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none', cursor: 'pointer',
+        }}
+      >
+        <option value="" disabled>Pick a household category</option>
+        {choosable.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+      </select>
+      <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 8, lineHeight: 1.45 }}>
+        Your partner sees the amount, date, note and this category — never your account or balance. Later edits to the amount, date or note update the shared copy; deleting this deletes it too.
+      </div>
+    </>
   )
 }

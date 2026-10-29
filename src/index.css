@@ -168,6 +168,32 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   .mp-reveal { opacity: 1; transform: none; transition: none; }
 }
 
+/* Disclosure: height animates via grid rows (0fr ↔ 1fr), content fades and
+   settles in slightly after. The child wrapper needs min-height: 0 + overflow. */
+.mp-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mp-collapse[data-open="true"] { grid-template-rows: 1fr; }
+.mp-collapse__body {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 180ms ease, transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mp-collapse[data-open="true"] .mp-collapse__body {
+  opacity: 1;
+  transform: none;
+  transition-delay: 60ms;
+}
+/* Reduced motion softens rather than removes: no slide, shorter. Windows with
+   "Animation effects" off reports this too, and the rest of the app's sheets
+   still animate there — a disclosure that snaps would be the odd one out. */
+@media (prefers-reduced-motion: reduce) {
+  .mp-collapse { transition-duration: 200ms; }
+  .mp-collapse__body, .mp-collapse[data-open="true"] .mp-collapse__body { transform: none; }
+}
+
 /* Wrapper */
 .mp-landing {
   min-height: 100svh;

@@ -20,6 +20,18 @@ export function shareBlock(o: { txType: string; reimbursing: boolean; split: boo
   return null
 }
 
+/** Whether an already-recorded transaction can be shared from the Transactions
+ *  list — the same rules as Quick Add, read off the saved row. A row still
+ *  waiting to sync isn't on the server yet, so there is nothing to share. */
+export function canShareRecorded(t: { transaction_type: string; reimbursement_for?: string | null; split_group_id?: string | null; pending_sync?: boolean }): boolean {
+  return shareBlock({
+    txType: t.transaction_type,
+    reimbursing: !!t.reimbursement_for,
+    split: !!t.split_group_id,
+    offline: !!t.pending_sync,
+  }) === null
+}
+
 export const SHARE_BLOCK_TEXT: Record<Exclude<ShareBlock, null>, string> = {
   offline: 'Sharing needs a connection.',
   type: 'Transfers can’t be shared with your household.',

@@ -866,6 +866,11 @@ NavMenu row is hidden. **Turn it on only after the migration is applied** (`supa
   already being gone (not `pg_trigger_depth()`). Household-side edits/deletes never touch the personal row.
   Sync never fails a personal write: errors are caught and recorded in `household_sync_events` (ids, outcome,
   SQLSTATE only). Tests: `supabase/tests/household_share.sql`.
+- **Share after the fact (Transactions list).** With an active household, each shareable row (`canShareRecorded`
+  — Quick Add's rules read off the saved row) shows a person icon; shared rows show a two-person icon. Tapping
+  the single icon opens `ShareTransactionSheet` (category prefilled by name) → `mp_household_share_recorded_transaction`
+  directly — no migration, it was already granted and idempotent. Shared state comes from
+  `useSharedTransactions` (own links, paged past max-rows, once per page open); no icons until it has loaded.
 - The page renders inside `HouseholdBoundary`, whose fallback is a **closable** page (rendering nothing would
   leave App's scrim up with no way out).
 
