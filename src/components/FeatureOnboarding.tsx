@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Tags, Tag, MessageCircle, Search, PenLine, Wallet, FileText, Plane, TrendingUp,
   Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, CreditCard, WalletCards, ChevronDown, Plus,
-  HandCoins, Users, Info, type LucideIcon,
+  HandCoins, Users, Info, ChartColumnIncreasing, ChartLine, Coins, CalendarDays, Landmark, PiggyBank, CircleCheck,
+  type LucideIcon,
 } from 'lucide-react'
 import { keywordCategoryName } from '@/lib/categorize'
 import { sanitizeAmountInput } from '@/lib/amountExpression'
@@ -592,6 +593,75 @@ function ChoiceRow({ selected, onClick, Icon, title, detail, kind = 'radio' }: {
   )
 }
 
+// The tiles mirror SavingsType (sip, gold, rd, fd, ppf_nps, chit) — 'custom' is left out.
+const SAVINGS_KINDS: { Icon: LucideIcon; label: string }[] = [
+  { Icon: ChartLine, label: 'SIP / MF' },
+  { Icon: Coins, label: 'Gold' },
+  { Icon: CalendarDays, label: 'RD' },
+  { Icon: Landmark, label: 'FD' },
+  { Icon: PiggyBank, label: 'PPF / NPS' },
+  { Icon: Users, label: 'Chit / Kuri' },
+]
+
+const SAVINGS_BENEFITS = [
+  'Track every contribution',
+  'Monitor your accumulated corpus',
+  'Keep savings separate from daily expenses',
+]
+
+function SavingsInvestPage({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
+      <PageHeader
+        Icon={ChartColumnIncreasing} title="Savings & Investments"
+        tagline="Make your money grow." taglineAccent
+        description="Keep track of your SIPs, gold schemes, deposits and other contributions in one place."
+      />
+
+      <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink, marginBottom: 12 }}>What can you track?</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 10px', marginBottom: 20 }}>
+        {SAVINGS_KINDS.map(({ Icon, label }) => (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 14,
+              background: 'rgba(22,201,138,0.12)', color: deepGreen,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon size={20} />
+            </div>
+            <span style={{ font: '600 12px "Plus Jakarta Sans"', color: muted, textAlign: 'center' }}>{label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+        {SAVINGS_BENEFITS.map(b => (
+          <div key={b} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <CircleCheck size={17} style={{ color: '#16C98A', flexShrink: 0 }} />
+            <span style={{ font: '500 14px "Plus Jakarta Sans"', color: ink }}>{b}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        background: '#FBF8F4', borderRadius: 16, padding: '14px 16px',
+        border: `1.5px solid ${on ? 'rgba(22,201,138,0.35)' : '#E6DFD5'}`,
+        transition: 'border-color 0.25s',
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ font: '700 15px "Plus Jakarta Sans"', color: ink }}>Savings & Investments</div>
+          <div style={{ font: '600 12px "Plus Jakarta Sans"', color: on ? '#0FAF75' : muted, marginTop: 2, transition: 'color 0.25s' }}>
+            {on ? 'Enabled' : 'Disabled'}
+          </div>
+          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 4 }}>You can change this anytime in Settings.</div>
+        </div>
+        <LargeToggle on={on} onChange={onChange} />
+      </div>
+    </div>
+  )
+}
+
 function LendBorrowPage({ lend, borrow, onLend, onBorrow, onBoth }: {
   lend: boolean; borrow: boolean
   onLend: () => void; onBorrow: () => void; onBoth: () => void
@@ -803,7 +873,8 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
   const [lends, setLends] = useState(false)
   const [borrows, setBorrows] = useState(false)
   const isLendPage = cur.key === 'track_borrowings'
-  const customPage = cur.featured || isCardPage || isLendPage
+  const isSavingsPage = cur.key === 'track_savings'
+  const customPage = cur.featured || isCardPage || isLendPage || isSavingsPage
   const setLendBorrow = (lend: boolean, borrow: boolean) => {
     setLends(lend); setBorrows(borrow)
     setEnabled(prev => ({ ...prev, track_borrowings: lend || borrow }))
@@ -939,7 +1010,9 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           animation: 'foFadeUp 0.32s ease both',
         }}
       >
-        {cur.featured ? <MintAIPage /> : isLendPage ? (
+        {cur.featured ? <MintAIPage /> : isSavingsPage ? (
+          <SavingsInvestPage on={on} onChange={setOn} />
+        ) : isLendPage ? (
           <LendBorrowPage
             lend={lends} borrow={borrows}
             onLend={() => setLendBorrow(!lends, borrows)}
