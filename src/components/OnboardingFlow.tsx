@@ -93,7 +93,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
     setAccounts(prev => prev.map((a, j) => j === i ? { ...a, ...patch } : a))
   const hasValidAccount = accounts.some(a => a.name.trim())
 
-  const finish = async (features: Record<FeatureKey, boolean>, card: CardDraft | null) => {
+  const finish = async (features: Record<FeatureKey, boolean>, cards: CardDraft[]) => {
     setSaving(true)
     try {
       for (const acc of accounts) {
@@ -142,9 +142,9 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
       Object.assign(patch, features)
       if (Object.keys(patch).length) await onUpdateSettings(patch)
     } catch (_) {}
-    // Separate from the settings above: a failed card leaves tracking on with no card,
-    // which the Credit Cards section's empty state already invites them to fix.
-    if (card) {
+    // Separate from the settings above, and per card: a failed card is simply missing,
+    // which the Credit Cards page lets them add again.
+    for (const card of cards) {
       try {
         const billDay = parseInt(card.bill_day) || DEFAULT_BILL_DAY
         await onAddCreditCard({
@@ -221,7 +221,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
   )
   if (step === 5) return (
     <FeatureOnboarding
-      onComplete={(f, card) => finish(f, card)}
+      onComplete={(f, cards) => finish(f, cards)}
       onBack={() => setStep(4)}
     />
   )
