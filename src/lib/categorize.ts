@@ -53,6 +53,13 @@ export function findCategoryMatches(description: string, categories: Category[])
   return scored.filter(({ score }) => score >= top).map(({ cat }) => cat)
 }
 
+// Keyword table's category name with no user categories to match against —
+// for the onboarding demo, which runs before the user has any.
+export function keywordCategoryName(description: string): string | null {
+  const lower = description.toLowerCase()
+  return KEYWORD_CATS.find(([keywords]) => keywords.some(kw => lower.includes(kw)))?.[1] ?? null
+}
+
 export function guessCategory(description: string, categories: Category[]): string | null {
   const lower = description.toLowerCase()
   for (const [keywords, catName] of KEYWORD_CATS) {

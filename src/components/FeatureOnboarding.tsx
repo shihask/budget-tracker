@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { Sparkles } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import {
+  Tags, Tag, MessageCircle, Search, PenLine, Wallet, FileText, Plane, TrendingUp,
+  Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, type LucideIcon,
+} from 'lucide-react'
+import { keywordCategoryName } from '@/lib/categorize'
 
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
 
@@ -158,103 +162,296 @@ function BackArrow() {
   )
 }
 
-function MintAIDemo() {
-  const TARGET = 'tea 20'
-  const [typed, setTyped] = useState('')
-  const [showResult, setShowResult] = useState(false)
-  const [cursorOn, setCursorOn] = useState(true)
+const MINT_FEATURES: { Icon: LucideIcon; title: string; detail: string }[] = [
+  { Icon: Tags, title: 'Auto-categorizes your expenses', detail: '"petrol 500" lands in Fuel, no picking from lists' },
+  { Icon: MessageCircle, title: 'Answers your money questions', detail: '"How much is free to spend before payday?"' },
+  { Icon: Search, title: 'Finds any transaction', detail: '"When did I pay the plumber?" or "find swiggy in August"' },
+  { Icon: PenLine, title: 'Edits by just asking', detail: '"Change fuel 500 to 300" or "delete tea 20"' },
+  { Icon: Wallet, title: 'Checks if you can afford it', detail: 'Weighs upcoming bills before you buy' },
+  { Icon: FileText, title: 'Imports bank statements', detail: 'Upload a PDF and Mint reads the transactions' },
+  { Icon: Plane, title: 'Notices trips & life events', detail: 'Groups a trip or wedding\'s spending for you' },
+  { Icon: TrendingUp, title: 'Spots patterns & savings opportunities', detail: 'Flags spending spikes and suggests ways to save' },
+]
 
+const DEMO_EXAMPLES = ['Tea 20', 'Petrol 500', 'Groceries 1200']
+
+interface DemoResult { description: string; category: string | null; amount: number }
+
+// "tea 20" → Tea / Tea & Snacks / ₹20. The last number is the amount, the rest
+// the description. Local keyword table only — no AI before the user has data.
+function parseDemo(raw: string): DemoResult | null {
+  const nums = raw.match(/\d[\d,]*(?:\.\d+)?/g)
+  if (!nums) return null
+  const last = nums[nums.length - 1]
+  const at = raw.lastIndexOf(last)
+  const amount = Number(last.replace(/,/g, ''))
+  const description = (raw.slice(0, at) + raw.slice(at + last.length)).replace(/\s+/g, ' ').trim()
+  if (!amount || !description) return null
+  return {
+    description: description[0].toUpperCase() + description.slice(1),
+    category: keywordCategoryName(description),
+    amount,
+  }
+}
+
+const ink = '#1C1410'
+const muted = '#8A8178'
+const deepGreen = '#0A7A56'
+const card: React.CSSProperties = {
+  background: '#FBF8F4', borderRadius: 20,
+  border: '1px solid #E6DFD5', padding: 18,
+  marginBottom: 14, textAlign: 'left',
+}
+
+function MintHeroArt() {
+  const bubble = (text: string, style: React.CSSProperties, delay: number) => (
+    <div style={{
+      position: 'absolute', ...style,
+      background: '#E3F4EC', border: '1px solid rgba(22,201,138,0.35)',
+      color: deepGreen, font: '700 11px "Plus Jakarta Sans"',
+      padding: '5px 9px', borderRadius: 10, whiteSpace: 'nowrap',
+      boxShadow: '0 2px 6px rgba(28,20,16,0.06)',
+      animation: `foFloat 3.2s ease-in-out ${delay}s infinite`,
+    }}>
+      {text}
+    </div>
+  )
+  return (
+    <div aria-hidden style={{ position: 'relative', width: 132, height: 128, flexShrink: 0 }}>
+      <img
+        src="/mint-ai-logo.svg" alt="" width={76} height={76}
+        style={{
+          position: 'absolute', left: 30, top: 38, display: 'block',
+          borderRadius: 22, boxShadow: '0 10px 24px rgba(28,20,16,0.22)',
+        }}
+      />
+      {bubble('Tea 20', { left: 0, top: 10 }, 0)}
+      {bubble('Petrol 500', { right: 0, top: 0 }, 0.8)}
+      {bubble('Groceries 1200', { right: -4, bottom: 6 }, 1.6)}
+    </div>
+  )
+}
+
+function MintAIPage() {
+  const [text, setText] = useState('')
+  const [result, setResult] = useState<DemoResult | null>(null)
+  const [tried, setTried] = useState(false)
+  const timers = useRef<number[]>([])
+
+  const stopIntro = () => { timers.current.forEach(clearTimeout); timers.current = [] }
+
+  const submit = (value: string) => {
+    stopIntro()
+    setText(value)
+    setResult(parseDemo(value))
+    setTried(true)
+  }
+
+  const reset = (value: string) => {
+    stopIntro()
+    setText(value)
+    setResult(null)
+    setTried(false)
+  }
+
+  // Types the first example once, then shows what Mint understood. Any tap or
+  // keystroke from the user cancels it.
   useEffect(() => {
-    let i = 0
-    const delay = setTimeout(() => {
-      const interval = setInterval(() => {
-        i++
-        setTyped(TARGET.slice(0, i))
-        if (i >= TARGET.length) {
-          clearInterval(interval)
-          setTimeout(() => setShowResult(true), 700)
-        }
-      }, 110)
-      return () => clearInterval(interval)
-    }, 500)
-    return () => clearTimeout(delay)
+    const target = DEMO_EXAMPLES[0].toLowerCase()
+    for (let i = 1; i <= target.length; i++) {
+      timers.current.push(window.setTimeout(() => setText(target.slice(0, i)), 500 + i * 110))
+    }
+    timers.current.push(window.setTimeout(() => submit(target), 500 + target.length * 110 + 600))
+    return stopIntro
   }, [])
 
-  useEffect(() => {
-    if (showResult) return
-    const t = setInterval(() => setCursorOn(v => !v), 530)
-    return () => clearInterval(t)
-  }, [showResult])
+  const activeChip = DEMO_EXAMPLES.find(e => e.toLowerCase() === text.trim().toLowerCase())
 
   return (
-    <div style={{ width: '100%', marginBottom: 20, textAlign: 'left' }}>
-      {/* Simulated input */}
-      <div style={{
-        background: '#FBF8F4', borderRadius: 12,
-        border: `1.5px solid ${showResult ? 'rgba(22,201,138,0.35)' : '#16C98A'}`,
-        padding: '13px 14px',
-        marginBottom: 10,
-        display: 'flex', alignItems: 'center',
-        transition: 'border-color 0.3s',
-      }}>
-        <span style={{ font: '600 15px "Plus Jakarta Sans"', color: '#1C1410', flex: 1 }}>
-          {typed || <span style={{ color: '#C0B9B1' }}>type anything…</span>}
-        </span>
-        {!showResult && (
-          <span style={{
-            display: 'inline-block', width: 2, height: 18,
-            background: cursorOn ? '#16C98A' : 'transparent',
-            borderRadius: 1, marginLeft: 1,
-            transition: 'background 0.1s',
-          }} />
+    <div style={{ width: '100%', textAlign: 'left' }}>
+      {/* Hero */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 4px 18px' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ font: '700 12px "Plus Jakarta Sans"', color: '#0FAF75', letterSpacing: '0.1em' }}>MEET</div>
+          <div style={{ font: '800 34px "Plus Jakarta Sans"', letterSpacing: '-0.03em', lineHeight: 1.1, marginTop: 2 }}>
+            <span style={{ color: deepGreen }}>Mint</span> <span style={{ color: ink }}>AI</span>
+          </div>
+          <div style={{ font: '600 14px "Plus Jakarta Sans"', color: '#5C534B', marginTop: 4 }}>
+            Your personal money assistant
+          </div>
+          <div style={{ font: '400 13px "Plus Jakarta Sans"', color: muted, lineHeight: 1.55, marginTop: 10 }}>
+            Just type naturally. Mint understands, categorizes and helps you manage your money.
+          </div>
+        </div>
+        <MintHeroArt />
+      </div>
+
+      {/* Try it yourself */}
+      <div style={card}>
+        <div style={{ font: '800 18px "Plus Jakarta Sans"', color: ink, letterSpacing: '-0.01em' }}>Try it yourself</div>
+        <div style={{ font: '400 13px "Plus Jakarta Sans"', color: muted, marginTop: 3, marginBottom: 14 }}>
+          Type an expense like you normally would.
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {DEMO_EXAMPLES.map(ex => {
+            const active = ex === activeChip
+            return (
+              <button
+                key={ex}
+                onClick={() => submit(ex.toLowerCase())}
+                style={{
+                  padding: '8px 14px', borderRadius: 999, cursor: 'pointer',
+                  border: `1.5px solid ${active ? '#16C98A' : '#E0D9D0'}`,
+                  background: active ? 'rgba(22,201,138,0.08)' : '#fff',
+                  color: active ? deepGreen : ink,
+                  font: '600 13px "Plus Jakarta Sans"',
+                }}
+              >
+                {ex}
+              </button>
+            )
+          })}
+        </div>
+
+        <form
+          onSubmit={e => { e.preventDefault(); submit(text) }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: '#fff', borderRadius: 14,
+            border: '1.5px solid #E0D9D0', padding: '6px 6px 6px 14px',
+          }}
+        >
+          <input
+            value={text}
+            onChange={e => reset(e.target.value)}
+            placeholder='e.g. "lunch 150"'
+            enterKeyHint="send"
+            style={{
+              flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
+              font: '600 15px "Plus Jakarta Sans"', color: ink, padding: '6px 0',
+            }}
+          />
+          {text && (
+            <button
+              type="button"
+              aria-label="Clear"
+              onClick={() => reset('')}
+              style={{
+                width: 24, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: '#E9E3DB', color: muted, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <X size={13} strokeWidth={2.5} />
+            </button>
+          )}
+          <div style={{ width: 1, alignSelf: 'stretch', background: '#EDE7DD', margin: '4px 2px' }} />
+          <button
+            type="submit"
+            aria-label="Send"
+            style={{
+              width: 38, height: 38, borderRadius: 19, border: 'none', cursor: 'pointer',
+              background: '#16C98A', color: '#fff', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <ArrowUp size={19} strokeWidth={2.5} />
+          </button>
+        </form>
+
+        {tried && !result && (
+          <div style={{ font: '500 12px "Plus Jakarta Sans"', color: muted, marginTop: 10 }}>
+            Add a description and an amount, like "lunch 150".
+          </div>
+        )}
+
+        {result && (
+          <div style={{
+            marginTop: 12, borderRadius: 14, overflow: 'hidden',
+            border: '1.5px solid rgba(22,201,138,0.3)',
+            animation: 'foFadeUp 0.3s ease both',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 14px', background: 'rgba(22,201,138,0.08)',
+            }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 16, background: '#16C98A', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <Check size={18} strokeWidth={3} />
+              </div>
+              <div>
+                <div style={{ font: '800 15px "Plus Jakarta Sans"', color: deepGreen }}>Mint understood!</div>
+                <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 1 }}>Here's how it will be saved:</div>
+              </div>
+            </div>
+            <div style={{ padding: '4px 14px', background: '#fff' }}>
+              {([
+                [FileText, 'Description', result.description],
+                [Tag, 'Category', result.category ?? 'Mint suggests one'],
+                [IndianRupee, 'Amount', `₹${result.amount.toLocaleString('en-IN')}`],
+              ] as const).map(([Icon, lbl, val], i, arr) => (
+                <div key={lbl} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
+                  borderBottom: i < arr.length - 1 ? '1px solid #EDE7DD' : 'none',
+                }}>
+                  <Icon size={16} style={{ color: ink, flexShrink: 0 }} />
+                  <span style={{ font: '500 13px "Plus Jakarta Sans"', color: muted, flex: 1 }}>{lbl}</span>
+                  <span style={{
+                    font: '700 13px "Plus Jakarta Sans"',
+                    color: lbl === 'Category' && !result.category ? muted : ink,
+                    textAlign: 'right',
+                  }}>
+                    {val}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Result card */}
-      {showResult && (
-        <div style={{
-          background: '#FBF8F4', borderRadius: 12,
-          border: '1.5px solid rgba(22,201,138,0.3)',
-          padding: '12px 14px',
-          marginBottom: 16,
-          animation: 'foFadeUp 0.35s ease both',
-        }}>
-          <div style={{
-            font: '700 10px "Plus Jakarta Sans"', color: '#16C98A',
-            letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 9,
-          }}>
-            Mint understood
-          </div>
-          {([
-            ['Description', 'Tea'],
-            ['Category', 'Tea & Snacks'],
-            ['Amount', '₹20'],
-          ] as const).map(([lbl, val], i, arr) => (
-            <div key={lbl} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '6px 0',
-              borderBottom: i < arr.length - 1 ? '1px solid #EDE7DD' : 'none',
-            }}>
-              <span style={{ font: '500 13px "Plus Jakarta Sans"', color: '#8A8178' }}>{lbl}</span>
-              <span style={{ font: '700 13px "Plus Jakarta Sans"', color: '#1C1410' }}>{val}</span>
+      {/* What else Mint does */}
+      <div style={card}>
+        <div style={{ font: '800 17px "Plus Jakarta Sans"', color: ink, letterSpacing: '-0.01em', marginBottom: 14 }}>
+          Mint can also help you with
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {MINT_FEATURES.map(({ Icon, title, detail }) => (
+            <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+                background: 'rgba(22,201,138,0.12)', color: deepGreen,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Icon size={18} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ font: '700 13px "Plus Jakarta Sans"', color: ink }}>{title}</div>
+                <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.45, marginTop: 1 }}>{detail}</div>
+              </div>
             </div>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Feature list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-        {[
-          'Auto-categorizes as you type',
-          'Answers any spending question',
-          'Spots patterns & savings opportunities',
-          'Checks if you can afford something',
-        ].map(f => (
-          <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={13} style={{ color: '#16C98A', flexShrink: 0 }} />
-            <span style={{ font: '500 13px "Plus Jakarta Sans"', color: '#8A8178' }}>{f}</span>
+      {/* Turned on — the off switch lives in Settings */}
+      <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 14, marginBottom: 0 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+          background: 'rgba(22,201,138,0.12)', color: deepGreen,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Settings size={22} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ font: '700 14px "Plus Jakarta Sans"', color: ink }}>Mint AI is on</div>
+          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.5, marginTop: 2 }}>
+            You can turn it off anytime in Settings. Even if you do, you can still track expenses manually.
           </div>
-        ))}
+        </div>
       </div>
     </div>
   )
@@ -371,8 +568,10 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           ))}
         </div>
 
-        {/* Right spacer matches back button width */}
-        <div style={{ width: 72 }} />
+        {/* Step counter — same width as the back button keeps the dots centred */}
+        <div style={{ width: 72, textAlign: 'right', padding: '8px', font: '600 13px "Plus Jakarta Sans"', color: '#8A8178' }}>
+          {page + 1} of {PAGES.length}
+        </div>
       </div>
 
       {/* Page content — key forces remount + animation on page change */}
@@ -381,39 +580,14 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
         style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: cur.featured ? 'flex-start' : 'center',
-          padding: cur.featured ? '20px 24px 16px' : '0 32px 16px',
+          padding: cur.featured ? '16px 16px 16px' : '0 32px 16px',
           textAlign: 'center',
           overflowY: 'auto', overscrollBehavior: 'contain',
           animation: 'foFadeUp 0.32s ease both',
         }}
       >
-        {/* Icon */}
-        {cur.featured ? (
-          <div style={{
-            width: 76, height: 76, borderRadius: 24,
-            background: '#1C1410',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 24,
-          }}>
-            <img
-              src="/mint-thinking-loop.svg"
-              alt="Mint AI"
-              width={44}
-              height={44}
-              onError={e => {
-                const el = e.currentTarget
-                el.style.display = 'none'
-                const fallback = el.nextElementSibling as HTMLElement | null
-                if (fallback) fallback.style.display = 'flex'
-              }}
-            />
-            <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', color: '#16C98A' }}>
-              <svg width={44} height={44} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3l1.88 5.8 5.62.82-4.06 3.96.96 5.6L12 16.9l-5.02 2.63.96-5.6L3.88 9.62l5.62-.82z"/>
-              </svg>
-            </div>
-          </div>
-        ) : (
+        {cur.featured ? <MintAIPage /> : (<>
+          {/* Icon */}
           <div style={{
             width: 76, height: 76, borderRadius: 24,
             background: iconBg,
@@ -424,29 +598,25 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           }}>
             <cur.Icon size={30} />
           </div>
-        )}
 
-        {/* Label */}
-        <div style={{
-          font: '800 26px "Plus Jakarta Sans"',
-          color: '#1C1410', letterSpacing: '-0.025em', marginBottom: 5,
-        }}>
-          {cur.label}
-        </div>
+          {/* Label */}
+          <div style={{
+            font: '800 26px "Plus Jakarta Sans"',
+            color: '#1C1410', letterSpacing: '-0.025em', marginBottom: 5,
+          }}>
+            {cur.label}
+          </div>
 
-        {/* Subtitle */}
-        <div style={{
-          font: '600 13px "Plus Jakarta Sans"',
-          color: cur.featured ? '#16C98A' : '#8A8178',
-          marginBottom: 20,
-        }}>
-          {cur.subtitle}
-        </div>
+          {/* Subtitle */}
+          <div style={{
+            font: '600 13px "Plus Jakarta Sans"',
+            color: '#8A8178',
+            marginBottom: 20,
+          }}>
+            {cur.subtitle}
+          </div>
 
-        {/* Description */}
-        {cur.featured ? (
-          <MintAIDemo />
-        ) : (
+          {/* Description */}
           <div style={{
             font: '400 14px "Plus Jakarta Sans"',
             color: '#8A8178', lineHeight: 1.72,
@@ -455,30 +625,30 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           }}>
             {cur.description}
           </div>
-        )}
 
-        {/* Toggle + status */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 14,
-          background: '#FBF8F4', borderRadius: 16,
-          padding: '14px 20px',
-          border: `1.5px solid ${on ? 'rgba(22,201,138,0.3)' : '#E0D9D0'}`,
-          transition: 'border-color 0.25s',
-        }}>
-          <LargeToggle on={on} onChange={setOn} />
-          <div style={{ textAlign: 'left' }}>
-            <div style={{
-              font: '700 14px "Plus Jakarta Sans"',
-              color: on ? '#16C98A' : '#1C1410',
-              transition: 'color 0.25s',
-            }}>
-              {on ? 'Enabled' : 'Disabled'}
-            </div>
-            <div style={{ font: '400 12px "Plus Jakarta Sans"', color: '#B0A9A1', marginTop: 1 }}>
-              {on ? 'Tap to turn off' : 'Tap to enable'}
+          {/* Toggle + status */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 14,
+            background: '#FBF8F4', borderRadius: 16,
+            padding: '14px 20px',
+            border: `1.5px solid ${on ? 'rgba(22,201,138,0.3)' : '#E0D9D0'}`,
+            transition: 'border-color 0.25s',
+          }}>
+            <LargeToggle on={on} onChange={setOn} />
+            <div style={{ textAlign: 'left' }}>
+              <div style={{
+                font: '700 14px "Plus Jakarta Sans"',
+                color: on ? '#16C98A' : '#1C1410',
+                transition: 'color 0.25s',
+              }}>
+                {on ? 'Enabled' : 'Disabled'}
+              </div>
+              <div style={{ font: '400 12px "Plus Jakarta Sans"', color: '#B0A9A1', marginTop: 1 }}>
+                {on ? 'Tap to turn off' : 'Tap to enable'}
+              </div>
             </div>
           </div>
-        </div>
+        </>)}
       </div>
 
       {/* Footer */}
@@ -493,9 +663,10 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
             border: 'none', borderRadius: 16,
             font: '700 15px "Plus Jakarta Sans"',
             cursor: 'pointer', letterSpacing: '-0.01em',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}
         >
-          {isLast ? "Let's go" : 'Continue'}
+          {isLast ? "Let's go" : <>Continue <ArrowRight size={18} strokeWidth={2.5} /></>}
         </button>
       </div>
 
@@ -503,6 +674,13 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
         @keyframes foFadeUp {
           from { opacity: 0; transform: translateY(16px) }
           to   { opacity: 1; transform: translateY(0) }
+        }
+        @keyframes foFloat {
+          0%, 100% { translate: 0 0 }
+          50%      { translate: 0 -4px }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="foFloat"] { animation: none !important }
         }
       `}</style>
     </div>
