@@ -465,6 +465,7 @@ function AppContent({ session }: { session: Session }) {
   // ── Saving a guest account (GuestSaveSheet) ──
   const [guestSaveOpen, setGuestSaveOpen] = useState(false)
   const [guestSavePromptOpen, setGuestSavePromptOpen] = useState(false)
+  const [guestMintOpen, setGuestMintOpen] = useState(false)
 
   // Right after a guest's first expense: explain what's at stake, once per device.
   useEffect(() => {
@@ -946,7 +947,7 @@ function AppContent({ session }: { session: Session }) {
                 }}
               >
                 <span style={{ font: '600 12px Plus Jakarta Sans', color: c.sub, lineHeight: 1.4 }}>
-                  You're in guest mode. Save your account to keep your entries.
+                  You're in guest mode. Save your account to keep your entries and unlock Mint AI.
                 </span>
                 <span style={{ flexShrink: 0, font: '700 12px Plus Jakarta Sans', color: c.accent }}>Save</span>
               </button>
@@ -1267,6 +1268,10 @@ function AppContent({ session }: { session: Session }) {
             {!sheetOpen && !chatOpen && <AIAssistFAB onOpen={() => setChatOpen(true)} containerWidth={W} windowWidth={windowW} busy={aiProcessing} tourHighlight={tourTarget === 'ai-fab'} />}
             <AIChatSheet open={chatOpen} onClose={() => setChatOpen(false)} state={state} d={d} eventLedger={eventLedger} userId={user.id} onSave={handleSave} onUpdate={updateTransaction} onDelete={deleteTransaction} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} onAddCategory={addCategory} onUploadReceipt={guest ? undefined : uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} onEditTransaction={t => { setChatOpen(false); setDashEditTx(t); setTxnsOpen(true) }} allTransactionsLoaded={allTransactionsLoaded} onSearchTransactions={searchTransactions} onViewAllTransactions={f => { setChatOpen(false); setTxnsInitialFilters(f); setTxnsOpen(true) }} showReceiptTip={!chatReceiptTipSeen} onDismissReceiptTip={dismissChatReceiptTip} initialMessage={pendingChatMessage} onInitialMessageConsumed={() => setPendingChatMessage(null)} />
           </>)}
+          {/* Guests can't use AI (the server refuses them), so the button explains that instead of opening chat. */}
+          {guest && !loading && state.accounts.length > 0 && !sheetOpen && (
+            <AIAssistFAB onOpen={() => setGuestMintOpen(true)} containerWidth={W} windowWidth={windowW} />
+          )}
 
           {guest && !loading && state.accounts.length === 0 && (
             <GuestQuickStart
@@ -1870,6 +1875,27 @@ function AppContent({ session }: { session: Session }) {
                 style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: c.muted, font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
               >
                 Later
+              </button>
+            </div>
+          </BottomSheet>
+          <BottomSheet open={guestMintOpen} onClose={() => setGuestMintOpen(false)} showHelpButton={false} zIndex={205}>
+            <div style={{ padding: '0 4px 16px' }}>
+              <img src="/mint-ai-logo.svg" width="40" height="40" alt="Mint AI" style={{ display: 'block', borderRadius: 11, marginBottom: 12 }} />
+              <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>Meet Mint, your money assistant</div>
+              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.sub, lineHeight: 1.55, marginBottom: 16 }}>
+                Mint sorts what you type into the right category and answers questions like "how much did I spend on food this month?" Save your account to turn it on. Your entries stay as they are.
+              </div>
+              <button
+                onClick={() => { setGuestMintOpen(false); setGuestSaveOpen(true) }}
+                style={{ width: '100%', border: 'none', borderRadius: 12, padding: 13, background: c.accent, color: '#fff', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Save account
+              </button>
+              <button
+                onClick={() => setGuestMintOpen(false)}
+                style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: c.muted, font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
+              >
+                Not now
               </button>
             </div>
           </BottomSheet>
