@@ -4,6 +4,10 @@ import { localYmd, clampedDay } from '@/lib/credit-card-cycles'
 
 const CC_SPEND_TYPES = new Set<TransactionType>(['expense', 'commitment'])
 
+/** Statement and due days a new card gets when the user doesn't say — Add Card and onboarding. */
+export const DEFAULT_BILL_DAY = 15
+export const DEFAULT_DUE_DAY = 30
+
 export interface CreditCardBilling {
   totalOutstanding: number
   billedAmount: number

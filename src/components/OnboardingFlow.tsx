@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react'
 import { SplashScreen } from './SplashScreen'
-import { FeatureOnboarding } from './FeatureOnboarding'
+import { FeatureOnboarding, type CardDraft } from './FeatureOnboarding'
 import { AmountOperatorRow } from './AmountOperatorRow'
-import type { IncomePattern, Settings } from '@/types'
+import type { CreditCard, IncomePattern, Settings } from '@/types'
+import { DEFAULT_BILL_DAY, DEFAULT_DUE_DAY } from '@/lib/credit-card'
 import { INCOME_PATTERN_OPTIONS, suggestBudgetByIncomePattern } from '@/lib/income-pattern'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { round2, selectOnFocus } from '@/lib/utils'
@@ -20,6 +21,7 @@ interface AccountDraft {
 interface Props {
   onAddAccount: (a: { name: string; type: string; current_balance: number }) => Promise<void>
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>
+  onAddCreditCard: (card: Omit<CreditCard, 'id' | 'user_id' | 'is_active'>) => Promise<void>
   onComplete: () => void
   userId: string
   /** A saved guest: accounts already exist (GuestQuickStart), so skip Splash and Accounts. */
@@ -45,7 +47,7 @@ function BackArrow() {
 // Steps: 1=Splash, 2=IncomePattern, 3=Accounts, 4=PatternSetup, 5=FeatureOnboarding, 6=InstallApp
 type Step = 1 | 2 | 3 | 4 | 5 | 6
 
-export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, userId, resumeAfterGuest = false }: Props) {
+export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard, onComplete, userId, resumeAfterGuest = false }: Props) {
   const [step, setStep]       = useState<Step>(resumeAfterGuest ? 2 : 1)
   const [splashPhase, setSplashPhase] = useState<1 | 2 | 3>(1)
 
@@ -91,7 +93,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
     setAccounts(prev => prev.map((a, j) => j === i ? { ...a, ...patch } : a))
   const hasValidAccount = accounts.some(a => a.name.trim())
 
-  const finish = async (features: Record<FeatureKey, boolean>) => {
+  const finish = async (features: Record<FeatureKey, boolean>, card: CardDraft | null) => {
     setSaving(true)
     try {
       for (const acc of accounts) {
@@ -140,6 +142,23 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
       Object.assign(patch, features)
       if (Object.keys(patch).length) await onUpdateSettings(patch)
     } catch (_) {}
+    // Separate from the settings above: a failed card leaves tracking on with no card,
+    // which the Credit Cards section's empty state already invites them to fix.
+    if (card) {
+      try {
+        const billDay = parseInt(card.bill_day) || DEFAULT_BILL_DAY
+        await onAddCreditCard({
+          name: card.name.trim(),
+          last_four: null,
+          credit_limit: round2(evaluateAmountExpression(card.credit_limit) ?? 0),
+          // Not read by statement math; shown on the card. The cycle opens the day after the bill.
+          cycle_start_day: billDay % 31 + 1,
+          bill_day: billDay,
+          due_day: parseInt(card.due_day) || DEFAULT_DUE_DAY,
+          current_balance: round2(evaluateAmountExpression(card.outstanding) ?? 0),
+        })
+      } catch (_) {}
+    }
     try { localStorage.setItem('mp_onboarded_' + userId, '1') } catch (_) {}
     const device = getDevice()
     // An in-app browser (Instagram & co.) can't install; skip the steps here and
@@ -202,7 +221,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onComplete, use
   )
   if (step === 5) return (
     <FeatureOnboarding
-      onComplete={f => finish(f)}
+      onComplete={(f, card) => finish(f, card)}
       onBack={() => setStep(4)}
     />
   )

@@ -112,7 +112,9 @@ export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage,
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Available</div>
-              <div style={{ font: '800 20px Plus Jakarta Sans', color: c.good, letterSpacing: '-0.02em' }}>{fmt(available)}</div>
+              {card.credit_limit > 0
+                ? <div style={{ font: '800 20px Plus Jakarta Sans', color: c.good, letterSpacing: '-0.02em' }}>{fmt(available)}</div>
+                : <div style={{ font: '700 13px Plus Jakarta Sans', color: c.muted, marginTop: 6 }}>No limit set</div>}
             </div>
           </div>
 
@@ -130,13 +132,15 @@ export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage,
             </div>
           </div>
 
-          {/* Utilization bar */}
-          <div style={{ height: 6, borderRadius: 999, background: c.surface2, overflow: 'hidden', marginBottom: 6 }}>
-            <div style={{ width: utilPct + '%', height: '100%', borderRadius: 999, background: utilPct > 80 ? c.bad : utilPct > 50 ? c.warn : col, transition: 'width 0.4s' }} />
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>{utilPct}% used of {fmt(card.credit_limit)}</span>
-          </div>
+          {/* Utilization bar — a card added in onboarding may have no limit yet */}
+          {card.credit_limit > 0 && <>
+            <div style={{ height: 6, borderRadius: 999, background: c.surface2, overflow: 'hidden', marginBottom: 6 }}>
+              <div style={{ width: utilPct + '%', height: '100%', borderRadius: 999, background: utilPct > 80 ? c.bad : utilPct > 50 ? c.warn : col, transition: 'width 0.4s' }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <span style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>{utilPct}% used of {fmt(card.credit_limit)}</span>
+            </div>
+          </>}
 
           {/* Dates */}
           <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>

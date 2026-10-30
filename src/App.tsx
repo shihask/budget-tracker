@@ -1318,6 +1318,7 @@ function AppContent({ session }: { session: Session }) {
             <OnboardingFlow
               onAddAccount={addAccount}
               onUpdateSettings={updateSettings}
+              onAddCreditCard={addCreditCard}
               resumeAfterGuest={guestSetupPending}
               onComplete={() => {
                 setShowOnboardingFlow(false)

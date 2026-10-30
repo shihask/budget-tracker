@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
   Tags, Tag, MessageCircle, Search, PenLine, Wallet, FileText, Plane, TrendingUp,
-  Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, type LucideIcon,
+  Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, CreditCard, WalletCards, ChevronDown, type LucideIcon,
 } from 'lucide-react'
 import { keywordCategoryName } from '@/lib/categorize'
+import { sanitizeAmountInput } from '@/lib/amountExpression'
+import { DEFAULT_BILL_DAY, DEFAULT_DUE_DAY } from '@/lib/credit-card'
 
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
 
@@ -125,8 +127,20 @@ const PAGES: FeaturePage[] = [
   },
 ]
 
+/** The optional first card from the Credit Card page — raw field text; OnboardingFlow converts and saves it. */
+export interface CardDraft {
+  name: string
+  credit_limit: string
+  bill_day: string
+  due_day: string
+  outstanding: string
+}
+
+const EMPTY_CARD: CardDraft = { name: '', credit_limit: '', bill_day: '', due_day: '', outstanding: '' }
+
 interface Props {
-  onComplete: (features: Record<FeatureKey, boolean>) => void
+  /** `card` is set only when the user said Yes and named a card. */
+  onComplete: (features: Record<FeatureKey, boolean>, card: CardDraft | null) => void
   onBack: () => void
 }
 
@@ -457,6 +471,204 @@ function MintAIPage() {
   )
 }
 
+type CardChoice = 'yes' | 'no' | null
+
+const ordinal = (n: number) => {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
+  return `${n}${s}`
+}
+
+/** Typed any card field except the name — a name-less form can't create a card, so it's an error, not a skip. */
+const cardDetailsWithoutName = (d: CardDraft) =>
+  !d.name.trim() && !!(d.credit_limit || d.bill_day || d.due_day || d.outstanding)
+
+function CardField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{
+      display: 'block', background: '#FBF8F4', borderRadius: 14,
+      border: '1px solid #E6DFD5', padding: '9px 14px 10px', marginBottom: 10,
+      position: 'relative', minWidth: 0,
+    }}>
+      <div style={{ font: '600 12px "Plus Jakarta Sans"', color: muted, marginBottom: 2 }}>{label}</div>
+      {children}
+    </label>
+  )
+}
+
+const fieldInput: React.CSSProperties = {
+  width: '100%', border: 'none', outline: 'none', background: 'transparent', padding: 0,
+  font: '600 15px "Plus Jakarta Sans"', color: ink,
+}
+
+function AmountInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ font: '600 15px "Plus Jakarta Sans"', color: value ? ink : '#B0A9A1' }}>₹</span>
+      <input
+        value={value}
+        onChange={e => onChange(sanitizeAmountInput(e.target.value))}
+        inputMode="decimal"
+        placeholder={placeholder}
+        style={fieldInput}
+      />
+    </div>
+  )
+}
+
+function DaySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{ ...fieldInput, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: value ? ink : '#B0A9A1', paddingRight: 18 }}
+      >
+        <option value="">Select day</option>
+        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+          <option key={d} value={String(d)}>{ordinal(d)} of month</option>
+        ))}
+      </select>
+      <ChevronDown size={15} style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', color: muted, pointerEvents: 'none' }} />
+    </div>
+  )
+}
+
+function CardChoiceRow({ selected, onClick, Icon, title, detail }: {
+  selected: boolean; onClick: () => void; Icon: LucideIcon; title: string; detail: string
+}) {
+  return (
+    <button
+      role="radio"
+      aria-checked={selected}
+      onClick={onClick}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
+        background: selected ? 'rgba(22,201,138,0.07)' : '#FBF8F4',
+        border: `1.5px solid ${selected ? '#16C98A' : '#E6DFD5'}`,
+        borderRadius: 16, padding: '14px 16px', marginBottom: 10, cursor: 'pointer',
+        transition: 'border-color 0.2s, background 0.2s',
+      }}
+    >
+      <Icon size={20} style={{ color: selected ? deepGreen : muted, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ font: '700 15px "Plus Jakarta Sans"', color: ink }}>{title}</div>
+        <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 1 }}>{detail}</div>
+      </div>
+      <div style={{
+        width: 20, height: 20, borderRadius: 10, flexShrink: 0, boxSizing: 'border-box',
+        border: `2px solid ${selected ? '#16C98A' : '#C8C2BB'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {selected && <div style={{ width: 10, height: 10, borderRadius: 5, background: '#16C98A' }} />}
+      </div>
+    </button>
+  )
+}
+
+function CreditCardPage({ choice, onChoice, draft, onDraft, showNameError }: {
+  choice: CardChoice
+  onChoice: (c: Exclude<CardChoice, null>) => void
+  draft: CardDraft
+  onDraft: (patch: Partial<CardDraft>) => void
+  showNameError: boolean
+}) {
+  return (
+    <div style={{ width: '100%', textAlign: 'left' }}>
+      <div style={{ textAlign: 'center', padding: '4px 8px 18px', borderBottom: '1px solid #E0D9D0', marginBottom: 18 }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 18, margin: '0 auto 14px',
+          background: 'rgba(22,201,138,0.12)', color: deepGreen,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <CreditCard size={26} />
+        </div>
+        <div style={{ font: '800 24px "Plus Jakarta Sans"', color: ink, letterSpacing: '-0.025em' }}>Credit Card Tracking</div>
+        <div style={{ font: '600 14px "Plus Jakarta Sans"', color: '#5C534B', marginTop: 6 }}>Stay on top of what you owe.</div>
+        <div style={{ font: '400 13px "Plus Jakarta Sans"', color: muted, lineHeight: 1.55, marginTop: 6 }}>
+          Track credit card spending separately and never lose sight of upcoming payments.
+        </div>
+      </div>
+
+      <div role="radiogroup" aria-label="Do you have a credit card?">
+        <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink, marginBottom: 12 }}>Do you have a credit card?</div>
+        <CardChoiceRow
+          selected={choice === 'yes'} onClick={() => onChoice('yes')}
+          Icon={CreditCard} title="Yes, I have a credit card" detail="I want to track my card spending."
+        />
+        <CardChoiceRow
+          selected={choice === 'no'} onClick={() => onChoice('no')}
+          Icon={WalletCards} title="No, not yet" detail="I'll add one if I get a card later."
+        />
+      </div>
+
+      {choice === 'yes' && (
+        <div style={{ marginTop: 12, animation: 'foFadeUp 0.3s ease both' }}>
+          <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink }}>Add your card <span style={{ color: muted, fontWeight: 500 }}>(optional)</span></div>
+          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 2, marginBottom: 12 }}>You can add more cards later.</div>
+
+          <CardField label="Bank / Card name">
+            <input
+              value={draft.name}
+              onChange={e => onDraft({ name: e.target.value })}
+              placeholder="e.g. Axis Bank Visa"
+              autoComplete="off"
+              style={fieldInput}
+            />
+          </CardField>
+          {showNameError && (
+            <div style={{ font: '600 12px "Plus Jakarta Sans"', color: '#D64545', margin: '-4px 2px 10px' }}>
+              Add the card name, or clear the other fields to skip for now.
+            </div>
+          )}
+          <CardField label="Credit limit (optional)">
+            <AmountInput value={draft.credit_limit} onChange={v => onDraft({ credit_limit: v })} placeholder="Enter amount" />
+          </CardField>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <CardField label="Bill day (optional)">
+                <DaySelect value={draft.bill_day} onChange={v => onDraft({ bill_day: v })} />
+              </CardField>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <CardField label="Due day (optional)">
+                <DaySelect value={draft.due_day} onChange={v => onDraft({ due_day: v })} />
+              </CardField>
+            </div>
+          </div>
+          <CardField label="Current outstanding (optional)">
+            <AmountInput value={draft.outstanding} onChange={v => onDraft({ outstanding: v })} placeholder="What you owe on it today" />
+          </CardField>
+          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.5, padding: '0 2px' }}>
+            Without dates, the bill is set for the {ordinal(DEFAULT_BILL_DAY)} and due on the {ordinal(DEFAULT_DUE_DAY)}. You can change them on the card anytime.
+            <br />Never enter your full card number, CVV or PIN.
+          </div>
+        </div>
+      )}
+
+      {choice === 'no' && (
+        <div style={{
+          marginTop: 12, display: 'flex', gap: 12, alignItems: 'flex-start',
+          background: 'rgba(22,201,138,0.07)', border: '1px solid rgba(22,201,138,0.25)',
+          borderRadius: 16, padding: '14px 16px', animation: 'foFadeUp 0.3s ease both',
+        }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 16, background: '#16C98A', color: '#fff', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Check size={17} strokeWidth={3} />
+          </div>
+          <div>
+            <div style={{ font: '700 14px "Plus Jakarta Sans"', color: deepGreen }}>No credit card? No problem!</div>
+            <div style={{ font: '400 13px "Plus Jakarta Sans"', color: muted, lineHeight: 1.55, marginTop: 3 }}>
+              You can start tracking your credit cards anytime. Just enable Credit Card Tracking from Settings when you get one.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function FeatureOnboarding({ onComplete, onBack }: Props) {
   const [page, setPage] = useState(0)
   const [done, setDone] = useState(false)
@@ -468,9 +680,28 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
   const isLast = page === PAGES.length - 1
   const on = enabled[cur.key]
 
+  // Credit cards ask Yes/No instead of a switch; no answer counts as No (tracking stays off).
+  const [cardChoice, setCardChoice] = useState<CardChoice>(null)
+  const [cardDraft, setCardDraft] = useState<CardDraft>(EMPTY_CARD)
+  const [cardNameError, setCardNameError] = useState(false)
+  const isCardPage = cur.key === 'track_credit_cards'
+  const customPage = cur.featured || isCardPage
+
   const handleBack = () => page === 0 ? onBack() : setPage(p => p - 1)
-  const handleNext = () => isLast ? setDone(true) : setPage(p => p + 1)
+  const handleNext = () => {
+    if (isCardPage && cardChoice === 'yes' && cardDetailsWithoutName(cardDraft)) { setCardNameError(true); return }
+    if (isLast) setDone(true)
+    else setPage(p => p + 1)
+  }
   const setOn = (v: boolean) => setEnabled(prev => ({ ...prev, [cur.key]: v }))
+  const chooseCard = (c: Exclude<CardChoice, null>) => {
+    setCardChoice(c)
+    setEnabled(prev => ({ ...prev, track_credit_cards: c === 'yes' }))
+  }
+  const editCard = (patch: Partial<CardDraft>) => {
+    setCardDraft(prev => ({ ...prev, ...patch }))
+    setCardNameError(false)
+  }
 
   if (done) return (
     <div style={{
@@ -505,7 +736,7 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
       </div>
 
       <button
-        onClick={() => onComplete(enabled)}
+        onClick={() => onComplete(enabled, cardChoice === 'yes' && cardDraft.name.trim() ? cardDraft : null)}
         style={{
           width: '100%', maxWidth: 320, padding: '16px',
           background: '#1C1410', color: '#EDE7DD',
@@ -579,14 +810,22 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
         key={page}
         style={{
           flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: cur.featured ? 'flex-start' : 'center',
-          padding: cur.featured ? '16px 16px 16px' : '0 32px 16px',
+          alignItems: 'center', justifyContent: customPage ? 'flex-start' : 'center',
+          padding: cur.featured ? '16px 16px 16px' : isCardPage ? '16px 20px 16px' : '0 32px 16px',
           textAlign: 'center',
           overflowY: 'auto', overscrollBehavior: 'contain',
           animation: 'foFadeUp 0.32s ease both',
         }}
       >
-        {cur.featured ? <MintAIPage /> : (<>
+        {cur.featured ? <MintAIPage /> : isCardPage ? (
+          <CreditCardPage
+            choice={cardChoice}
+            onChoice={chooseCard}
+            draft={cardDraft}
+            onDraft={editCard}
+            showNameError={cardNameError}
+          />
+        ) : (<>
           {/* Icon */}
           <div style={{
             width: 76, height: 76, borderRadius: 24,

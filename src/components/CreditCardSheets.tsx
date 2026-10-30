@@ -5,7 +5,7 @@ import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText, HelpToggle } from './BottomSheet'
-import { getCreditCardBilling } from '@/lib/credit-card'
+import { getCreditCardBilling, DEFAULT_BILL_DAY, DEFAULT_DUE_DAY } from '@/lib/credit-card'
 import type { AppState, CreditCard } from '@/types'
 
 type CardPayload = Omit<CreditCard, 'id' | 'user_id' | 'is_active'>
@@ -58,7 +58,7 @@ type CardForm = {
 
 const EMPTY_FORM: CardForm = {
   name: '', last_four: '', credit_limit: '', cycle_start_day: '1',
-  bill_day: '15', due_day: '30', current_balance: '0',
+  bill_day: String(DEFAULT_BILL_DAY), due_day: String(DEFAULT_DUE_DAY), current_balance: '0',
 }
 
 /**
@@ -161,8 +161,8 @@ export function useCreditCardSheets(p: Params): FullApi {
       last_four: form.last_four || null,
       credit_limit: round2(evaluateAmountExpression(form.credit_limit) ?? 0),
       cycle_start_day: parseInt(form.cycle_start_day) || 1,
-      bill_day: parseInt(form.bill_day) || 15,
-      due_day: parseInt(form.due_day) || 30,
+      bill_day: parseInt(form.bill_day) || DEFAULT_BILL_DAY,
+      due_day: parseInt(form.due_day) || DEFAULT_DUE_DAY,
       current_balance: round2(evaluateAmountExpression(form.current_balance) ?? 0),
     }
     try {
