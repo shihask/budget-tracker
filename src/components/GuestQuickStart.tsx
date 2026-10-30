@@ -3,6 +3,8 @@ import { Banknote, Landmark, Smartphone } from 'lucide-react'
 import type { AccountType } from '@/types'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { round2 } from '@/lib/utils'
+import { isNetworkError } from '@/lib/offline-queue'
+import * as Sentry from '@sentry/react'
 
 // A guest's whole onboarding: one account, then straight to their first expense.
 // Income pattern, features and the rest of OnboardingFlow wait until the account
@@ -45,8 +47,17 @@ export function GuestQuickStart({ onAddAccount, onDone }: Props) {
         current_balance: round2(evaluateAmountExpression(balance) ?? 0),
       })
       onDone()
-    } catch {
-      setError("Couldn't set that up. Check your connection and try again.")
+    } catch (err) {
+      // Only a real network failure is "check your connection"; anything else (RLS,
+      // an expired session) needs its own reason on screen and in Sentry.
+      if (isNetworkError(err)) {
+        setError("Couldn't set that up. Check your connection and try again.")
+      } else {
+        Sentry.captureException(err, { extra: { where: 'GuestQuickStart.start', source: picked.type } })
+        const e = (err ?? {}) as { code?: unknown; message?: unknown }
+        const detail = typeof e.message === 'string' && e.message ? e.message : 'Unknown error'
+        setError(`Couldn't set that up: ${detail}${typeof e.code === 'string' && e.code ? ` (${e.code})` : ''}. Try again, or reload the page.`)
+      }
       setSaving(false)
     }
   }

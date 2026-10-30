@@ -166,6 +166,20 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // A stored session can outlive its user: deleted from the dashboard, a purged guest, or
+  // signed out everywhere. Its JWT still verifies until it expires (~1 h), so every write
+  // fails on the users FK. Ask the server once per user, and sign out locally only when it
+  // says the user or session is gone — never on a network error (offline open must work).
+  const sessionUserId = session?.user.id
+  useEffect(() => {
+    if (!sessionUserId) return
+    void supabase.auth.getUser().then(({ error }) => {
+      if (error?.code === 'user_not_found' || error?.code === 'session_not_found') {
+        void supabase.auth.signOut({ scope: 'local' })
+      }
+    })
+  }, [sessionUserId])
+
   // index.html's boot shell covers the page until the first real screen is up.
   const firstScreenReady = session !== undefined || isResetting
   useEffect(() => { if (firstScreenReady) dismissBootShell() }, [firstScreenReady])
