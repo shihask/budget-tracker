@@ -2,9 +2,10 @@
 import { createPortal } from 'react-dom'
 import { Sprout, Leaf, Flame, TreeDeciduous, Flower2, Coins, TrendingUp, Target, ShoppingCart, UtensilsCrossed, Lightbulb, Fuel, ShoppingBag, Hospital, CircleDot, ChevronDown, Coffee, Landmark, Package, Wrench, Zap, Users, ChefHat, Home } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
+import { fmt, TODAY, localIso, addDays } from '@/lib/utils'
 import { CAT_COLORS } from '@/lib/tokens'
-import { weeklyTrend, weeklyBars, categorySplit, monthTimeline, journeyData, monthLabelForOffset } from '@/lib/data'
+import { weeklyTrend, weeklyBars, categorySplit, monthTimeline, journeyData, monthLabelForOffset, WEEK_START } from '@/lib/data'
+import { useAnalyticsLedger } from '@/hooks/useAnalyticsLedger'
 import { AreaTrend } from './Charts'
 import { analyticsInsightWithAI, aiUsagePatch } from '@/lib/gemini'
 import type { AppState, DerivedMetrics, JourneyMilestone, Transaction, Settings } from '@/types'
@@ -94,6 +95,10 @@ function PeriodNav({ label, onPrev, onNext, prevDisabled, nextDisabled }: { labe
 interface Props {
   state: AppState
   d: DerivedMetrics
+  userId: string
+  /** True once Transactions has paged to the end — the loaded window is then
+   *  everything, and Analytics fetches nothing. */
+  allTransactionsLoaded: boolean
   onClose: () => void
   onUpdateSettings?: (patch: Partial<Settings>) => void
   /** Kakeibo tab content — App passes it for monthly-pattern users only; the tab
@@ -162,7 +167,7 @@ function TxnMiniList({ transactions, categories }: { transactions: Transaction[]
   )
 }
 
-export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab, initialTab, initialTrendDate }: Props) {
+export function AnalyticsPage({ state: loadedState, d, userId, allTransactionsLoaded, onClose, onUpdateSettings, kakeiboTab, initialTab, initialTrendDate }: Props) {
   const c = useTheme()
   const [tab, setTab] = useState<Tab>(initialTab === 'kakeibo' && !kakeiboTab ? 'trend' : initialTab ?? 'trend')
   const [trendRange, setTrendRange] = useState<TrendRange>(7)
@@ -251,6 +256,23 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab,
       setTimeout(() => setSnapping(false), 300)
     }
   }
+
+  // The oldest date any chart can currently show. Rows from there to today are
+  // fetched when they've scrolled out of the 200-row loaded window.
+  const historyFrom = useMemo(() => {
+    const monthStart = (offset: number) => localIso(new Date(TODAY.getFullYear(), TODAY.getMonth() - offset, 1))
+    return [
+      localIso(addDays(TODAY, -(trendRange - 1))),
+      localIso(addDays(WEEK_START, -7 * (WEEKS_HISTORY - 1))),
+      monthStart(monthOffset),
+      monthStart(journeyMonthOffset),
+    ].sort()[0]
+  }, [trendRange, monthOffset, journeyMonthOffset])
+  const ledger = useAnalyticsLedger({ userId, loaded: loadedState.transactions, allLoaded: allTransactionsLoaded, from: historyFrom })
+  const state = useMemo(
+    () => (ledger.transactions === loadedState.transactions ? loadedState : { ...loadedState, transactions: ledger.transactions }),
+    [loadedState, ledger.transactions],
+  )
 
   const trend    = useMemo(() => weeklyTrend(state, trendRange), [state, trendRange])
   const bars     = useMemo(() => weeklyBars(state, WEEKS_HISTORY), [state])
@@ -375,6 +397,10 @@ export function AnalyticsPage({ state, d, onClose, onUpdateSettings, kakeiboTab,
           ))}
           {kakeiboTab && <button onClick={() => setTab('kakeibo')} style={tabStyle('kakeibo')}>Kakeibo</button>}
         </div>
+
+        {ledger.loading && tab !== 'kakeibo' && (
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, margin: '-12px 0 12px' }}>Loading older transactions…</div>
+        )}
 
         {tab === 'kakeibo' && kakeiboTab}
 

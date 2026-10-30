@@ -1525,7 +1525,7 @@ function AppContent({ session }: { session: Session }) {
 
           {analyticsOpen && (
             <AnalyticsPage key={analyticsKey}
-              state={state} d={d} onClose={() => { setAnalyticsOpen(false); setKakeiboReviewCycle(null); setKakeiboOpenGoal(false); setAnalyticsTrendDate(null); setAnalyticsTab(null) }} onUpdateSettings={updateSettings}
+              state={state} d={d} userId={session.user.id} allTransactionsLoaded={allTransactionsLoaded} onClose={() => { setAnalyticsOpen(false); setKakeiboReviewCycle(null); setKakeiboOpenGoal(false); setAnalyticsTrendDate(null); setAnalyticsTab(null) }} onUpdateSettings={updateSettings}
               initialTrendDate={analyticsTrendDate ?? undefined}
               initialTab={(kakeiboReviewCycle || kakeiboOpenGoal) && kakeibo.available ? 'kakeibo' : analyticsTab ?? undefined}
               kakeiboTab={kakeibo.available ? (
