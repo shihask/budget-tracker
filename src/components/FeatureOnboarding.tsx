@@ -234,14 +234,15 @@ const card: React.CSSProperties = {
 }
 
 function MintHeroArt() {
-  const bubble = (text: string, style: React.CSSProperties, delay: number) => (
+  const bubble = (text: string, style: React.CSSProperties, path: number, delay: number) => (
     <div style={{
       position: 'absolute', ...style,
       background: '#E3F4EC', border: '1px solid rgba(22,201,138,0.35)',
       color: deepGreen, font: '700 11px "Plus Jakarta Sans"',
       padding: '5px 9px', borderRadius: 10, whiteSpace: 'nowrap',
       boxShadow: '0 2px 6px rgba(28,20,16,0.06)',
-      animation: `foFloat 3.2s ease-in-out ${delay}s infinite`,
+      // Pops in once, then drifts on its own slow loop so the three never move in step.
+      animation: `foPop 0.6s cubic-bezier(0.34,1.56,0.64,1) ${delay}s both, foDrift${path} ${5 + path * 0.7}s ease-in-out ${delay + 0.6}s infinite`,
     }}>
       {text}
     </div>
@@ -258,9 +259,9 @@ function MintHeroArt() {
       }}>
         <img src="/mint-thinking-loop.svg" alt="" width={64} height={64} style={{ display: 'block' }} />
       </div>
-      {bubble('Tea 20', { left: 0, top: 10 }, 0)}
-      {bubble('Petrol 500', { right: 0, top: 0 }, 0.8)}
-      {bubble('Groceries 1200', { right: -4, bottom: 6 }, 1.6)}
+      {bubble('Tea 20', { left: 0, top: 10 }, 1, 0.2)}
+      {bubble('Petrol 500', { right: 0, top: 0 }, 2, 0.45)}
+      {bubble('Groceries 1200', { right: -4, bottom: 6 }, 3, 0.7)}
     </div>
   )
 }
@@ -1313,9 +1314,27 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           from { opacity: 0; transform: translateY(16px) }
           to   { opacity: 1; transform: translateY(0) }
         }
-        @keyframes foFloat {
+        @keyframes foPop {
+          from { opacity: 0; scale: 0.4 }
+          to   { opacity: 1; scale: 1 }
+        }
+        @keyframes foDrift1 {
           0%, 100% { translate: 0 0 }
-          50%      { translate: 0 -4px }
+          25%      { translate: -4px -6px }
+          50%      { translate: 2px -9px }
+          75%      { translate: 4px -3px }
+        }
+        @keyframes foDrift2 {
+          0%, 100% { translate: 0 0 }
+          25%      { translate: 5px -5px }
+          50%      { translate: 1px -10px }
+          75%      { translate: -4px -4px }
+        }
+        @keyframes foDrift3 {
+          0%, 100% { translate: 0 0 }
+          25%      { translate: 4px 4px }
+          50%      { translate: -2px 7px }
+          75%      { translate: -5px 2px }
         }
         @keyframes foBounce {
           0%, 100% { transform: translateY(0) scale(1) }
@@ -1325,7 +1344,7 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           70%      { transform: translateY(0) }
         }
         @media (prefers-reduced-motion: reduce) {
-          [style*="foFloat"], [style*="foBounce"] { animation: none !important }
+          [style*="foBounce"], [style*="foDrift"] { animation: none !important }
         }
       `}</style>
     </div>
