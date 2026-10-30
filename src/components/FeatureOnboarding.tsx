@@ -3,12 +3,13 @@ import {
   Tags, Tag, MessageCircle, Search, PenLine, Wallet, FileText, Plane, TrendingUp,
   Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, CreditCard, WalletCards, ChevronDown, Plus,
   HandCoins, Users, Info, ChartColumnIncreasing, ChartLine, Coins, CalendarDays, Landmark, PiggyBank, CircleCheck,
-  PartyPopper, Target, Scale, ReceiptText, UserPlus,
+  PartyPopper, Target, Scale, ReceiptText, UserPlus, BellRing, NotebookPen, CalendarClock, TriangleAlert, ChartColumn, Moon,
   type LucideIcon,
 } from 'lucide-react'
 import { keywordCategoryName } from '@/lib/categorize'
 import { sanitizeAmountInput } from '@/lib/amountExpression'
 import { DEFAULT_BILL_DAY, DEFAULT_DUE_DAY } from '@/lib/credit-card'
+import { requestAndSubscribe, unsubscribeFromPush } from '@/lib/notifications'
 
 type FeatureKey = 'track_credit_cards' | 'track_borrowings' | 'track_savings' | 'track_projects' | 'autopilot_enabled' | 'notifications_enabled'
 
@@ -614,8 +615,22 @@ const SAVINGS_BENEFITS = [
   'Keep savings separate from daily expenses',
 ]
 
-/** "Feature name / Enabled / change in Settings" + the real switch — Savings and Shared Projects. */
-function PreferenceCard({ title, on, onChange }: { title: string; on: boolean; onChange: (v: boolean) => void }) {
+/** "Feature name / Enabled / change in Settings" + the real switch — Savings, Shared Projects, Reminders. */
+function PreferenceCard({ title, on, onChange, busy = false, error = null }: {
+  title: string; on: boolean; onChange: (v: boolean) => void
+  /** Waiting on the device's permission prompt. */
+  busy?: boolean
+  error?: string | null
+}) {
+  return (<>
+    <PreferenceCardBody title={title} on={on} onChange={onChange} busy={busy} />
+    {error && (
+      <div role="alert" style={{ font: '600 12px "Plus Jakarta Sans"', color: '#B91C1C', lineHeight: 1.5, margin: '8px 4px 0' }}>{error}</div>
+    )}
+  </>)
+}
+
+function PreferenceCardBody({ title, on, onChange, busy }: { title: string; on: boolean; onChange: (v: boolean) => void; busy: boolean }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 14,
@@ -626,11 +641,56 @@ function PreferenceCard({ title, on, onChange }: { title: string; on: boolean; o
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ font: '700 15px "Plus Jakarta Sans"', color: ink }}>{title}</div>
         <div style={{ font: '600 12px "Plus Jakarta Sans"', color: on ? '#0FAF75' : muted, marginTop: 2, transition: 'color 0.25s' }}>
-          {on ? 'Enabled' : 'Disabled'}
+          {busy ? 'Waiting for permission…' : on ? 'Enabled' : 'Disabled'}
         </div>
         <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 4 }}>You can change this anytime in Settings.</div>
       </div>
-      <LargeToggle on={on} onChange={onChange} />
+      <LargeToggle on={on} onChange={v => { if (!busy) onChange(v) }} />
+    </div>
+  )
+}
+
+const REMINDERS: { Icon: LucideIcon; title: string; detail: string; bg: string; fg: string }[] = [
+  { Icon: NotebookPen, title: 'Daily expense reminder', detail: 'A gentle reminder to log your expenses.', bg: 'rgba(22,201,138,0.12)', fg: deepGreen },
+  { Icon: CalendarClock, title: 'Bills & commitments', detail: 'Get notified before due dates.', bg: '#F4EDDA', fg: '#9A7A24' },
+  { Icon: TriangleAlert, title: 'Budget alerts', detail: "Know when you're approaching your limit.", bg: '#F7E4E1', fg: '#C0473A' },
+  { Icon: ChartColumn, title: 'Weekly money summary', detail: 'Review your spending every Monday.', bg: '#E8E6F7', fg: INDIGO },
+  { Icon: Moon, title: 'Evening recap', detail: "Today's spending at a glance.", bg: '#E6EAF7', fg: '#4A5FB0' },
+]
+
+function RemindersPage({ on, busy, error, onChange }: {
+  on: boolean; busy: boolean; error: string | null; onChange: (v: boolean) => void
+}) {
+  return (
+    <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
+      <PageHeader
+        Icon={BellRing} title="Smart Reminders"
+        tagline="Stay on top of your money." taglineAccent
+        description="Life gets busy. Let MoneyPlant remind you about what matters."
+      />
+
+      <div style={{ ...card, padding: '14px 14px 4px', marginBottom: 14 }}>
+        <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink, margin: '2px 2px 6px' }}>Your financial reminders</div>
+        {REMINDERS.map(({ Icon, title, detail, bg, fg }, i) => (
+          <div key={title} style={{
+            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 2px',
+            borderBottom: i < REMINDERS.length - 1 ? '1px solid #EDE7DD' : 'none',
+          }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 12, flexShrink: 0, background: bg, color: fg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon size={18} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ font: '700 14px "Plus Jakarta Sans"', color: ink }}>{title}</div>
+              <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 1 }}>{detail}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <PreferenceCard title="Smart Reminders" on={on} onChange={onChange} busy={busy} error={error} />
     </div>
   )
 }
@@ -938,7 +998,29 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
   const isLendPage = cur.key === 'track_borrowings'
   const isSavingsPage = cur.key === 'track_savings'
   const isProjectsPage = cur.key === 'track_projects'
-  const customPage = cur.featured || isCardPage || isLendPage || isSavingsPage || isProjectsPage
+
+  // Reminders are only on once this device has said yes and is subscribed — the same
+  // step (and wording) as Settings, so "Enabled" never shows while nothing can arrive.
+  const isRemindersPage = cur.key === 'notifications_enabled'
+  const [notifBusy, setNotifBusy] = useState(false)
+  const [notifError, setNotifError] = useState<string | null>(null)
+  const setReminders = async (v: boolean) => {
+    setNotifError(null)
+    setNotifBusy(true)
+    if (!v) {
+      await unsubscribeFromPush()
+      setEnabled(prev => ({ ...prev, notifications_enabled: false }))
+    } else {
+      const result = await requestAndSubscribe()
+      if (result === 'subscribed') setEnabled(prev => ({ ...prev, notifications_enabled: true }))
+      else if (result === 'denied') setNotifError('Permission denied. Enable notifications in your browser settings.')
+      else if (result === 'unsupported') setNotifError('Push notifications are not supported on this device/browser.')
+      else setNotifError('Something went wrong. Please try again.')
+    }
+    setNotifBusy(false)
+  }
+
+  const customPage = cur.featured || isCardPage || isLendPage || isSavingsPage || isProjectsPage || isRemindersPage
   const setLendBorrow = (lend: boolean, borrow: boolean) => {
     setLends(lend); setBorrows(borrow)
     setEnabled(prev => ({ ...prev, track_borrowings: lend || borrow }))
@@ -1074,7 +1156,9 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           animation: 'foFadeUp 0.32s ease both',
         }}
       >
-        {cur.featured ? <MintAIPage /> : isProjectsPage ? (
+        {cur.featured ? <MintAIPage /> : isRemindersPage ? (
+          <RemindersPage on={on} busy={notifBusy} error={notifError} onChange={v => void setReminders(v)} />
+        ) : isProjectsPage ? (
           <SharedProjectsPage on={on} onChange={setOn} />
         ) : isSavingsPage ? (
           <SavingsInvestPage on={on} onChange={setOn} />
