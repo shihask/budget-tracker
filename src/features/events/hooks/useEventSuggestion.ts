@@ -259,12 +259,16 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
         ? buildSuggestion('ai', r.name, isEventIconKey(r.icon) ? r.icon : DEFAULT_EVENT_ICON, txs, state.categories, state.events)
         : detection.local
     } else {
-      // Before AI (or without it): the local suggestion, else — only when AI can
-      // name it — the burst as "related expenses".
-      s = detection.local ?? (autopilotEnabled && detection.burst ? burstSuggestion(detection.burst, state.categories) : null)
+      // Before AI (or without it): the local suggestion, else — only while AI can
+      // still name it — the burst as "related expenses". A burst is just the
+      // heaviest five days, every row in them; when AI failed nobody has read the
+      // rows, so showing it would offer a week of biriyani and subscriptions as
+      // one occasion.
+      const burstPending = autopilotEnabled && !!detection.burst && !(signalKey && failedKeys.has(signalKey))
+      s = detection.local ?? (burstPending ? burstSuggestion(detection.burst!, state.categories) : null)
     }
     return s && !isSuppressed(s, dismissed) ? s : null
-  }, [detection, autopilotEnabled, cacheHit, aiEntry, pool, state.categories, state.events, dismissed])
+  }, [detection, autopilotEnabled, cacheHit, aiEntry, pool, state.categories, state.events, dismissed, signalKey, failedKeys])
 
   const dismiss = useCallback(() => {
     if (!suggestion) return

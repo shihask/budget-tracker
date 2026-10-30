@@ -259,6 +259,8 @@ Gotchas:
   is cached too; an AI failure is not. **AI never vetoes** — on "no", failure or an invalid
   answer the local suggestion still shows. `validateAiResult` accepts confidence as 85, "85" or
   0.85: small models write all three, and a strict integer check hid real suggestions (v1.72.2).
+  The **burst** is the exception: it is shown only while AI can still name it. AI failure retires
+  it like a "no" — a burst is every row of the heaviest 5 days, unrelated until AI says otherwise.
 - Merchant rule C (shared first word) only rejects when that word is written as a shop somewhere
   in the cluster ("Lulu Hypermarket", "Hotel Maharaja") — "Ooty entry fee / Ooty boating" is a trip.
 - Dismissal (`mp_event_suggest_dismissed_<uid>`) is by tx id with a majority rule, not by name —
