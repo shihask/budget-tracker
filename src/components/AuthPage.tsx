@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  BarChart3, Bell, Bot, Briefcase, CalendarCheck, Check,
-  ChevronDown, Cloud, CloudOff, CreditCard, Eye, EyeOff, Flame, FolderOpen, Gem, GraduationCap, HandCoins,
-  LayoutDashboard, LineChart, Lock, PiggyBank, Receipt, Repeat, Shield,
-  ShieldCheck, Sprout, Star, Target, TrendingUp, Trophy, Users, Wallet,
+  BarChart3, Bell, BellRing, Bot, Briefcase, CalendarCheck, Check,
+  ChevronDown, Cloud, CloudOff, CreditCard, Eye, EyeOff, FileUp, Flame, FolderOpen, Gem, GraduationCap, HandCoins,
+  House, LayoutDashboard, LineChart, Lock, Mail, NotebookPen, Paperclip, PiggyBank, Receipt, Repeat, Shield,
+  ShieldCheck, Sparkles, Split, Sprout, Star, Tag, Target, TrendingUp, Trophy, Users, Wallet,
   X as XIcon, Zap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -105,6 +105,12 @@ const tourFeatures = [
     mock: 'budget',
   },
   {
+    id: 'kakeibo', icon: NotebookPen,
+    title: 'Kakeibo Monthly Reflection',
+    desc: 'The Japanese money ritual: set a savings goal on payday, review the finished month across Survival, Optional, Culture and Unexpected, and write one thing to do differently. You see it again next payday.',
+    mock: 'kakeibo',
+  },
+  {
     id: 'goals', icon: Trophy,
     title: 'Goals & Affordability',
     desc: 'Set savings goals for purchases, trips or milestones. Track contributions, see progress, and check if you can afford something before you buy it.',
@@ -122,6 +128,12 @@ const tourFeatures = [
     desc: 'Split costs with friends and family for trips or shared households. Track contributions, manage budgets, see who owes whom, and settle up — all in one place.',
     mock: 'projects',
   },
+  ...(HOUSEHOLD_ENABLED ? [{
+    id: 'household', icon: House,
+    title: 'Household',
+    desc: 'Run a shared home budget with your partner. Invite them with a private link, share the expenses you choose, and set monthly budgets together. Your personal accounts stay private.',
+    mock: 'household',
+  }] as const : []),
   {
     id: 'bills', icon: CalendarCheck,
     title: 'Bills & Commitments',
@@ -143,8 +155,14 @@ const tourFeatures = [
   {
     id: 'mintai', icon: Bot,
     title: 'Mint AI',
-    desc: 'Ask questions about your money in natural language.',
+    desc: 'Ask about your money in plain words: how much is free until payday, whether you can afford something, or when you last paid the plumber. Mint can also categorise your entries as you type.',
     mock: 'mintai',
+  },
+  {
+    id: 'import', icon: FileUp,
+    title: 'Statement Import',
+    desc: 'Upload a bank or card statement as a PDF or screenshot. Mint reads the transactions, flags ones you already recorded, and lets you review everything before it is saved.',
+    mock: 'import',
   },
 ] as const
 
@@ -154,9 +172,18 @@ const badges = [
   { icon: Trophy, label: 'Goal Tracking' },
   { icon: Gem, label: 'Life Events' },
   { icon: FolderOpen, label: 'Shared Projects' },
+  ...(HOUSEHOLD_ENABLED ? [{ icon: House, label: 'Household' }] as const : []),
+  { icon: NotebookPen, label: 'Kakeibo Reflection' },
   { icon: Receipt, label: 'Expense Tracking' },
   { icon: TrendingUp, label: 'Income Tracking' },
   { icon: HandCoins, label: 'Reimbursements' },
+  { icon: Split, label: 'Split Payments' },
+  { icon: Paperclip, label: 'Receipt Attachments' },
+  { icon: Tag, label: 'People & Merchant Tags' },
+  { icon: Sparkles, label: 'AI Auto-Categorise' },
+  { icon: FileUp, label: 'Statement Import' },
+  { icon: Mail, label: 'Email Statements' },
+  { icon: BellRing, label: 'Smart Reminders' },
   { icon: LineChart, label: 'Cash Flow Forecast' },
   { icon: Target, label: 'Budget Planning' },
   { icon: CalendarCheck, label: 'Planned Expenses' },
@@ -176,7 +203,9 @@ const badges = [
 
 const personas = [
   { icon: Briefcase, title: 'Salaried Employees', desc: 'Know whether you’ll comfortably reach your next salary.' },
-  { icon: Users, title: 'Families', desc: 'Plan bills, school fees, groceries and savings together. Use shared projects to split and settle expenses.' },
+  { icon: Users, title: 'Families', desc: HOUSEHOLD_ENABLED
+    ? 'Plan bills, school fees, groceries and savings together. Share a household budget with your partner, and use shared projects to split and settle expenses.'
+    : 'Plan bills, school fees, groceries and savings together. Use shared projects to split and settle expenses.' },
   { icon: Zap, title: 'Freelancers & Business', desc: 'Manage variable income, irregular cash flow and business expenses with forecasting.' },
   { icon: GraduationCap, title: 'Students', desc: 'Track spending and stay within budget.' },
 ] as const
@@ -197,6 +226,8 @@ const galleryScreens = [
   { type: 'budget', label: 'Budget' },
   { type: 'goals', label: 'Goals' },
   { type: 'projects', label: 'Shared Projects' },
+  ...(HOUSEHOLD_ENABLED ? [{ type: 'household', label: 'Household' }] as const : []),
+  { type: 'kakeibo', label: 'Kakeibo' },
   { type: 'analytics', label: 'Analytics' },
   { type: 'mintai', label: 'Mint AI' },
   { type: 'savings', label: 'Savings' },
@@ -206,6 +237,10 @@ const galleryScreens = [
 
 const faqItems = [
   { q: 'Is MoneyPlant free?', a: 'Yes, MoneyPlant is completely free to use. Create an account and start tracking your finances right away.' },
+  ...(GUEST_MODE_ENABLED ? [{ q: 'Do I need to sign up to try it?', a: 'No. Tap Try MoneyPlant Free and start adding expenses straight away. When you want to keep your entries, save your account with email, mobile or Google. Nothing you added is lost. Guest entries that are never saved are removed after 30 days without use.' }] as const : []),
+  { q: 'What can Mint AI do?', a: 'Mint answers questions about your own money: what is free until your next income, whether you can afford a purchase, what changed since last time, or when you paid someone. It reads bank statements you upload. With Autopilot on, it also categorises your entries as you type and helps name trips or occasions it spots in your spending. Autopilot is off until you turn it on in Settings, and Mint is included free with a daily allowance.' },
+  ...(HOUSEHOLD_ENABLED ? [{ q: 'Can I share finances with my partner?', a: 'Yes. Household gives two people a shared ledger and monthly budgets. Invite your partner with a private link. Only the expenses and income you choose to share appear there; your personal accounts and transactions stay private.' }] as const : []),
+  { q: 'Can I import my bank statement?', a: 'Yes. Upload a statement as a PDF or screenshot and Mint pulls out the transactions. Ones you have already recorded are flagged, and nothing is saved until you review it. Uploaded files are deleted once the import is done.' },
   { q: 'Does it work offline?', a: 'Yes, for recording spending. Once installed, MoneyPlant opens without internet, and you can add expenses, income and transfers. They’re kept on your device and saved to your account when you review them back online. Editing other things needs a connection.' },
   { q: 'Can I track multiple accounts?', a: 'Yes. You can create and manage multiple accounts like bank accounts, wallets, and cash to track balances separately.' },
   { q: 'Can I manage credit cards?', a: 'Yes. MoneyPlant lets you track billed and unbilled amounts for your credit cards and see exactly what is due.' },
@@ -978,7 +1013,7 @@ function MockScreen({ type }: { type: string }) {
         <div className="mp-mock__card mp-mock__card--green">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <small>Today's Challenge</small>
-            <span style={{ fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 2 }}>🔥 7</span>
+            <span style={{ fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 2 }}><Flame size={10} /> 7</span>
           </div>
           <strong>₹850 left</strong>
         </div>
@@ -994,7 +1029,7 @@ function MockScreen({ type }: { type: string }) {
             <ellipse cx="88" cy="140" rx="12" ry="5" transform="rotate(-30,88,140)" fill="#C5E8A0" />
           </svg>
         </div>
-        <div style={{ textAlign: 'center', fontSize: 7, fontWeight: 800, color: '#0a7a56' }}>Stage: Growing 🌿</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, fontSize: 7, fontWeight: 800, color: '#0a7a56' }}>Stage: Growing <Sprout size={8} /></div>
       </div>
     )
     case 'goals': return (
@@ -1095,6 +1130,60 @@ function MockScreen({ type }: { type: string }) {
         <div className="mp-mock__label" style={{ marginTop: 6 }}>Settlement</div>
         <div style={{ fontSize: 8, fontWeight: 700, color: '#3c3028', background: '#F5F0EA', borderRadius: 6, padding: '5px 8px' }}>
           Priya owes Anil <span style={{ color: '#EF4444' }}>₹1,600</span>
+        </div>
+      </div>
+    )
+    case 'household': return (
+      <div className="mp-mock">
+        {hdr}
+        <div className="mp-mock__card mp-mock__card--green">
+          <small>Our Home · October</small>
+          <strong>₹31,200</strong>
+        </div>
+        <div className="mp-mock__label">Budgets</div>
+        <div className="mp-mock__progress">
+          <div><span style={{ minWidth: 44 }}>Groceries</span><div className="mp-mock__bar"><div style={{ width: '64%', background: accent }} /></div><span>64%</span></div>
+          <div><span style={{ minWidth: 44 }}>Utilities</span><div className="mp-mock__bar"><div style={{ width: '82%', background: '#F59E0B' }} /></div><span>82%</span></div>
+        </div>
+        <div className="mp-mock__label" style={{ marginTop: 6 }}>Shared</div>
+        <div className="mp-mock__rows">
+          <div><span className="mp-mock__dot" style={{ background: '#3B82F6' }} /><span className="mp-mock__text">Rent · Arjun</span><span className="mp-mock__amt">₹18,000</span></div>
+          <div><span className="mp-mock__dot" style={{ background: accent }} /><span className="mp-mock__text">Milk · Meera</span><span className="mp-mock__amt">₹620</span></div>
+        </div>
+      </div>
+    )
+    case 'kakeibo': return (
+      <div className="mp-mock">
+        {hdr}
+        <div className="mp-mock__card mp-mock__card--amber">
+          <small>September review</small>
+          <strong>Saved ₹9,500</strong>
+        </div>
+        <div className="mp-mock__label">Four pillars</div>
+        <div className="mp-mock__progress">
+          <div><span style={{ minWidth: 44 }}>Survival</span><div className="mp-mock__bar"><div style={{ width: '58%', background: '#3B82F6' }} /></div><span>58%</span></div>
+          <div><span style={{ minWidth: 44 }}>Optional</span><div className="mp-mock__bar"><div style={{ width: '24%', background: '#F59E0B' }} /></div><span>24%</span></div>
+          <div><span style={{ minWidth: 44 }}>Culture</span><div className="mp-mock__bar"><div style={{ width: '10%', background: accent }} /></div><span>10%</span></div>
+          <div><span style={{ minWidth: 44 }}>Unexpected</span><div className="mp-mock__bar"><div style={{ width: '8%', background: '#EF4444' }} /></div><span>8%</span></div>
+        </div>
+        <div style={{ fontSize: 7, fontWeight: 700, color: '#3c3028', background: '#F5F0EA', borderRadius: 6, padding: '5px 8px', marginTop: 4 }}>
+          Next month: cook at home on weekdays
+        </div>
+      </div>
+    )
+    case 'import': return (
+      <div className="mp-mock">
+        {hdr}
+        <div className="mp-mock__card mp-mock__card--blue">
+          <small>HDFC statement.pdf</small>
+          <strong>42 found</strong>
+        </div>
+        <div style={{ fontSize: 7, fontWeight: 700, color: '#9c938a', margin: '4px 0 2px' }}>3 already recorded · review before saving</div>
+        <div className="mp-mock__label">To review</div>
+        <div className="mp-mock__rows">
+          <div><span className="mp-mock__dot" style={{ background: '#EF4444' }} /><span className="mp-mock__text">Swiggy</span><span className="mp-mock__amt">−₹412</span></div>
+          <div><span className="mp-mock__dot" style={{ background: '#F59E0B' }} /><span className="mp-mock__text">BESCOM</span><span className="mp-mock__amt">−₹1,860</span></div>
+          <div><span className="mp-mock__dot" style={{ background: accent }} /><span className="mp-mock__text">Salary</span><span className="mp-mock__amt">+₹62,000</span></div>
         </div>
       </div>
     )
