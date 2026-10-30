@@ -3,6 +3,7 @@ import {
   Tags, Tag, MessageCircle, Search, PenLine, Wallet, FileText, Plane, TrendingUp,
   Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, CreditCard, WalletCards, ChevronDown, Plus,
   HandCoins, Users, Info, ChartColumnIncreasing, ChartLine, Coins, CalendarDays, Landmark, PiggyBank, CircleCheck,
+  PartyPopper, Target, Scale, ReceiptText, UserPlus,
   type LucideIcon,
 } from 'lucide-react'
 import { keywordCategoryName } from '@/lib/categorize'
@@ -539,20 +540,24 @@ function DaySelect({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 /** Icon, title and lines that open the Credit Card and Lend & Borrow pages. */
-function PageHeader({ Icon, title, tagline, taglineAccent = false, description }: {
+const INDIGO = '#5B54C9'
+
+function PageHeader({ Icon, title, tagline, taglineAccent = false, description, indigo = false }: {
   Icon: LucideIcon; title: string; tagline: string; taglineAccent?: boolean; description: string
+  /** Shared Projects' own colour, so it doesn't read as one of the personal-money pages. */
+  indigo?: boolean
 }) {
   return (
     <div style={{ textAlign: 'center', padding: '4px 8px 18px', borderBottom: '1px solid #E0D9D0', marginBottom: 18 }}>
       <div style={{
         width: 56, height: 56, borderRadius: 18, margin: '0 auto 14px',
-        background: 'rgba(22,201,138,0.12)', color: deepGreen,
+        background: indigo ? 'rgba(91,84,201,0.12)' : 'rgba(22,201,138,0.12)', color: indigo ? INDIGO : deepGreen,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <Icon size={26} />
       </div>
       <div style={{ font: '800 24px "Plus Jakarta Sans"', color: ink, letterSpacing: '-0.025em' }}>{title}</div>
-      <div style={{ font: '600 14px "Plus Jakarta Sans"', color: taglineAccent ? '#0FAF75' : '#5C534B', marginTop: 6 }}>{tagline}</div>
+      <div style={{ font: '600 14px "Plus Jakarta Sans"', color: indigo ? INDIGO : taglineAccent ? '#0FAF75' : '#5C534B', marginTop: 6 }}>{tagline}</div>
       <div style={{ font: '400 13px "Plus Jakarta Sans"', color: muted, lineHeight: 1.55, marginTop: 6 }}>{description}</div>
     </div>
   )
@@ -609,6 +614,78 @@ const SAVINGS_BENEFITS = [
   'Keep savings separate from daily expenses',
 ]
 
+/** "Feature name / Enabled / change in Settings" + the real switch — Savings and Shared Projects. */
+function PreferenceCard({ title, on, onChange }: { title: string; on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14,
+      background: '#FBF8F4', borderRadius: 16, padding: '14px 16px',
+      border: `1.5px solid ${on ? 'rgba(22,201,138,0.35)' : '#E6DFD5'}`,
+      transition: 'border-color 0.25s',
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ font: '700 15px "Plus Jakarta Sans"', color: ink }}>{title}</div>
+        <div style={{ font: '600 12px "Plus Jakarta Sans"', color: on ? '#0FAF75' : muted, marginTop: 2, transition: 'color 0.25s' }}>
+          {on ? 'Enabled' : 'Disabled'}
+        </div>
+        <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 4 }}>You can change this anytime in Settings.</div>
+      </div>
+      <LargeToggle on={on} onChange={onChange} />
+    </div>
+  )
+}
+
+// Each tile is something a project already supports: trips/events/plans are what people
+// create them for; "Shared Goals" is the project target + budget breakdown.
+const PROJECT_KINDS: { Icon: LucideIcon; title: string; detail: string; bg: string; fg: string }[] = [
+  { Icon: Plane, title: 'Group Trips', detail: 'Travel with friends', bg: '#E6EAF7', fg: '#4A5FB0' },
+  { Icon: PartyPopper, title: 'Events', detail: 'Weddings & parties', bg: '#F5E6EC', fg: '#B84D76' },
+  { Icon: Users, title: 'Group Plans', detail: 'Shared activities', bg: '#E2EEE5', fg: '#2F7F52' },
+  { Icon: Target, title: 'Shared Goals', detail: 'Plan expenses together', bg: '#F4EDDA', fg: '#9A7A24' },
+]
+
+const PROJECT_BENEFITS: { Icon: LucideIcon; text: string }[] = [
+  { Icon: ReceiptText, text: 'Record shared expenses' },
+  { Icon: UserPlus, text: 'Invite friends and family' },
+  { Icon: Scale, text: 'See who owes whom' },
+]
+
+function SharedProjectsPage({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
+      <PageHeader
+        Icon={Users} title="Shared Projects" indigo
+        tagline="Make plans together, track expenses together."
+        description="Create shared spaces for trips, weddings and group activities. Know who paid, what was spent and who owes what."
+      />
+
+      <div style={{ ...card, padding: 14, marginBottom: 16 }}>
+        <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink, margin: '2px 2px 12px' }}>What can you organize?</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          {PROJECT_KINDS.map(({ Icon, title, detail, bg, fg }) => (
+            <div key={title} style={{ background: bg, borderRadius: 14, padding: '12px 12px 13px' }}>
+              <Icon size={18} style={{ color: fg }} />
+              <div style={{ font: '700 14px "Plus Jakarta Sans"', color: ink, marginTop: 8 }}>{title}</div>
+              <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 2 }}>{detail}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18, padding: '0 2px' }}>
+        {PROJECT_BENEFITS.map(({ Icon, text }) => (
+          <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon size={17} style={{ color: INDIGO, flexShrink: 0 }} />
+            <span style={{ font: '500 14px "Plus Jakarta Sans"', color: ink }}>{text}</span>
+          </div>
+        ))}
+      </div>
+
+      <PreferenceCard title="Shared Projects" on={on} onChange={onChange} />
+    </div>
+  )
+}
+
 function SavingsInvestPage({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
     <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
@@ -643,21 +720,7 @@ function SavingsInvestPage({ on, onChange }: { on: boolean; onChange: (v: boolea
         ))}
       </div>
 
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 14,
-        background: '#FBF8F4', borderRadius: 16, padding: '14px 16px',
-        border: `1.5px solid ${on ? 'rgba(22,201,138,0.35)' : '#E6DFD5'}`,
-        transition: 'border-color 0.25s',
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ font: '700 15px "Plus Jakarta Sans"', color: ink }}>Savings & Investments</div>
-          <div style={{ font: '600 12px "Plus Jakarta Sans"', color: on ? '#0FAF75' : muted, marginTop: 2, transition: 'color 0.25s' }}>
-            {on ? 'Enabled' : 'Disabled'}
-          </div>
-          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 4 }}>You can change this anytime in Settings.</div>
-        </div>
-        <LargeToggle on={on} onChange={onChange} />
-      </div>
+      <PreferenceCard title="Savings & Investments" on={on} onChange={onChange} />
     </div>
   )
 }
@@ -874,7 +937,8 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
   const [borrows, setBorrows] = useState(false)
   const isLendPage = cur.key === 'track_borrowings'
   const isSavingsPage = cur.key === 'track_savings'
-  const customPage = cur.featured || isCardPage || isLendPage || isSavingsPage
+  const isProjectsPage = cur.key === 'track_projects'
+  const customPage = cur.featured || isCardPage || isLendPage || isSavingsPage || isProjectsPage
   const setLendBorrow = (lend: boolean, borrow: boolean) => {
     setLends(lend); setBorrows(borrow)
     setEnabled(prev => ({ ...prev, track_borrowings: lend || borrow }))
@@ -1010,7 +1074,9 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           animation: 'foFadeUp 0.32s ease both',
         }}
       >
-        {cur.featured ? <MintAIPage /> : isSavingsPage ? (
+        {cur.featured ? <MintAIPage /> : isProjectsPage ? (
+          <SharedProjectsPage on={on} onChange={setOn} />
+        ) : isSavingsPage ? (
           <SavingsInvestPage on={on} onChange={setOn} />
         ) : isLendPage ? (
           <LendBorrowPage
