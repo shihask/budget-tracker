@@ -120,7 +120,7 @@ import { useProjectsSummary } from '@/features/shared-projects/hooks/useProjects
 import { NotificationsSheet } from '@/features/shared-projects/components/NotificationsSheet'
 import { dismissBootShell } from '@/lib/boot-shell'
 import { createActivationWatcher, trackStep } from '@/lib/funnel'
-import { isGuest, guestSetupPendingKey, guestSavedOnKey, guestSavedReturnKey, guestSavePromptedKey, isLaterDay } from '@/lib/guest'
+import { isGuest, guestSetupPendingKey, guestSavedOnKey, guestSavedReturnKey, guestSavePromptedKey, guestGoogleLinkKey, hasGoogleIdentity, googleIdentityName, isLaterDay } from '@/lib/guest'
 import { GuestQuickStart } from '@/components/GuestQuickStart'
 import { GuestSaveSheet } from '@/components/GuestSaveSheet'
 import { GuestMintSheet } from '@/components/GuestMintSheet'
@@ -201,7 +201,8 @@ export default function App() {
 
   // A new email/phone account has no name or password yet (Google and older accounts have a name).
   // A guest has neither until they save; a saved guest has no name, so lands here next.
-  if (!isGuest(session.user) && !session.user.user_metadata?.full_name) {
+  // A guest saved with Google has Google's name, not a password, so skips it too (AppContent copies the name over).
+  if (!isGuest(session.user) && !session.user.user_metadata?.full_name && !hasGoogleIdentity(session.user)) {
     return <CompleteProfilePage username={session.user.email || (session.user.phone ? `+${session.user.phone}` : '')} />
   }
 
@@ -473,6 +474,25 @@ function AppContent({ session }: { session: Session }) {
   const [guestSaveOpen, setGuestSaveOpen] = useState(false)
   const [guestSavePromptOpen, setGuestSavePromptOpen] = useState(false)
   const [guestMintOpen, setGuestMintOpen] = useState(false)
+  const [guestGoogleTaken, setGuestGoogleTaken] = useState(false)
+
+  // Back from Google after GuestSaveSheet's "Continue with Google" (linkIdentity).
+  useEffect(() => {
+    const key = guestGoogleLinkKey(user.id)
+    try { if (!localStorage.getItem(key)) return; localStorage.removeItem(key) } catch { return }
+    if (guest) {
+      // Still a guest: the link failed. The session survives it; the reason is in the URL.
+      const params = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1))
+      if (params.get('error_code') === 'identity_already_exists') setGuestGoogleTaken(true)
+      if (params.has('error')) window.history.replaceState(null, '', window.location.pathname)
+      setGuestSaveOpen(true)
+      return
+    }
+    trackStep('guest_saved')
+    try { localStorage.setItem(guestSavedOnKey(user.id), localIso(new Date())) } catch { /* only the return-visit step is lost */ }
+    const name = googleIdentityName(user)
+    if (!user.user_metadata?.full_name && name) void supabase.auth.updateUser({ data: { full_name: name } })
+  }, [guest, user])
 
   // Right after a guest's first expense: explain what's at stake, once per device.
   useEffect(() => {
@@ -1910,7 +1930,7 @@ function AppContent({ session }: { session: Session }) {
             </div>
           </BottomSheet>
           <GuestMintSheet open={guestMintOpen} onClose={() => setGuestMintOpen(false)} onSave={() => { setGuestMintOpen(false); setGuestSaveOpen(true) }} />
-          <GuestSaveSheet open={guestSaveOpen} userId={user.id} onClose={() => setGuestSaveOpen(false)} onSignInInstead={leaveGuestToSignIn} />
+          <GuestSaveSheet open={guestSaveOpen} userId={user.id} googleTaken={guestGoogleTaken} onClose={() => { setGuestSaveOpen(false); setGuestGoogleTaken(false) }} onSignInInstead={leaveGuestToSignIn} />
         </>)}
         {dialogNode}
       </div>

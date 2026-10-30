@@ -189,7 +189,8 @@ for every *toasted* suggestion, not only opened ones.
 `public/mint-thinking-loop.svg` (Mint's breathing leaf) means exactly "AI is running right now":
 in the toast label (held ≥ 0.8 s, `SUGGESTION_MIN_LEAF_MS`, so a fast answer doesn't flicker)
 and in the Review header while AI is still going. Otherwise the static `mint-ai-logo.svg`. Never
-a blocking loader, never decoration. The toast's identity is `toastId` (the signal key), which
+a blocking loader, never decoration — with one deliberate exception: the header of the guest
+"Meet Mint AI" sheet (`GuestMintSheet`), an intro where no AI request can be pending. The toast's identity is `toastId` (the signal key), which
 stays stable when the AI answer renames the suggestion — keying it on `txIds` restarts the toast.
 
 **Surfaces (v1.72):** a toast (`EventSuggestionToast`) slides down from the top once per
@@ -614,6 +615,7 @@ anonymous sign-ins off, the button falls back to sign-up (`anonymous_provider_di
 |---|---|---|
 | Landing | `signInAnonymously()` | `GuestQuickStart` (one account) → Quick Add on an expense |
 | Guest | `GuestSaveSheet`: `updateUser({email\|phone})` → code → `verifyOtp(email_change\|phone_change)` → `refreshSession()` | `CompleteProfilePage` (no name yet) → resumed onboarding |
+| Guest | `GuestSaveSheet` → Continue with Google: `linkIdentity({ provider: 'google' })` → redirect back | App (on `mp_guest_google_link_<uid>`) counts `guest_saved`, copies Google's name → resumed onboarding, no `CompleteProfilePage` |
 | Guest | Sign out | confirm first: leaving loses access to the entries |
 
 | File | Purpose |
@@ -624,7 +626,12 @@ anonymous sign-ins off, the button falls back to sign-up (`anonymous_provider_di
 | `src/hooks/useAddSignInMethod.ts` | The one add-email/mobile flow, shared with Profile → Sign-in methods |
 | `supabase/migrations/20261016000002_guest_mode.sql` | `mp_is_guest()`, restrictive policies, activity, purge + cron |
 
-- **App gate:** `!isGuest(user) && !full_name` → `CompleteProfilePage`. Guests skip it; a saved guest has
+- **Saving with Google** needs **Manual Linking** on in Supabase (Auth → Sign In / Providers);
+  off, `linkIdentity` fails `manual_linking_disabled` and the sheet says to use email/mobile. A
+  Google account that already has a MoneyPlant account returns `identity_already_exists` in the
+  redirect URL; auth-js keeps the guest session for that code, and App reopens the sheet with
+  "sign in instead" (`googleTaken`). Hidden in in-app browsers, like AuthPage's Google button.
+- **App gate:** `!isGuest(user) && !full_name && !hasGoogleIdentity(user)` → `CompleteProfilePage`. Guests skip it; a saved guest has
   no name, so lands on it — that reuses the name + password + `account_created` step unchanged.
 - **Onboarding:** guests never see `OnboardingFlow`. `mp_guest_setup_pending_<uid>` (set by
   GuestQuickStart) makes it run after saving with `resumeAfterGuest` (no Splash, no Accounts), and
