@@ -59,6 +59,19 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
   const [step, setStep]       = useState<Step>(resumeAfterGuest ? 2 : 1)
   const [splashPhase, setSplashPhase] = useState<1 | 2 | 3>(1)
 
+  // Lock the dashboard behind onboarding: a step that fits the screen has nothing to scroll,
+  // so iOS hands the swipe to the page underneath and shows its scrollbar.
+  useEffect(() => {
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
+  }, [])
+
   // Income pattern
   const [incomePattern, setIncomePattern] = useState<IncomePattern>('monthly')
 
