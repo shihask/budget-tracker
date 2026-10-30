@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Tags, Tag, MessageCircle, Search, PenLine, Wallet, FileText, Plane, TrendingUp,
   Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, CreditCard, WalletCards, ChevronDown, Plus,
-  HandCoins, Users, Info, ChartColumnIncreasing, ChartLine, Coins, CalendarDays, Landmark, PiggyBank, CircleCheck,
+  HandCoins, Users, Info, Receipt, Lock, Ellipsis, ChartColumnIncreasing, ChartLine, Coins, CalendarDays, Landmark, PiggyBank, CircleCheck,
   PartyPopper, Target, Scale, ReceiptText, UserPlus, BellRing, NotebookPen, CalendarClock, TriangleAlert, ChartColumn, Moon,
   type LucideIcon,
 } from 'lucide-react'
@@ -183,15 +183,24 @@ function BackArrow() {
   )
 }
 
-const MINT_FEATURES: { Icon: LucideIcon; title: string; detail: string }[] = [
-  { Icon: Tags, title: 'Auto-categorizes your expenses', detail: '"petrol 500" lands in Fuel, no picking from lists' },
-  { Icon: MessageCircle, title: 'Answers your money questions', detail: '"How much is free to spend before payday?"' },
-  { Icon: Search, title: 'Finds any transaction', detail: '"When did I pay the plumber?" or "find swiggy in August"' },
-  { Icon: PenLine, title: 'Edits by just asking', detail: '"Change fuel 500 to 300" or "delete tea 20"' },
-  { Icon: Wallet, title: 'Checks if you can afford it', detail: 'Weighs upcoming bills before you buy' },
-  { Icon: FileText, title: 'Imports bank statements', detail: 'Upload a PDF and Mint reads the transactions' },
-  { Icon: Plane, title: 'Notices trips & life events', detail: 'Groups a trip or wedding\'s spending for you' },
-  { Icon: TrendingUp, title: 'Spots patterns & savings opportunities', detail: 'Flags spending spikes and suggests ways to save' },
+// Every line is a shipped capability: receipt-extract and statement-extract are
+// ai-categorize modes, find/edit is mint-find, afford/changed are CFO intents.
+const MINT_FEATURE_GROUPS: { group: string; items: { Icon: LucideIcon; title: string; detail: string }[] }[] = [
+  { group: 'Smart entry', items: [
+    { Icon: Tags, title: 'Auto-categorizes your expenses', detail: '"petrol 500" lands in Fuel, no picking from lists' },
+    { Icon: Receipt, title: 'Reads your receipts', detail: 'Snap a bill and Mint fills in the amount, date and shop' },
+    { Icon: FileText, title: 'Imports bank statements', detail: 'Upload a PDF and Mint reads the transactions' },
+  ] },
+  { group: 'Ask Mint', items: [
+    { Icon: MessageCircle, title: 'Answers your money questions', detail: '"How much is free to spend before payday?"' },
+    { Icon: Search, title: 'Finds any transaction', detail: '"When did I pay the plumber?"' },
+    { Icon: PenLine, title: 'Edits by just asking', detail: '"Change fuel 500 to 300" or "delete tea 20"' },
+  ] },
+  { group: 'Money insights', items: [
+    { Icon: Wallet, title: 'Checks if you can afford it', detail: 'Weighs upcoming bills before you buy' },
+    { Icon: TrendingUp, title: 'Spots patterns & savings', detail: 'Flags spending spikes and suggests ways to save' },
+    { Icon: Plane, title: 'Notices trips & life events', detail: 'Groups a trip or wedding\'s spending for you' },
+  ] },
 ]
 
 const DEMO_EXAMPLES = ['Tea 20', 'Petrol 500', 'Groceries 1200']
@@ -439,23 +448,33 @@ function MintAIPage() {
         <div style={{ font: '800 17px "Plus Jakarta Sans"', color: ink, letterSpacing: '-0.01em', marginBottom: 14 }}>
           Mint can also help you with
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {MINT_FEATURES.map(({ Icon, title, detail }) => (
-            <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 38, height: 38, borderRadius: 12, flexShrink: 0,
-                background: 'rgba(22,201,138,0.12)', color: deepGreen,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Icon size={18} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ font: '700 13px "Plus Jakarta Sans"', color: ink }}>{title}</div>
-                <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.45, marginTop: 1 }}>{detail}</div>
-              </div>
+        {MINT_FEATURE_GROUPS.map(({ group, items }, gi) => (
+          <div key={group} style={{ marginTop: gi === 0 ? 0 : 16 }}>
+            <div style={{
+              font: '700 11px "Plus Jakarta Sans"', color: '#0FAF75',
+              letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10,
+            }}>
+              {group}
             </div>
-          ))}
-        </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {items.map(({ Icon, title, detail }) => (
+                <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+                    background: 'rgba(22,201,138,0.12)', color: deepGreen,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon size={18} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ font: '700 13px "Plus Jakarta Sans"', color: ink }}>{title}</div>
+                    <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.45, marginTop: 1 }}>{detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Turned on — the off switch lives in Settings */}
@@ -565,13 +584,15 @@ function PageHeader({ Icon, title, tagline, taglineAccent = false, description, 
 }
 
 /** One answer row. `radio` = pick one (dot); `check` = choose all that apply (tick). */
-function ChoiceRow({ selected, onClick, Icon, title, detail, kind = 'radio' }: {
+function ChoiceRow({ selected, included = false, onClick, Icon, title, detail, kind = 'radio' }: {
   selected: boolean; onClick: () => void; Icon: LucideIcon; title: string; detail: string; kind?: 'radio' | 'check'
+  /** Checked, but as part of another row's choice ("Both") — shown with a quiet grey tick. */
+  included?: boolean
 }) {
   return (
     <button
       role={kind === 'radio' ? 'radio' : 'checkbox'}
-      aria-checked={selected}
+      aria-checked={selected || included}
       onClick={onClick}
       style={{
         width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
@@ -588,18 +609,21 @@ function ChoiceRow({ selected, onClick, Icon, title, detail, kind = 'radio' }: {
       </div>
       <div style={{
         width: 20, height: 20, borderRadius: 10, flexShrink: 0, boxSizing: 'border-box',
-        border: `2px solid ${selected ? '#16C98A' : '#C8C2BB'}`,
+        border: `2px solid ${selected ? '#16C98A' : included ? '#B0A9A1' : '#C8C2BB'}`,
+        background: included ? '#B0A9A1' : 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        {selected && (kind === 'radio'
-          ? <div style={{ width: 10, height: 10, borderRadius: 5, background: '#16C98A' }} />
-          : <Check size={12} strokeWidth={3.5} style={{ color: '#16C98A' }} />)}
+        {included
+          ? <Check size={12} strokeWidth={3.5} style={{ color: '#fff' }} />
+          : selected && (kind === 'radio'
+            ? <div style={{ width: 10, height: 10, borderRadius: 5, background: '#16C98A' }} />
+            : <Check size={12} strokeWidth={3.5} style={{ color: '#16C98A' }} />)}
       </div>
     </button>
   )
 }
 
-// The tiles mirror SavingsType (sip, gold, rd, fd, ppf_nps, chit) — 'custom' is left out.
+// The tiles mirror SavingsType one-to-one: sip, gold, rd, fd, ppf_nps, chit, custom ("Other").
 const SAVINGS_KINDS: { Icon: LucideIcon; label: string }[] = [
   { Icon: ChartLine, label: 'SIP / MF' },
   { Icon: Coins, label: 'Gold' },
@@ -607,6 +631,7 @@ const SAVINGS_KINDS: { Icon: LucideIcon; label: string }[] = [
   { Icon: Landmark, label: 'FD' },
   { Icon: PiggyBank, label: 'PPF / NPS' },
   { Icon: Users, label: 'Chit / Kuri' },
+  { Icon: Ellipsis, label: 'Other' },
 ]
 
 const SAVINGS_BENEFITS = [
@@ -690,18 +715,22 @@ function RemindersPage({ on, busy, error, onChange }: {
         ))}
       </div>
 
+      <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.5, margin: '0 4px 10px' }}>
+        Reminders arrive as notifications, so your device will ask for permission when you turn this on.
+      </div>
       <PreferenceCard title="Smart Reminders" on={on} onChange={onChange} busy={busy} error={error} />
     </div>
   )
 }
 
-// Each tile is something a project already supports: trips/events/plans are what people
-// create them for; "Shared Goals" is the project target + budget breakdown.
+// Each tile is something a project already supports: trips/events/activities are what
+// people create them for; "Shared Budget" is the project target + budget breakdown
+// (not "goals" — that read as a savings-goal feature).
 const PROJECT_KINDS: { Icon: LucideIcon; title: string; detail: string; bg: string; fg: string }[] = [
   { Icon: Plane, title: 'Group Trips', detail: 'Travel with friends', bg: '#E6EAF7', fg: '#4A5FB0' },
   { Icon: PartyPopper, title: 'Events', detail: 'Weddings & parties', bg: '#F5E6EC', fg: '#B84D76' },
-  { Icon: Users, title: 'Group Plans', detail: 'Shared activities', bg: '#E2EEE5', fg: '#2F7F52' },
-  { Icon: Target, title: 'Shared Goals', detail: 'Plan expenses together', bg: '#F4EDDA', fg: '#9A7A24' },
+  { Icon: Users, title: 'Group Activities', detail: 'Shared expenses for things you do together', bg: '#E2EEE5', fg: '#2F7F52' },
+  { Icon: Target, title: 'Shared Budget', detail: 'Set a target, track every cost', bg: '#F4EDDA', fg: '#9A7A24' },
 ]
 
 const PROJECT_BENEFITS: { Icon: LucideIcon; text: string }[] = [
@@ -756,7 +785,7 @@ function SavingsInvestPage({ on, onChange }: { on: boolean; onChange: (v: boolea
       />
 
       <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink, marginBottom: 12 }}>What can you track?</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 10px', marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '14px 8px', marginBottom: 20 }}>
         {SAVINGS_KINDS.map(({ Icon, label }) => (
           <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
             <div style={{
@@ -800,12 +829,13 @@ function LendBorrowPage({ lend, borrow, onLend, onBorrow, onBoth }: {
       <div role="group" aria-label="What describes you?">
         <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink }}>What describes you?</div>
         <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 2, marginBottom: 12 }}>Choose all that apply.</div>
-        <ChoiceRow kind="check" selected={lend} onClick={onLend}
+        {/* With both picked, "Both" carries the selection and the other two read as included in it. */}
+        <ChoiceRow kind="check" selected={lend && !(lend && borrow)} included={lend && borrow} onClick={onLend}
           Icon={HandCoins} title="I lend money" detail="Track money others owe me" />
-        <ChoiceRow kind="check" selected={borrow} onClick={onBorrow}
+        <ChoiceRow kind="check" selected={borrow && !(lend && borrow)} included={lend && borrow} onClick={onBorrow}
           Icon={Wallet} title="I borrow money" detail="Track money I owe others" />
         <ChoiceRow kind="check" selected={lend && borrow} onClick={onBoth}
-          Icon={Users} title="Both" detail="I lend and borrow money" />
+          Icon={Users} title="Both" detail="I lend and borrow money, so track both" />
       </div>
 
       <div style={{
@@ -899,10 +929,14 @@ function CreditCardPage({ choice, onChoice, cards, onCard, onAddCard, onRemoveCa
       {choice === 'yes' && (
         <div style={{ marginTop: 12, animation: 'foFadeUp 0.3s ease both' }}>
           <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink }}>
-            {cards.length > 1 ? 'Add your cards' : 'Add your card'} <span style={{ color: muted, fontWeight: 500 }}>(optional)</span>
+            {cards.length > 1 ? 'Add your cards' : 'Add your card'}
+            <span style={{
+              marginLeft: 8, verticalAlign: 'middle', padding: '2px 8px', borderRadius: 999,
+              background: '#E9E3DB', color: muted, font: '700 11px "Plus Jakarta Sans"',
+            }}>Optional</span>
           </div>
-          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 2, marginBottom: 12 }}>
-            Add as many as you use, or more later from Credit Cards.
+          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 4, marginBottom: 12 }}>
+            Skip this and add cards later from Credit Cards, or add as many as you use now.
           </div>
 
           {cards.map((card, i) => (
@@ -943,9 +977,15 @@ function CreditCardPage({ choice, onChoice, cards, onCard, onAddCard, onRemoveCa
             <Plus size={16} strokeWidth={2.5} /> Add another card
           </button>
 
-          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.5, padding: '0 2px' }}>
-            Without dates, the bill is set for the {ordinal(DEFAULT_BILL_DAY)} and due on the {ordinal(DEFAULT_DUE_DAY)}. You can change them on the card anytime.
-            <br />Never enter your full card number, CVV or PIN.
+          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.5, padding: '0 2px', marginBottom: 10 }}>
+            If you don't add billing dates, MoneyPlant uses the {ordinal(DEFAULT_BILL_DAY)} as the bill date and the {ordinal(DEFAULT_DUE_DAY)} as the due date. You can change them anytime.
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 12,
+            background: '#F3EEE7', font: '600 12px "Plus Jakarta Sans"', color: '#5C534B',
+          }}>
+            <Lock size={14} style={{ flexShrink: 0, color: deepGreen }} />
+            Never enter your full card number, CVV or PIN.
           </div>
         </div>
       )}
@@ -1065,13 +1105,14 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
       </div>
 
       <div style={{ font: '800 26px "Plus Jakarta Sans"', color: '#1C1410', letterSpacing: '-0.025em', marginBottom: 10, textAlign: 'center' }}>
-        Setup Complete
+        You're all set!
       </div>
       <div style={{ font: '600 15px "Plus Jakarta Sans"', color: '#16C98A', marginBottom: 16, textAlign: 'center' }}>
-        MoneyPlant is ready.
+        Your MoneyPlant journey starts here.
       </div>
-      <div style={{ font: '400 14px "Plus Jakarta Sans"', color: '#8A8178', lineHeight: 1.7, textAlign: 'center', maxWidth: 280, marginBottom: 44 }}>
-        Your accounts, budget and preferences have been configured.
+      {/* True whether or not they set up every optional feature */}
+      <div style={{ font: '400 14px "Plus Jakarta Sans"', color: '#8A8178', lineHeight: 1.7, textAlign: 'center', maxWidth: 300, marginBottom: 44 }}>
+        Your finances, your way. Start tracking, understand your spending and make smarter money decisions.
       </div>
 
       <button
@@ -1082,9 +1123,10 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           border: 'none', borderRadius: 16,
           font: '700 15px "Plus Jakarta Sans"',
           cursor: 'pointer', letterSpacing: '-0.01em',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         }}
       >
-        Go to Dashboard
+        Explore My Dashboard <ArrowRight size={18} strokeWidth={2.5} />
       </button>
 
       <style>{`

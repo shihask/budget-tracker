@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import { CalendarDays, CalendarRange, Coins, Store, type LucideIcon } from 'lucide-react'
 import { SplashScreen } from './SplashScreen'
 import { FeatureOnboarding, type CardDraft } from './FeatureOnboarding'
 import { AmountOperatorRow } from './AmountOperatorRow'
@@ -34,7 +35,14 @@ const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
   { value: 'wallet', label: 'Wallet' },
 ]
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const INCOME_PATTERN_ICONS: Record<IncomePattern, LucideIcon> = {
+  monthly: CalendarDays,
+  weekly: CalendarRange,
+  variable: Coins,
+  business: Store,
+}
+
+const DAY_NAMES =['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 function BackArrow() {
   return (
@@ -204,6 +212,16 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
     color: MUTED, letterSpacing: '0.05em',
     textTransform: 'uppercase', marginBottom: 7, display: 'block',
   }
+  const helper: React.CSSProperties = {
+    font: '500 12px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.5,
+    marginTop: -3, marginBottom: 8,
+  }
+  const groupCard: React.CSSProperties = {
+    background: SURFACE, border: `1.5px solid ${BORDER}`, borderRadius: 16, padding: '14px 14px 16px',
+  }
+  const groupTitle: React.CSSProperties = {
+    font: '700 15px "Plus Jakarta Sans"', color: INK, marginBottom: 12,
+  }
   const backBtn: React.CSSProperties = {
     background: 'none', border: 'none', cursor: 'pointer',
     color: MUTED, padding: '8px 0',
@@ -269,40 +287,58 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
 
             <div style={{ marginBottom: 22 }}>
               <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
-                How do you usually receive income?
+                How do you earn money?
               </div>
               <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
-                This helps MoneyPlant tailor budgets and forecasts to your situation.
+                We'll use this to personalize your financial cycle and budget suggestions.
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
+            <div role="radiogroup" aria-label="How do you earn money?" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
               {INCOME_PATTERN_OPTIONS.map(opt => {
                 const selected = incomePattern === opt.value
+                const Icon = INCOME_PATTERN_ICONS[opt.value]
                 return (
                   <button
                     key={opt.value}
+                    role="radio"
+                    aria-checked={selected}
                     onClick={() => setIncomePattern(opt.value)}
                     style={{
                       width: '100%', textAlign: 'left',
+                      display: 'flex', alignItems: 'center', gap: 12,
                       background: selected ? 'rgba(22,201,138,0.08)' : SURFACE,
-                      border: `1.5px solid ${selected ? ACCENT : BORDER}`,
-                      borderRadius: 14, padding: '14px 16px',
+                      border: `${selected ? 2 : 1.5}px solid ${selected ? ACCENT : BORDER}`,
+                      // Keep the outer size fixed while the border thickens.
+                      padding: selected ? '13.5px 15.5px' : '14px 16px',
+                      borderRadius: 14,
+                      boxShadow: selected ? '0 4px 14px rgba(22,201,138,0.15)' : 'none',
                       cursor: 'pointer', transition: 'all 0.15s',
                     }}
                   >
                     <div style={{
-                      font: `${selected ? '700' : '600'} 14px "Plus Jakarta Sans"`,
-                      color: selected ? ACCENT : INK,
-                      marginBottom: 3,
+                      width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                      background: selected ? ACCENT : 'rgba(22,201,138,0.12)',
+                      color: selected ? '#fff' : '#0A7A56',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.15s',
                     }}>
-                      {opt.label}
+                      <Icon size={19} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: '700 14px "Plus Jakarta Sans"', color: INK, marginBottom: 2 }}>
+                        {opt.label}
+                      </div>
+                      <div style={{ font: '500 12px "Plus Jakarta Sans"', color: MUTED }}>
+                        {opt.description}
+                      </div>
                     </div>
                     <div style={{
-                      font: '500 12px "Plus Jakarta Sans"',
-                      color: MUTED,
+                      width: 20, height: 20, borderRadius: 10, flexShrink: 0, boxSizing: 'border-box',
+                      border: `2px solid ${selected ? ACCENT : '#C8C2BB'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      {opt.description}
+                      {selected && <div style={{ width: 10, height: 10, borderRadius: 5, background: ACCENT }} />}
                     </div>
                   </button>
                 )
@@ -327,7 +363,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
                 Where do you keep your money?
               </div>
               <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
-                Add your accounts. You can add more any time.
+                Add the bank accounts, cash or wallets you pay from. You can add more anytime.
               </div>
             </div>
 
@@ -364,6 +400,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
 
                 <div style={{ marginBottom: 10 }}>
                   <span style={fieldLabel}>Account Name</span>
+                  <div style={helper}>A name you'll recognise, like HDFC Savings, Cash or GPay.</div>
                   <input
                     type="search"
                     value={acc.name}
@@ -401,6 +438,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
 
                 <div>
                   <span style={fieldLabel}>Current Balance</span>
+                  <div style={helper}>Enter how much money you currently have in this account. You can update it anytime.</div>
                   <div style={{ position: 'relative' }}>
                     <span style={{
                       position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
@@ -429,6 +467,9 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
                   {focusedBalanceIndex === i && (
                     <AmountOperatorRow inputRef={{ current: balanceRefs.current[i] }} onChange={v => updateAccount(i, { balance: v })} />
                   )}
+                  <div style={{ ...helper, marginTop: 7, marginBottom: 0 }}>
+                    This is what's in the account today, not your monthly income. ₹0 is fine; you can start with nothing.
+                  </div>
                 </div>
               </div>
             ))}
@@ -470,15 +511,16 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
               <>
                 <div style={{ marginBottom: 26 }}>
                   <div style={{ font: '800 22px "Plus Jakarta Sans"', color: INK, letterSpacing: '-0.02em', marginBottom: 6 }}>
-                    When do you get paid?
+                    Tell us about your income
                   </div>
                   <div style={{ font: '500 13px "Plus Jakarta Sans"', color: MUTED, lineHeight: 1.55 }}>
-                    Helps with affordability planning and budget suggestions.
+                    Help MoneyPlant understand when money comes in and how much you earn.
                   </div>
                 </div>
 
-                <div style={{ marginBottom: 18 }}>
-                  <span style={fieldLabel}>Salary Credit Date</span>
+                <div style={{ ...groupCard, marginBottom: 12 }}>
+                  <div style={groupTitle}>When do you receive income?</div>
+                  <span style={fieldLabel}>Salary credit day</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <input
                       value={salaryDay}
@@ -496,7 +538,8 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
                   </div>
                 </div>
 
-                <div style={{ marginBottom: 28 }}>
+                <div style={{ ...groupCard, marginBottom: 12 }}>
+                  <div style={groupTitle}>How much do you usually receive?</div>
                   <span style={fieldLabel}>
                     Monthly Income{' '}
                     <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
@@ -535,6 +578,9 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
                       </div>
                     ) : null
                   })()}
+                </div>
+                <div style={{ ...helper, margin: '0 4px 28px' }}>
+                  Your income helps calculate your financial cycle and spending suggestions. You can skip the amount if you prefer.
                 </div>
               </>
             )}
