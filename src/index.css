@@ -996,7 +996,8 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   color: #9c938a;
   font-size: 11px;
   font-weight: 650;
@@ -1012,6 +1013,18 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   padding: 0;
   cursor: pointer;
   font: inherit;
+}
+
+.mp-footer__social {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #6f6258;
+  text-decoration: none;
+}
+
+.mp-footer__social:hover {
+  color: #0a7a56;
 }
 
 /* ── Auth Modal ──────────────────────────────────────────────────────────── */

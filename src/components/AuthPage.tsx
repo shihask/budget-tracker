@@ -61,6 +61,20 @@ type LegalPage = 'privacy' | 'terms' | 'about' | 'contact' | null
 
 const accent = '#16C98A'
 
+/** Same profile as index.html's structured-data `sameAs`. */
+const INSTAGRAM_URL = 'https://www.instagram.com/moneyplant.online'
+
+/** lucide-react ships no brand icons; drawn to match its 24px / 2px-stroke style. */
+function InstagramIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="2" width="20" height="20" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" />
+    </svg>
+  )
+}
+
 const inp: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
   background: '#F5F0EA', border: '1.5px solid #E5DDD5',
@@ -917,6 +931,10 @@ function LandingScreen({ onSignIn, onSignUp, onTryGuest, guestBusy, guestError, 
         <button onClick={() => onLegal('contact')}>Contact</button>
         <button onClick={() => onLegal('privacy')}>Privacy Policy</button>
         <button onClick={() => onLegal('terms')}>Terms of Service</button>
+        <a className="mp-footer__social" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="MoneyPlant on Instagram">
+          <InstagramIcon size={14} />
+          Instagram
+        </a>
       </footer>
     </div>
   )
