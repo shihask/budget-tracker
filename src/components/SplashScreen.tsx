@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Sparkles, Sprout } from 'lucide-react'
+import { ShieldCheck, Sparkles, Sprout } from 'lucide-react'
 import { MintAnimation } from './MintAnimation'
+import { PrivacyPolicy } from './LegalPages'
 
 const WORDS    = ['Know', 'Plan', 'Afford', 'Grow']
 const FORM_MS  = 1200
@@ -16,6 +17,7 @@ interface Props {
 export function SplashScreen({ onContinue, initialPhase = 1 }: Props) {
   const [wordIdx, setWordIdx] = useState(-1)
   const [phase, setPhase]     = useState<1 | 2 | 3>(initialPhase)
+  const [showPrivacy, setShowPrivacy] = useState(false)
 
   useEffect(() => {
     if (initialPhase !== 1) return
@@ -164,11 +166,40 @@ export function SplashScreen({ onContinue, initialPhase = 1 }: Props) {
             </div>
           </div>
 
+          {/* Trust note */}
+          <div style={{
+            marginTop: 22, width: '100%', maxWidth: 320, boxSizing: 'border-box',
+            background: 'rgba(22,201,138,0.09)', border: '1px solid rgba(22,201,138,0.22)',
+            borderRadius: 14, padding: '14px 16px', textAlign: 'center',
+            animation: 'mpFadeUp 0.45s 0.28s ease both',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              font: '700 14px Plus Jakarta Sans', color: '#1C1410',
+            }}>
+              <ShieldCheck size={17} color="#0A7A56" style={{ flexShrink: 0 }} />
+              Your money. Your data. Your privacy.
+            </div>
+            <div style={{ marginTop: 6, font: '500 12.5px Plus Jakarta Sans', color: '#5C544C', lineHeight: 1.55 }}>
+              Your financial information is private and protected. We don't sell your personal data.
+              You're in control of your information.
+            </div>
+            <button
+              onClick={e => { e.stopPropagation(); setShowPrivacy(true) }}
+              style={{
+                marginTop: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                font: '700 12px Plus Jakarta Sans', color: '#0A7A56',
+              }}
+            >
+              Read our Privacy Policy →
+            </button>
+          </div>
+
           {/* Continue button */}
           <button
             onClick={e => { e.stopPropagation(); onContinue() }}
             style={{
-              marginTop: 32,
+              marginTop: 20,
               width: '100%', maxWidth: 320,
               padding: '15px',
               background: '#16C98A', color: '#fff',
@@ -181,6 +212,15 @@ export function SplashScreen({ onContinue, initialPhase = 1 }: Props) {
           >
             Continue
           </button>
+        </div>
+      )}
+
+      {showPrivacy && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ position: 'fixed', inset: 0, zIndex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}
+        >
+          <PrivacyPolicy onBack={() => setShowPrivacy(false)} />
         </div>
       )}
 
