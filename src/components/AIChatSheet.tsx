@@ -2602,9 +2602,9 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
 
         {/* Input */}
         <div style={{
-          padding: `12px 14px ${keyboardH > 0 ? '12px' : 'calc(18px + env(safe-area-inset-bottom, 0px))'}`,
+          padding: `12px 12px ${keyboardH > 0 ? '12px' : 'calc(18px + env(safe-area-inset-bottom, 0px))'}`,
           borderTop: `1px solid ${c.faint}`,
-          display: 'flex', gap: 8, alignItems: 'center', background: c.surface,
+          display: 'flex', gap: 6, alignItems: 'center', background: c.surface,
         }}>
           <input
             ref={inputRef}
@@ -2615,7 +2615,7 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
             placeholder={chatListening ? 'Listening…' : 'Ask about your finances…'}
             enterKeyHint="send"
             style={{
-              flex: 1, border: `1.5px solid ${chatListening ? '#EF4444' : c.faint}`,
+              flex: 1, minWidth: 0, border: `1.5px solid ${chatListening ? '#EF4444' : c.faint}`,
               background: c.surface2, borderRadius: 22, padding: '11px 16px',
               font: '500 14px Plus Jakarta Sans', color: c.ink, outline: 'none',
               transition: 'border-color 0.2s',
