@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { CalendarDays, CalendarRange, Coins, Store, type LucideIcon } from 'lucide-react'
 import { SplashScreen } from './SplashScreen'
 import { FeatureOnboarding, type CardDraft } from './FeatureOnboarding'
@@ -67,6 +67,8 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
     { name: '', type: 'bank', balance: '' },
   ])
   const balanceRefs = useRef<Array<HTMLInputElement | null>>([])
+  const nameRefs = useRef<Array<HTMLInputElement | null>>([])
+  const focusNewAccount = useRef(false)
   const [focusedBalanceIndex, setFocusedBalanceIndex] = useState<number | null>(null)
 
   // Monthly fields
@@ -95,11 +97,25 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
   const [saving, setSaving] = useState(false)
 
   // Account helpers
-  const addAccount    = () => setAccounts(prev => [...prev, { name: '', type: 'bank', balance: '' }])
+  // Another account only once the newest one has a name, so there's never a stack of blank forms.
+  const canAddAccount = accounts.length === 0 || accounts[accounts.length - 1].name.trim() !== ''
+  const addAccount    = () => {
+    if (!canAddAccount) return
+    focusNewAccount.current = true
+    setAccounts(prev => [...prev, { name: '', type: 'bank', balance: '' }])
+  }
   const removeAccount = (i: number) => setAccounts(prev => prev.filter((_, j) => j !== i))
   const updateAccount = (i: number, patch: Partial<AccountDraft>) =>
     setAccounts(prev => prev.map((a, j) => j === i ? { ...a, ...patch } : a))
   const hasValidAccount = accounts.some(a => a.name.trim())
+
+  useEffect(() => {
+    if (!focusNewAccount.current) return
+    focusNewAccount.current = false
+    const input = nameRefs.current[accounts.length - 1]
+    input?.focus()
+    input?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [accounts.length])
 
   const finish = async (features: Record<FeatureKey, boolean>, cards: CardDraft[]) => {
     setSaving(true)
@@ -404,6 +420,7 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
                   <input
                     type="search"
                     value={acc.name}
+                    ref={el => { nameRefs.current[i] = el }}
                     onChange={e => updateAccount(i, { name: e.target.value })}
                     placeholder="e.g. HDFC Savings"
                     style={{ ...inp, WebkitAppearance: 'none' } as React.CSSProperties}
@@ -476,12 +493,14 @@ export function OnboardingFlow({ onAddAccount, onUpdateSettings, onAddCreditCard
 
             <button
               onClick={addAccount}
+              disabled={!canAddAccount}
               style={{
                 width: '100%', background: 'none',
                 border: `1.5px dashed ${BORDER}`, borderRadius: 14,
                 padding: '12px', marginBottom: 22,
                 font: '600 13px "Plus Jakarta Sans"', color: MUTED,
-                cursor: 'pointer',
+                cursor: canAddAccount ? 'pointer' : 'default',
+                opacity: canAddAccount ? 1 : 0.45,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
             >

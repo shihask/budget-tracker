@@ -859,10 +859,11 @@ function LendBorrowPage({ lend, borrow, onLend, onBorrow, onBoth }: {
   )
 }
 
-function CardFields({ card, onChange, showNameError }: {
+function CardFields({ card, onChange, showNameError, focusName }: {
   card: CardDraft
   onChange: (patch: Partial<CardDraft>) => void
   showNameError: boolean
+  focusName?: boolean
 }) {
   return (<>
     <CardField label="Bank / Card name">
@@ -871,6 +872,7 @@ function CardFields({ card, onChange, showNameError }: {
         onChange={e => onChange({ name: e.target.value })}
         placeholder="e.g. Axis Bank Visa"
         autoComplete="off"
+        autoFocus={focusName}
         style={fieldInput}
       />
     </CardField>
@@ -962,7 +964,12 @@ function CreditCardPage({ choice, onChoice, cards, onCard, onAddCard, onRemoveCa
                   </button>
                 </div>
               )}
-              <CardFields card={card} onChange={patch => onCard(i, patch)} showNameError={showErrors && cardDetailsWithoutName(card)} />
+              <CardFields
+                card={card} onChange={patch => onCard(i, patch)}
+                showNameError={showErrors && cardDetailsWithoutName(card)}
+                // Fires only when a card mounts, so only "Add another card" lands here, never the first card.
+                focusName={i > 0 && i === cards.length - 1}
+              />
             </div>
           ))}
 
