@@ -248,13 +248,16 @@ function MintHeroArt() {
   )
   return (
     <div aria-hidden style={{ position: 'relative', width: 132, height: 128, flexShrink: 0 }}>
-      <img
-        src="/mint-ai-logo.svg" alt="" width={76} height={76}
-        style={{
-          position: 'absolute', left: 30, top: 38, display: 'block',
-          borderRadius: 22, boxShadow: '0 10px 24px rgba(28,20,16,0.22)',
-        }}
-      />
+      <div style={{
+        position: 'absolute', left: 30, top: 38, width: 76, height: 76,
+        borderRadius: 24, background: 'linear-gradient(145deg, #FFFFFF 0%, #E3F4EC 100%)',
+        border: '1.5px solid rgba(22,201,138,0.3)',
+        boxShadow: '0 10px 24px rgba(10,122,86,0.18)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'foBounce 2.4s ease-in-out infinite',
+      }}>
+        <img src="/mint-thinking-loop.svg" alt="" width={64} height={64} style={{ display: 'block' }} />
+      </div>
       {bubble('Tea 20', { left: 0, top: 10 }, 0)}
       {bubble('Petrol 500', { right: 0, top: 0 }, 0.8)}
       {bubble('Groceries 1200', { right: -4, bottom: 6 }, 1.6)}
@@ -1314,8 +1317,15 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
           0%, 100% { translate: 0 0 }
           50%      { translate: 0 -4px }
         }
+        @keyframes foBounce {
+          0%, 100% { transform: translateY(0) scale(1) }
+          30%      { transform: translateY(-9px) scale(1.03) }
+          50%      { transform: translateY(0) scale(1) }
+          60%      { transform: translateY(-3px) }
+          70%      { transform: translateY(0) }
+        }
         @media (prefers-reduced-motion: reduce) {
-          [style*="foFloat"] { animation: none !important }
+          [style*="foFloat"], [style*="foBounce"] { animation: none !important }
         }
       `}</style>
     </div>

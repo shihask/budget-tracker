@@ -189,8 +189,9 @@ for every *toasted* suggestion, not only opened ones.
 `public/mint-thinking-loop.svg` (Mint's breathing leaf) means exactly "AI is running right now":
 in the toast label (held ≥ 0.8 s, `SUGGESTION_MIN_LEAF_MS`, so a fast answer doesn't flicker)
 and in the Review header while AI is still going. Otherwise the static `mint-ai-logo.svg`. Never
-a blocking loader, never decoration — with one deliberate exception: the header of the guest
-"Meet Mint AI" sheet (`GuestMintSheet`), an intro where no AI request can be pending. The toast's identity is `toastId` (the signal key), which
+a blocking loader, never decoration — with two deliberate exceptions: the header of the guest
+"Meet Mint AI" sheet (`GuestMintSheet`) and the onboarding Mint AI hero (`MintHeroArt`), intros
+where no AI request can be pending. The toast's identity is `toastId` (the signal key), which
 stays stable when the AI answer renames the suggestion — keying it on `txIds` restarts the toast.
 
 **Surfaces (v1.72):** a toast (`EventSuggestionToast`) slides down from the top once per
