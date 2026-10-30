@@ -31,12 +31,14 @@ interface BodyProps {
   description?: string
   onDescriptionChange?: (v: string) => void
   descriptionPlaceholder?: string
+  /** Secondary button text; defaults to "Cancel". */
+  cancelLabel?: string
 }
 
 export function QuickAmountBody({
   title, accounts, creditCards, accountId, onAccountChange,
   amount, onAmountChange, onSave, onCancel, saving = false, autoFocus = false, categoryNode,
-  description = '', onDescriptionChange, descriptionPlaceholder,
+  description = '', onDescriptionChange, descriptionPlaceholder, cancelLabel = 'Cancel',
 }: BodyProps) {
   const c = useTheme()
   const amountRef = useRef<HTMLInputElement>(null)
@@ -109,7 +111,7 @@ export function QuickAmountBody({
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={onCancel}
           style={{ flex: 1, background: c.surface2, color: c.muted, border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>
-          Cancel
+          {cancelLabel}
         </button>
         <button type="button" onClick={onSave} disabled={!valid || saving}
           style={{ flex: 2, background: c.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px', font: '700 13px Plus Jakarta Sans', cursor: valid ? 'pointer' : 'default', opacity: (!valid || saving) ? 0.6 : 1 }}>

@@ -116,7 +116,7 @@ function getExpectedCycleDays(pattern: IncomePattern): number {
   return pattern === 'weekly' ? 7 : 30
 }
 
-function getClusterWindow(pattern: IncomePattern): number {
+export function getClusterWindow(pattern: IncomePattern): number {
   return pattern === 'weekly' ? 3 : 15
 }
 
@@ -204,7 +204,7 @@ function isScheduleGuardActive(pattern: IncomePattern, settings: AppState['setti
   return false // variable / business: fully untouched
 }
 
-function getEarlyPaydayTolerance(pattern: IncomePattern): number {
+export function getEarlyPaydayTolerance(pattern: IncomePattern): number {
   // Never exceed the late/cluster window — keeps the two thresholds from drifting
   // apart if getClusterWindow() is ever retuned.
   return Math.min(getClusterWindow(pattern), 5)
