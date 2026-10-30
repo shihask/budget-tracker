@@ -87,6 +87,8 @@ import { useAaLinkedAccounts } from '@/features/aa-sync/hooks/useAaLinkedAccount
 import { useSyncPromotion } from '@/features/aa-sync/hooks/useSyncPromotion'
 import { DailyReflectionSheet } from '@/components/DailyReflectionSheet'
 import { PostIncomeSheet } from '@/components/PostIncomeSheet'
+import { SalaryPromptSheet } from '@/components/SalaryPromptSheet'
+import { pendingSalaryPayday, isSalaryPromptSnoozed, snoozeSalaryPrompt } from '@/lib/salary-prompt'
 import { GuidedTour } from '@/components/GuidedTour'
 import { ProjectsDashboardCard } from '@/features/shared-projects/components/ProjectsDashboardCard'
 import { EventsCard } from '@/features/events/components/EventsCard'
@@ -121,6 +123,7 @@ import { createActivationWatcher, trackStep } from '@/lib/funnel'
 import { isGuest, guestSetupPendingKey, guestSavedOnKey, guestSavedReturnKey, guestSavePromptedKey, isLaterDay } from '@/lib/guest'
 import { GuestQuickStart } from '@/components/GuestQuickStart'
 import { GuestSaveSheet } from '@/components/GuestSaveSheet'
+import { GuestMintSheet } from '@/components/GuestMintSheet'
 import { HOUSEHOLD_ENABLED } from '@/features/household/lib/flag'
 import { readPendingInvite, clearPendingInvite } from '@/features/household/lib/invite'
 import { HouseholdPage } from '@/features/household/components/HouseholdPage'
@@ -213,6 +216,8 @@ const SUGGESTION_MIN_LEAF_MS = 800
 const SHEET_CLOSE_MS = 350
 // first_expense counts only for accounts this young: activation, not an old account's first entry
 const FIRST_EXPENSE_WINDOW_DAYS = 7
+// A beat after the dashboard settles, so the salary question doesn't read as load noise.
+const SALARY_PROMPT_DELAY_MS = 800
 
 // ── AppContent: all hooks live here, no early returns before them ─────────────
 function AppContent({ session }: { session: Session }) {
@@ -248,6 +253,8 @@ function AppContent({ session }: { session: Session }) {
   // prefilled with what it still owes.
   const [sheetReimbursement, setSheetReimbursement] = useState<{ targetId: string; remaining: number } | undefined>()
   const [postIncomeAmount, setPostIncomeAmount] = useState<number | null>(null)
+  // The payday the "Has your salary come in?" sheet is open for; null = closed.
+  const [salaryPromptFor, setSalaryPromptFor] = useState<Date | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
   const [aiProcessing, setAiProcessing] = useState(false)
@@ -717,7 +724,22 @@ function AppContent({ session }: { session: Session }) {
     !!linkExpensesForId || notificationsOpen || createMenuOpen || commitmentsOpen || borrowingOpen || savingsOpen ||
     creditCardsOpen || catsOpen || mastersOpen || analyticsOpen || cashflowOpen || projectsOpen || householdOpen || growOpen ||
     achievementsOpen || habitsOpen || reflectionOpen || aaSyncOpen || importStatementOpen || tourOpen || adminOpen ||
-    layoutOpen || budgetEditOpen || emergencyEditOpen || suggestionReviewOpen || !!challengeWin
+    layoutOpen || budgetEditOpen || emergencyEditOpen || suggestionReviewOpen || !!challengeWin || !!salaryPromptFor
+
+  // Payday and the days after it: ask whether the salary has come in, on a clear
+  // dashboard, until one is recorded. "Not yet received" hides it until tomorrow.
+  const pendingPayday = useMemo(() => (loading ? null : pendingSalaryPayday(state)), [loading, state])
+  const pendingPaydayKey = pendingPayday ? iso(pendingPayday) : null
+  useEffect(() => {
+    if (!pendingPaydayKey || overlayOpen || showOnboardingFlow || guestQuickStartShowing || pendingScreen) return
+    if (isSalaryPromptSnoozed(session.user.id)) return
+    const t = window.setTimeout(() => setSalaryPromptFor(pendingPayday), SALARY_PROMPT_DELAY_MS)
+    return () => window.clearTimeout(t)
+  }, [pendingPaydayKey, overlayOpen, showOnboardingFlow, guestQuickStartShowing, pendingScreen]) // eslint-disable-line react-hooks/exhaustive-deps
+  const dismissSalaryPrompt = () => {
+    snoozeSalaryPrompt(session.user.id)
+    setSalaryPromptFor(null)
+  }
   // toastId stays the same when the AI answer arrives and renames the suggestion,
   // so the toast updates in place instead of restarting.
   const toastKey = eventSuggestion.shouldToast ? eventSuggestion.toastId : null
@@ -1199,6 +1221,14 @@ function AppContent({ session }: { session: Session }) {
             onClose={() => setPostIncomeAmount(null)}
             amount={postIncomeAmount ?? 0}
             budgetStrategySettings={state.budget_strategy_settings}
+          />
+
+          <SalaryPromptSheet
+            payday={salaryPromptFor}
+            state={state}
+            onSave={async form => { await handleSave(form); setSalaryPromptFor(null) }}
+            onNotYet={dismissSalaryPrompt}
+            onAddCategory={addCategory}
           />
 
           {/* Quick Add Sheet */}
@@ -1878,27 +1908,7 @@ function AppContent({ session }: { session: Session }) {
               </button>
             </div>
           </BottomSheet>
-          <BottomSheet open={guestMintOpen} onClose={() => setGuestMintOpen(false)} showHelpButton={false} zIndex={205}>
-            <div style={{ padding: '0 4px 16px' }}>
-              <img src="/mint-ai-logo.svg" width="40" height="40" alt="Mint AI" style={{ display: 'block', borderRadius: 11, marginBottom: 12 }} />
-              <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>Meet Mint, your money assistant</div>
-              <div style={{ font: '600 13px Plus Jakarta Sans', color: c.sub, lineHeight: 1.55, marginBottom: 16 }}>
-                Mint sorts what you type into the right category and answers questions like "how much did I spend on food this month?" Save your account to turn it on. Your entries stay as they are.
-              </div>
-              <button
-                onClick={() => { setGuestMintOpen(false); setGuestSaveOpen(true) }}
-                style={{ width: '100%', border: 'none', borderRadius: 12, padding: 13, background: c.accent, color: '#fff', font: '700 14px Plus Jakarta Sans', cursor: 'pointer' }}
-              >
-                Save account
-              </button>
-              <button
-                onClick={() => setGuestMintOpen(false)}
-                style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: c.muted, font: '600 13px Plus Jakarta Sans', cursor: 'pointer' }}
-              >
-                Not now
-              </button>
-            </div>
-          </BottomSheet>
+          <GuestMintSheet open={guestMintOpen} onClose={() => setGuestMintOpen(false)} onSave={() => { setGuestMintOpen(false); setGuestSaveOpen(true) }} />
           <GuestSaveSheet open={guestSaveOpen} userId={user.id} onClose={() => setGuestSaveOpen(false)} onSignInInstead={leaveGuestToSignIn} />
         </>)}
         {dialogNode}
