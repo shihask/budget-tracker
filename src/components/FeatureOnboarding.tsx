@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
   Tags, Tag, MessageCircle, Search, PenLine, Wallet, FileText, Plane, TrendingUp,
-  Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, CreditCard, WalletCards, ChevronDown, Plus, type LucideIcon,
+  Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, CreditCard, WalletCards, ChevronDown, Plus,
+  HandCoins, Users, Info, type LucideIcon,
 } from 'lucide-react'
 import { keywordCategoryName } from '@/lib/categorize'
 import { sanitizeAmountInput } from '@/lib/amountExpression'
@@ -536,12 +537,33 @@ function DaySelect({ value, onChange }: { value: string; onChange: (v: string) =
   )
 }
 
-function CardChoiceRow({ selected, onClick, Icon, title, detail }: {
-  selected: boolean; onClick: () => void; Icon: LucideIcon; title: string; detail: string
+/** Icon, title and lines that open the Credit Card and Lend & Borrow pages. */
+function PageHeader({ Icon, title, tagline, taglineAccent = false, description }: {
+  Icon: LucideIcon; title: string; tagline: string; taglineAccent?: boolean; description: string
+}) {
+  return (
+    <div style={{ textAlign: 'center', padding: '4px 8px 18px', borderBottom: '1px solid #E0D9D0', marginBottom: 18 }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: 18, margin: '0 auto 14px',
+        background: 'rgba(22,201,138,0.12)', color: deepGreen,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Icon size={26} />
+      </div>
+      <div style={{ font: '800 24px "Plus Jakarta Sans"', color: ink, letterSpacing: '-0.025em' }}>{title}</div>
+      <div style={{ font: '600 14px "Plus Jakarta Sans"', color: taglineAccent ? '#0FAF75' : '#5C534B', marginTop: 6 }}>{tagline}</div>
+      <div style={{ font: '400 13px "Plus Jakarta Sans"', color: muted, lineHeight: 1.55, marginTop: 6 }}>{description}</div>
+    </div>
+  )
+}
+
+/** One answer row. `radio` = pick one (dot); `check` = choose all that apply (tick). */
+function ChoiceRow({ selected, onClick, Icon, title, detail, kind = 'radio' }: {
+  selected: boolean; onClick: () => void; Icon: LucideIcon; title: string; detail: string; kind?: 'radio' | 'check'
 }) {
   return (
     <button
-      role="radio"
+      role={kind === 'radio' ? 'radio' : 'checkbox'}
       aria-checked={selected}
       onClick={onClick}
       style={{
@@ -562,9 +584,51 @@ function CardChoiceRow({ selected, onClick, Icon, title, detail }: {
         border: `2px solid ${selected ? '#16C98A' : '#C8C2BB'}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        {selected && <div style={{ width: 10, height: 10, borderRadius: 5, background: '#16C98A' }} />}
+        {selected && (kind === 'radio'
+          ? <div style={{ width: 10, height: 10, borderRadius: 5, background: '#16C98A' }} />
+          : <Check size={12} strokeWidth={3.5} style={{ color: '#16C98A' }} />)}
       </div>
     </button>
+  )
+}
+
+function LendBorrowPage({ lend, borrow, onLend, onBorrow, onBoth }: {
+  lend: boolean; borrow: boolean
+  onLend: () => void; onBorrow: () => void; onBoth: () => void
+}) {
+  return (
+    <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
+      <PageHeader
+        Icon={HandCoins} title="Lend & Borrow"
+        tagline="Keep track of every rupee." taglineAccent
+        description="Money lent to friends? Borrowed from family? Keep everything organized."
+      />
+
+      <div role="group" aria-label="What describes you?">
+        <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink }}>What describes you?</div>
+        <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, marginTop: 2, marginBottom: 12 }}>Choose all that apply.</div>
+        <ChoiceRow kind="check" selected={lend} onClick={onLend}
+          Icon={HandCoins} title="I lend money" detail="Track money others owe me" />
+        <ChoiceRow kind="check" selected={borrow} onClick={onBorrow}
+          Icon={Wallet} title="I borrow money" detail="Track money I owe others" />
+        <ChoiceRow kind="check" selected={lend && borrow} onClick={onBoth}
+          Icon={Users} title="Both" detail="I lend and borrow money" />
+      </div>
+
+      <div style={{
+        marginTop: 6, display: 'flex', gap: 10, alignItems: 'flex-start',
+        background: 'rgba(22,201,138,0.07)', border: '1px solid rgba(22,201,138,0.25)',
+        borderRadius: 16, padding: '12px 14px',
+      }}>
+        <Info size={17} style={{ color: deepGreen, flexShrink: 0, marginTop: 1 }} />
+        <div>
+          <div style={{ font: '700 14px "Plus Jakarta Sans"', color: ink }}>You can add details later</div>
+          <div style={{ font: '400 12px "Plus Jakarta Sans"', color: muted, lineHeight: 1.5, marginTop: 2 }}>
+            No need to enter amounts or people's names now. You can start tracking whenever you need.
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -621,28 +685,19 @@ function CreditCardPage({ choice, onChoice, cards, onCard, onAddCard, onRemoveCa
   const canAddCard = !!cards[cards.length - 1]?.name.trim()
   return (
     <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
-      <div style={{ textAlign: 'center', padding: '4px 8px 18px', borderBottom: '1px solid #E0D9D0', marginBottom: 18 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: 18, margin: '0 auto 14px',
-          background: 'rgba(22,201,138,0.12)', color: deepGreen,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <CreditCard size={26} />
-        </div>
-        <div style={{ font: '800 24px "Plus Jakarta Sans"', color: ink, letterSpacing: '-0.025em' }}>Credit Card Tracking</div>
-        <div style={{ font: '600 14px "Plus Jakarta Sans"', color: '#5C534B', marginTop: 6 }}>Stay on top of what you owe.</div>
-        <div style={{ font: '400 13px "Plus Jakarta Sans"', color: muted, lineHeight: 1.55, marginTop: 6 }}>
-          Track credit card spending separately and never lose sight of upcoming payments.
-        </div>
-      </div>
+      <PageHeader
+        Icon={CreditCard} title="Credit Card Tracking"
+        tagline="Stay on top of what you owe."
+        description="Track credit card spending separately and never lose sight of upcoming payments."
+      />
 
       <div role="radiogroup" aria-label="Do you have a credit card?">
         <div style={{ font: '700 16px "Plus Jakarta Sans"', color: ink, marginBottom: 12 }}>Do you have a credit card?</div>
-        <CardChoiceRow
+        <ChoiceRow
           selected={choice === 'yes'} onClick={() => onChoice('yes')}
           Icon={CreditCard} title="Yes, I have a credit card" detail="I want to track my card spending."
         />
-        <CardChoiceRow
+        <ChoiceRow
           selected={choice === 'no'} onClick={() => onChoice('no')}
           Icon={WalletCards} title="No, not yet" detail="I'll add one if I get a card later."
         />
@@ -742,7 +797,17 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
   const [cards, setCards] = useState<CardDraft[]>([EMPTY_CARD])
   const [showCardErrors, setShowCardErrors] = useState(false)
   const isCardPage = cur.key === 'track_credit_cards'
-  const customPage = cur.featured || isCardPage
+
+  // Lend & Borrow: two independent answers feeding the one track_borrowings setting —
+  // on if either is picked, off if neither. Which side isn't stored.
+  const [lends, setLends] = useState(false)
+  const [borrows, setBorrows] = useState(false)
+  const isLendPage = cur.key === 'track_borrowings'
+  const customPage = cur.featured || isCardPage || isLendPage
+  const setLendBorrow = (lend: boolean, borrow: boolean) => {
+    setLends(lend); setBorrows(borrow)
+    setEnabled(prev => ({ ...prev, track_borrowings: lend || borrow }))
+  }
 
   const handleBack = () => page === 0 ? onBack() : setPage(p => p - 1)
   const handleNext = () => {
@@ -868,13 +933,20 @@ export function FeatureOnboarding({ onComplete, onBack }: Props) {
         style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: customPage ? 'flex-start' : 'center',
-          padding: cur.featured ? '16px 16px 16px' : isCardPage ? '16px 20px 16px' : '0 32px 16px',
+          padding: cur.featured ? '16px 16px 16px' : customPage ? '16px 20px 16px' : '0 32px 16px',
           textAlign: 'center',
           overflowY: 'auto', overscrollBehavior: 'contain',
           animation: 'foFadeUp 0.32s ease both',
         }}
       >
-        {cur.featured ? <MintAIPage /> : isCardPage ? (
+        {cur.featured ? <MintAIPage /> : isLendPage ? (
+          <LendBorrowPage
+            lend={lends} borrow={borrows}
+            onLend={() => setLendBorrow(!lends, borrows)}
+            onBorrow={() => setLendBorrow(lends, !borrows)}
+            onBoth={() => setLendBorrow(!(lends && borrows), !(lends && borrows))}
+          />
+        ) : isCardPage ? (
           <CreditCardPage
             choice={cardChoice}
             onChoice={chooseCard}
