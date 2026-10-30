@@ -618,6 +618,7 @@ function CreditCardPage({ choice, onChoice, cards, onCard, onAddCard, onRemoveCa
   onRemoveCard: (index: number) => void
   showErrors: boolean
 }) {
+  const canAddCard = !!cards[cards.length - 1]?.name.trim()
   return (
     <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
       <div style={{ textAlign: 'center', padding: '4px 8px 18px', borderBottom: '1px solid #E0D9D0', marginBottom: 18 }}>
@@ -679,13 +680,16 @@ function CreditCardPage({ choice, onChoice, cards, onCard, onAddCard, onRemoveCa
             </div>
           ))}
 
+          {/* Only after the newest card has a name — a name is what makes it a card, so no stacking empty forms */}
           <button
             onClick={onAddCard}
+            disabled={!canAddCard}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              background: 'none', border: '1.5px dashed #C8C2BB', borderRadius: 14,
-              padding: '12px', marginBottom: 12, cursor: 'pointer',
-              font: '700 14px "Plus Jakarta Sans"', color: deepGreen,
+              background: 'none', border: `1.5px dashed ${canAddCard ? '#C8C2BB' : '#DDD6CD'}`, borderRadius: 14,
+              padding: '12px', marginBottom: 12, cursor: canAddCard ? 'pointer' : 'default',
+              font: '700 14px "Plus Jakarta Sans"', color: canAddCard ? deepGreen : '#B0A9A1',
+              transition: 'color 0.2s, border-color 0.2s',
             }}
           >
             <Plus size={16} strokeWidth={2.5} /> Add another card
