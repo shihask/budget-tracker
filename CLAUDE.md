@@ -56,6 +56,27 @@ Two independent budgeting systems coexist:
 - Group name "Other" → uses `category.budget_bucket` from DB (user-defined)
 - System groups (income, transfer, borrowing, adjustment) → null (excluded)
 
+### What counts in Budget Strategy actuals
+`computeStrategyData` reads **posted transactions only** — never `state.commitments`. Pinned by
+`src/lib/__tests__/budget-strategy.test.ts`.
+
+| Row | Bucket |
+|---|---|
+| Card purchase (`expense` with `credit_card_id`) | Its category's bucket, on the purchase date |
+| `credit_card_payment` (card bill) | Excluded — the purchases already counted |
+| `borrowing` (borrowed or lent) | Excluded — not income, not spending |
+| `borrowing_repayment`, `is_credit = false` (you repay) | `category.budget_bucket ?? 'needs'` |
+| `borrowing_repayment`, `is_credit = true` (repaid to you) | Excluded |
+| `commitment` row (Mark Paid with an expense) | Its category's bucket. A commitment with no posted row adds nothing |
+| `opening_balance`, `balance_adjustment`, `cc_*`, `transfer` | Excluded |
+
+- EMI vs extra principal is **not distinguishable**: `Borrowing` has no EMI field and repayment
+  rows carry no flag, so every repayment is Needs. A future `repayment_kind` would need a picker in
+  BorrowingPage and must change `computeStrategyData` and Kakeibo's `classifyCycleRows` together
+  (parity test).
+- A row with no category is skipped before any rule runs, so an uncategorized repayment counts
+  nowhere (in Kakeibo: "Needs review"). Real repayments always carry `Borrow Repayment`.
+
 ### Table: `budget_strategy_settings` (separate from `settings`)
 | Column | Type | Default |
 |--------|------|---------|
