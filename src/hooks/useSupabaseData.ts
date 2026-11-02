@@ -965,8 +965,11 @@ export function useSupabaseData(userId: string) {
 
       const oldCcId = old.credit_card_id ?? null
       const oldCcDelta = oldCcId ? -cardDelta(old.transaction_type, old.amount) : null
-      const newIsCC = stateRef.current.credit_cards.some(c => c.id === form.from_account_id)
-      const newCcId = newIsCC ? form.from_account_id! : null
+      // A bill payment's from_account_id is the bank; its card lives only in
+      // credit_card_id, so it must be carried over or the edit unlinks the card.
+      const isCardPayment = form.transaction_type === 'credit_card_payment'
+      const newIsCC = !isCardPayment && stateRef.current.credit_cards.some(c => c.id === form.from_account_id)
+      const newCcId = isCardPayment ? oldCcId : newIsCC ? form.from_account_id! : null
       const newCcDelta = newCcId ? cardDelta(form.transaction_type, form.amount) : null
 
       const { data, error } = await supabase.rpc('mp_update_transaction', {

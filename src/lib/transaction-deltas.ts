@@ -13,9 +13,11 @@ export const delta = (type: TransactionType, amount: number) => {
 
 /** Signed effect of a transaction on a credit card's outstanding. A card carries
  *  debt, so this mirrors `delta`: spending raises what is owed, and money arriving
- *  on the card (a merchant refund, recorded as a reimbursement) lowers it. Create,
- *  edit and delete all go through this — never a bare amount. */
-export const cardDelta = (type: TransactionType, amount: number) => -delta(type, amount)
+ *  on the card (a merchant refund, recorded as a reimbursement) lowers it. A bill
+ *  payment debits the bank (`delta`) AND lowers the card — the one type where both
+ *  sides fall. Create, edit and delete all go through this — never a bare amount. */
+export const cardDelta = (type: TransactionType, amount: number) =>
+  type === 'credit_card_payment' ? -amount : -delta(type, amount)
 
 /** Which rows a new transaction moves, and by how much. This is the ONE model
  *  shared by the live save (mp_execute_transaction's p_*_delta args, the local
