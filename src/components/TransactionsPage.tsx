@@ -17,7 +17,8 @@ import { BottomSheet, HelpText } from './BottomSheet'
 import { ReceiptField } from './ReceiptField'
 import { MoreOptions } from './MoreOptions'
 import { ExportTransactionsSheet } from './ExportTransactionsSheet'
-import { CloudOff, Receipt, User, Users, X } from 'lucide-react'
+import { CloudOff, Link2, Lock, Receipt, User, Users, X } from 'lucide-react'
+import { isCardToBankTransfer, isCardTransferLeg, cardTransferParts } from '@/lib/card-transfer'
 import { useSharedTransactions } from '@/features/household/hooks/useSharedTransactions'
 import { ShareTransactionSheet, type ShareableTransaction } from '@/features/household/components/ShareTransactionSheet'
 import { canShareRecorded, type HouseholdShareContext } from '@/features/household/lib/share'
@@ -178,6 +179,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const [showSystemTxns, setShowSystemTxns] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  // Set while editing either leg of a credit-card-to-bank transfer: the money
+  // fields lock and the sheet shows the pair (src/lib/card-transfer.ts).
+  const cardParts = editingTx && isCardTransferLeg(editingTx) ? cardTransferParts(editingTx, state.transactions) : null
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [pendingReceipt, setPendingReceipt] = useState<PickedReceipt | null>(null)
   const [removeReceiptFlag, setRemoveReceiptFlag] = useState(false)
@@ -334,6 +338,20 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
   const reimburseOverBy = reimburseTargetId ? Math.max(0, round2(reimburseAmount - reimburseRemaining)) : 0
 
   const handleDelete = async (t: Transaction) => {
+    // Either leg of a credit-card-to-bank transfer deletes both (onDelete routes to
+    // mp_delete_card_to_bank), so the confirmation names both amounts. A leg can
+    // be outside the loaded window; then it is named without an amount.
+    const pair = cardTransferParts(t, state.transactions)
+    if (pair) {
+      const transferPart = pair.transfer ? `Credit card transfer ${fmt(pair.transfer.amount)}` : 'The linked credit card transfer'
+      const feePart = pair.fee ? ` · Processing fee ${fmt(pair.fee.amount)}` : ''
+      const outcome = pair.fee || t.fee_for ? 'Both transactions will be deleted' : 'It will be deleted'
+      if (!await confirm(`Delete this transfer? ${transferPart}${feePart}. ${outcome} and the affected balances restored.`)) return
+      setDeleting(t.id)
+      try { await onDelete(t) } catch (err) { console.error('Failed to delete card transfer:', err) }
+      setDeleting(null)
+      return
+    }
     // Deleting a reimbursed expense doesn't delete the money that came back — the
     // FK is ON DELETE SET NULL — but it does turn it into ordinary income, which
     // moves the user's income figure. Name that before it happens.
@@ -849,8 +867,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
               const creditCard = !acc ? (state.credit_cards || []).find(cc => cc.id === t.from_account_id || cc.id === (t as any).credit_card_id) : null
               const toAcc = (t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal') && t.to_account_id ? state.accounts.find(a => a.id === t.to_account_id) : null
               const displayAcc = t.transaction_type === 'savings_withdrawal' ? toAcc : acc
+              const cardToBank = isCardToBankTransfer(t)
               const accLabel = collapsedSplit ? '' : (t.transaction_type === 'transfer' && toAcc
-                ? `${acc?.name || '?'} → ${toAcc.name}`
+                ? `${acc?.name || creditCard?.name || '?'} → ${toAcc.name}`
                 : displayAcc ? displayAcc.name : acc ? acc.name : creditCard ? creditCard.name : '')
               const accIdx = acc ? state.accounts.findIndex(a => a.id === acc.id) : -1
               const accColor = acc ? ACCOUNT_PALETTE[Math.max(0, accIdx) % ACCOUNT_PALETTE.length] : creditCard ? '#6366F1' : c.muted
@@ -924,6 +943,13 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                         )}
                         {t.reimbursement_for && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, background: c.accentSoft, borderRadius: 999, padding: '2px 7px' }}>Reimbursement</span>
+                        )}
+                        {/* The two legs of one credit-card-to-bank transfer share this
+                            mark; tapping either opens the breakdown in the edit sheet. */}
+                        {(cardToBank || t.fee_for) && (
+                          <span style={{ font: '600 10px Plus Jakarta Sans', color: '#6366F1', background: 'rgba(99,102,241,0.1)', borderRadius: 999, padding: '2px 7px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                            <Link2 size={10} strokeWidth={2.5} /> {cardToBank ? 'Credit Card to Bank' : 'Transfer fee'}
+                          </span>
                         )}
                         {t.pending_sync && (
                           <span style={{ font: '600 10px Plus Jakarta Sans', color: c.warn, background: c.warnSoft, borderRadius: 999, padding: '2px 7px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
@@ -1054,6 +1080,30 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       <BottomSheet open={!!(editingTx && editForm)} onClose={closeEdit} maxHeight="88svh" zIndex={300}>
             <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16, letterSpacing: '-0.02em' }}>Edit Transaction</div>
 
+            {/* A credit-card-to-bank leg: the breakdown, and why the money fields are
+                locked (the database refuses those changes too). */}
+            {editingTx && cardParts && (
+              <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 12, padding: '10px 12px', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: '700 12px Plus Jakarta Sans', color: '#6366F1', marginBottom: 6 }}>
+                  <Link2 size={13} strokeWidth={2.5} /> Credit card to bank transfer
+                </div>
+                <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6 }}>
+                  {cardParts.transfer && <div>Transferred to bank: {fmt(cardParts.transfer.amount)}</div>}
+                  {cardParts.fee && <div>Processing fee: {fmt(cardParts.fee.amount)}</div>}
+                  {cardParts.transfer && <div style={{ fontWeight: 800 }}>Card charge: {fmt(cardParts.total)}</div>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 6, lineHeight: 1.45 }}>
+                  <Lock size={11} style={{ flexShrink: 0, marginTop: 2 }} /> Amount, accounts and date are locked. Delete the transfer and record it again to change them.
+                </div>
+                <button
+                  onClick={async () => { const t = editingTx; closeEdit(); await handleDelete(t) }}
+                  style={{ marginTop: 8, background: '#FEE2E2', color: '#EF4444', border: 'none', borderRadius: 10, padding: '8px 12px', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
+                >
+                  Delete transfer
+                </button>
+              </div>
+            )}
+
             {editForm && <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -1078,6 +1128,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     className={editAmountSelectAll ? 'amt-selectall' : undefined}
                     type="text"
                     inputMode="decimal"
+                    disabled={!!cardParts}
                     value={editForm.amount}
                     onChange={e => {
                       setEditAmountSelectAll(false)
@@ -1106,7 +1157,7 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       // No caret while the pill is up — a select-all doesn't show one,
                       // and the engine may have parked it at 0, on top of the digits.
                       ? { ...inp, color: 'transparent', WebkitTextFillColor: 'transparent', caretColor: 'transparent' }
-                      : inp}
+                      : cardParts ? { ...inp, opacity: 0.5, cursor: 'not-allowed' } : inp}
                     placeholder="0"
                   />
                   {editAmountSelectAll && editForm.amount !== '' && (
@@ -1138,8 +1189,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                   <input
                     type="date"
                     value={editForm.transaction_date}
+                    disabled={!!cardParts}
                     onChange={e => setEditForm(f => f ? { ...f, transaction_date: e.target.value } : f)}
-                    style={inp}
+                    style={cardParts ? { ...inp, opacity: 0.5, cursor: 'not-allowed' } : inp}
                   />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1193,6 +1245,12 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                 <div style={{ flex: 1 }}>
                   <Label>{editForm.transaction_type === 'transfer' || editForm.transaction_type === 'savings_contribution' ? 'From' : editForm.transaction_type === 'savings_withdrawal' ? 'To Account' : 'Account'}</Label>
                   <HelpText>Which account was debited or credited.</HelpText>
+                  {cardParts ? (
+                    <div style={{ ...inp, opacity: 0.5, cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>{(state.credit_cards || []).find(cc => cc.id === editForm.from_account_id)?.name || accounts.find(a => a.id === editForm.from_account_id)?.name || 'Credit card'}</span>
+                      <Lock size={11} />
+                    </div>
+                  ) : (
                   <select
                     value={editForm.from_account_id}
                     onChange={e => setEditForm(f => f ? { ...f, from_account_id: e.target.value } : f)}
@@ -1209,14 +1267,16 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                       </optgroup>
                     )}
                   </select>
+                  )}
                 </div>
                 {(editForm.transaction_type === 'transfer') && (
                   <div style={{ flex: 1 }}>
                     <Label>To</Label>
                     <select
                       value={editForm.to_account_id}
+                      disabled={!!cardParts}
                       onChange={e => setEditForm(f => f ? { ...f, to_account_id: e.target.value } : f)}
-                      style={inp}
+                      style={cardParts ? { ...inp, opacity: 0.5, cursor: 'not-allowed' } : inp}
                     >
                       <option value="">No account</option>
                       <optgroup label="Bank / Cash">

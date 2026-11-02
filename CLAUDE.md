@@ -367,6 +367,62 @@ per-account breakdown still balances.
 - The two Edge Functions (`push-evening-recap`, `ai-categorize`) re-implement this math
   server-side and each carry their own copy of the netting.
 
+## Credit Card → Bank Transfer (cash advance via a rent / tuition gateway)
+₹5,000 moved card → bank with a ₹126.05 gateway fee is **two ordinary rows**: a `transfer`
+(`credit_card_id` = card, `to_account_id` = bank, 5,000 — borrowed, never income or spend) and an
+`expense` on the card (126.05, `fee_for` = the transfer — a genuine expense). The card is charged
+the sum; totals are always derived. Entry point: the Credit Cards tile's secondary
+Transfer-to-Bank button (`ArrowRightLeft`) — **never Quick Add**, whose Transfer stays bank-to-bank.
+
+| File | Purpose |
+|---|---|
+| `src/lib/card-transfer.ts` | The one definition: `isCardToBankTransfer`, `cardTransferParts`, `validateCardTransfer`, `unbilledCardAdvance` (the reserve), `feeCategoryPlacement` |
+| `src/features/credit-cards/components/CardTransferSheet.tsx` | Form → Confirm; mounted by `useCreditCardSheets` (`transferAction(card)`), keyed per opening |
+| `supabase/migrations/20261102000001_card_to_bank_transfer.sql` | `fee_for`, three triggers, `mp_execute_card_to_bank`, `mp_delete_card_to_bank`. **Apply by hand in the SQL editor** |
+| `supabase/tests/card_to_bank.sql` | Rolled-back verification. **Non-production DB only** |
+
+- **Atomic + idempotent.** `mp_execute_card_to_bank` (INVOKER) runs the existing
+  `mp_execute_transaction` twice with client ids (generated once per sheet opening), then links the
+  fee. Any failure rolls back both; a same-id retry moves nothing; a changed retry — including a fee
+  added or dropped — is `PT409`. Online only, never queued.
+- **The pair is locked and deleted together, enforced in the database.** `fee_for` is
+  `NO ACTION` (CASCADE would delete the fee without reversing its card delta; SET NULL would orphan
+  it) + unique. Triggers: the link can only be written, and a linked leg only deleted, while the
+  transaction-local flag `mp.card_pair` is on (only the two RPCs set it); amount / type / date /
+  accounts / card are immutable on every card transfer and every fee. Account deletion and the
+  guest purge still work (owner's `auth.users` row gone — the Household test). The client mirrors
+  the lock in `updateTransaction` and routes **either** leg's delete (Transactions, dashboard,
+  Mint) to `mp_delete_card_to_bank`, which takes only the transfer id and derives every reversal
+  from the stored rows.
+- **Statements:** `transfer` is in `CC_CHARGE_TYPES` (`credit-card.ts`, `credit-card-cycles.ts`) —
+  every reader filters on `credit_card_id` first, so bank transfers can't reach it. Without it the
+  principal read as already billed (₹15,000 billed instead of ₹10,000). `credit-card-analytics.ts`
+  stays spend-only: a cash-out isn't spend.
+- **Safe Daily Spend — reserve until billed.** The default forecast adds a `card-advance` event
+  dated today: `R = min(unbilled advance principal, unbilledAmount)`. Payments clear billed first,
+  then unbilled fees/purchases, then principal last — so R is exactly the remaining unbilled
+  principal. R ≤ principal, R ≤ unbilled ⇒ R + billed ≤ `current_balance` (never counted twice).
+  Skipped under `includeUnbilledCards` (the Cash Flow page's next-bill event already holds it).
+  Borrowed principal therefore never raises realFreeMoney → Safe Daily Spend → Challenge;
+  spending it lowers free money once.
+- **Mint CFO:** `cardAdvanceHeld` comes off Free Money on its own line ("Borrowed from cards") but
+  is never in `obligations`, the bill runway or Today's Decision. It must be subtracted — otherwise
+  `afterSavings` stops matching the forecast's eve-of-income balance and `postIncomeRisk` fires.
+- **Mint:** `getMovementClass` → `'temporary-cash'` (borrowed); the chat context lists card-to-bank
+  separately from internal transfers. Budget Strategy needed no change (`transfer` already skipped;
+  the fee is an Obligations expense → Needs). Edge Functions read only expense/commitment/income.
+- **Fee category:** reuse any "Bank & Processing Charges" wherever it is (never moved or remapped);
+  else create in Obligations → first commitment group → first essential group; else the sheet asks.
+  Never creates a group.
+
+Limitations (v1): the reserve ends when the advance is billed — then the existing bill rule applies
+(a bill due after salary is treated as covered by it); ordinary unbilled purchases still aren't
+reserved, so a transfer-then-spend reads stricter than a card purchase until the statement;
+Available Funds Budget Strategy counts the borrowed cash (it already ignores card debt); a bank
+statement import won't match the incoming ₹5,000 (dedup skips all transfers); an unused fee
+category can remain if the save then fails; two tabs could create the category twice; the
+statement footer's "Purchases" line includes cash advances.
+
 ## Recurring payments — which due a payment is for (`paid_through`)
 A payment date doesn't say which installment it pays: due 27th, paid 30 Sep is late for 27 Sep
 *or* early for 27 Oct, and someone paid on the 29th pays next month's dues on payday. So Record

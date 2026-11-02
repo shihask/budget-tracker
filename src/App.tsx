@@ -404,7 +404,7 @@ function AppContent({ session }: { session: Session }) {
     return () => { cancelled = true }
   }, [session.user.id])
 
-  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, offlineQueue, saveOfflineTransactions, discardOfflineTransaction, addTransaction, deleteTransaction, updateTransaction, addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, fetchEventLedger, searchTransactions, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, addEvent, updateEvent, deleteEvent, linkTransactionsToEvent, addMaster, updateMaster, deleteMaster, fetchMasterSpend, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
+  const { state, loading, usingSupabase, allTransactionsLoaded, loadingMore, loadMoreTransactions, refetchAccountsAndRecentTransactions, offlineQueue, saveOfflineTransactions, discardOfflineTransaction, addTransaction, deleteTransaction, updateTransaction, addSplitTransaction, updateSplitGroup, deleteSplitGroup, deleteSplitLeg, uploadReceipt, removeReceipt, getReceiptUrl, updateSettings, updateForecastSettings, updateBudgetStrategySettings, addAccount, deleteAccount, updateAccount, adjustBalance, addGroup, updateGroup, deleteGroup, toggleGroupVisibility, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket, addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, transferCardToBank, adjustCreditCardBalance, fetchCardHistory, fetchEventLedger, searchTransactions, addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment, addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid, addGoal, updateGoal, deleteGoal, addGoalSavings, addSavings, updateSavings, deleteSavings, recordContribution, updateSavingsValue, recordSavingsPayout, revertSavingsPayout, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, addEvent, updateEvent, deleteEvent, linkTransactionsToEvent, addMaster, updateMaster, deleteMaster, fetchMasterSpend, updateChallengeResult, excludeChallengeTransaction, toggleChallengeExclusion, unlockAchievement, recordReflection, addHabit, setHabitStatus, recordHabitCompletion, applyHabitCatchUp, fetchHabitCompletions, fetchHabitConsistency } = useSupabaseData(session.user.id)
 
   // Stages pending sync_events for review — every transaction event lands
   // in needs_review (DedupReviewSheet decides insert/merge/ignore from
@@ -1116,7 +1116,7 @@ function AppContent({ session }: { session: Session }) {
                       el = (state.settings.track_borrowings ?? true) ? <BorrowingSection state={state} onSeeAll={() => { setBorrowingAddOnOpen(false); setBorrowingOpen(true) }} onAdd={() => { setBorrowingAddOnOpen(true); setBorrowingOpen(true) }} /> : null
                       break
                     case 'credit_cards':
-                      el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onPayBill={payCreditCardBill} onViewDetails={() => setCreditCardsOpen(true)} /> : null
+                      el = (state.settings.track_credit_cards ?? false) ? <CreditCardsSection state={state} onPayBill={payCreditCardBill} onTransferToBank={transferCardToBank} onViewDetails={() => setCreditCardsOpen(true)} /> : null
                       break
                     case 'events':
                       el = state.events.some(e => e.status === 'active') ? <EventsCard
@@ -1432,7 +1432,7 @@ function AppContent({ session }: { session: Session }) {
           )}
 
           {creditCardsOpen && (
-            <CreditCardsPage state={state} onClose={() => setCreditCardsOpen(false)} onSwipeProgress={setSwipePct} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} onAdjustBalance={adjustCreditCardBalance} fetchCardHistory={fetchCardHistory} />
+            <CreditCardsPage state={state} onClose={() => setCreditCardsOpen(false)} onSwipeProgress={setSwipePct} onAdd={addCreditCard} onUpdate={updateCreditCard} onDelete={deleteCreditCard} onPayBill={payCreditCardBill} onAdjustBalance={adjustCreditCardBalance} onTransferToBank={transferCardToBank} fetchCardHistory={fetchCardHistory} />
           )}
 
           {borrowingOpen && (

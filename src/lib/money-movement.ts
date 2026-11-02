@@ -1,4 +1,5 @@
 import type { Transaction } from '@/types'
+import { isCardToBankTransfer } from '@/lib/card-transfer'
 
 // Movement class classifier — maps raw transaction_type + is_credit to a semantic role.
 // Shared by Mint's MoneyMovement context and the CFO "This month's story", so both
@@ -18,6 +19,9 @@ export function getMovementClass(t: Transaction): MovementClass {
   if (t.transaction_type === 'borrowing_repayment' && !t.is_credit)            return 'debt-payment'
   if (t.transaction_type === 'savings_withdrawal')                              return 'one-time-source'
   if (t.transaction_type === 'savings_contribution')                            return 'savings-contributed'
+  // A transfer OUT of a credit card is a cash advance — borrowed, like a loan
+  // received. Checked before the plain transfer rule.
+  if (isCardToBankTransfer(t))                                                  return 'temporary-cash'
   if (t.transaction_type === 'transfer')                                        return 'transfer'
   if (t.transaction_type === 'expense' || t.transaction_type === 'commitment') return 'expense'
   return 'other'

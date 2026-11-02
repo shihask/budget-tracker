@@ -7,6 +7,7 @@ import { CAT_COLORS } from '@/lib/tokens'
 import { Card } from './Card'
 import { MONTH_START, catById as buildCatById } from '@/lib/data'
 import { groupSplitTransactions, type TransactionGroup } from '@/lib/splitGroups'
+import { cardTransferParts } from '@/lib/card-transfer'
 import type { AppState, DashboardSection, Transaction } from '@/types'
 
 // ── Custom Group Section ───────────────────────────────────────────────────────
@@ -180,10 +181,16 @@ export function RecentTxns({ state, limit = 6, onSeeAll, onEdit, onDelete, onDel
   const handleDelete = async (e: React.MouseEvent, g: TransactionGroup) => {
     e.stopPropagation()
     const groupId = g.primary.split_group_id
+    // Either leg of a credit-card-to-bank transfer deletes the pair — name both.
+    const pair = cardTransferParts(g.primary, state.transactions)
     if (!await confirm(
-      g.isSplit
-        ? `Delete "${g.primary.description}" — all ${g.groupSize} payments (${fmt(g.groupTotal)})?`
-        : `Delete "${g.primary.description}" (${fmt(g.total)})?`
+      pair
+        ? `Delete this transfer? ${pair.transfer ? `Credit card transfer ${fmt(pair.transfer.amount)}` : 'The linked credit card transfer'}` +
+          `${pair.fee ? ` · Processing fee ${fmt(pair.fee.amount)}` : ''}. ` +
+          `${pair.fee || g.primary.fee_for ? 'Both transactions will be deleted' : 'It will be deleted'} and the affected balances restored.`
+        : g.isSplit
+          ? `Delete "${g.primary.description}" — all ${g.groupSize} payments (${fmt(g.groupTotal)})?`
+          : `Delete "${g.primary.description}" (${fmt(g.total)})?`
     )) return
     setDeleting(g.key)
     if (g.isSplit && groupId && onDeleteSplitGroup) await onDeleteSplitGroup(groupId)

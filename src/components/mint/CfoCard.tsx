@@ -130,6 +130,7 @@ function Equation({ c, s }: { c: ColorTokens; s: CfoSnapshot }) {
       <Row c={c} left="Emergency fund" right={inr(-s.emergencyFund)} />
       <Row c={c} left="Credit cards" right={inr(-s.cardTotal)} />
       <Row c={c} left="Fixed commitments" right={inr(-s.fixedTotal)} />
+      {s.cardAdvanceHeld > 0 && <Row c={c} left="Borrowed from cards" right={inr(-s.cardAdvanceHeld)} />}
       <div style={{ borderTop: `1px solid ${c.grid}`, margin: '5px 0' }} />
       {s.fundingGap > 0
         ? <Row c={c} left="Funding gap" right={inr(s.fundingGap)} tone="bad" strong />

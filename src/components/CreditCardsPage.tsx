@@ -12,6 +12,7 @@ import { stmtDate } from './creditCardStatus'
 import { colorFor } from '@/lib/credit-card-colors'
 import { StatementsTab } from '@/features/credit-cards/components/StatementsTab'
 import { AnalyticsTab } from '@/features/credit-cards/components/AnalyticsTab'
+import type { CardTransferSave } from '@/lib/card-transfer'
 import type { AppState, CreditCard, Transaction } from '@/types'
 
 type CardPayload = Omit<CreditCard, 'id' | 'user_id' | 'is_active'>
@@ -30,13 +31,14 @@ interface Props {
   onDelete: (id: string) => Promise<void>
   onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
   onAdjustBalance: (cardId: string, actualBalance: number, billedAmount?: number) => Promise<void>
+  onTransferToBank: (input: CardTransferSave) => Promise<unknown>
   fetchCardHistory: (sinceDate: string, cardId?: string) => Promise<Transaction[]>
 }
 
 /** The Credit Cards home: overview, upcoming bills, and Cards / Statements / Analytics. */
 export function CreditCardsPage({
   state, onClose, onSwipeProgress,
-  onAdd, onUpdate, onDelete, onPayBill, onAdjustBalance, fetchCardHistory,
+  onAdd, onUpdate, onDelete, onPayBill, onAdjustBalance, onTransferToBank, fetchCardHistory,
 }: Props) {
   const c = useTheme()
 
@@ -128,7 +130,7 @@ export function CreditCardsPage({
     [invalidateHistory],
   )
 
-  const { openAdd, openEdit, openAdjust, openPay, confirmDelete, sheets, anyOpen } = useCreditCardSheets({
+  const { openAdd, openEdit, openAdjust, openPay, confirmDelete, transferAction, sheets, anyOpen } = useCreditCardSheets({
     mode: 'full',
     state,
     onAdd: withInvalidate(onAdd),
@@ -136,6 +138,7 @@ export function CreditCardsPage({
     onDelete: withInvalidate(onDelete),
     onPayBill: withInvalidate(onPayBill),
     onAdjustBalance: withInvalidate(onAdjustBalance),
+    onTransferToBank: withInvalidate(async (input: CardTransferSave) => { await onTransferToBank(input) }),
   })
 
   useEffect(() => {
@@ -366,6 +369,7 @@ export function CreditCardsPage({
                     expanded={expandedId === card.id}
                     onToggle={() => setExpandedId(expandedId === card.id ? null : card.id)}
                     onPay={() => openPay(card)}
+                    onTransfer={transferAction(card)}
                     showCurrentStatement
                     onViewStatement={() => openStatement(card.id, currentStatementPeriod(card).statementDate)}
                     manage={{

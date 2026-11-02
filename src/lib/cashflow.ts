@@ -1,5 +1,6 @@
 import type { AppState, DerivedMetrics } from '@/types'
 import { getCreditCardBilling } from '@/lib/credit-card'
+import { unbilledCardAdvance } from '@/lib/card-transfer'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getExpectedNextPrimaryIncome } from '@/lib/financial-cycle'
@@ -17,7 +18,9 @@ export interface CashFlowEvent {
   title: string
   amount: number
   type: 'income' | 'expense'
-  source: 'salary' | 'commitment' | 'saving' | 'card' | 'borrowing' | 'planned' | 'lifestyle'
+  // 'card-advance' = borrowed cash from a credit-card-to-bank transfer, held back
+  // until its statement bills it — not a bill (see the card loop below).
+  source: 'salary' | 'commitment' | 'saving' | 'card' | 'card-advance' | 'borrowing' | 'planned' | 'lifestyle'
   category_id?: string | null
   card_id?: string
   is_prized?: boolean
@@ -375,6 +378,16 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics, 
         const nextBill = new Date(billing.nextBillDate + 'T00:00:00')
         const afterBill = new Date(nextBill.getFullYear(), nextBill.getMonth(), nextBill.getDate() + 1)
         pushBill(isoOf(nextDueDate(cc.due_day, afterBill)), `${cc.name} next bill`, billing.unbilledAmount)
+      } else {
+        // Credit-card-to-bank principal not billed yet. The transfer raised a bank
+        // balance with borrowed money; held back from today until the statement
+        // bills it, so it never becomes free money. Skipped above, where the
+        // unbilled "next bill" already carries it. One definition:
+        // unbilledCardAdvance (src/lib/card-transfer.ts).
+        const held = Math.round(unbilledCardAdvance(cc, state.transactions, billing))
+        if (held > 0) {
+          events.push({ date: todayIso, title: `${cc.name} cash advance`, amount: held, type: 'expense', source: 'card-advance', card_id: cc.id })
+        }
       }
     }
   }

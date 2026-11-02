@@ -2,7 +2,11 @@ import type { CreditCard, Transaction, TransactionType } from '@/types'
 import { round2 } from '@/lib/utils'
 import { localYmd, clampedDay } from '@/lib/credit-card-cycles'
 
-const CC_SPEND_TYPES = new Set<TransactionType>(['expense', 'commitment'])
+// What raises a card's outstanding and so belongs on its statement. `transfer` is
+// a credit-card-to-bank cash advance (src/lib/card-transfer.ts) — every reader
+// filters on credit_card_id first, so an ordinary bank transfer never gets here.
+// credit-card-analytics.ts keeps its own spend-only set: a cash-out isn't spend.
+const CC_CHARGE_TYPES = new Set<TransactionType>(['expense', 'commitment', 'transfer'])
 
 /** Statement and due days a new card gets when the user doesn't say — Add Card and onboarding. */
 export const DEFAULT_BILL_DAY = 15
@@ -66,7 +70,7 @@ export function getCreditCardBilling(
   let refundedSinceBill = 0
   for (const t of transactions) {
     if (t.credit_card_id !== card.id || t.transaction_date <= lastBillStr) continue
-    if (CC_SPEND_TYPES.has(t.transaction_type)) {
+    if (CC_CHARGE_TYPES.has(t.transaction_type)) {
       balanceAtBill -= t.amount
     } else if (t.transaction_type === 'credit_card_payment') {
       balanceAtBill += t.amount

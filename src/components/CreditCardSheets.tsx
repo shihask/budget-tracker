@@ -6,6 +6,8 @@ import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpre
 import { AmountOperatorRow } from './AmountOperatorRow'
 import { BottomSheet, HelpText, HelpToggle } from './BottomSheet'
 import { getCreditCardBilling, DEFAULT_BILL_DAY, DEFAULT_DUE_DAY } from '@/lib/credit-card'
+import { CardTransferSheet } from '@/features/credit-cards/components/CardTransferSheet'
+import type { CardTransferSave } from '@/lib/card-transfer'
 import type { AppState, CreditCard } from '@/types'
 
 type CardPayload = Omit<CreditCard, 'id' | 'user_id' | 'is_active'>
@@ -14,6 +16,8 @@ export type PayOnlyParams = {
   mode: 'pay-only'
   state: AppState
   onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
+  /** Credit Card → Bank Transfer. Omitted = no Transfer to Bank action. */
+  onTransferToBank?: (input: CardTransferSave) => Promise<unknown>
 }
 
 export type FullParams = {
@@ -24,6 +28,7 @@ export type FullParams = {
   onDelete: (id: string) => Promise<void>
   onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
   onAdjustBalance: (cardId: string, actualBalance: number, billedAmount?: number) => Promise<void>
+  onTransferToBank?: (input: CardTransferSave) => Promise<unknown>
 }
 
 type Params = PayOnlyParams | FullParams
@@ -34,6 +39,9 @@ export interface PayApi {
    *  statement's remaining, so paying a historical or part-settled statement offers the right
    *  figure instead of the current cycle's. */
   openPay: (card: CreditCard, prefillAmount?: number) => void
+  /** The tile's Transfer to Bank handler, or undefined when the action shouldn't show: no
+   *  `onTransferToBank`, card tracking off, an inactive card, or no account to receive the money. */
+  transferAction: (card: CreditCard) => (() => void) | undefined
   /** True while any sheet this surface owns is open — the page's swipe guard reads this. */
   anyOpen: boolean
   sheets: React.ReactNode
@@ -100,6 +108,10 @@ export function useCreditCardSheets(p: Params): FullApi {
   const [payAmountFocused, setPayAmountFocused] = useState(false)
   const [adjustAmountFocused, setAdjustAmountFocused] = useState(false)
   const [adjustBilledFocused, setAdjustBilledFocused] = useState(false)
+  const [transferTarget, setTransferTarget] = useState<CreditCard | null>(null)
+  // Bumped on every opening: the transfer sheet remounts with fresh fields and fresh
+  // idempotency ids, but stays mounted while closing so it can animate out.
+  const [transferOpening, setTransferOpening] = useState(0)
 
   const accounts = state.accounts.filter(a => a.is_active)
   const cards = state.credit_cards || []
@@ -471,11 +483,20 @@ export function useCreditCardSheets(p: Params): FullApi {
     </BottomSheet>
   )
 
+  const onTransfer = p.onTransferToBank
+  const transferAction = (card: CreditCard) =>
+    onTransfer && state.settings.track_credit_cards && card.is_active !== false && accounts.length > 0
+      ? () => { setTransferOpening(n => n + 1); setTransferTarget(card) }
+      : undefined
+  const transferSheet = onTransfer && (
+    <CardTransferSheet key={transferOpening} card={transferTarget} state={state} onClose={() => setTransferTarget(null)} onSave={onTransfer} />
+  )
+
   return {
-    openAdd, openEdit, openPay, openAdjust, confirmDelete,
-    anyOpen: full ? (sheetOpen || !!payTarget || !!adjustTarget) : !!payTarget,
+    openAdd, openEdit, openPay, openAdjust, confirmDelete, transferAction,
+    anyOpen: (full ? (sheetOpen || !!payTarget || !!adjustTarget) : !!payTarget) || !!transferTarget,
     sheets: full
-      ? <>{addEditSheet}{payBillSheet}{adjustSheet}{dialogNode}</>
-      : payBillSheet,
+      ? <>{addEditSheet}{payBillSheet}{adjustSheet}{transferSheet}{dialogNode}</>
+      : <>{payBillSheet}{transferSheet}</>,
   }
 }

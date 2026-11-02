@@ -90,6 +90,10 @@ export interface Transaction {
   // There is deliberately no `reimbursed_at` sibling to event_linked_at: this row's
   // own transaction_date already IS the day the money came back.
   reimbursement_for?: string | null
+  // On a processing-fee expense: the credit-card-to-bank transfer it was charged
+  // with (src/lib/card-transfer.ts). Written only by mp_execute_card_to_bank; both
+  // legs are locked and deleted together by mp_delete_card_to_bank. null = not a fee.
+  fee_for?: string | null
   // Person or merchant this transaction involved (Rahul, Zomato). Orthogonal to
   // category — a Zomato expense is still Food. Unlike event_id this NEVER affects
   // budget analytics: spending at a merchant is ordinary spending, so there is no

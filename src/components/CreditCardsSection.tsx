@@ -5,11 +5,13 @@ import { Card } from './Card'
 import { CreditCardTile } from './CreditCardTile'
 import { useCreditCardSheets } from './CreditCardSheets'
 import { getCreditCardBilling } from '@/lib/credit-card'
+import type { CardTransferSave } from '@/lib/card-transfer'
 import type { AppState, CreditCard } from '@/types'
 
 interface Props {
   state: AppState
   onPayBill: (card: CreditCard, amount: number, accountId: string) => Promise<void>
+  onTransferToBank: (input: CardTransferSave) => Promise<unknown>
   /** Opens the Credit Cards page — the tile's one destination. */
   onViewDetails: () => void
 }
@@ -18,11 +20,11 @@ interface Props {
  * Dashboard tile: overview + Pay Bill. Adding, editing, adjusting and deleting a card live on the
  * Credit Cards page (`onViewDetails`), so this surface mounts only the Pay Bill sheet.
  */
-export function CreditCardsSection({ state, onPayBill, onViewDetails }: Props) {
+export function CreditCardsSection({ state, onPayBill, onTransferToBank, onViewDetails }: Props) {
   const c = useTheme()
   const [infoOpen, setInfoOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const { openPay, sheets } = useCreditCardSheets({ mode: 'pay-only', state, onPayBill })
+  const { openPay, transferAction, sheets } = useCreditCardSheets({ mode: 'pay-only', state, onPayBill, onTransferToBank })
 
   const cards = state.credit_cards || []
 
@@ -96,6 +98,7 @@ export function CreditCardsSection({ state, onPayBill, onViewDetails }: Props) {
                 expanded={expandedId === card.id}
                 onToggle={() => setExpandedId(expandedId === card.id ? null : card.id)}
                 onPay={() => openPay(card)}
+                onTransfer={transferAction(card)}
               />
             ))}
           </div>

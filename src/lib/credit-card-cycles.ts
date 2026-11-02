@@ -1,9 +1,10 @@
 import type { CreditCard, Transaction, TransactionType } from '@/types'
 import { round2 } from '@/lib/utils'
 
-/** Same spend set as credit-card.ts:4 — `commitment` counts, or a recurring bill charged to the
- *  card silently vanishes from its statement. */
-const CC_SPEND_TYPES = new Set<TransactionType>(['expense', 'commitment'])
+/** Same charge set as credit-card.ts — `commitment` counts, or a recurring bill charged to the
+ *  card silently vanishes from its statement; `transfer` is a card-to-bank cash advance (every
+ *  reader here filters on the card first, so a bank-to-bank transfer can't reach it). */
+const CC_CHARGE_TYPES = new Set<TransactionType>(['expense', 'commitment', 'transfer'])
 
 export type StatementStatus = 'paid' | 'partial' | 'due' | 'overdue'
 
@@ -85,7 +86,7 @@ function sumWindow(mine: Transaction[], start: string, end: string): { purchases
   let adjustments = 0
   for (const t of mine) {
     if (t.transaction_date < start || t.transaction_date > end) continue
-    if (CC_SPEND_TYPES.has(t.transaction_type)) {
+    if (CC_CHARGE_TYPES.has(t.transaction_type)) {
       purchases += t.amount
     } else if (t.transaction_type === 'cc_opening_balance') {
       adjustments += t.amount
@@ -281,7 +282,7 @@ function allocateCredits(statements: Statement[], mine: Transaction[]): Map<stri
 }
 
 /**
- * The purchases that made up a statement — expense and commitment only, newest first.
+ * The charges that made up a statement — expense, commitment and card-to-bank transfers, newest first.
  *
  * Reconciliation rows (cc_balance_adjustment, cc_opening_balance) are deliberately excluded: they are
  * summed into `statement.adjustments` and shown as a single footer line, so a manual balance
@@ -297,7 +298,7 @@ export function getStatementTransactions(
   return txns
     .filter(t =>
       t.credit_card_id === statement.cardId &&
-      CC_SPEND_TYPES.has(t.transaction_type) &&
+      CC_CHARGE_TYPES.has(t.transaction_type) &&
       t.transaction_date >= statement.periodStart &&
       t.transaction_date <= statement.statementDate,
     )

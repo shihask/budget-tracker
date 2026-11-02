@@ -79,6 +79,11 @@ export interface CfoSnapshot {
   fixedTotal: number
   mandatoryTotal: number
   flexibleTotal: number
+  // Unbilled credit-card-to-bank principal the forecast holds back
+  // (cashflow.ts 'card-advance'). Borrowed cash sitting in liquidCash: it comes
+  // off free money, but it is not a bill — never in obligations, the runway or
+  // Today's Decision.
+  cardAdvanceHeld: number
   freeMoney: number
   fundingGap: number
   afterSavings: number
@@ -146,14 +151,20 @@ export function buildCfoSnapshot(state: AppState, d: DerivedMetrics): CfoSnapsho
   const forecast = buildCashFlowForecast(state, d)
   const nextIncomeDate = forecast.nextSalaryDate ?? null
 
-  const obligations: CfoObligation[] = forecast.projections
+  const beforeIncome = forecast.projections
     .map(p => p.event)
+    .filter(e => e.type === 'expense' && (nextIncomeDate == null || e.date < nextIncomeDate))
+  const obligations: CfoObligation[] = beforeIncome
     // Lifestyle entries are synthetic per-day spend, not named bills (never in the
     // default forecast today — guarded so an opt-in later can't flood the list).
-    .filter(e => e.type === 'expense' && e.source !== 'lifestyle')
-    .filter(e => nextIncomeDate == null || e.date < nextIncomeDate)
+    // A card advance is held-back borrowed cash, not a bill: it is subtracted below
+    // on its own line and never reaches the runway or the decision.
+    .filter(e => e.source !== 'lifestyle' && e.source !== 'card-advance')
     .map(e => ({ title: e.title, amount: Math.round(e.amount), date: e.date, source: e.source, tier: obligationTier(e) }))
     .sort(byDueThenRank)
+  const cardAdvanceHeld = beforeIncome
+    .filter(e => e.source === 'card-advance')
+    .reduce((s, e) => s + Math.round(e.amount), 0)
 
   const sum = (tier: ObligationTier) => obligations.filter(o => o.tier === tier).reduce((s, o) => s + o.amount, 0)
   const cardTotal = sum('card')
@@ -161,7 +172,9 @@ export function buildCfoSnapshot(state: AppState, d: DerivedMetrics): CfoSnapsho
   const flexibleTotal = sum('flexible')
   const mandatoryTotal = cardTotal + fixedTotal
 
-  const freeMoney = liquidCash - emergencyFund - mandatoryTotal
+  // The card advance comes off here too, or afterSavings would stop matching the
+  // forecast's eve-of-income balance and postIncomeRisk would fire falsely.
+  const freeMoney = liquidCash - emergencyFund - mandatoryTotal - cardAdvanceHeld
   const afterSavings = freeMoney - flexibleTotal
   const runway = billRunway(liquidCash - emergencyFund, obligations.filter(o => o.tier !== 'flexible'))
 
@@ -184,6 +197,7 @@ export function buildCfoSnapshot(state: AppState, d: DerivedMetrics): CfoSnapsho
     incomeLabel: getIncomePattern(state.settings) === 'monthly' ? 'salary' : 'income',
     obligations,
     cardTotal, fixedTotal, mandatoryTotal, flexibleTotal,
+    cardAdvanceHeld,
     freeMoney,
     fundingGap: Math.max(0, -freeMoney),
     afterSavings,
@@ -358,7 +372,8 @@ export function buildMonthStory(state: AppState, d: DerivedMetrics, decision: Cf
 // replacing the old bare "FreeMoney:₹-1,09,123" the model misread as a weekly rate.
 export function equationFacts(s: CfoSnapshot): string {
   return [
-    `CashFlow: liquid ${inr(s.liquidCash)} − emergency ${inr(s.emergencyFund)} − cards ${inr(s.cardTotal)} − fixed ${inr(s.fixedTotal)} = free ${inr(s.freeMoney)}`,
+    `CashFlow: liquid ${inr(s.liquidCash)} − emergency ${inr(s.emergencyFund)} − cards ${inr(s.cardTotal)} − fixed ${inr(s.fixedTotal)}${s.cardAdvanceHeld > 0 ? ` − borrowed card cash ${inr(s.cardAdvanceHeld)}` : ''} = free ${inr(s.freeMoney)}`,
+    s.cardAdvanceHeld > 0 ? `CardAdvance: ${inr(s.cardAdvanceHeld)} in the bank was moved from a credit card (borrowed, NOT income); it is held back until the card statement bills it` : '',
     `FundingGap: ${inr(s.fundingGap)}${s.nextIncomeDate ? ` before ${s.incomeLabel} on ${shortDate(s.nextIncomeDate)}` : ' (next income date unknown — next 30 days)'} — a one-time amount needed, NOT a weekly or monthly rate`,
     s.runway.runsShortOn ? `BillRunway: runs short on ${shortDate(s.runway.runsShortOn)} (scheduled bills only, excludes day-to-day spending)` : 'BillRunway: all scheduled bills before income are covered',
     s.flexibleTotal > 0 ? `FlexibleSavings: ${inr(s.flexibleTotal)} (pause-able, NOT in free money) → after-savings ${inr(s.afterSavings)}` : '',

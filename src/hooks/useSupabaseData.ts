@@ -17,8 +17,12 @@ import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { amountBounds, escapeIlike, SEARCH_MAX_ROWS, type TransactionFilterState } from '@/lib/transactionFilters'
 import {
   readQueue, updateQueue, buildQueueItem, toPendingTransaction, applyQueuedDeltas, reconcileQueue,
-  removeQueuedFromState, isOnline, toQueueError, type QueuedTransaction,
+  removeQueuedFromState, isOnline, isNetworkError, toQueueError, type QueuedTransaction,
 } from '@/lib/offline-queue'
+import {
+  isCardTransferLeg, cardTransferId, feeCategoryPlacement, FEE_CATEGORY_NAME, CARD_TRANSFER_LOCKED_MESSAGE,
+  CardTransferNotConfirmedError, type CardTransferSave,
+} from '@/lib/card-transfer'
 import type { NewTransactionInput } from '@/types'
 
 const RECEIPT_NETWORK_TIMEOUT_MS = 20_000
@@ -606,6 +610,29 @@ export function useSupabaseData(userId: string) {
   }, [userId, setOfflineQueue])
 
   const deleteTransaction = useCallback(async (t: Transaction) => {
+    // Either leg of a credit-card-to-bank transfer deletes the whole pair — from
+    // any surface (Transactions, Mint, the dashboard). The server derives every
+    // reversal from its stored rows; nothing financial is sent from here.
+    if (isCardTransferLeg(t)) {
+      const { data, error } = await supabase.rpc('mp_delete_card_to_bank', { p_transfer_id: cardTransferId(t) })
+      if (error) { console.error('Failed to delete card transfer:', error); throw error }
+      const r = data as { deleted: boolean; transfer_id?: string; fee_id?: string | null; amount?: number; fee?: number; to_account_id?: string | null; credit_card_id?: string | null }
+      const gone = new Set([t.id, cardTransferId(t), r.fee_id].filter(Boolean) as string[])
+      setState(s => {
+        const transactions = s.transactions.filter(x => !gone.has(x.id) && !(x.fee_for && gone.has(x.fee_for)))
+        // Already deleted elsewhere: the rows go, and the next load brings the balances.
+        if (!r.deleted) return { ...s, transactions }
+        const amount = r.amount ?? 0
+        const charge = round2(amount + (r.fee ?? 0))
+        return {
+          ...s,
+          transactions,
+          accounts: s.accounts.map(a => a.id === r.to_account_id ? { ...a, current_balance: round2(a.current_balance - amount) } : a),
+          credit_cards: s.credit_cards.map(c => c.id === r.credit_card_id ? { ...c, current_balance: round2(c.current_balance - charge) } : c),
+        }
+      })
+      return
+    }
     try {
       // Compute reversal deltas in TypeScript; RPC applies them atomically
       // then deletes the row — reversals always run before delete.
@@ -903,6 +930,17 @@ export function useSupabaseData(userId: string) {
     old: Transaction,
     form: Omit<Transaction, 'id' | 'created_at' | 'to_account_id' | 'notes'> & { to_account_id?: string | null }
   ) => {
+    // Mirrors trg_transactions_card_transfer_lock, so every surface (edit sheet,
+    // Mint's editor, the quick-category popup) gets the reason before the server.
+    if (isCardTransferLeg(old)) {
+      const source = old.credit_card_id ?? old.from_account_id ?? null
+      if (form.amount !== old.amount || form.transaction_type !== old.transaction_type
+          || form.transaction_date !== old.transaction_date
+          || (form.from_account_id ?? null) !== source
+          || (old.transaction_type === 'transfer' && (form.to_account_id ?? null) !== (old.to_account_id ?? null))) {
+        throw new Error(CARD_TRANSFER_LOCKED_MESSAGE)
+      }
+    }
     try {
       const toAccountId   = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
       const isBorrowingTx = !!old.borrowing_id
@@ -1169,6 +1207,58 @@ export function useSupabaseData(userId: string) {
     setState(s => ({ ...s, categories: [...s.categories, data as Category] }))
     return (data as Category).id
   }, [userId])
+
+  /** Credit Card → Bank Transfer: the principal transfer and its processing fee,
+   *  saved atomically by mp_execute_card_to_bank (src/lib/card-transfer.ts).
+   *  Online only and never queued — the pair must exist on the server as one unit.
+   *  An unanswered attempt throws CardTransferNotConfirmedError; the sheet keeps
+   *  its ids, so the retry finds the saved rows instead of saving twice. */
+  const transferCardToBank = useCallback(async (input: CardTransferSave): Promise<{ transfer: Transaction; fee: Transaction | null }> => {
+    if (!isOnline()) throw new CardTransferNotConfirmedError(true)
+
+    let feeCategoryId: string | null = null
+    if (input.fee > 0) {
+      feeCategoryId = input.feeCategoryId
+      if (!feeCategoryId) {
+        const placement = feeCategoryPlacement(stateRef.current)
+        if (placement.kind === 'ask') throw new Error('Choose a category for the processing fee')
+        // Created before the transfer and not atomic with it: if the save then
+        // fails, the unused category stays and is reused next time.
+        feeCategoryId = placement.kind === 'existing' ? placement.categoryId : await addCategory(FEE_CATEGORY_NAME, placement.groupName)
+      }
+    }
+
+    const { data, error } = await supabase.rpc('mp_execute_card_to_bank', {
+      p_transfer_id:      input.transferId,
+      p_fee_id:           input.fee > 0 ? input.feeId : null,
+      p_credit_card_id:   input.cardId,
+      p_to_account_id:    input.toAccountId,
+      p_amount:           input.amount,
+      p_fee:              input.fee,
+      p_fee_category_id:  feeCategoryId,
+      p_transaction_date: input.date,
+      p_transaction_time: input.time,
+      p_description:      input.description.trim() || null,
+    })
+    if (error) {
+      if (isNetworkError(error)) throw new CardTransferNotConfirmedError(!isOnline())
+      throw error
+    }
+
+    const result = data as { transfer: Transaction; fee: Transaction | null }
+    const cats = stateRef.current.categories
+    const transfer: Transaction = result.transfer
+    const fee: Transaction | null = result.fee ? { ...result.fee, category: cats.find(c => c.id === result.fee!.category_id) } : null
+    const cardIds = new Set([input.cardId])
+    setState(s => {
+      // A retry whose first attempt a refetch already brought in: nothing to add.
+      if (s.transactions.some(t => t.id === transfer.id)) return s
+      let next = applyDeltas(s.accounts, s.credit_cards, txDeltas({ transaction_type: 'transfer', amount: transfer.amount, from_account_id: input.cardId, to_account_id: input.toAccountId } as NewTransactionInput, cardIds), 1)
+      if (fee) next = applyDeltas(next.accounts, next.cards, txDeltas({ transaction_type: 'expense', amount: fee.amount, from_account_id: input.cardId } as NewTransactionInput, cardIds), 1)
+      return { ...s, transactions: [...(fee ? [fee] : []), transfer, ...s.transactions], accounts: next.accounts, credit_cards: next.cards }
+    })
+    return { transfer, fee }
+  }, [addCategory])
 
   const updateCategory = useCallback(async (id: string, name: string, group_name: string) => {
     const { data, error } = await supabase.from('categories').update({ name, group_name }).eq('id', id).select('*').single()
@@ -2684,7 +2774,7 @@ export function useSupabaseData(userId: string) {
     addAccount, deleteAccount, updateAccount, adjustBalance,
     addGroup, updateGroup, deleteGroup, toggleGroupVisibility,
     addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, updateCategoryBucket,
-    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, adjustCreditCardBalance, fetchCardHistory, fetchEventLedger, searchTransactions,
+    addCreditCard, updateCreditCard, deleteCreditCard, payCreditCardBill, transferCardToBank, adjustCreditCardBalance, fetchCardHistory, fetchEventLedger, searchTransactions,
     addBorrowing, updateBorrowing, deleteBorrowing, recordBorrowingPayment, reversePayment,
     addCommitment, updateCommitment, deleteCommitment, markCommitmentPaid,
     addPlannedExpense, updatePlannedExpense, deletePlannedExpense,

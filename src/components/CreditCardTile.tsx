@@ -1,4 +1,4 @@
-import { ReceiptText } from 'lucide-react'
+import { ArrowRightLeft, ReceiptText } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { getCreditCardBilling } from '@/lib/credit-card'
@@ -30,6 +30,8 @@ interface Props {
   expanded: boolean
   onToggle: () => void
   onPay: () => void
+  /** Credit Card → Bank Transfer. Omitted = no button (see useCreditCardSheets.transferAction). */
+  onTransfer?: () => void
   /** Card management — passed by the Credit Cards page only. The dashboard omits it, so its
    *  accordion ends after the dates row and Pay Bill stays its one management action. */
   manage?: { onEdit: () => void; onAdjust: () => void; onDelete: () => void }
@@ -42,7 +44,7 @@ interface Props {
 
 /** One credit card: the always-visible compact row plus the expandable detail. Shared by the
  *  dashboard section and the Credit Cards page. */
-export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage, showCurrentStatement, onViewStatement }: Props) {
+export function CreditCardTile({ card, state, expanded, onToggle, onPay, onTransfer, manage, showCurrentStatement, onViewStatement }: Props) {
   const c = useTheme()
   const col = colorFor(card.name)
   const utilPct = card.credit_limit > 0 ? Math.min(100, Math.round((card.current_balance / card.credit_limit) * 100)) : 0
@@ -90,6 +92,16 @@ export function CreditCardTile({ card, state, expanded, onToggle, onPay, manage,
           >
             Pay Bill
           </button>
+          {onTransfer && (
+            <button
+              onClick={e => { e.stopPropagation(); onTransfer() }}
+              aria-label="Transfer to Bank"
+              title="Transfer to Bank"
+              style={{ background: 'transparent', color: col, border: `1.5px solid ${col}66`, borderRadius: 8, width: 30, height: 28, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <ArrowRightLeft size={14} strokeWidth={2.4} />
+            </button>
+          )}
           <svg
             width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
             style={{ transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', flexShrink: 0 }}

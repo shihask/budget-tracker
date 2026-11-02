@@ -39,6 +39,7 @@ import { loadChecks, saveCheck, pickBaseline, computeDeltas } from '@/lib/cfo-hi
 import { CfoCard } from './mint/CfoCard'
 import { cfoHeadline, type CfoCardData } from './mint/cfoCardText'
 import { FindResultCard, type FindResultData } from './mint/FindResultCard'
+import { isCardToBankTransfer, isCardTransferLeg, cardTransferParts, CARD_TRANSFER_LOCKED_MESSAGE } from '@/lib/card-transfer'
 import {
   classifyFindIntent, parseFindQuery, rowQuery, findIn, executeFind, findSummary, editCandidates, pickOutcome,
 } from '@/lib/mint-find'
@@ -416,9 +417,21 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   const thisMonthIncome = spendTxns
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'income' && !isSystemTx(t))
     .reduce((s, t) => s + t.amount, 0)
+  // Internal moves only — a transfer out of a credit card is borrowed money and
+  // gets its own line below, so Mint never reads it as a shuffle between accounts.
   const thisMonthTransfers = state.transactions
-    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'transfer')
+    .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'transfer' && !isCardToBankTransfer(t))
     .reduce((s, t) => s + t.amount, 0)
+  const cardAdvanceLines = state.transactions
+    .filter(t => new Date(t.transaction_date) >= monthStart && isCardToBankTransfer(t))
+    .map(t => {
+      const parts = cardTransferParts(t, state.transactions)
+      const card = state.credit_cards.find(c => c.id === t.credit_card_id)?.name ?? 'credit card'
+      const to = state.accounts.find(a => a.id === t.to_account_id)?.name ?? 'bank'
+      const fee = parts?.fee?.amount ?? 0
+      return `${t.transaction_date} ₹${t.amount.toLocaleString()} ${card} → ${to}` +
+        (fee > 0 ? ` + processing fee ₹${fee.toLocaleString()} (an expense) = card charge ₹${(parts?.total ?? t.amount).toLocaleString()}` : '')
+    })
   const savingsContrib = state.transactions
     .filter(t => new Date(t.transaction_date) >= monthStart && t.transaction_type === 'savings_contribution')
     .reduce((s, t) => s + t.amount, 0)
@@ -445,7 +458,8 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   const trackingDays = new Set(thisMonthTxns.map(t => t.transaction_date)).size
   const trackingCount = thisMonthTxns.length
 
-  const transferNote = thisMonthTransfers > 0 ? ` | transfers:₹${thisMonthTransfers.toLocaleString()} (internal)` : ''
+  const transferNote = (thisMonthTransfers > 0 ? ` | transfers:₹${thisMonthTransfers.toLocaleString()} (internal)` : '') +
+    (cardAdvanceLines.length > 0 ? ` | card-to-bank (borrowed from the card, NOT income, NOT spending): ${cardAdvanceLines.join('; ')}` : '')
   const savingsNote = (savingsContrib > 0 || savingsWithdraw > 0)
     ? ` | savings-contrib:₹${savingsContrib.toLocaleString()} savings-withdraw:₹${savingsWithdraw.toLocaleString()}`
     : ''
@@ -1964,9 +1978,15 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
 
   const deleteConfirm = (t: Transaction): Message => {
     const { account, category } = txNames(t)
+    // Either leg of a credit-card-to-bank transfer deletes the pair — say so first.
+    const pair = cardTransferParts(t, state.transactions)
+    const pairNote = pair
+      ? ` This is part of a credit card to bank transfer${pair.transfer ? ` (₹${pair.transfer.amount.toLocaleString()})` : ''}` +
+        `${pair.fee ? ` with a ₹${pair.fee.amount.toLocaleString()} processing fee` : ''} — ${pair.fee || t.fee_for ? 'both transactions' : 'it'} will be deleted and the balances restored.`
+      : ''
     return {
       role: 'ai',
-      text: `Found: "${t.description}" ₹${t.amount.toLocaleString()} · ${t.transaction_date} · ${account || 'Unknown'} · ${category || 'Uncategorized'}. Delete this?`,
+      text: `Found: "${t.description}" ₹${t.amount.toLocaleString()} · ${t.transaction_date} · ${account || 'Unknown'} · ${category || 'Uncategorized'}.${pairNote} Delete this?`,
       deletePrompt: { transaction: t },
     }
   }
@@ -2017,8 +2037,14 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
         text = `Done! Moved "${ep.transaction.description}" from ${oldCat} to ${ep.newCategoryName}.`
       }
       setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text }))
-    } catch {
-      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : { role: 'ai', text: 'Something went wrong updating the transaction. Please try again.' }))
+    } catch (err) {
+      // A locked card-to-bank leg is a real answer, not a glitch — say why.
+      const locked = isCardTransferLeg(ep.transaction)
+      setMessages(m => m.map((msg, i) => i !== msgIndex ? msg : {
+        role: 'ai',
+        text: locked ? CARD_TRANSFER_LOCKED_MESSAGE : 'Something went wrong updating the transaction. Please try again.',
+      }))
+      if (!locked) console.error('Mint edit failed:', err)
     }
   }
 

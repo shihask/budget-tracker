@@ -8,6 +8,7 @@ import { Card } from './Card'
 import { buildUnbilledCycle, getStatementTransactions } from '@/lib/credit-card-cycles'
 import type { UnbilledCycle } from '@/lib/credit-card-cycles'
 import { STATEMENT_STATUS_LABEL, statementPillStyle, stmtDate, stmtPeriod } from './creditCardStatus'
+import { isCardToBankTransfer } from '@/lib/card-transfer'
 import type { AppState, CreditCard, Transaction } from '@/types'
 import type { Statement } from '@/lib/credit-card-cycles'
 
@@ -343,6 +344,9 @@ export function StatementDetailsPage({ state, card, statements, initialStatement
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                       {cat && (
                         <span style={{ font: '600 10px Plus Jakarta Sans', color: col, background: col + '18', borderRadius: 999, padding: '2px 7px' }}>{cat.name}</span>
+                      )}
+                      {isCardToBankTransfer(t) && (
+                        <span style={{ font: '600 10px Plus Jakarta Sans', color: '#6366F1', background: 'rgba(99,102,241,0.1)', borderRadius: 999, padding: '2px 7px' }}>Credit Card to Bank</span>
                       )}
                       <span style={{ font: '500 10.5px Plus Jakarta Sans', color: c.muted }}>{stmtDate(t.transaction_date, false)}</span>
                     </div>

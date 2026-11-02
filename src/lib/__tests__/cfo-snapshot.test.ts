@@ -26,7 +26,7 @@ function makeSnap(o: Partial<CfoSnapshot> = {}): CfoSnapshot {
   return {
     liquidCash, accounts: [], emergencyFund,
     nextIncomeDate: '2026-10-23', incomeLabel: 'salary',
-    obligations, cardTotal, fixedTotal, mandatoryTotal, flexibleTotal,
+    obligations, cardTotal, fixedTotal, mandatoryTotal, flexibleTotal, cardAdvanceHeld: 0,
     freeMoney, fundingGap: Math.max(0, -freeMoney), afterSavings: freeMoney - flexibleTotal,
     runway: billRunway(liquidCash - emergencyFund, obligations.filter(x => x.tier !== 'flexible')),
     postIncomeRisk: null,
