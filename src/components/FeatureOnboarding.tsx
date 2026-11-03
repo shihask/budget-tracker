@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Tags, Tag, MessageCircle, Search, PenLine, Wallet, FileText, Plane, TrendingUp,
   Settings, Check, X, ArrowUp, ArrowRight, IndianRupee, CreditCard, WalletCards, ChevronDown, Plus,
-  HandCoins, Users, Info, Receipt, Lock, Ellipsis, ChartColumnIncreasing, ChartLine, Coins, CalendarDays, Landmark, PiggyBank, CircleCheck,
+  HandCoins, Users, Info, Receipt, Lock, Ellipsis, ChartLine, Coins, CalendarDays, Landmark, PiggyBank, CircleCheck,
   PartyPopper, Target, Scale, ReceiptText, UserPlus, BellRing, NotebookPen, CalendarClock, TriangleAlert, ChartColumn, Moon,
   type LucideIcon,
 } from 'lucide-react'
 import { keywordCategoryName } from '@/lib/categorize'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { sanitizeAmountInput } from '@/lib/amountExpression'
 import { DEFAULT_BILL_DAY, DEFAULT_DUE_DAY } from '@/lib/credit-card'
 import { requestAndSubscribe, unsubscribeFromPush } from '@/lib/notifications'
@@ -20,52 +21,13 @@ interface FeaturePage {
   description: string
   defaultOn: boolean
   featured?: boolean
-  Icon: ({ size }: { size: number }) => React.JSX.Element
+  Icon: React.ComponentType<{ size: number }>
 }
 
 function SparkleIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3l1.88 5.8 5.62.82-4.06 3.96.96 5.6L12 16.9l-5.02 2.63.96-5.6L3.88 9.62l5.62-.82z"/>
-    </svg>
-  )
-}
-
-function CreditCardIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="4" width="22" height="16" rx="2"/>
-      <line x1="1" y1="10" x2="23" y2="10"/>
-    </svg>
-  )
-}
-
-function UsersIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-      <circle cx="9" cy="7" r="4"/>
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-    </svg>
-  )
-}
-
-function TrendingUpIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-      <polyline points="17 6 23 6 23 12"/>
-    </svg>
-  )
-}
-
-function SuitcaseIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="7" width="20" height="14" rx="2"/>
-      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
-      <path d="M2 13h20"/>
     </svg>
   )
 }
@@ -95,7 +57,7 @@ const PAGES: FeaturePage[] = [
     subtitle: 'Know what you owe',
     description: 'Have a credit card? Keep those spends completely separate from cash.\n\nSee your outstanding balance update in real-time — so you always know what you owe before the bill lands.',
     defaultOn: false,
-    Icon: CreditCardIcon,
+    Icon: FEATURE_ICONS.credit_cards,
   },
   {
     key: 'track_borrowings',
@@ -103,7 +65,7 @@ const PAGES: FeaturePage[] = [
     subtitle: 'Never lose track',
     description: 'Lent ₹500 to a friend? Borrowed from family? Track every rupee you\'ve given or received.\n\nSee at a glance who owes you — and who you owe.',
     defaultOn: false,
-    Icon: UsersIcon,
+    Icon: FEATURE_ICONS.borrowing,
   },
   {
     key: 'track_savings',
@@ -111,7 +73,7 @@ const PAGES: FeaturePage[] = [
     subtitle: 'Watch your wealth grow',
     description: 'Track your SIPs, gold schemes, recurring deposits and fixed deposits — all in one dedicated section.\n\nRecord each contribution, see your total corpus, and keep savings completely separate from daily expenses.',
     defaultOn: false,
-    Icon: TrendingUpIcon,
+    Icon: FEATURE_ICONS.savings,
   },
   {
     key: 'track_projects',
@@ -119,7 +81,7 @@ const PAGES: FeaturePage[] = [
     subtitle: 'Split costs, stay in sync',
     description: 'Organize and split shared expenses across trips, events, and group activities.\n\nCreate a project for a trip, event or shared goal — invite friends or family, log costs as they happen, and see who owes what, all in one place.',
     defaultOn: false,
-    Icon: SuitcaseIcon,
+    Icon: FEATURE_ICONS.projects,
   },
   {
     key: 'notifications_enabled',
@@ -747,7 +709,7 @@ function SharedProjectsPage({ on, onChange }: { on: boolean; onChange: (v: boole
   return (
     <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
       <PageHeader
-        Icon={Users} title="Shared Projects" indigo
+        Icon={FEATURE_ICONS.projects} title="Shared Projects" indigo
         tagline="Make plans together, track expenses together."
         description="Create shared spaces for trips, weddings and group activities. Know who paid, what was spent and who owes what."
       />
@@ -783,7 +745,7 @@ function SavingsInvestPage({ on, onChange }: { on: boolean; onChange: (v: boolea
   return (
     <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
       <PageHeader
-        Icon={ChartColumnIncreasing} title="Savings & Investments"
+        Icon={FEATURE_ICONS.savings} title="Savings & Investments"
         tagline="Make your money grow." taglineAccent
         description="Keep track of your SIPs, gold schemes, deposits and other contributions in one place."
       />
@@ -825,7 +787,7 @@ function LendBorrowPage({ lend, borrow, onLend, onBorrow, onBoth }: {
   return (
     <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
       <PageHeader
-        Icon={HandCoins} title="Lend & Borrow"
+        Icon={FEATURE_ICONS.borrowing} title="Lend & Borrow"
         tagline="Keep track of every rupee." taglineAccent
         description="Money lent to friends? Borrowed from family? Keep everything organized."
       />
@@ -915,7 +877,7 @@ function CreditCardPage({ choice, onChoice, cards, onCard, onAddCard, onRemoveCa
   return (
     <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
       <PageHeader
-        Icon={CreditCard} title="Credit Card Tracking"
+        Icon={FEATURE_ICONS.credit_cards} title="Credit Card Tracking"
         tagline="Stay on top of what you owe."
         description="Track credit card spending separately and never lose sight of upcoming payments."
       />

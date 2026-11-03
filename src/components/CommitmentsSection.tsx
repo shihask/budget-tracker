@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ClipboardList, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
@@ -35,9 +36,7 @@ export function CommitmentsSection({ state, onSeeAll, onAdd }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: totalCount ? 14 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 9, background: '#8B5CF6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>
-              </svg>
+              <FEATURE_ICONS.commitments size={17} color="#fff" aria-hidden />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Bills & Obligations</div>
@@ -59,7 +58,7 @@ export function CommitmentsSection({ state, onSeeAll, onAdd }: Props) {
 
         {totalCount === 0 ? (
           <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
-            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><ClipboardList size={28} color="#A09890" /></div>
+            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><FEATURE_ICONS.commitments size={28} color="#A09890" /></div>
             <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Stay Ahead of Bills</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Never miss another payment. Track rent, EMIs, subscriptions and recurring bills in one place.</div>
             <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Add a bill</button>

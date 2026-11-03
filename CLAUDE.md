@@ -14,6 +14,7 @@ PWA, mobile-first, single-column layout (max ~720px on desktop)
 | `src/components/QuickAdd.tsx` | FAB + sheet for adding transactions; auto-categorize logic lives here |
 | `src/components/CategorySelect.tsx` | Category dropdown, supports `filterGroup` prop |
 | `src/lib/gemini.ts` | Client-side AI helpers + `aiUsagePatch` usage mirroring |
+| `src/lib/feature-icons.ts` | `FEATURE_ICONS` — the one lucide icon per feature (dashboard card badge + empty state, Navigation/Create menus, quick nav, page, onboarding). Never draw a feature icon inline |
 | `supabase/functions/ai-categorize/index.ts` | Deno Edge Function — Groq proxy, usage counter |
 
 ## How to add a new Settings field — checklist

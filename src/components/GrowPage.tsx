@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { Glyph } from './Glyph'
 import { fmt, iso, TODAY } from '@/lib/utils'
 import { GrowChallengeCard } from './GrowChallengeCard'
@@ -49,13 +50,7 @@ const DUE_TODAY_DISPLAY_CAP = 3
 const STAGE_LABELS = ['Seed', 'Sprout', 'First Leaves', 'Young Plant', 'Growing', 'Mature', 'Blooming']
 
 function SeedlingIcon({ color, size = 18 }: { color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22V12"/>
-      <path d="M12 12C12 12 6 11 6 5s6-1 6 5z"/>
-      <path d="M12 12c0 0 6 1 6-5s-6-1-6 5z"/>
-    </svg>
-  )
+  return <FEATURE_ICONS.grow size={size} color={color} aria-hidden />
 }
 
 function StatusPill({ label, color, bg }: { label: string; color: string; bg: string }) {

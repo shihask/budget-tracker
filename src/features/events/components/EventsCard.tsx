@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { CalendarHeart, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { Card } from '@/components/Card'
 import { eventSpent } from '@/lib/events'
@@ -33,7 +34,7 @@ export function EventsCard({ state, eventLedger, onAdd, onSeeAll, onOpenEvent, o
             width: 32, height: 32, borderRadius: 9, background: EVENT_COLOR,
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <CalendarHeart size={17} color="#fff" />
+            <FEATURE_ICONS.events size={17} color="#fff" />
           </div>
           <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Life Events</div>
         </div>

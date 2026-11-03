@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Users } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { BottomSheet } from '@/components/BottomSheet'
 import { checkName, DISPLAY_NAME_MAX, HOUSEHOLD_NAME_MAX } from '../lib/validation'
@@ -19,7 +19,7 @@ export function HouseholdIntro({ guest, onCreate, onSaveGuest }: {
     <div style={{ padding: '28px 4px 8px' }}>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div style={{ width: 60, height: 60, borderRadius: 18, background: c.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-          <Users size={28} color={c.accent} />
+          <FEATURE_ICONS.household size={28} color={c.accent} aria-hidden />
         </div>
         <h2 style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>Manage shared money together</h2>
         <p style={{ font: '500 14px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, margin: 0 }}>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Users } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from '@/components/AppDialog'
 import { summarize } from '../lib/budget'
@@ -167,7 +167,7 @@ export function HouseholdPage({ userName, guest, onClose, onSwipeProgress, onSav
               )}
             </div>
             <div aria-hidden style={{ width: 32, height: 32, borderRadius: 10, background: c.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Users size={16} color="#fff" />
+              <FEATURE_ICONS.household size={16} color="#fff" aria-hidden />
             </div>
           </div>
         </div>

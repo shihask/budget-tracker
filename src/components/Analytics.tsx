@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart3 } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
@@ -30,9 +30,7 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
     <Card pad={16}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <div style={{ width: 32, height: 32, borderRadius: 9, background: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="2" width="4" height="19" rx="1"/>
-          </svg>
+          <FEATURE_ICONS.analytics size={17} color="#fff" aria-hidden />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
         <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Spending analytics</div>
@@ -92,7 +90,7 @@ export function Analytics({ state, onSeeAll }: AnalyticsProps) {
         {tab === 'category' && (
           cats.length === 0
             ? <div style={{ padding: '24px 0', textAlign: 'center' }}>
-                <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}><BarChart3 size={24} color="#A09890" /></div>
+                <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}><FEATURE_ICONS.analytics size={24} color="#A09890" /></div>
                 <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Start tracking your spending</div>
                 <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>Category insights will appear after your first lifestyle expense.</div>
               </div>

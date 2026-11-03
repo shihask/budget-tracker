@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Handshake, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
@@ -26,9 +27,7 @@ export function BorrowingSection({ state, onSeeAll, onAdd }: Props) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: state.borrowings.length ? 14 : 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: 9, background: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
-            </svg>
+            <FEATURE_ICONS.borrowing size={17} color="#fff" aria-hidden />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Lend & Borrow</div>
@@ -47,7 +46,7 @@ export function BorrowingSection({ state, onSeeAll, onAdd }: Props) {
 
       {state.borrowings.length === 0 ? (
         <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
-          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Handshake size={28} color="#A09890" /></div>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><FEATURE_ICONS.borrowing size={28} color="#A09890" /></div>
           <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Track Shared Money</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Keep track of money you've lent or borrowed so nothing gets forgotten.</div>
           <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Add an entry</button>

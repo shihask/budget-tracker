@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
 import { CreditCardTile } from './CreditCardTile'
@@ -49,9 +50,7 @@ export function CreditCardsSection({ state, onPayBill, onTransferToBank, onViewD
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 9, background: '#EC4899', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="5" y1="15" x2="9" y2="15"/>
-              </svg>
+              <FEATURE_ICONS.credit_cards size={17} color="#fff" aria-hidden />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

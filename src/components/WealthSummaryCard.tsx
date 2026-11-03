@@ -1,4 +1,5 @@
 import { useTheme } from '@/lib/theme-context'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
 import type { AppState } from '@/types'
@@ -51,11 +52,7 @@ export function WealthSummaryCard({ state, onGoToSavings, onGoToBorrowing }: Pro
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg, #10B981, #3B82F6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-          </svg>
+          <FEATURE_ICONS.wealth_summary size={17} color="#fff" aria-hidden />
         </div>
         <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Wealth Summary</div>
       </div>

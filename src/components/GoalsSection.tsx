@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, AlertTriangle, Flame, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { BottomSheet, HelpText } from './BottomSheet'
@@ -229,9 +230,7 @@ export function GoalsSection({
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${c.faint}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 9, background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="#fff" stroke="#fff"/>
-              </svg>
+              <FEATURE_ICONS.goals size={17} color="#fff" aria-hidden />
             </div>
             <span style={{ font: '700 15px Plus Jakarta Sans', color: c.ink }}>Goals</span>
             {activeGoals.length > 0 && (

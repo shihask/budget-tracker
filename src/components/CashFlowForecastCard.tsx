@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Card } from '@/components/Card'
 import { useTheme } from '@/lib/theme-context'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { fmt } from '@/lib/utils'
 import { buildCashFlowForecast, daysUntil, forecastReady } from '@/lib/cashflow'
 import { buildLifestyleForecast } from '@/features/forecast/lib/lifestyleForecast'
@@ -49,7 +50,7 @@ export function CashFlowForecastCard({ state, d, onOpen, onSetup, onRecordIncome
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 34, height: 34, borderRadius: 10, background: soft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={tone} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8" /><path d="M21 7v5h-5" /></svg>
+          <FEATURE_ICONS.cashflow size={18} color={tone} strokeWidth={2.2} aria-hidden />
         </div>
         <span style={{ font: `800 15px ${F}`, color: c.ink }}>Cash Flow Forecast</span>
       </div>

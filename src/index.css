@@ -194,6 +194,118 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   .mp-collapse__body, .mp-collapse[data-open="true"] .mp-collapse__body { transform: none; }
 }
 
+/* Dashboard quick nav (DashboardQuickNav.tsx). Colours arrive as --dqn-* vars
+   from the theme. Desktop: a rail in the empty gutter beside the column, with
+   hover tooltips. Narrow screens: an edge tab that opens a labelled rail. */
+.mp-dqn {
+  /* Centred in the area below the 72px fixed header, never taller than it:
+     a long dashboard scrolls inside the rail instead. */
+  position: fixed; z-index: 60;
+  top: calc(50% + (72px + env(safe-area-inset-top, 0px)) / 2);
+  max-height: calc(100svh - 72px - env(safe-area-inset-top, 0px) - 48px);
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  background: var(--dqn-surface);
+  border: 1px solid var(--dqn-faint);
+  border-radius: 16px;
+  box-shadow: var(--dqn-shadow), 0 8px 24px rgba(0,0,0,0.06);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.mp-dqn::-webkit-scrollbar { display: none; }
+/* Fade whichever end has more items, so a scrollable rail reads as one. */
+.mp-dqn[data-more-below="true"] { -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent); mask-image: linear-gradient(#000 calc(100% - 28px), transparent); }
+.mp-dqn[data-more-above="true"] { -webkit-mask-image: linear-gradient(transparent, #000 28px); mask-image: linear-gradient(transparent, #000 28px); }
+.mp-dqn[data-more-above="true"][data-more-below="true"] {
+  -webkit-mask-image: linear-gradient(transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+.mp-dqn--gutter { transform: translateY(-50%); }
+.mp-dqn__item {
+  position: relative; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--dqn-muted); cursor: pointer;
+  border-radius: 11px; padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease, color 160ms ease, transform 120ms ease;
+}
+.mp-dqn--gutter .mp-dqn__item { width: 36px; height: 36px; }
+.mp-dqn__item:active { transform: scale(0.94); }
+.mp-dqn__item:focus-visible { outline: 2px solid var(--dqn-accent); outline-offset: 1px; }
+.mp-dqn__item[aria-current="true"] { background: var(--dqn-accent-soft); color: var(--dqn-accent); }
+@media (hover: hover) {
+  .mp-dqn__item:not([aria-current="true"]):hover { background: var(--dqn-surface2); color: var(--dqn-ink); }
+}
+
+/* Tooltip — one fixed element placed beside the hovered item (the rail scrolls,
+   so a tooltip inside it would be clipped). It opens into the column, which the
+   rail sits beside, so there is always room. */
+.mp-dqn-tip {
+  position: fixed; z-index: 61;
+  padding: 6px 10px; border-radius: 8px;
+  background: var(--dqn-tip-bg); color: var(--dqn-tip-fg);
+  font: 600 12px 'Plus Jakarta Sans', sans-serif; white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  pointer-events: none;
+  transform: translateY(-50%);
+  animation: mp-dqn-tip-in 140ms ease 120ms both;
+}
+.mp-dqn-tip::before {
+  content: ''; position: absolute; right: 100%; top: 50%; margin-top: -5px;
+  border: 5px solid transparent; border-right-color: var(--dqn-tip-bg);
+}
+@keyframes mp-dqn-tip-in {
+  from { opacity: 0; transform: translate(-4px, -50%); }
+  to   { opacity: 1; transform: translate(0, -50%); }
+}
+
+/* Compact rail: labelled, slides in from the edge tab. */
+.mp-dqn--compact {
+  left: calc(8px + env(safe-area-inset-left, 0px));
+  transform: translate(calc(-100% - 16px), -50%);
+  opacity: 0; visibility: hidden;
+  transition: transform 240ms cubic-bezier(0.32,0.72,0,1), opacity 180ms ease, visibility 0s linear 240ms;
+}
+.mp-dqn--compact[data-open="true"] {
+  transform: translate(0, -50%); opacity: 1; visibility: visible;
+  transition: transform 240ms cubic-bezier(0.32,0.72,0,1), opacity 180ms ease, visibility 0s;
+}
+.mp-dqn--compact .mp-dqn__item { width: 64px; min-height: 54px; gap: 3px; padding: 6px 2px; }
+.mp-dqn__label {
+  font: 600 10px 'Plus Jakarta Sans', sans-serif; line-height: 1.1;
+  max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Edge tab: 28px touch target, 16px visible face, so it stays inside the
+   content gutter and covers no card. Tap only — no swipe to clash with
+   the browser's edge-back gesture. */
+.mp-dqn-tab {
+  position: fixed; top: 50%; left: env(safe-area-inset-left, 0px); z-index: 60;
+  width: 28px; height: 60px; transform: translateY(-50%);
+  padding: 0; border: none; background: transparent; cursor: pointer;
+  display: flex; align-items: center; justify-content: flex-start;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 160ms ease;
+}
+.mp-dqn-tab[data-open="true"] { opacity: 0; pointer-events: none; }
+.mp-dqn-tab__face {
+  width: 16px; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--dqn-surface); color: var(--dqn-muted);
+  border: 1px solid var(--dqn-faint); border-left: none;
+  border-radius: 0 12px 12px 0;
+  box-shadow: var(--dqn-shadow), 0 4px 14px rgba(0,0,0,0.06);
+  transition: color 160ms ease, transform 120ms ease;
+}
+.mp-dqn-tab[data-active="true"] .mp-dqn-tab__face { color: var(--dqn-accent); }
+.mp-dqn-tab:active .mp-dqn-tab__face { transform: scaleX(1.12); transform-origin: left center; }
+.mp-dqn-tab:focus-visible .mp-dqn-tab__face { outline: 2px solid var(--dqn-accent); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-dqn__item, .mp-dqn-tab, .mp-dqn-tab__face { transition: none; }
+  .mp-dqn--compact, .mp-dqn--compact[data-open="true"] { transition: opacity 120ms ease, visibility 0s; }
+  .mp-dqn-tip { animation: none; }
+}
+
 /* Wrapper */
 .mp-landing {
   min-height: 100svh;

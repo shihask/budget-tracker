@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { CalendarHeart, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { eventSpent, eventTransactions } from '@/lib/events'
@@ -193,7 +194,7 @@ export function EventsListPage({
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: EVENT_COLOR, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CalendarHeart size={15} color="#fff" />
+              <FEATURE_ICONS.events size={15} color="#fff" />
             </div>
             <span style={{ font: '800 17px Plus Jakarta Sans', color: c.ink, letterSpacing: '-0.02em' }}>Life Events</span>
           </div>
@@ -204,7 +205,7 @@ export function EventsListPage({
           {state.events.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 24px' }}>
               <div style={{ width: 60, height: 60, borderRadius: 18, background: `${EVENT_COLOR}1A`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <CalendarHeart size={28} color={EVENT_COLOR} />
+                <FEATURE_ICONS.events size={28} color={EVENT_COLOR} />
               </div>
               <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Track a one-off event</div>
               <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 24 }}>

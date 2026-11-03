@@ -1,5 +1,6 @@
 import { Star } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { fmt } from '@/lib/utils'
 import { getIncomePattern } from '@/lib/income-pattern'
 import type { AppState, DerivedMetrics } from '@/types'
@@ -25,13 +26,7 @@ const DIFFICULTY_OPTS: Array<{ key: 'easy' | 'medium' | 'hard'; label: string }>
 ]
 
 function SeedlingIcon({ color, size = 18 }: { color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22V12"/>
-      <path d="M12 12C12 12 6 11 6 5s6-1 6 5z"/>
-      <path d="M12 12c0 0 6 1 6-5s-6-1-6 5z"/>
-    </svg>
-  )
+  return <FEATURE_ICONS.grow size={size} color={color} aria-hidden />
 }
 
 function FlameIcon({ color, size = 14 }: { color: string; size?: number }) {

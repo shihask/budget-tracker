@@ -51,6 +51,7 @@ import { SavingsSuggestions } from '@/components/SavingsSuggestions'
 import { BottomSheet } from '@/components/BottomSheet'
 import { DashboardLayoutPage } from '@/components/DashboardLayoutPage'
 import { AIAssistFAB } from '@/components/AIAssistFAB'
+import { DashboardQuickNav } from '@/components/DashboardQuickNav'
 import { AIChatSheet } from '@/components/AIChatSheet'
 import { AnalyticsPage, type Tab as AnalyticsTab } from '@/components/AnalyticsPage'
 import { parseOpenScreen, clearOpenScreenParam, OPEN_SCREEN_MESSAGE, type OpenScreen } from '@/lib/open-screen'
@@ -953,7 +954,7 @@ function AppContent({ session }: { session: Session }) {
       }}>
         <div style={{ width: '100%', maxWidth: W, position: 'relative' }}>
           {/* Fixed Header — hidden when transactions page is open */}
-          <div style={{
+          <div data-dashboard-header style={{
             position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
             width: '100%', maxWidth: W, zIndex: 350,
             background: dark ? 'rgba(12,10,7,0.85)' : 'rgba(237,231,221,0.85)',
@@ -1014,7 +1015,7 @@ function AppContent({ session }: { session: Session }) {
             )}
 
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div data-dash-sections style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {showReflectionBanner && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 12,
@@ -1058,7 +1059,7 @@ function AppContent({ session }: { session: Session }) {
                   let el: React.ReactNode = null
                   if (s.id.startsWith('custom__')) {
                     el = <CustomGroupSection section={s} state={state} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} />
-                    return el ? <div key={s.id} data-tour={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 80 }}>{el}</div> : null
+                    return el ? <div key={s.id} data-tour={s.id} data-dash-section={s.id} data-dash-label={s.customName || 'Custom'} style={{ display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 80 }}>{el}</div> : null
                   }
                   // A guest skipped income setup (it resumes once they save), so cards that
                   // only ask for a salary date stay hidden until then: the budget hero,
@@ -1153,7 +1154,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <RecentTxns state={state} onSeeAll={() => setTxnsOpen(true)} onEdit={t => { setDashEditTx(t); setTxnsOpen(true) }} onDelete={deleteTransaction} onDeleteSplitGroup={deleteSplitGroup} />
                       break
                   }
-                  return el ? <div key={s.id} data-tour={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 80 }}>{el}</div> : null
+                  return el ? <div key={s.id} data-tour={s.id} data-dash-section={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 80 }}>{el}</div> : null
                 })
               }
               <div style={{ textAlign: 'center', font: '600 11px Plus Jakarta Sans', color: c.muted, paddingTop: 4 }}>
@@ -1161,6 +1162,12 @@ function AppContent({ session }: { session: Session }) {
               </div>
             </div>
           </div>
+
+          <DashboardQuickNav
+            hidden={loading || overlayOpen || showOnboardingFlow || guestQuickStartShowing}
+            containerWidth={W}
+            windowWidth={windowW}
+          />
 
           {/* FAB */}
           {!chatOpen && (

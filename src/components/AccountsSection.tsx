@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { Landmark, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { useAppDialog } from './AppDialog'
 import { fmt, round2, selectOnFocus } from '@/lib/utils'
@@ -147,9 +148,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 9, background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="22" x2="21" y2="22"/><rect x="2" y="10" width="20" height="12" rx="1"/><path d="M12 2L2 10h20L12 2z"/><line x1="8" y1="14" x2="8" y2="22"/><line x1="16" y1="14" x2="16" y2="22"/>
-              </svg>
+              <FEATURE_ICONS.accounts size={17} color="#fff" aria-hidden />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -186,7 +185,7 @@ export function AccountsSection({ state, onUpdateAccount, onAddAccount, onDelete
 
         {accs.length === 0 ? (
           <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
-            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Landmark size={28} color="#A09890" /></div>
+            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><FEATURE_ICONS.accounts size={28} color="#A09890" /></div>
             <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>No accounts yet</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Add a bank account or cash wallet to track where your money lives.</div>
             <button

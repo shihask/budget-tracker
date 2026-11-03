@@ -1,6 +1,7 @@
 import { useTheme } from '@/lib/theme-context'
 import { BottomSheet } from './BottomSheet'
-import { EventIcon } from '@/features/events/lib/eventIcons'
+import { ArrowDown, ArrowUp, Repeat, type LucideIcon } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 
 /** The discovery surface. Life Events has no settings toggle any more, so this
  *  is where someone who thinks "I need to track my brother's wedding" finds it.
@@ -23,12 +24,10 @@ interface Props {
   trackProjects: boolean
 }
 
-function Icon({ children }: { children: React.ReactNode }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      {children}
-    </svg>
-  )
+/** A row's icon. Feature rows use the feature's own icon, so "Savings" here looks
+ *  like Savings on the dashboard and in the Navigation menu. */
+function RowIcon({ Icon }: { Icon: LucideIcon }) {
+  return <Icon size={18} strokeWidth={2} style={{ flexShrink: 0 }} aria-hidden />
 }
 
 export function CreateMenuSheet({
@@ -43,38 +42,38 @@ export function CreateMenuSheet({
   }[] = [
     {
       id: 'expense', label: 'Expense', onClick: onExpense,
-      icon: <Icon><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></Icon>,
+      icon: <RowIcon Icon={ArrowDown} />,
     },
     {
       id: 'income', label: 'Income', onClick: onIncome,
-      icon: <Icon><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></Icon>,
+      icon: <RowIcon Icon={ArrowUp} />,
     },
     {
       id: 'transfer', label: 'Transfer', onClick: onTransfer,
-      icon: <Icon><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></Icon>,
+      icon: <RowIcon Icon={Repeat} />,
     },
     {
       // Never hidden — this row IS the feature's discovery path, and the
       // subtitle is the whole education budget for it. Don't add a gate here.
       id: 'event', label: 'Life Event', subtitle: 'Wedding, trip, house construction…',
       onClick: onLifeEvent, dividerAbove: true,
-      icon: <span style={{ display: 'flex' }}><EventIcon name="ring" size={18} color="currentColor" /></span>,
+      icon: <RowIcon Icon={FEATURE_ICONS.events} />,
     },
     {
       id: 'goal', label: 'Goal', onClick: onGoal,
-      icon: <Icon><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></Icon>,
+      icon: <RowIcon Icon={FEATURE_ICONS.goals} />,
     },
     {
       id: 'commitment', label: 'Bill / Commitment', onClick: onCommitment,
-      icon: <Icon><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></Icon>,
+      icon: <RowIcon Icon={FEATURE_ICONS.commitments} />,
     },
     {
       id: 'savings', label: 'Savings', onClick: onSavings, hidden: !trackSavings,
-      icon: <Icon><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12h3"/><path d="M3 9h13a2 2 0 012 2"/></Icon>,
+      icon: <RowIcon Icon={FEATURE_ICONS.savings} />,
     },
     {
       id: 'project', label: 'Project', onClick: onProject, hidden: !trackProjects,
-      icon: <Icon><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></Icon>,
+      icon: <RowIcon Icon={FEATURE_ICONS.projects} />,
     },
   ]
 

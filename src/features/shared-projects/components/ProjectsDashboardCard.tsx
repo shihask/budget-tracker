@@ -1,4 +1,5 @@
-import { FolderOpen, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from '@/components/Card'
@@ -23,10 +24,7 @@ export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll,
             background: '#6366F1',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-            </svg>
+            <FEATURE_ICONS.projects size={17} color="#fff" aria-hidden />
           </div>
           <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Projects</div>
         </div>
@@ -48,7 +46,7 @@ export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll,
 
       {projects.length === 0 && sharedProjects.length === 0 ? (
         <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
-          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><FolderOpen size={28} color="#A09890" /></div>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><FEATURE_ICONS.projects size={28} color="#A09890" /></div>
           <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Start Your First Project</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Plan a trip, track a renovation or split expenses with friends — all in one place.</div>
           <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Create a project</button>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { TrendingUp, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { Card } from './Card'
@@ -31,10 +32,7 @@ export function SavingsSection({ state, onSeeAll, onAdd }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: active.length ? 14 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 9, background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                <polyline points="17 6 23 6 23 12"/>
-              </svg>
+              <FEATURE_ICONS.savings size={17} color="#fff" aria-hidden />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Savings & Investments</div>
@@ -53,7 +51,7 @@ export function SavingsSection({ state, onSeeAll, onAdd }: Props) {
 
         {active.length === 0 ? (
           <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
-            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><TrendingUp size={28} color="#A09890" /></div>
+            <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><FEATURE_ICONS.savings size={28} color="#A09890" /></div>
             <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Build Your Future</div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Watch your wealth grow over time. Track SIPs, gold schemes, RDs and investments.</div>
             <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Add investment</button>
