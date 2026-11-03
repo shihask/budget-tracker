@@ -197,6 +197,10 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 /* Dashboard quick nav (DashboardQuickNav.tsx). Colours arrive as --dqn-* vars
    from the theme. Desktop: a rail in the empty gutter beside the column, with
    hover tooltips. Narrow screens: an edge tab that opens a labelled rail. */
+.mp-dqn, .mp-dqn-tab, .mp-dqn-tip {
+  /* One curve for every movement in the nav: quick out, long gentle settle. */
+  --dqn-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
 .mp-dqn {
   /* Centred in the area below the 72px fixed header, never taller than it:
      a long dashboard scrolls inside the rail instead. */
@@ -219,19 +223,47 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   -webkit-mask-image: linear-gradient(transparent, #000 28px, #000 calc(100% - 28px), transparent);
   mask-image: linear-gradient(transparent, #000 28px, #000 calc(100% - 28px), transparent);
 }
-.mp-dqn--gutter { transform: translateY(-50%); }
+.mp-dqn--gutter {
+  transform: translateY(-50%);
+  transition: opacity 200ms ease, transform 280ms var(--dqn-ease), visibility 0s;
+}
+.mp-dqn--gutter:not([data-hidden="true"]) { animation: mp-dqn-rail-in 320ms var(--dqn-ease) backwards; }
+/* Something covers the dashboard: drift out and go inert, rather than blink away. */
+.mp-dqn--gutter[data-hidden="true"] {
+  opacity: 0; transform: translate(-8px, -50%); visibility: hidden; pointer-events: none;
+  transition: opacity 160ms ease, transform 200ms ease, visibility 0s linear 200ms;
+}
+@keyframes mp-dqn-rail-in {
+  from { opacity: 0; transform: translate(-8px, -50%); }
+}
+
+/* The active highlight: one pill that slides to the current item (placed by JS). */
+.mp-dqn__ind {
+  position: absolute; top: 0; left: 0; z-index: 0;
+  border-radius: 11px; background: var(--dqn-accent-soft);
+  pointer-events: none; opacity: 0;
+  transition: transform 340ms var(--dqn-ease), width 340ms var(--dqn-ease), height 340ms var(--dqn-ease), opacity 180ms ease;
+}
+.mp-dqn__ind[data-shown="true"] { opacity: 1; }
 .mp-dqn__item {
-  position: relative; flex-shrink: 0;
+  position: relative; z-index: 1; flex-shrink: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   border: none; background: transparent; color: var(--dqn-muted); cursor: pointer;
   border-radius: 11px; padding: 0;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 160ms ease, color 160ms ease, transform 120ms ease;
+  transition: background-color 180ms ease, color 220ms ease, transform 160ms var(--dqn-ease);
+  /* A section joining the dashboard eases in; the first paint cascades down. */
+  animation: mp-dqn-item-in 260ms var(--dqn-ease) calc(var(--dqn-i, 0) * 18ms) backwards;
+}
+.mp-dqn__item svg { transition: transform 260ms var(--dqn-ease); }
+@keyframes mp-dqn-item-in {
+  from { opacity: 0; transform: scale(0.85); }
 }
 .mp-dqn--gutter .mp-dqn__item { width: 36px; height: 36px; }
-.mp-dqn__item:active { transform: scale(0.94); }
+.mp-dqn__item:active { transform: scale(0.92); }
 .mp-dqn__item:focus-visible { outline: 2px solid var(--dqn-accent); outline-offset: 1px; }
-.mp-dqn__item[aria-current="true"] { background: var(--dqn-accent-soft); color: var(--dqn-accent); }
+.mp-dqn__item[aria-current="true"] { color: var(--dqn-accent); }
+.mp-dqn__item[aria-current="true"] svg { transform: scale(1.08); }
 @media (hover: hover) {
   .mp-dqn__item:not([aria-current="true"]):hover { background: var(--dqn-surface2); color: var(--dqn-ink); }
 }
@@ -247,7 +279,9 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   box-shadow: 0 4px 14px rgba(0,0,0,0.18);
   pointer-events: none;
   transform: translateY(-50%);
-  animation: mp-dqn-tip-in 140ms ease 120ms both;
+  animation: mp-dqn-tip-in 160ms var(--dqn-ease) 120ms both;
+  /* Moving between items glides the open tooltip instead of re-popping it. */
+  transition: top 220ms var(--dqn-ease);
 }
 .mp-dqn-tip::before {
   content: ''; position: absolute; right: 100%; top: 50%; margin-top: -5px;
@@ -263,11 +297,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   left: calc(8px + env(safe-area-inset-left, 0px));
   transform: translate(calc(-100% - 16px), -50%);
   opacity: 0; visibility: hidden;
-  transition: transform 240ms cubic-bezier(0.32,0.72,0,1), opacity 180ms ease, visibility 0s linear 240ms;
+  transition: transform 260ms var(--dqn-ease), opacity 200ms ease, visibility 0s linear 260ms;
 }
 .mp-dqn--compact[data-open="true"] {
   transform: translate(0, -50%); opacity: 1; visibility: visible;
-  transition: transform 240ms cubic-bezier(0.32,0.72,0,1), opacity 180ms ease, visibility 0s;
+  transition: transform 340ms var(--dqn-ease), opacity 200ms ease, visibility 0s;
 }
 .mp-dqn--compact .mp-dqn__item { width: 64px; min-height: 54px; gap: 3px; padding: 6px 2px; }
 .mp-dqn__label {
@@ -284,9 +318,18 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   padding: 0; border: none; background: transparent; cursor: pointer;
   display: flex; align-items: center; justify-content: flex-start;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity 160ms ease;
+  transition: opacity 200ms ease, transform 280ms var(--dqn-ease), visibility 0s;
 }
-.mp-dqn-tab[data-open="true"] { opacity: 0; pointer-events: none; }
+.mp-dqn-tab:not([data-hidden="true"]) { animation: mp-dqn-tab-in 320ms var(--dqn-ease) backwards; }
+/* Tucks into the edge while its rail is open, and while the dashboard is covered. */
+.mp-dqn-tab[data-open="true"] { opacity: 0; transform: translate(-6px, -50%); pointer-events: none; }
+.mp-dqn-tab[data-hidden="true"] {
+  opacity: 0; transform: translate(-100%, -50%); visibility: hidden; pointer-events: none;
+  transition: opacity 160ms ease, transform 200ms ease, visibility 0s linear 200ms;
+}
+@keyframes mp-dqn-tab-in {
+  from { opacity: 0; transform: translate(-100%, -50%); }
+}
 .mp-dqn-tab__face {
   width: 16px; height: 52px;
   display: flex; align-items: center; justify-content: center;
@@ -301,9 +344,14 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .mp-dqn-tab:focus-visible .mp-dqn-tab__face { outline: 2px solid var(--dqn-accent); outline-offset: 1px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mp-dqn__item, .mp-dqn-tab, .mp-dqn-tab__face { transition: none; }
-  .mp-dqn--compact, .mp-dqn--compact[data-open="true"] { transition: opacity 120ms ease, visibility 0s; }
-  .mp-dqn-tip { animation: none; }
+  /* Only fades remain: nothing slides, scales or glides. */
+  .mp-dqn__item, .mp-dqn__item svg, .mp-dqn-tab__face, .mp-dqn__ind { transition: none; animation: none; }
+  .mp-dqn__item:active, .mp-dqn__item[aria-current="true"] svg { transform: none; }
+  .mp-dqn--gutter, .mp-dqn--gutter[data-hidden="true"], .mp-dqn-tab, .mp-dqn-tab[data-hidden="true"],
+  .mp-dqn--compact, .mp-dqn--compact[data-open="true"] { transition: opacity 120ms ease, visibility 0s; animation: none; }
+  .mp-dqn--gutter[data-hidden="true"], .mp-dqn--gutter:not([data-hidden="true"]) { transform: translateY(-50%); }
+  .mp-dqn-tab[data-hidden="true"], .mp-dqn-tab[data-open="true"] { transform: translateY(-50%); }
+  .mp-dqn-tip { animation: none; transition: none; }
 }
 
 /* Wrapper */

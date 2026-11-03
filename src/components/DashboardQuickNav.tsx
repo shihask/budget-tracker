@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { SECTION_META } from '@/lib/dashboard-sections'
@@ -100,6 +100,7 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
   const railRef = useRef<HTMLElement>(null)
   const idleRef = useRef<number | null>(null)
   const releaseLockRef = useRef<() => void>(() => {})
+  const indRef = useRef<HTMLSpanElement>(null)
 
   // Desktop has an empty gutter beside the 720px column: the rail lives there and
   // never covers a card. Narrower screens have only the 16px content gutter, so
@@ -199,10 +200,30 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
     const btn = active ? rail?.querySelector<HTMLElement>(`[data-nav-id="${active}"]`) : null
     if (!rail || !btn) return
     const pad = 8
-    if (btn.offsetTop < rail.scrollTop + pad) rail.scrollTop = btn.offsetTop - pad
+    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    if (btn.offsetTop < rail.scrollTop + pad) rail.scrollTo({ top: btn.offsetTop - pad, behavior })
     else if (btn.offsetTop + btn.offsetHeight > rail.scrollTop + rail.clientHeight - pad)
-      rail.scrollTop = btn.offsetTop + btn.offsetHeight - rail.clientHeight + pad
+      rail.scrollTo({ top: btn.offsetTop + btn.offsetHeight - rail.clientHeight + pad, behavior })
   }, [active, open])
+
+  // The active highlight is one pill that slides to the current item rather than a
+  // background that jumps between buttons. Written straight to the DOM: it is pure
+  // presentation and must land before paint. Its first placement (or a remount on a
+  // gutter <-> compact switch) is instant and only fades in, so it never flies in
+  // from the top of the rail.
+  useLayoutEffect(() => {
+    const ind = indRef.current
+    if (!ind) return
+    const btn = active ? railRef.current?.querySelector<HTMLElement>(`[data-nav-id="${active}"]`) : null
+    if (!btn) { ind.dataset.shown = 'false'; return }
+    const first = ind.dataset.shown !== 'true'
+    if (first) ind.style.transition = 'none'
+    ind.style.transform = `translate(${btn.offsetLeft}px, ${btn.offsetTop}px)`
+    ind.style.width = `${btn.offsetWidth}px`
+    ind.style.height = `${btn.offsetHeight}px`
+    if (first) { void ind.offsetHeight; ind.style.transition = '' }
+    ind.dataset.shown = 'true'
+  }, [active, items, gutter])
 
   // Compact rail: fold back on outside tap, Escape, or after a while untouched.
   const armIdle = useCallback(() => {
@@ -249,7 +270,10 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
     setTip({ label, top: r.top + r.height / 2, left: r.right + 12 })
   }
 
-  if (!visible) return null
+  // Stays mounted while something covers the dashboard, so it can fade out and back
+  // in rather than blinking; data-hidden makes it inert meanwhile.
+  if (items.length < MIN_ITEMS) return null
+  const focusable = gutter ? visible : open
 
   const vars = {
     '--dqn-surface': c.surface,
@@ -270,14 +294,16 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
       aria-label="Jump to dashboard section"
       className={`mp-dqn ${gutter ? 'mp-dqn--gutter' : 'mp-dqn--compact'}`}
       data-open={gutter || open ? 'true' : 'false'}
+      data-hidden={visible ? undefined : 'true'}
       data-more-above={edges.above ? 'true' : undefined}
       data-more-below={edges.below ? 'true' : undefined}
-      aria-hidden={!gutter && !open ? true : undefined}
+      aria-hidden={focusable ? undefined : true}
       onScroll={() => { readEdges(); setTip(null); if (!gutter) armIdle() }}
       onPointerMove={gutter ? undefined : armIdle}
       style={{ ...vars, left: gutter ? railLeft : undefined }}
     >
-      {items.map(({ id, label, short, Icon }) => {
+      <span ref={indRef} className="mp-dqn__ind" aria-hidden />
+      {items.map(({ id, label, short, Icon }, i) => {
         const isActive = active === id
         return (
           <button
@@ -287,7 +313,8 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
             className="mp-dqn__item"
             aria-label={label}
             aria-current={isActive ? 'true' : undefined}
-            tabIndex={gutter || open ? 0 : -1}
+            tabIndex={focusable ? 0 : -1}
+            style={{ '--dqn-i': Math.min(i, 8) } as React.CSSProperties}
             onClick={() => jumpTo(id)}
             onPointerEnter={gutter ? e => { if (e.pointerType === 'mouse') showTip(e.currentTarget, label) } : undefined}
             onPointerLeave={gutter ? () => setTip(null) : undefined}
@@ -302,7 +329,7 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
     </nav>
   )
 
-  const tooltip = gutter && tip && (
+  const tooltip = gutter && visible && tip && (
     <div className="mp-dqn-tip" role="presentation" style={{ ...vars, top: tip.top, left: tip.left }}>{tip.label}</div>
   )
 
@@ -315,6 +342,9 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
         className="mp-dqn-tab"
         data-open={open ? 'true' : 'false'}
         data-active={active ? 'true' : 'false'}
+        data-hidden={visible ? undefined : 'true'}
+        tabIndex={visible ? 0 : -1}
+        aria-hidden={visible ? undefined : true}
         aria-label="Jump to dashboard section"
         aria-expanded={open}
         onClick={() => setExpanded(true)}
