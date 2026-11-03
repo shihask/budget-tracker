@@ -501,7 +501,9 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
       transaction_time: txTime(t),
       transaction_type: t.transaction_type,
       category_id: t.category_id || '',
-      from_account_id: t.from_account_id || (t as any).credit_card_id || '',
+      // A money-added balance adjustment keeps its account in to_account_id.
+      from_account_id: t.from_account_id || (t as any).credit_card_id
+        || (t.transaction_type === 'balance_adjustment' ? t.to_account_id : '') || '',
       to_account_id: t.to_account_id || '',
       event_id: t.event_id || '',
       master_id: t.master_id || '',
@@ -1260,8 +1262,10 @@ export function TransactionsPage({ state, onDelete, onUpdate, onClose, onSwipePr
                     <optgroup label="Bank / Cash">
                       {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </optgroup>
-                    {/* Income reaches a card only as a refund, i.e. a linked reimbursement. */}
-                    {(state.credit_cards || []).length > 0 && (editForm.transaction_type === 'income' ? !!editForm.reimbursement_for : !['borrowing', 'transfer', 'savings_contribution', 'savings_withdrawal'].includes(editForm.transaction_type)) && (
+                    {/* Income reaches a card only as a refund, i.e. a linked reimbursement.
+                        Bank-side system rows (an account's adjustment or opening balance, a
+                        bill payment's paying account) can never move onto a card. */}
+                    {(state.credit_cards || []).length > 0 && (editForm.transaction_type === 'income' ? !!editForm.reimbursement_for : !['borrowing', 'transfer', 'savings_contribution', 'savings_withdrawal', 'balance_adjustment', 'opening_balance', 'credit_card_payment'].includes(editForm.transaction_type)) && (
                       <optgroup label="Credit Cards">
                         {(state.credit_cards || []).map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                       </optgroup>

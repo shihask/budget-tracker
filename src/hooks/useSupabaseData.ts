@@ -649,7 +649,7 @@ export function useSupabaseData(userId: string) {
       }
 
       const ccId = t.credit_card_id ?? null
-      const ccDelta = ccId ? -cardDelta(t.transaction_type, t.amount) : null
+      const ccDelta = ccId ? -cardDelta(t.transaction_type, t.amount, t.is_credit) : null
 
       const { error } = await supabase.rpc('mp_delete_transaction', {
         p_transaction_id:  t.id,
@@ -942,12 +942,24 @@ export function useSupabaseData(userId: string) {
       }
     }
     try {
-      const toAccountId   = form.transaction_type === 'transfer' ? (form.to_account_id ?? null) : null
+      // adjustBalance stores a money-added adjustment on to_account_id (from = null).
+      // The edit sheet shows that account in its single Account field, so it comes
+      // back in from_account_id and must be written back to to_account_id.
+      const isCreditAdj   = form.transaction_type === 'balance_adjustment' && old.transaction_type === 'balance_adjustment'
+        && !!old.to_account_id && !old.from_account_id
+      const fromAccountId = isCreditAdj ? null : (form.from_account_id ?? null)
+      const toAccountId   = form.transaction_type === 'transfer' ? (form.to_account_id ?? null)
+        : isCreditAdj ? (form.from_account_id ?? form.to_account_id ?? null)
+        : null
+      const oldHasTo      = (old.transaction_type === 'transfer' || old.transaction_type === 'balance_adjustment') && !!old.to_account_id
       const isBorrowingTx = !!old.borrowing_id
+      // A card balance adjustment's direction lives only in is_credit; the edit
+      // sheet doesn't show it, so it is carried over rather than wiped to null.
       const newIsCredit   = isBorrowingTx
         ? (['Borrowed Money', 'Lent Repayment'] as string[]).includes(
             stateRef.current.categories.find(c => c.id === form.category_id)?.name ?? ''
           )
+        : form.transaction_type === 'cc_balance_adjustment' ? (old.is_credit ?? null)
         : null
 
       // Pre-compute deltas; RPC applies them all atomically
@@ -957,20 +969,20 @@ export function useSupabaseData(userId: string) {
       const oldFromDelta = old.from_account_id
         ? -(isBorrowingTx ? borrowDelta(old.is_credit, old.amount) : delta(old.transaction_type, old.amount))
         : null
-      const oldToDelta = old.transaction_type === 'transfer' && old.to_account_id ? -old.amount : null
-      const newFromDelta = form.from_account_id
+      const oldToDelta = oldHasTo ? -old.amount : null
+      const newFromDelta = fromAccountId
         ? (isBorrowingTx ? borrowDelta(newIsCredit, form.amount) : delta(form.transaction_type, form.amount))
         : null
       const newToDelta = toAccountId ? form.amount : null
 
       const oldCcId = old.credit_card_id ?? null
-      const oldCcDelta = oldCcId ? -cardDelta(old.transaction_type, old.amount) : null
+      const oldCcDelta = oldCcId ? -cardDelta(old.transaction_type, old.amount, old.is_credit) : null
       // A bill payment's from_account_id is the bank; its card lives only in
       // credit_card_id, so it must be carried over or the edit unlinks the card.
       const isCardPayment = form.transaction_type === 'credit_card_payment'
       const newIsCC = !isCardPayment && stateRef.current.credit_cards.some(c => c.id === form.from_account_id)
       const newCcId = isCardPayment ? oldCcId : newIsCC ? form.from_account_id! : null
-      const newCcDelta = newCcId ? cardDelta(form.transaction_type, form.amount) : null
+      const newCcDelta = newCcId ? cardDelta(form.transaction_type, form.amount, newIsCredit) : null
 
       const { data, error } = await supabase.rpc('mp_update_transaction', {
         p_transaction_id:      old.id,
@@ -979,12 +991,12 @@ export function useSupabaseData(userId: string) {
         p_amount:              form.amount,
         p_transaction_type:    form.transaction_type,
         p_category_id:         form.category_id ?? null,
-        p_from_account_id:     newIsCC ? null : (form.from_account_id ?? null),
+        p_from_account_id:     newIsCC ? null : fromAccountId,
         p_to_account_id:       toAccountId,
         p_is_credit:           newIsCredit,
         p_old_from_account_id: old.from_account_id ?? null,
         p_old_from_delta:      oldFromDelta,
-        p_old_to_account_id:   old.transaction_type === 'transfer' ? (old.to_account_id ?? null) : null,
+        p_old_to_account_id:   oldHasTo ? old.to_account_id : null,
         p_old_to_delta:        oldToDelta,
         p_new_from_delta:      newIsCC ? null : newFromDelta,
         p_new_to_delta:        newToDelta,
@@ -1072,7 +1084,7 @@ export function useSupabaseData(userId: string) {
           let bal = a.current_balance
           if (a.id === old.from_account_id  && oldFromDelta !== null) bal += oldFromDelta
           if (a.id === old.to_account_id    && oldToDelta  !== null) bal += oldToDelta
-          if (!newIsCC && a.id === form.from_account_id && newFromDelta !== null) bal += newFromDelta
+          if (!newIsCC && a.id === fromAccountId && newFromDelta !== null) bal += newFromDelta
           if (a.id === toAccountId          && newToDelta  !== null) bal += newToDelta
           return bal !== a.current_balance ? { ...a, current_balance: bal } : a
         }),

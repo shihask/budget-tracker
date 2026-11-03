@@ -18,6 +18,20 @@ describe('cardDelta', () => {
     expect(delta('credit_card_payment', 10000)).toBe(-10000)
   })
 
+  // adjustCreditCardBalance writes amount = |diff|, p_cc_delta = diff, is_credit = diff > 0.
+  it('a card balance adjustment follows is_credit', () => {
+    expect(cardDelta('cc_balance_adjustment', 500, true)).toBe(500)
+    expect(cardDelta('cc_balance_adjustment', 500, false)).toBe(-500)
+  })
+
+  it('deleting a lowering adjustment restores the card instead of lowering it again', () => {
+    expect(-cardDelta('cc_balance_adjustment', 500, false)).toBe(500)
+  })
+
+  it('editing a lowering adjustment from 500 to 600 lowers the card by 100 more', () => {
+    expect(-cardDelta('cc_balance_adjustment', 500, false) + cardDelta('cc_balance_adjustment', 600, false)).toBe(-100)
+  })
+
   it('editing a bill payment without changing the amount nets to zero on the card', () => {
     const reverseOld = -cardDelta('credit_card_payment', 10000)
     const applyNew   =  cardDelta('credit_card_payment', 10000)

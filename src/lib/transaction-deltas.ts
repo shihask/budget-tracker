@@ -15,9 +15,14 @@ export const delta = (type: TransactionType, amount: number) => {
  *  debt, so this mirrors `delta`: spending raises what is owed, and money arriving
  *  on the card (a merchant refund, recorded as a reimbursement) lowers it. A bill
  *  payment debits the bank (`delta`) AND lowers the card — the one type where both
- *  sides fall. Create, edit and delete all go through this — never a bare amount. */
-export const cardDelta = (type: TransactionType, amount: number) =>
-  type === 'credit_card_payment' ? -amount : -delta(type, amount)
+ *  sides fall. A card balance adjustment stores |difference| as its amount and the
+ *  direction in is_credit (true = outstanding raised), so it needs `isCredit`.
+ *  Create, edit and delete all go through this — never a bare amount. */
+export const cardDelta = (type: TransactionType, amount: number, isCredit?: boolean | null) => {
+  if (type === 'credit_card_payment') return -amount
+  if (type === 'cc_balance_adjustment') return isCredit === false ? -amount : amount
+  return -delta(type, amount)
+}
 
 /** Which rows a new transaction moves, and by how much. This is the ONE model
  *  shared by the live save (mp_execute_transaction's p_*_delta args, the local
