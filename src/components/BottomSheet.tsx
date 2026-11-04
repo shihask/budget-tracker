@@ -37,6 +37,11 @@ export function HelpToggle() {
   )
 }
 
+// How many sheets are open right now, app-wide. AutoUpdater reads it so a
+// silent update never reloads over a sheet that isn't in App's overlay list.
+let openSheets = 0
+export const anySheetOpen = () => openSheets > 0
+
 interface BottomSheetProps {
   open: boolean
   onClose: () => void
@@ -64,6 +69,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
 
   useEffect(() => {
     if (open) {
+      openSheets++
       setMounted(true)
       const id = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
       const prevOverflow = document.body.style.overflow
@@ -73,6 +79,7 @@ export function BottomSheet({ open, onClose, children, maxHeight = '90svh', zInd
       document.body.style.touchAction = 'none'
       document.documentElement.style.overflow = 'hidden'
       return () => {
+        openSheets--
         cancelAnimationFrame(id)
         document.body.style.overflow = prevOverflow
         document.body.style.touchAction = prevTouch

@@ -61,7 +61,7 @@ import { CashFlowForecastCard } from '@/components/CashFlowForecastCard'
 import { CashFlowForecastPage } from '@/components/CashFlowForecastPage'
 import { CashFlowForecastSetup } from '@/components/CashFlowForecastSetup'
 import { OnboardingFlow } from '@/components/OnboardingFlow'
-import { UpdateToast } from '@/components/UpdateToast'
+import { AutoUpdater } from '@/components/AutoUpdater'
 import { InsightCard } from '@/components/InsightCard'
 import { getAppNotifications, getSnoozeMap, snoozeNotification, isSnoozed, type SnoozeDuration } from '@/lib/notification-engine'
 import type { NotificationTarget } from '@/types'
@@ -940,7 +940,7 @@ function AppContent({ session }: { session: Session }) {
 
   return (
     <ThemeContext.Provider value={c}>
-      <UpdateToast />
+      <AutoUpdater busy={overlayOpen || showOnboardingFlow || guestQuickStartShowing} />
       {showSuggestionToast && eventSuggestion.suggestion && (
         <EventSuggestionToast
           key={toastKey!}

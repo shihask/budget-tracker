@@ -8,7 +8,7 @@ interface Props {
 }
 
 // Passive notice, not a modal — nothing to claim/collect. Reuses the transient-toast
-// visual language already established by UpdateToast.tsx, auto-dismisses like `flash`.
+// visual language (dark ink pill, green accent), auto-dismisses like `flash`.
 export function AchievementUnlockToast({ achievement, onDismiss }: Props) {
   const c = useTheme()
 

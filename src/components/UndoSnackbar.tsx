@@ -12,7 +12,7 @@ interface Props {
   onClose: () => void
 }
 
-/** A one-line "done — Undo" bar, positioned like UpdateToast. Auto-closes. */
+/** A one-line "done — Undo" bar, bottom-centred above the FAB. Auto-closes. */
 export function UndoSnackbar({ open, message, onUndo, onClose }: Props) {
   const c = useTheme()
 
