@@ -294,7 +294,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 /* Compact rail: labelled, slides in from the edge tab. */
 .mp-dqn--compact {
-  left: calc(8px + env(safe-area-inset-left, 0px));
+  left: calc(8px + env(safe-area-inset-left, 0px)); touch-action: pan-y;
   transform: translate(calc(-100% - 16px), -50%);
   opacity: 0; visibility: hidden;
   transition: transform 260ms var(--dqn-ease), opacity 200ms ease, visibility 0s linear 260ms;
@@ -310,14 +310,16 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 }
 
 /* Edge tab: 28px touch target, 16px visible face, so it stays inside the
-   content gutter and covers no card. Tap only — no swipe to clash with
-   the browser's edge-back gesture. */
+   content gutter and covers no card. Tap or drag right to open; the open rail
+   drags left to close (DashboardQuickNav). pan-y keeps vertical scrolling
+   native and hands horizontal moves to the drag. Where the OS owns the edge
+   swipe (Android gesture nav), a drag from the very edge may still go "back". */
 .mp-dqn-tab {
   position: fixed; top: 50%; left: env(safe-area-inset-left, 0px); z-index: 60;
   width: 28px; height: 60px; transform: translateY(-50%);
   padding: 0; border: none; background: transparent; cursor: pointer;
   display: flex; align-items: center; justify-content: flex-start;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent; touch-action: pan-y;
   transition: opacity 200ms ease, transform 280ms var(--dqn-ease), visibility 0s;
 }
 .mp-dqn-tab:not([data-hidden="true"]) { animation: mp-dqn-tab-in 320ms var(--dqn-ease) backwards; }

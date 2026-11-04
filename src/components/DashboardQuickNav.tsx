@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { flushSync } from 'react-dom'
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { SECTION_META } from '@/lib/dashboard-sections'
@@ -55,6 +56,26 @@ const SCROLL_SETTLE_MS = 150
 const SCROLL_LOCK_MAX_MS = 1500
 /** The compact (mobile) rail folds back into its edge tab after this long untouched. */
 const COMPACT_IDLE_MS = 4000
+/** Horizontal travel before a press on the tab/rail becomes a drag (less is a tap or a scroll). */
+const DRAG_SLOP = 8
+/** Released past this fraction of the way, the rail settles in the direction dragged. */
+const DRAG_COMMIT = 0.35
+/** A flick this fast settles it in the flick's direction however far it got. */
+const FLICK_PX_PER_MS = 0.4
+/** The compact rail's closed position is `-100% - 16px` (index.css). */
+const RAIL_HIDE_EXTRA = 16
+
+interface RailDrag {
+  pointerId: number
+  x0: number
+  y0: number
+  from: 'closed' | 'open'
+  dragging: boolean
+  p: number
+  lastX: number
+  lastT: number
+  v: number
+}
 
 const SECTION_SELECTOR = '[data-dash-sections] > [data-dash-section]'
 const sectionEl = (id: string) => document.querySelector<HTMLElement>(`[data-dash-section="${id}"]`)
@@ -101,6 +122,9 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
   const idleRef = useRef<number | null>(null)
   const releaseLockRef = useRef<() => void>(() => {})
   const indRef = useRef<HTMLSpanElement>(null)
+  const tabRef = useRef<HTMLButtonElement>(null)
+  const dragRef = useRef<RailDrag | null>(null)
+  const swallowClickRef = useRef(false)
 
   // Desktop has an empty gutter beside the 720px column: the rail lives there and
   // never covers a card. Narrower screens have only the 16px content gutter, so
@@ -263,6 +287,81 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
     if (!gutter) setExpanded(false)
   }
 
+  // Compact rail drag: right from the tab opens it, left on the open rail closes it,
+  // and the rail follows the finger in between. Inline styles hold it under the
+  // finger; on release they're cleared in the same commit that settles `expanded`,
+  // so the CSS transition carries on from wherever it was let go.
+  const paintDrag = (p: number) => {
+    const rail = railRef.current
+    if (!rail) return
+    rail.style.transition = 'none'
+    rail.style.visibility = 'visible'
+    rail.style.opacity = String(p)
+    rail.style.transform = `translate(${-(rail.offsetWidth + RAIL_HIDE_EXTRA) * (1 - p)}px, -50%)`
+    const tab = tabRef.current
+    if (tab) { tab.style.transition = 'none'; tab.style.opacity = String(1 - p) }
+  }
+  const clearDrag = () => {
+    for (const el of [railRef.current, tabRef.current]) {
+      el?.style.removeProperty('transition')
+      el?.style.removeProperty('opacity')
+    }
+    railRef.current?.style.removeProperty('visibility')
+    railRef.current?.style.removeProperty('transform')
+  }
+
+  const onDragStart = (e: React.PointerEvent, from: RailDrag['from']) => {
+    swallowClickRef.current = false
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    dragRef.current = {
+      pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, from, dragging: false,
+      p: from === 'open' ? 1 : 0, lastX: e.clientX, lastT: e.timeStamp, v: 0,
+    }
+  }
+  const onDragMove = (e: React.PointerEvent) => {
+    const d = dragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    const dx = e.clientX - d.x0
+    const dy = e.clientY - d.y0
+    if (!d.dragging) {
+      // Vertical first = scrolling the rail or the page; the wrong way = nothing.
+      if (Math.abs(dy) > DRAG_SLOP && Math.abs(dy) >= Math.abs(dx)) { dragRef.current = null; return }
+      if (Math.abs(dx) < DRAG_SLOP) return
+      if ((d.from === 'closed') !== (dx > 0)) { dragRef.current = null; return }
+      d.dragging = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+      if (idleRef.current !== null) window.clearTimeout(idleRef.current)
+    }
+    const w = (railRef.current?.offsetWidth ?? 80) + RAIL_HIDE_EXTRA
+    d.p = Math.max(0, Math.min(1, (d.from === 'open' ? 1 : 0) + dx / w))
+    const dt = e.timeStamp - d.lastT
+    if (dt > 0) d.v = (e.clientX - d.lastX) / dt
+    d.lastX = e.clientX
+    d.lastT = e.timeStamp
+    paintDrag(d.p)
+  }
+  const onDragEnd = (e: React.PointerEvent) => {
+    const d = dragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    dragRef.current = null
+    if (!d.dragging) return
+    // The click that follows this pointerup is the drag's, not a tap.
+    swallowClickRef.current = true
+    const settleOpen = e.type === 'pointercancel' ? d.from === 'open'
+      : d.v > FLICK_PX_PER_MS ? true
+      : d.v < -FLICK_PX_PER_MS ? false
+      : d.from === 'closed' ? d.p > DRAG_COMMIT : d.p > 1 - DRAG_COMMIT
+    flushSync(() => setExpanded(settleOpen))
+    clearDrag()
+    if (settleOpen && d.from === 'open') armIdle()
+  }
+  const swallowDragClick = (e: React.MouseEvent) => {
+    if (!swallowClickRef.current) return
+    swallowClickRef.current = false
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
   // The tooltip is one fixed element outside the rail — the rail scrolls, and
   // anything inside a scroll container is clipped by it.
   const showTip = (btn: HTMLElement, label: string) => {
@@ -299,7 +398,11 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
       data-more-below={edges.below ? 'true' : undefined}
       aria-hidden={focusable ? undefined : true}
       onScroll={() => { readEdges(); setTip(null); if (!gutter) armIdle() }}
-      onPointerMove={gutter ? undefined : armIdle}
+      onPointerDown={open ? e => onDragStart(e, 'open') : undefined}
+      onPointerMove={gutter ? undefined : e => { onDragMove(e); if (!dragRef.current?.dragging) armIdle() }}
+      onPointerUp={open ? onDragEnd : undefined}
+      onPointerCancel={open ? onDragEnd : undefined}
+      onClickCapture={open ? swallowDragClick : undefined}
       style={{ ...vars, left: gutter ? railLeft : undefined }}
     >
       <span ref={indRef} className="mp-dqn__ind" aria-hidden />
@@ -338,6 +441,7 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
   return (
     <>
       <button
+        ref={tabRef}
         type="button"
         className="mp-dqn-tab"
         data-open={open ? 'true' : 'false'}
@@ -348,6 +452,11 @@ export function DashboardQuickNav({ hidden, containerWidth, windowWidth }: Dashb
         aria-label="Jump to dashboard section"
         aria-expanded={open}
         onClick={() => setExpanded(true)}
+        onPointerDown={visible && !open ? e => onDragStart(e, 'closed') : undefined}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragEnd}
+        onPointerCancel={onDragEnd}
+        onClickCapture={swallowDragClick}
         style={vars}
       >
         <span className="mp-dqn-tab__face">
