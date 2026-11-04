@@ -24,6 +24,8 @@ import { SectionTitle } from '@/components/SectionTitle'
 import { MetricCards } from '@/components/MetricCards'
 import { Analytics } from '@/components/Analytics'
 import { AccountsSection } from '@/components/AccountsSection'
+import { AccountPage } from '@/components/AccountPage'
+import { AccountsPage } from '@/components/AccountsPage'
 import { CommitmentsSection } from '@/components/CommitmentsSection'
 import { CommitmentsPage } from '@/components/CommitmentsPage'
 import { BorrowingSection } from '@/components/BorrowingSection'
@@ -265,6 +267,7 @@ function AppContent({ session }: { session: Session }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [sheetDefaultType, setSheetDefaultType] = useState<'expense' | 'income' | 'transfer' | undefined>()
   const [sheetDefaultCategoryId, setSheetDefaultCategoryId] = useState<string | null | undefined>()
+  const [sheetDefaultAccountId, setSheetDefaultAccountId] = useState<string | null | undefined>()
   // The reverse entry point: opened from the expense you are already looking at,
   // prefilled with what it still owes.
   const [sheetReimbursement, setSheetReimbursement] = useState<{ targetId: string; remaining: number } | undefined>()
@@ -292,6 +295,13 @@ function AppContent({ session }: { session: Session }) {
   const [catsOpen, setCatsOpen] = useState(false)
   const [mastersOpen, setMastersOpen] = useState(false)
   const [creditCardsOpen, setCreditCardsOpen] = useState(false)
+  const [accountsListOpen, setAccountsListOpen] = useState(false)
+  const [accountPageId, setAccountPageId] = useState<string | null>(null)
+  const accountsOpen = accountsListOpen || accountPageId !== null
+  const closeAccountPage = useCallback(() => setAccountPageId(null), [])
+  const openQuickAddForAccount = (type: 'income' | 'transfer', accountId: string | null) => {
+    setSheetDefaultType(type); setSheetDefaultAccountId(accountId ?? undefined); setSheetOpen(true)
+  }
   const [budgetEditOpen, setBudgetEditOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [metricsInfoOpen, setMetricsInfoOpen] = useState(false)
@@ -757,7 +767,7 @@ function AppContent({ session }: { session: Session }) {
   // the user is in the middle of. Once started it plays out even if one opens.
   const overlayOpen = sheetOpen || chatOpen || txnsOpen || settingsOpen || eventFormOpen || eventsListOpen ||
     !!linkExpensesForId || notificationsOpen || createMenuOpen || commitmentsOpen || borrowingOpen || savingsOpen ||
-    creditCardsOpen || catsOpen || mastersOpen || analyticsOpen || cashflowOpen || projectsOpen || householdOpen || growOpen ||
+    creditCardsOpen || accountsOpen || catsOpen || mastersOpen || analyticsOpen || cashflowOpen || projectsOpen || householdOpen || growOpen ||
     achievementsOpen || habitsOpen || reflectionOpen || aaSyncOpen || importStatementOpen || tourOpen || adminOpen ||
     layoutOpen || budgetEditOpen || emergencyEditOpen || suggestionReviewOpen || !!challengeWin || !!salaryPromptFor
 
@@ -962,7 +972,7 @@ function AppContent({ session }: { session: Session }) {
             WebkitBackdropFilter: 'blur(16px)',
             padding: `env(safe-area-inset-top, 0px) 16px 0`,
             borderBottom: `1px solid ${c.faint}`,
-            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'none' : 'block',
+            display: (txnsOpen || borrowingOpen || analyticsOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || savingsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || catsOpen || mastersOpen || creditCardsOpen || accountsOpen || adminOpen) ? 'none' : 'block',
           }}>
             <PWAPrompt guest={guest} onSaveGuest={() => setGuestSaveOpen(true)} />
             <Header dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onEditProfile={() => guest ? setGuestSaveOpen(true) : setProfileOpen(true)} onSettings={() => setSettingsOpen(v => !v)} onMasters={() => setMastersOpen(true)} onCategories={() => setCatsOpen(true)} notificationCount={notificationCount} onNotifications={() => { markNotificationsRead(); setNotificationsOpen(true) }} onTour={() => setTourOpen(true)} onAdmin={isAdmin ? () => setAdminOpen(true) : undefined}
@@ -1105,7 +1115,7 @@ function AppContent({ session }: { session: Session }) {
                       el = <CashFlowForecastCard state={state} d={d} onOpen={() => setCashflowOpen(true)} onSetup={() => setCashflowSetupOpen(true)} onRecordIncome={() => { setSheetDefaultType('income'); setSheetDefaultCategoryId(state.settings.primary_income_category_id || null); setSheetOpen(true) }} />
                       break
                     case 'accounts':
-                      el = <AccountsSection state={state} onUpdateAccount={updateAccount} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAdjustBalance={adjustBalance} onAddTransaction={() => setSheetOpen(true)} linkedAccountIds={linkedAccountIds} onOpenBankSync={() => setAaSyncOpen(true)} />
+                      el = <AccountsSection state={state} onAddAccount={addAccount} onOpenAccount={setAccountPageId} onViewAll={() => setAccountsListOpen(true)} linkedAccountIds={linkedAccountIds} onOpenBankSync={() => setAaSyncOpen(true)} />
                       break
                     case 'commitments':
                       el = <CommitmentsSection state={state} onSeeAll={() => { setCommitmentsAddOnOpen(false); setCommitmentsOpen(true) }} onAdd={() => { setCommitmentsAddOnOpen(true); setCommitmentsOpen(true) }} />
@@ -1274,7 +1284,7 @@ function AppContent({ session }: { session: Session }) {
 
           {/* Quick Add Sheet */}
           <div style={{ position: 'fixed', inset: 0, maxWidth: W, margin: '0 auto', pointerEvents: sheetOpen ? 'auto' : 'none', zIndex: 150 }}>
-            <QuickAddSheet household={householdBell.share} offline={!online} onAddMaster={addMaster} open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultReimbursement={sheetReimbursement} onUploadReceipt={guest ? undefined : uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} showReimbursementTip={!reimbursementTipSeen} onDismissReimbursementTip={dismissReimbursementTip} />
+            <QuickAddSheet household={householdBell.share} offline={!online} onAddMaster={addMaster} open={sheetOpen} onClose={() => { setSheetOpen(false); setSheetDefaultType(undefined); setSheetDefaultCategoryId(undefined); setSheetDefaultAccountId(undefined); setSheetReimbursement(undefined) }} onSave={handleSave} onSaveSplit={handleSaveSplit} state={state} onAddCategory={addCategory} autopilotEnabled={state.settings.autopilot_enabled ?? false} trackBorrowings={state.settings.track_borrowings ?? true} onUpdateSettings={updateSettings} onBusyChange={setAiProcessing} defaultTxType={sheetDefaultType} defaultCategoryId={sheetDefaultCategoryId} defaultAccountId={sheetDefaultAccountId} defaultReimbursement={sheetReimbursement} onUploadReceipt={guest ? undefined : uploadReceipt} onReceiptFailed={(tx, receipt, err) => setReceiptRetry({ transaction: tx, receipt, message: receiptFailureMessage(err) })} showSmartInputTip={!smartInputTipSeen} onDismissSmartInputTip={dismissSmartInputTip} showReimbursementTip={!reimbursementTipSeen} onDismissReimbursementTip={dismissReimbursementTip} />
           </div>
 
           <CreateMenuSheet
@@ -1425,10 +1435,42 @@ function AppContent({ session }: { session: Session }) {
           {/* Dim overlay: sits between main content and overlay pages, fades with swipe progress */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 99,
-            background: `rgba(0,0,0,${(txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
-            pointerEvents: (txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || adminOpen) ? 'auto' : 'none',
+            background: `rgba(0,0,0,${(txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || accountsOpen || adminOpen) ? 0.4 * (1 - swipePct) : 0})`,
+            pointerEvents: (txnsOpen || settingsOpen || borrowingOpen || plantSheetOpen || growOpen || achievementsOpen || habitsOpen || commitmentsOpen || cashflowOpen || projectsOpen || householdOpen || eventsListOpen || savingsOpen || catsOpen || mastersOpen || creditCardsOpen || accountsOpen || adminOpen) ? 'auto' : 'none',
             transition: (swipePct > 0 && swipePct < 1) ? 'none' : 'background 0.28s cubic-bezier(0.32,0.72,0,1)',
           }} />
+
+          {/* List → detail → Transactions, all zIndex 100: DOM order is the stack. */}
+          {accountsListOpen && (
+            <AccountsPage
+              state={state}
+              onClose={() => setAccountsListOpen(false)}
+              onSwipeProgress={setSwipePct}
+              onAddAccount={addAccount}
+              onUpdateAccount={updateAccount}
+              onDeleteAccount={deleteAccount}
+              onAdjustBalance={adjustBalance}
+              onAddTransaction={() => setSheetOpen(true)}
+              onQuickAdd={openQuickAddForAccount}
+              onOpenAccount={setAccountPageId}
+              linkedAccountIds={linkedAccountIds}
+              onOpenBankSync={() => setAaSyncOpen(true)}
+            />
+          )}
+          {accountPageId && (
+            <AccountPage
+              state={state}
+              accountId={accountPageId}
+              onClose={closeAccountPage}
+              onSwipeProgress={accountsListOpen ? undefined : setSwipePct}
+              onUpdateAccount={updateAccount}
+              onAdjustBalance={adjustBalance}
+              onQuickAdd={openQuickAddForAccount}
+              onAddTransaction={() => setSheetOpen(true)}
+              onViewTransactions={accountId => { setTxnsInitialFilters({ account: accountId }); setTxnsOpen(true) }}
+              onEditTransaction={t => { setDashEditTx(t); setTxnsOpen(true) }}
+            />
+          )}
 
           {txnsOpen && (
             <TransactionsPage state={state} onDelete={deleteTransaction} onUpdate={updateTransaction} onClose={() => { setTxnsOpen(false); setDashEditTx(null); setTxnsInitialFilters(null) }} dark={dark} onToggleTheme={() => setDarkManual(v => !v)} userName={userName} userEmail={userEmail} synced={usingSupabase} onSignOut={handleSignOut} onSettings={() => setSettingsOpen(true)} onCategories={() => setCatsOpen(true)} onAddCategory={addCategory} onAddMaster={addMaster} onAddEvent={addEvent} onReversePayment={reversePayment} onDeleteSavings={deleteSavings} initialEditTx={dashEditTx} initialFilters={txnsInitialFilters} onSwipeProgress={setSwipePct} onAdd={() => setSheetOpen(true)} onToggleChallengeExclusion={toggleChallengeExclusion} allTransactionsLoaded={allTransactionsLoaded} loadingMore={loadingMore} onLoadMore={loadMoreTransactions} onSearchTransactions={searchTransactions} onUploadReceipt={guest ? undefined : uploadReceipt} onRemoveReceipt={removeReceipt} getReceiptUrl={getReceiptUrl} userId={session.user.id} onUpdateSplitGroup={updateSplitGroup} onDeleteSplitGroup={deleteSplitGroup} onDeleteSplitLeg={deleteSplitLeg} onRecordReimbursement={(expense, remaining) => { setSheetDefaultType('income'); setSheetReimbursement({ targetId: expense.id, remaining }); setSheetOpen(true) }} household={householdBell.share} />

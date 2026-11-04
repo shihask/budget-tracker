@@ -11,6 +11,24 @@ export const delta = (type: TransactionType, amount: number) => {
   }
 }
 
+/** Signed effect of a saved row on one bank/cash account — what deleting it would
+ *  reverse (deleteTransaction's from/to deltas, sign flipped). 0 if it doesn't touch it. */
+export const accountEffect = (
+  t: { transaction_type: TransactionType; amount: number; from_account_id?: string | null; to_account_id?: string | null; is_credit?: boolean | null },
+  accountId: string,
+) => {
+  let effect = 0
+  if (t.from_account_id === accountId) {
+    effect += (t.transaction_type === 'borrowing' || t.transaction_type === 'borrowing_repayment')
+      ? (t.is_credit ? t.amount : -t.amount)
+      : delta(t.transaction_type, t.amount)
+  }
+  if (t.to_account_id === accountId && (t.transaction_type === 'transfer' || t.transaction_type === 'savings_withdrawal' || t.transaction_type === 'balance_adjustment')) {
+    effect += t.amount
+  }
+  return effect
+}
+
 /** Signed effect of a transaction on a credit card's outstanding. A card carries
  *  debt, so this mirrors `delta`: spending raises what is owed, and money arriving
  *  on the card (a merchant refund, recorded as a reimbursement) lowers it. A bill

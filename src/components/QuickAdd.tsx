@@ -129,6 +129,9 @@ interface QuickAddSheetProps {
   onBusyChange?: (busy: boolean) => void
   defaultTxType?: 'expense' | 'income' | 'transfer'
   defaultCategoryId?: string | null
+  /** Preselects this account (the income's account, or the transfer's From) —
+   *  the Accounts card's per-account Income / Transfer buttons. */
+  defaultAccountId?: string | null
   defaultEventId?: string | null
   defaultMasterId?: string | null
   onAddMaster: (form: MasterFormValues) => Promise<Master | undefined>
@@ -151,7 +154,7 @@ interface QuickAddSheetProps {
   household?: HouseholdShareContext | null
 }
 
-export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled: autopilotSetting = false, offline = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultEventId, defaultMasterId, onAddMaster, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip, household = null }: QuickAddSheetProps) {
+export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAddCategory, autopilotEnabled: autopilotSetting = false, offline = false, trackBorrowings = true, onUpdateSettings, onBusyChange, defaultTxType, defaultCategoryId, defaultAccountId, defaultEventId, defaultMasterId, onAddMaster, defaultReimbursement, onUploadReceipt, onReceiptFailed, showSmartInputTip, onDismissSmartInputTip, showReimbursementTip, onDismissReimbursementTip, household = null }: QuickAddSheetProps) {
   // "Share with Household": OFF on every open, never remembered. shareKey is this
   // form's idempotency key — reused by a retry, so a lost answer can't double-save.
   const [shareOn, setShareOn] = useState(false)
@@ -362,7 +365,8 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
         !!id && (accs.some(a => a.id === id)
           || (initType === 'expense' && (state.credit_cards || []).some(cc => cc.id === id)))
       const lastUsedAccountId = state.transactions.find(t => isSelectableSource(t.from_account_id))?.from_account_id
-      const firstAccount = lastUsedAccountId || accs[0]?.id || ''
+      const presetAccountId = defaultAccountId && accs.some(a => a.id === defaultAccountId) ? defaultAccountId : null
+      const firstAccount = presetAccountId || lastUsedAccountId || accs[0]?.id || ''
       const secondAccount = accs.find(a => a.id !== firstAccount)?.id || ''
       const firstCat = initType === 'income'
         ? (defaultCategoryId || cats.find(c => c.group_name === 'Income')?.id || cats[0]?.id || '')
