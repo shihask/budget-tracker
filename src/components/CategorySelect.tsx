@@ -2,6 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import type { AppState } from '@/types'
 import { BORROWING_GROUP } from '@/lib/constants'
+import { Plus } from 'lucide-react'
+
+/** Same list height as MasterSelect: six rows, then it scrolls. */
+const VISIBLE_ROWS = 6
+const ROW_HEIGHT = 44
 
 interface Props {
   value: string
@@ -26,6 +31,14 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
   const [saving, setSaving] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  // Set by a row's onMouseDown, which fires before the input's onBlur —
+  // without it, blur closes the list and the click lands on nothing.
+  const picking = useRef(false)
+  // What was typed when "Add category" was tapped — usually the name being looked for.
+  const addPrefill = useRef('')
 
   const isGroupVisible = (g: { name: string; is_visible?: boolean }) =>
     g.is_visible !== false && (trackBorrowings || g.name !== BORROWING_GROUP)
@@ -60,19 +73,32 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
 
   useEffect(() => {
     if (showAddModal) {
-      setNewName('')
+      setNewName(addPrefill.current)
+      addPrefill.current = ''
       setNewGroup(groups[0]?.name || '')
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [showAddModal])
 
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (e.target.value === '__add__') {
-      setShowAddModal(true)
-      return
-    }
-    onChange(e.target.value)
-  }
+  // Typing filters by category or group name ("transport" lists the whole group).
+  // Groups keep their order and headers, so an empty search reads like the old dropdown.
+  const q = query.trim().toLowerCase()
+  const matches = (cat: { name: string; group_name: string }) =>
+    !q || cat.name.toLowerCase().includes(q) || cat.group_name.toLowerCase().includes(q)
+  const sections = [
+    ...groups.map(g => ({ key: g.id, label: g.name as string | null, cats: categories.filter(cat => cat.group_name === g.name && matches(cat)) })),
+    { key: '__ungrouped', label: null, cats: categories.filter(cat => !groups.some(g => g.name === cat.group_name) && matches(cat)) },
+  ].filter(s => s.cats.length > 0)
+  const firstMatch = sections[0]?.cats[0]
+  const selected = state.categories.find(cat => cat.id === value)
+
+  const close = () => { setOpen(false); setQuery(''); picking.current = false }
+  const pick = (id: string) => { onChange(id); close() }
+
+  // Opened near the bottom of a sheet, the list would hang off-screen.
+  useEffect(() => {
+    if (open) listRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [open])
 
   const handleAdd = async () => {
     if (!newName.trim() || !newGroup) return
@@ -89,6 +115,15 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
     borderRadius: 11, padding: '10px 12px',
     font: '600 14px Plus Jakarta Sans', color: c.ink, outline: 'none',
   }
+  const rowStyle: React.CSSProperties = {
+    width: '100%', minHeight: ROW_HEIGHT, display: 'flex', alignItems: 'center',
+    background: 'none', border: 'none', padding: '9px 12px', cursor: 'pointer', textAlign: 'left',
+  }
+  const groupLabel: React.CSSProperties = {
+    font: '700 10px Plus Jakarta Sans', color: c.muted,
+    letterSpacing: '0.06em', textTransform: 'uppercase',
+    padding: '10px 12px 2px',
+  }
 
   return (
     <>
@@ -99,20 +134,82 @@ export function CategorySelect({ value, onChange, state, onAddCategory, style, i
           {allowAdd && <span style={{ color: c.accent, font: '700 13px Plus Jakarta Sans' }}>+ Add</span>}
         </div>
       ) : (
-      <select value={value} onChange={handleChange} style={style}>
-        {includeEmpty && <option value="">{emptyLabel}</option>}
-        {groups.map(g => (
-          <optgroup key={g.id} label={g.name}>
-            {categories.filter(cat => cat.group_name === g.name).map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          value={open ? query : selected?.name ?? ''}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => { if (!picking.current) close() }}
+          onKeyDown={e => {
+            if (e.key === 'Escape') { close(); e.currentTarget.blur() }
+            else if (e.key === 'Enter' && q && firstMatch) { e.preventDefault(); pick(firstMatch.id); e.currentTarget.blur() }
+          }}
+          placeholder={open && selected ? selected.name : includeEmpty ? emptyLabel : 'Search categories'}
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          style={{ ...style, cursor: 'text' }}
+        />
+
+        {open && (
+          <div
+            ref={listRef}
+            role="listbox"
+            style={{
+              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30,
+              background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 11,
+              overflowY: 'auto', maxHeight: ROW_HEIGHT * VISIBLE_ROWS,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+            }}
+          >
+            {includeEmpty && value && !q && (
+              <button type="button" style={rowStyle}
+                onMouseDown={() => { picking.current = true }} onClick={() => pick('')}>
+                <span style={{ font: '700 13px Plus Jakarta Sans', color: c.muted }}>{emptyLabel}</span>
+              </button>
+            )}
+
+            {sections.map(s => (
+              <div key={s.key} role="group" aria-label={s.label ?? undefined}>
+                {s.label && <div style={groupLabel}>{s.label}</div>}
+                {s.cats.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    role="option"
+                    aria-selected={cat.id === value}
+                    onMouseDown={() => { picking.current = true }}
+                    onClick={() => pick(cat.id)}
+                    style={{ ...rowStyle, background: cat.id === value ? c.faint : 'none' }}
+                  >
+                    <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
             ))}
-          </optgroup>
-        ))}
-        {categories.filter(cat => !groups.find(g => g.name === cat.group_name)).map(cat => (
-          <option key={cat.id} value={cat.id}>{cat.name}</option>
-        ))}
-        {allowAdd && <option value="__add__">+ Add category</option>}
-      </select>
+
+            {sections.length === 0 && (
+              <div style={{ padding: '11px 12px', font: '600 12px Plus Jakarta Sans', color: c.muted }}>
+                No match
+              </div>
+            )}
+
+            {allowAdd && (
+              <button
+                type="button"
+                onMouseDown={() => { picking.current = true }}
+                onClick={() => { addPrefill.current = query.trim(); close(); setShowAddModal(true) }}
+                style={{ ...rowStyle, borderTop: `1px solid ${c.faint}`, gap: 10 }}
+              >
+                <Plus size={14} color={c.ink} />
+                <span style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>Add category</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       )}
 
       {showAddModal && (

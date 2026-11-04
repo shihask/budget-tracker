@@ -214,6 +214,7 @@ export function EventFormSheet({ open, onClose, state, onSave, onAddCategory, ed
                 onAddCategory={onAddCategory}
                 includeEmpty
                 emptyLabel="None"
+                style={inputStyle}
                 excludeGroups={[INCOME_GROUP, TRANSFER_GROUP, BORROWING_GROUP, ADJUSTMENT_GROUP]}
               />
             </div>

@@ -764,7 +764,8 @@ export function CashFlowForecastPage({ state, d, onClose, onSetup, onSwipeProgre
                     </div>
                     {peAmountFocused && <div style={{ marginBottom: 8 }}><AmountOperatorRow inputRef={peAmountRef} onChange={setPeAmount} /></div>}
                     <div style={{ marginBottom: 8 }}>
-                      <CategorySelect value={peCategoryId} onChange={setPeCategoryId} state={state} onAddCategory={onAddCategory} excludeGroups={['Income', 'Transfer', 'Borrowings', 'Adjustments']} />
+                      <CategorySelect value={peCategoryId} onChange={setPeCategoryId} state={state} onAddCategory={onAddCategory} excludeGroups={['Income', 'Transfer', 'Borrowings', 'Adjustments']}
+                        style={{ width: '100%', boxSizing: 'border-box', background: c.bg, border: `1.5px solid ${c.faint}`, borderRadius: 10, padding: '10px 12px', font: `700 14px ${F}`, color: c.ink, outline: 'none' }} />
                     </div>
 
                     {/* Impact preview */}
