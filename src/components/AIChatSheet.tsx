@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase'
 import type { ColorTokens } from '@/lib/tokens'
 import { parseExpenseWithAI, extractReceiptWithAI, aiUsagePatch, type AIReceiptExtraction } from '@/lib/gemini'
 import { compressImage, type PickedReceipt } from '@/lib/imageCompress'
-import { buildCashFlowForecast } from '@/lib/cashflow'
 import { localIso, round2 } from '@/lib/utils'
 import { matchMasterByName, masterById } from '@/lib/masters'
 import { forSpendAnalytics, spendAmount, isReimbursement } from '@/lib/reimbursements'
@@ -33,7 +32,8 @@ import { computeChallenge } from '@/lib/challenge'
 import { getStrategyPcts, getCategoryBucket } from './BudgetStrategyCard'
 import { getCreditCardBilling } from '@/lib/credit-card'
 import { getMovementClass, type MovementClass } from '@/lib/money-movement'
-import { classifyCfoIntent, LOCAL_ONLY_INTENTS, type CfoIntent, type CfoIntentKind } from '@/lib/cfo-intent'
+import { classifyCfoIntent, parseBareForecastDate, LOCAL_ONLY_INTENTS, type CfoIntent, type CfoIntentKind } from '@/lib/cfo-intent'
+import { buildDisplayedForecast, balanceAtEndOf, forecastHorizonEnd, forecastOnDate } from '@/features/forecast/lib/forecastOnDate'
 import { buildCfoSnapshot, pickDecision, buildMonthStory, affordVerdict, snapshotFacts, equationFacts, inr, type CfoSnapshot } from '@/lib/cfo-snapshot'
 import { loadChecks, saveCheck, pickBaseline, computeDeltas } from '@/lib/cfo-history'
 import { CfoCard } from './mint/CfoCard'
@@ -293,6 +293,9 @@ function buildCfoAnswer(intent: CfoIntent, state: AppState, d: DerivedMetrics, u
       }
       break
     }
+    case 'balanceOn':
+      card = { kind: 'balanceOn', snap, result: forecastOnDate(state, d, intent.date) }
+      break
     default:
       card = { kind: intent.kind, snap }
   }
@@ -359,6 +362,7 @@ const CTX_LIMITS = {
   events: 5,       // life events shown (active first)
   eventCats: 3,    // top N categories per life event
   borrowers: 5,    // people in lent/owed lists (each side)
+  forecastEvents: 25, // named forecast events (lifestyle days are summed, never listed)
 }
 
 function classifyContextIntent(text: string): ContextIntent {
@@ -527,13 +531,33 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
   }
 
   // ── MODULE: Cash flow forecast (always sent — answers "enough before salary?" / affordability) ──
+  // The Cash Flow Forecast page's own forecast (same options, same mode), every
+  // named event in its horizon and end-of-week balances. It used to be the
+  // default forecast cut to 8 events, so a date past the 8th was guessed — and
+  // the model invented reasons when the page disagreed.
   {
-    const fc = buildCashFlowForecast(state, d)
-    const upcoming = fc.projections.slice(0, 8)
+    const { mode, forecast: fc } = buildDisplayedForecast(state, d)
+    const horizonEnd = forecastHorizonEnd(state, localDateStr)
+    const named = fc.projections.filter(p => p.event.source !== 'lifestyle')
+    const upcoming = named.slice(0, CTX_LIMITS.forecastEvents)
       .map(p => `${p.event.date} ${p.event.type === 'income' ? '+' : '-'}₹${p.event.amount.toLocaleString()} ${p.event.title}(${p.event.source})→₹${p.balanceAfter.toLocaleString()}`)
       .join(' | ')
+    const moreNamed = named.length - CTX_LIMITS.forecastEvents
+    const lifestyle = fc.projections.filter(p => p.event.source === 'lifestyle')
+    const lifestyleTotal = lifestyle.reduce((s, p) => s + p.event.amount, 0)
+    const checkpoints: string[] = []
+    for (let i = 7; ; i += 7) {
+      const iso = localIso(new Date(now.getFullYear(), now.getMonth(), now.getDate() + i))
+      const at = iso < horizonEnd ? iso : horizonEnd
+      checkpoints.push(`${at} ₹${balanceAtEndOf(fc, at).toLocaleString()}`)
+      if (at === horizonEnd) break
+    }
     parts.push(
-      `Cash-flow forecast (known events, next 60d; spendable-now ₹${fc.currentBalance.toLocaleString()}):` +
+      `Cash-flow forecast — the SAME numbers as the user's Cash Flow Forecast page (${mode} mode, ${localDateStr} to ${horizonEnd}; ` +
+      `available-today ₹${fc.currentBalance.toLocaleString()} = balance − emergency fund):` +
+      (mode === 'lifestyle'
+        ? `\nIncludes estimated daily spending every day (${lifestyle.length} days, ₹${Math.round(lifestyleTotal).toLocaleString()} total) — the → balances below already subtract it.`
+        : '\nPlanned mode: scheduled items only — day-to-day spending (groceries, fuel) is NOT subtracted.') +
       `\nLowest projected ₹${fc.lowestBalance.toLocaleString()}${fc.lowestBalanceDate ? ` on ${fc.lowestBalanceDate}` : ''}` +
       `${fc.nextSalaryDate
         ? ` | ${getIncomePattern(state.settings) === 'monthly' ? 'next salary' : 'next income'} ${fc.nextSalaryDate}`
@@ -542,7 +566,11 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
         : getIncomePattern(state.settings) === 'weekly'
         ? ' | next income: unknown'
         : ' | no projected income available yet'}` +
-      `${upcoming ? `\nUpcoming: ${upcoming}` : ''}`
+      `${upcoming ? `\nUpcoming (date ±amount title(source)→balance after): ${upcoming}${moreNamed > 0 ? ` | +${moreNamed} more` : ''}` : ''}` +
+      `\nBalance at end of day: ${checkpoints.join(' | ')}` +
+      `\nFORECAST RULES: a balance on a date = the → balance of the last item on or before that date${mode === 'lifestyle' ? ' minus the daily spending since' : ''}. ` +
+      `After ${horizonEnd} there is no forecast — say so, never extrapolate. ` +
+      `Never invent an event or a reason two numbers differ; if the user sees another figure, say you are reading the Cash Flow Forecast (${mode} mode) and quote the items above.`
     )
   }
 
@@ -1722,6 +1750,23 @@ export function AIChatSheet({ open, onClose, state, d, eventLedger, userId, onSa
       await runFind(text)
       setLoading(false); onBusyChange?.(false)
       return
+    }
+
+    // Balance on a date — read off the Cash Flow Forecast page's own numbers, no
+    // AI. Before the expense parse: "by 5 november" has a digit. A bare date
+    // right after such an answer ("5 December") asks again for that date.
+    if (intent !== 'edit' && intent !== 'delete') {
+      const asked = classifyCfoIntent(text)
+      const lastAi = [...messages].reverse().find(m => m.role === 'ai')
+      const date = asked?.kind === 'balanceOn' ? asked.date
+        : lastAi?.cfoCard?.kind === 'balanceOn' ? parseBareForecastDate(text)
+        : null
+      if (date) {
+        const cfo = buildCfoAnswer({ kind: 'balanceOn', date }, state, d, userId)
+        setMessages(m => [...m, { role: 'ai', text: '', cfoCard: cfo.card, actionChips: followUpChips('balanceOn', cfo.snap) }])
+        setLoading(false); onBusyChange?.(false)
+        return
+      }
     }
 
     const txType = guessTransactionType(text)

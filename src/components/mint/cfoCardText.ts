@@ -3,6 +3,7 @@ import {
   type CfoSnapshot, type CfoDecision, type AffordVerdict,
 } from '@/lib/cfo-snapshot'
 import type { CfoDeltas } from '@/lib/cfo-history'
+import type { ForecastOnDate } from '@/features/forecast/lib/forecastOnDate'
 
 // Kept apart from CfoCard.tsx so that file exports only components (fast refresh).
 
@@ -16,6 +17,7 @@ export type CfoCardData =
   | { kind: 'weekly'; snap: CfoSnapshot }
   | { kind: 'afford'; snap: CfoSnapshot; amount: number | null; verdict: AffordVerdict | null }
   | { kind: 'changed'; snap: CfoSnapshot; deltas: CfoDeltas | null }
+  | { kind: 'balanceOn'; snap: CfoSnapshot; result: ForecastOnDate }
 
 export function relativeCheckTime(iso: string, now: number = Date.now()): string {
   const h = Math.floor((now - Date.parse(iso)) / 3_600_000)
@@ -58,5 +60,20 @@ export function cfoHeadline(card: CfoCardData): string {
       return card.deltas
         ? "Here's what moved since your last check."
         : "First check saved on this device — ask again later and I'll show what moved."
+    case 'balanceOn':
+      return balanceOnHeadline(card.result)
   }
+}
+
+// Names the forecast's own terms ("available" = after the emergency fund) so the
+// figure reads the same as the Cash Flow Forecast page.
+function balanceOnHeadline(r: ForecastOnDate): string {
+  if (r.status === 'past') return `${shortDate(r.date)} has already passed — I can only forecast from today.`
+  const amount = r.balance < 0 ? `short by ${inr(-r.balance)}` : `${r.mode === 'lifestyle' ? 'about ' : ''}${inr(r.balance)} available`
+  if (r.status === 'beyond') {
+    return `${shortDate(r.date)} is past your ${r.horizonDays}-day forecast. By ${shortDate(r.asOf)}, the last day it covers, you'll be ${amount}.`
+  }
+  return r.balance < 0
+    ? `On ${shortDate(r.date)} you'll be ${amount}.`
+    : `On ${shortDate(r.date)} you'll have ${amount}.`
 }

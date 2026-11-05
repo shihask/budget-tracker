@@ -480,6 +480,13 @@ Before income the two agree; `afterSavings` equals the forecast balance on the e
   Insight intents send `[CFO-INSIGHT:<kind>]` + compact facts; the Edge Function switches to
   "CFO INSIGHT MODE" on that marker. Keep the marker string in sync on both sides.
 - No budget % above 100 anywhere Mint speaks: `budgetStatus()` says "₹X over".
+- **Balance on a date** ("how much on 5 Dec", Manglish "next month ee date … ethra undavum"; a bare
+  "5 December" right after such an answer asks again) is a local `balanceOn` card, no AI. It reads
+  `buildDisplayedForecast` (`features/forecast/lib/forecastOnDate.ts`) — the Cash Flow Forecast
+  page's own options (`FORECAST_PAGE_OPTIONS`) and Planned/Lifestyle mode — so Mint and the page
+  can't disagree. Past the horizon it says so, never extrapolates. The chat context's forecast block
+  reads the same forecast (every named event, end-of-week balances); it used to be the default
+  forecast cut to 8 events, and the model guessed dates past the 8th.
 - **Scope:** the chat system prompt opens with a SCOPE rule — personal finance and MoneyPlant
   only; anything else gets one fixed decline line. It is prompt-only (no client keyword filter,
   which would block real money questions), and it is shared by all six `mode: 'chat'` features.

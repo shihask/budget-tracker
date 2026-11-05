@@ -4,7 +4,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
 import { AmountOperatorRow } from './AmountOperatorRow'
-import { buildCashFlowForecast, daysUntil, getForecastDrivers, type ForecastOptions } from '@/lib/cashflow'
+import { buildCashFlowForecast, daysUntil, getForecastDrivers, FORECAST_PAGE_OPTIONS } from '@/lib/cashflow'
 import { forecastHealth, getHealthMessage } from '@/components/CashFlowForecastCard'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { useStrategyData } from './BudgetStrategyCard'
@@ -18,7 +18,8 @@ import type { AppState, DerivedMetrics, ForecastMode, ForecastSettings, PlannedE
 // The Cash Flow Forecast page is the ONE surface that projects unbilled card
 // balances. Everywhere else — dashboard cards, Real Free Money, Hero pacing,
 // Daily Challenge, Affordability — stays billed-only. See ForecastOptions.
-const FORECAST_OPTS: ForecastOptions = { includeUnbilledCards: true }
+// Mint's date answers read the same options (buildDisplayedForecast).
+const FORECAST_OPTS = FORECAST_PAGE_OPTIONS
 
 interface Props {
   state: AppState

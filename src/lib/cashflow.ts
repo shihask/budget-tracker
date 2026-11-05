@@ -56,7 +56,15 @@ export interface ForecastOptions {
   includeUnbilledCards?: boolean
 }
 
+// What the Cash Flow Forecast page shows. Mint's date answers read the same
+// options, so "how much on 5 Dec" matches the page to the rupee.
+export const FORECAST_PAGE_OPTIONS: ForecastOptions = { includeUnbilledCards: true }
+
 const HORIZON_DAYS = 30
+
+export function forecastHorizonDays(state: AppState): number {
+  return state.forecast_settings.days ?? HORIZON_DAYS
+}
 
 function midnight(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -268,7 +276,7 @@ function allDueDates(dueDay: number, from: Date, until: Date): Date[] {
 
 export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics, opts?: ForecastOptions): CashFlowForecast {
   const today = midnight(new Date())
-  const days = state.forecast_settings.days ?? HORIZON_DAYS
+  const days = forecastHorizonDays(state)
   const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days)
 
   // Optional include-lists (null = include all active). Set during forecast setup.

@@ -1,6 +1,6 @@
 import type { AppState, DerivedMetrics, ForecastMode, Transaction, Category, Group } from '@/types'
 import type { CashFlowEvent, CashFlowForecast, CashFlowProjection } from '@/lib/cashflow'
-import { buildCashFlowForecast, estimateForecastSalary, type ForecastOptions } from '@/lib/cashflow'
+import { buildCashFlowForecast, estimateForecastSalary, forecastHorizonDays, type ForecastOptions } from '@/lib/cashflow'
 import { getStrategyPcts, getCategoryBucket } from '@/lib/budget-strategy'
 import { getIncomePattern, getVariableMonthlyIncome } from '@/lib/income-pattern'
 import { getCurrentFinancialCycle, type FinancialCycle } from '@/lib/financial-cycle'
@@ -360,7 +360,7 @@ export function buildLifestyleForecast(state: AppState, d: DerivedMetrics, opts?
   }
 
   const today = midnight(new Date())
-  const days = state.forecast_settings.days ?? 30
+  const days = forecastHorizonDays(state)
   const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days)
   const cycle = d.financialCycle ?? getCurrentFinancialCycle(state)
   const cycleEnd = midnight(cycle.cycleEnd)

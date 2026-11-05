@@ -6,6 +6,7 @@ import {
 import type { ColorTokens } from '@/lib/tokens'
 import { inr, shortDate, type CfoSnapshot, type CfoDecision, type CfoObligation } from '@/lib/cfo-snapshot'
 import type { CfoDeltas } from '@/lib/cfo-history'
+import type { ForecastOnDate } from '@/features/forecast/lib/forecastOnDate'
 import { cfoHeadline, relativeCheckTime, type CfoCardData } from './cfoCardText'
 
 type Tone = 'good' | 'warn' | 'bad' | 'neutral'
@@ -25,6 +26,8 @@ function headlineTone(card: CfoCardData): Tone {
       return s.weekly.over > 0 ? 'warn' : 'good'
     case 'afford':
       return !card.verdict ? 'neutral' : card.verdict.verdict === 'yes' ? 'good' : card.verdict.verdict === 'tight' ? 'warn' : 'bad'
+    case 'balanceOn':
+      return card.result.status === 'past' ? 'neutral' : card.result.balance < 0 ? 'bad' : card.result.dipsTo ? 'warn' : 'good'
     default:
       return 'neutral'
   }
@@ -226,6 +229,46 @@ function renderBold(text: string, c: ColorTokens): ReactNode {
   )
 }
 
+// Long horizons can hold dozens of events; the rest fold into one row.
+const MAX_FORECAST_ROWS = 8
+
+function ForecastToDate({ c, r }: { c: ColorTokens; r: ForecastOnDate }) {
+  const shown = r.events.slice(0, MAX_FORECAST_ROWS)
+  const rest = r.events.slice(MAX_FORECAST_ROWS)
+  const restNet = rest.reduce((a, e) => a + (e.type === 'income' ? e.amount : -e.amount), 0)
+  return (
+    <>
+      <div style={{ background: c.surface, border: `1px solid ${c.faint}`, borderRadius: 12, padding: '8px 12px', marginTop: 10 }}>
+        <Row c={c} left="Available today" right={inr(r.availableToday)} />
+        {shown.map((e, i) => (
+          <Row key={`${e.date}-${e.title}-${i}`} c={c} left={e.title} sub={shortDate(e.date)}
+            right={e.type === 'income' ? `+${inr(e.amount)}` : inr(-e.amount)} tone={e.type === 'income' ? 'good' : 'neutral'} />
+        ))}
+        {rest.length > 0 && (
+          <Row c={c} muted left={`${rest.length} more scheduled`} right={restNet >= 0 ? `+${inr(restNet)}` : inr(restNet)} />
+        )}
+        {r.lifestyleDays > 0 && (
+          <Row c={c} left="Est. daily spending" sub={`${r.lifestyleDays} day${r.lifestyleDays === 1 ? '' : 's'}`} right={inr(-r.lifestyleTotal)} />
+        )}
+        <div style={{ borderTop: `1px solid ${c.grid}`, margin: '5px 0' }} />
+        <Row c={c} left={`Available on ${shortDate(r.asOf)}`} right={inr(r.balance)} strong tone={r.balance < 0 ? 'bad' : 'good'} />
+      </div>
+      {r.dipsTo && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 8, font: `500 12.5px ${FONT}`, color: c.sub, lineHeight: 1.5 }}>
+          <AlertCircle size={14} color={c.warn} style={{ flexShrink: 0, marginTop: 2 }} />
+          Before then it dips to {inr(r.dipsTo.balance)} on {shortDate(r.dipsTo.date)}.
+        </div>
+      )}
+      <div style={{ font: `400 11px ${FONT}`, color: c.muted, marginTop: 6, lineHeight: 1.5 }}>
+        Same numbers as your Cash Flow Forecast ({r.mode === 'lifestyle' ? 'Lifestyle' : 'Planned'} mode)
+        {r.mode === 'lifestyle' ? ', including estimated daily spending' : '. Excludes groceries, fuel and other day-to-day spending'}
+        {r.emergencyFund > 0 ? `, after keeping your ${inr(r.emergencyFund)} emergency fund aside` : ''}.
+        {r.status === 'beyond' ? ' You can lengthen the forecast in its setup.' : ''}
+      </div>
+    </>
+  )
+}
+
 /* ── The card ────────────────────────────────────────────────────────────── */
 
 export function CfoCard({ card, c, insight, insightPending, withInsight, cursor }: {
@@ -357,6 +400,8 @@ export function CfoCard({ card, c, insight, insightPending, withInsight, cursor 
           </div>
         </div>
       )}
+
+      {card.kind === 'balanceOn' && card.result.status !== 'past' && <ForecastToDate c={c} r={card.result} />}
 
       {withInsight && <Insight c={c} s={s} text={insight} pending={insightPending} cursor={cursor} />}
 
