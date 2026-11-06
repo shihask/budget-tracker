@@ -378,7 +378,9 @@ export function QuickAddSheet({ open, onClose, onSave, onSaveSplit, state, onAdd
       reset({
         date: localIso(now),
         time: localTime(now),
-        description: target ? `Reimbursement · ${target.description}` : '',
+        // A transfer has no description field, but the schema still requires one —
+        // seed what the Move tab sets, or opening straight into a transfer can't submit.
+        description: target ? `Reimbursement · ${target.description}` : initType === 'transfer' ? 'Transfer' : '',
         amount: defaultReimbursement?.remaining ?? 0,
         category_id: defaultReimbursement ? '' : firstCat,
         from_account_id: (defaultReimbursement && paidFromAccountId(defaultReimbursement.targetId)) || firstAccount,
