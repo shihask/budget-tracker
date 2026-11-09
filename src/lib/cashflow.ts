@@ -4,7 +4,7 @@ import { unbilledCardAdvance } from '@/lib/card-transfer'
 import { getIncomePattern } from '@/lib/income-pattern'
 import { estimateHistoricalDailyIncome } from '@/lib/variable-income'
 import { getExpectedNextPrimaryIncome } from '@/lib/financial-cycle'
-import { isDueCovered } from '@/lib/recurring'
+import { isDueCovered, itemDuesAround } from '@/lib/recurring'
 import { isReimbursement } from '@/lib/reimbursements'
 
 /* ============================================================================
@@ -298,7 +298,13 @@ export function buildCashFlowForecast(state: AppState, derived: DerivedMetrics, 
     const amount = Math.round(Math.min(c.amount, c.remaining))
     if (!(amount > 0)) continue
 
-    if (c.is_recurring && c.due_day != null) {
+    if (c.is_recurring && c.frequency === 'yearly') {
+      // On each renewal date in the horizon, unless already paid. No due date → not placed.
+      for (const due of itemDuesAround(c, today, 0, Math.ceil(days / 365) + 1)) {
+        if (due < today || due > horizon || isDueCovered(c, c.last_paid_date, due)) continue
+        events.push({ date: isoOf(due), title: c.name, amount: Math.round(c.amount), type: 'expense', source: 'commitment', category_id: c.category_id })
+      }
+    } else if (c.is_recurring && c.due_day != null) {
       let remainingAmt = c.remaining
       const installmentsDone = c.current_installment ?? 0
       const totalInstallments = c.total_installments

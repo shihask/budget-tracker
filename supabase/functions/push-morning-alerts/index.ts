@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     // Fetch commitments for all users
     const { data: allCommitments } = await supabase
       .from('commitments')
-      .select('id, name, amount, due_day, last_paid_date, paid_through, is_active, is_recurring, user_id')
+      .select('id, name, amount, due_day, due_date, frequency, last_paid_date, paid_through, is_active, is_recurring, user_id')
       .in('user_id', enabledUserIds)
       .eq('is_active', true)
       .eq('is_recurring', true)
@@ -139,6 +139,25 @@ Deno.serve(async (req) => {
             const paid = new Date(cm.last_paid_date)
             if (paid.getMonth() === now.getMonth() && paid.getFullYear() === now.getFullYear()) continue
           }
+          if (daysLeft <= 5) {
+            alerts.push(`${cm.name} (${fmt(cm.amount)}) due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`)
+            screens.push('commitments')
+          }
+        }
+        // Yearly (insurance, renewals): due_date's month/day every year, 29 Feb → 28 Feb in
+        // other years (src/lib/recurring.ts). due_day stays null on these rows.
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const yearlyDue = (iso: string, y: number) => {
+          const [, m, d] = iso.split('-').map(Number)
+          return new Date(y, m - 1, Math.min(d, new Date(y, m, 0).getDate()))
+        }
+        const yearly = (allCommitments ?? []).filter((c: any) => c.user_id === uid && c.frequency === 'yearly' && c.due_date && !c.due_day)
+        for (const cm of yearly) {
+          let due = yearlyDue(cm.due_date, today.getFullYear())
+          if (due < today) due = yearlyDue(cm.due_date, today.getFullYear() + 1)
+          const dueIso = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`
+          if (cm.paid_through ? dueIso <= cm.paid_through : cm.last_paid_date && new Date(cm.last_paid_date).getFullYear() === due.getFullYear()) continue
+          const daysLeft = Math.round((due.getTime() - today.getTime()) / 86400000)
           if (daysLeft <= 5) {
             alerts.push(`${cm.name} (${fmt(cm.amount)}) due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`)
             screens.push('commitments')

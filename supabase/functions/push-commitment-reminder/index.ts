@@ -27,16 +27,33 @@ Deno.serve(async (req) => {
     const currentMonth = now.getMonth()
     const currentYear = now.getFullYear()
 
-    // Get all active recurring commitments due on the target day
-    const { data: commitments, error } = await supabase
+    // Get all active recurring commitments due on the target day: monthly by due_day, and
+    // yearly by due_date's month/day (29 Feb falls on 28 Feb in other years — the same rule
+    // as src/lib/recurring.ts). Yearly rows keep due_day null, so the first query can't
+    // match them every month.
+    const { data: monthly, error } = await supabase
       .from('commitments')
       .select('id, name, amount, due_day, last_paid_date, paid_through, user_id')
       .eq('is_active', true)
       .eq('is_recurring', true)
       .eq('due_day', targetDay)
-
     if (error) throw error
-    if (!commitments || commitments.length === 0) {
+    const { data: yearlyRows, error: yearlyErr } = await supabase
+      .from('commitments')
+      .select('id, name, amount, due_date, last_paid_date, paid_through, user_id')
+      .eq('is_active', true)
+      .eq('is_recurring', true)
+      .eq('frequency', 'yearly')
+      .not('due_date', 'is', null)
+    if (yearlyErr) throw yearlyErr
+    const lastDayOfTargetMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+    const yearly = (yearlyRows ?? []).filter((cm: any) => {
+      const [, m, d] = String(cm.due_date).split('-').map(Number)
+      return m - 1 === target.getMonth() && Math.min(d, lastDayOfTargetMonth) === targetDay
+    }).map((cm: any) => ({ ...cm, yearly: true }))
+    const commitments = [...(monthly ?? []), ...yearly]
+
+    if (commitments.length === 0) {
       return new Response(JSON.stringify({ sent: 0, reason: 'no_due_commitments' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -44,12 +61,14 @@ Deno.serve(async (req) => {
 
     // Filter out commitments already paid for the target due date. paid_through
     // (the latest due date paid — see src/lib/recurring.ts) covers a payment made
-    // ahead on payday; rows without it keep the calendar-month rule.
+    // ahead on payday; rows without it keep the calendar-period rule (month, or the
+    // due's calendar year for yearly).
     const targetIso = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`
     const unpaid = commitments.filter((cm: any) => {
       if (cm.paid_through) return targetIso > cm.paid_through
       if (!cm.last_paid_date) return true
       const paid = new Date(cm.last_paid_date)
+      if (cm.yearly) return paid.getFullYear() !== target.getFullYear()
       return !(paid.getMonth() === currentMonth && paid.getFullYear() === currentYear)
     })
 

@@ -27,9 +27,20 @@ export function getRemainingObligations(
   const cycleStartIso = `${cycle.cycleStart.getFullYear()}-${String(cycle.cycleStart.getMonth() + 1).padStart(2, '0')}-${String(cycle.cycleStart.getDate()).padStart(2, '0')}`
   const cycleEndIso = `${cycle.cycleEnd.getFullYear()}-${String(cycle.cycleEnd.getMonth() + 1).padStart(2, '0')}-${String(cycle.cycleEnd.getDate()).padStart(2, '0')}`
 
+  const nextIncome = getExpectedNextPrimaryIncome(state)
+  const windowEnd = nextIncome.expectedDate ?? cycle.cycleEnd
+
   const commitmentItems: ObligationItem[] = []
   for (const c of state.commitments) {
     if (!c.is_active) continue
+    // Yearly: only when its next unpaid renewal falls between this cycle's start and the next
+    // income (the savings rule below). Without a due date it can't be placed, so it isn't
+    // counted — the Bills list asks for the date instead of charging it to every cycle.
+    if (c.is_recurring && c.frequency === 'yearly') {
+      const next = getNextRecurringDueDate(c, cycle.cycleStart)
+      if (next && next <= windowEnd && c.amount > 0) commitmentItems.push({ name: c.name, amount: c.amount })
+      continue
+    }
     if (c.is_recurring && c.paid_through) {
       if (isPaidForCycle(c, c.last_paid_date, new Date(), cycle.cycleEnd)) continue
     } else if (c.is_recurring && c.last_paid_date) {
@@ -39,9 +50,6 @@ export function getRemainingObligations(
     if (amount > 0) commitmentItems.push({ name: c.name, amount })
   }
   const commitments = commitmentItems.reduce((s, i) => s + i.amount, 0)
-
-  const nextIncome = getExpectedNextPrimaryIncome(state)
-  const windowEnd = nextIncome.expectedDate ?? cycle.cycleEnd
 
   const savingsItems: ObligationItem[] = state.savings
     .filter(s => s.is_recurring && s.is_active !== false)

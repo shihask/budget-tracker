@@ -812,7 +812,7 @@ function buildContext(state: AppState, d: DerivedMetrics, intent: ContextIntent 
     if (activeCommitments.length > 0) {
       parts.push(`BillsAndObligations: ${activeCommitments.map(c => {
         const paid = c.remaining < c.amount
-        const dueStr = c.due_day ? ` due-day:${c.due_day}` : ''
+        const dueStr = c.due_day ? ` due-day:${c.due_day}` : c.frequency === 'yearly' && c.due_date ? ` due:${new Date(c.due_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} every year` : ''
         return `${c.name} ₹${c.amount.toLocaleString()}${dueStr} [${paid ? 'paid' : 'unpaid'}]`
       }).join(' | ')} | remaining-unpaid: ₹${d.remainingCommitments.toLocaleString()}`)
     }

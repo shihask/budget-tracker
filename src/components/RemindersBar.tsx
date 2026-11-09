@@ -4,7 +4,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { getCreditCardBilling } from '@/lib/credit-card'
 import type { AppState, Commitment } from '@/types'
-import { isRecurringCompleted, isDueCovered } from '@/lib/recurring'
+import { isRecurringCompleted, isDueCovered, getNextRecurringDueDate } from '@/lib/recurring'
 
 interface Props {
   state: AppState
@@ -71,7 +71,29 @@ export function buildReminders(state: AppState): Reminder[] {
 
   // Upcoming commitment due dates (not yet paid this month)
   for (const cm of state.commitments) {
-    if (!cm.is_active || !cm.is_recurring || !cm.due_day) continue
+    if (!cm.is_active || !cm.is_recurring) continue
+    // Yearly (insurance, renewals): the same 5-day window, on the renewal date
+    if (cm.frequency === 'yearly') {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const next = getNextRecurringDueDate(cm, today)   // skips a due already paid
+      if (!next) continue
+      const daysLeft = Math.round((next.getTime() - today.getTime()) / 86400000)
+      if (daysLeft <= 5) {
+        const when = next.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        reminders.push({
+          id: `cm-${cm.id}-${next.getFullYear()}`,
+          type: 'commitment_due',
+          title: `${cm.name} due soon`,
+          subtitle: `₹${cm.amount.toLocaleString('en-IN')} · ${when} every year`,
+          daysLeft,
+          urgent: daysLeft <= 2,
+          warning: true,
+          commitment: cm,
+        })
+      }
+      continue
+    }
+    if (!cm.due_day) continue
 
     const daysUntilDue = getDaysUntil(cm.due_day)
     if (cm.paid_through) {

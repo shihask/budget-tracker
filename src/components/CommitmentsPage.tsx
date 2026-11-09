@@ -8,7 +8,7 @@ import { CAT_COLORS } from '@/lib/tokens'
 import { catById as buildCatById } from '@/lib/data'
 import { CategorySelect } from './CategorySelect'
 import { AmountOperatorRow } from './AmountOperatorRow'
-import { getRecurringPeriodLabel, isPaidForCycle, paidForChoices, coveredDue, scheduledDuesAround, parseIsoDate, type PaidForChoice, fmtDue } from '@/lib/recurring'
+import { getRecurringPeriodLabel, isPaidForCycle, paidForChoices, coveredDue, itemDuesAround, parseIsoDate, getNextRecurringDueDate, type PaidForChoice, fmtDue } from '@/lib/recurring'
 import { getCurrentFinancialCycle } from '@/lib/financial-cycle'
 import { PaidForPicker, PaidForSheet } from './PaidForPicker'
 import { BottomSheet, HelpText } from './BottomSheet'
@@ -59,12 +59,24 @@ function getDaysUntilDay(day: number): number {
 
 function getDaysUntilCommitment(cm: Commitment): number {
   if (cm.due_day) return getDaysUntilDay(cm.due_day)
+  if (cm.is_recurring && cm.frequency === 'yearly') {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const next = getNextRecurringDueDate(cm, today)
+    return next ? Math.round((next.getTime() - today.getTime()) / 86400000) : Infinity
+  }
   if (cm.due_date) {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const due = new Date(cm.due_date + 'T00:00:00')
     return Math.round((due.getTime() - today.getTime()) / 86400000)
   }
   return Infinity
+}
+
+// Labels follow the bill's frequency: a yearly policy is paid per year, not per month.
+const PERIOD: Record<Freq, { adj: string; unit: string; per: string }> = {
+  monthly: { adj: 'Monthly', unit: 'months', per: '/mo' },
+  weekly: { adj: 'Weekly', unit: 'weeks', per: '/wk' },
+  yearly: { adj: 'Yearly', unit: 'years', per: '/yr' },
 }
 
 type UnifiedItem =
@@ -250,7 +262,8 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
       is_recurring: form.is_recurring,
       frequency: form.is_recurring ? form.frequency : null,
       due_day: (form.is_recurring && form.frequency === 'monthly' && form.due_day) ? parseInt(form.due_day) : null,
-      due_date: (!form.is_recurring && form.due_date) ? form.due_date : null,
+      // one-off: the deadline; yearly: the renewal date, repeating every year (see recurring.ts)
+      due_date: ((!form.is_recurring || form.frequency === 'yearly') && form.due_date) ? form.due_date : null,
       from_account_id: form.from_account_id || null,
       // Editing details must not resume a paused bill.
       is_active: editingId ? state.commitments.find(cm => cm.id === editingId)?.is_active !== false : true,
@@ -586,7 +599,10 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                         {cm.is_recurring
                           ? paidThisPeriod
                             ? `Paid on ${new Date(cm.last_paid_date!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${paidFor ? ` · for ${fmtDue(paidFor)}` : ''}`
-                            : (cm.due_day ? `Due ${ord(cm.due_day)} every month` : `Recurring · ${cm.frequency}`)
+                            : cm.due_day ? `Due ${ord(cm.due_day)} every month`
+                            : cm.frequency === 'yearly' && cm.due_date ? `Due ${parseIsoDate(cm.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} every year`
+                            : cm.frequency === 'yearly' ? 'Add the due date to get reminders'
+                            : `Recurring · ${cm.frequency}`
                           : completed ? 'All paid up' : `Remaining: ${fmt(cm.remaining)}${cm.due_date ? ` · Due ${new Date(cm.due_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}`
                         }
                       </div>
@@ -643,7 +659,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <div>
                         <div style={{ font: '800 15px Plus Jakarta Sans', color: completed ? c.muted : c.ink }}>{fmt(amount)}</div>
                         <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 1 }}>
-                          {cm.total_installments ? 'EMI/mo' : cm.is_recurring ? `/${cm.frequency?.slice(0, 2)}` : 'each'}
+                          {cm.total_installments ? 'EMI/mo' : cm.is_recurring ? PERIOD[cm.frequency ?? 'monthly'].per : 'each'}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
@@ -789,7 +805,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                 <div style={{ background: c.surface2, borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <div style={{ flex: 1 }}>
-                      <label style={lbl}>Monthly Amount</label>
+                      <label style={lbl}>{PERIOD[form.frequency].adj} Amount</label>
                       <HelpText>Amount you pay each installment.</HelpText>
                       <input ref={monthlyAmountRef} type="text" inputMode="decimal"
                         onFocus={e => { selectOnFocus(e.target); setMonthlyAmountFocused(true) }}
@@ -808,14 +824,14 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       {monthlyAmountFocused && <AmountOperatorRow inputRef={monthlyAmountRef} onChange={handleAmountChange} />}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={lbl}>Total Months</label>
-                      <HelpText>Total duration in months. e.g. a 5-year loan = 60 months.</HelpText>
+                      <label style={lbl}>Total {PERIOD[form.frequency].unit}</label>
+                      <HelpText>{form.frequency === 'monthly' ? 'Total duration in months. e.g. a 5-year loan = 60 months.' : `Total duration in ${PERIOD[form.frequency].unit}. Leave empty if it has no end.`}</HelpText>
                       <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
                         value={form.total_installments} onChange={e => handleTenureChange(e.target.value)}
                         placeholder="e.g. 12" min="1" style={inp} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={lbl}>Paid Months</label>
+                      <label style={lbl}>Paid {PERIOD[form.frequency].unit}</label>
                       <HelpText>Number of installments already paid.</HelpText>
                       <input type="number" inputMode="numeric" onFocus={e => e.target.select()}
                         value={form.current_installment} onChange={e => set('current_installment', e.target.value)}
@@ -829,7 +845,7 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                         {fmt((parseFloat(form.total_installments) - parseFloat(form.current_installment || '0')) * (evaluateAmountExpression(form.amount) ?? 0))}
                       </div>
                       <div style={{ font: '600 10px Plus Jakarta Sans', color: c.accent, marginTop: 1 }}>
-                        {parseFloat(form.total_installments) - parseFloat(form.current_installment || '0')} months left
+                        {parseFloat(form.total_installments) - parseFloat(form.current_installment || '0')} {PERIOD[form.frequency].unit} left
                       </div>
                     </div>
                   )}
@@ -851,6 +867,13 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
                       <HelpText>Day of the month this is due — helps you track upcoming payments.</HelpText>
                       <input type="number" value={form.due_day} onChange={e => set('due_day', e.target.value)}
                         placeholder="e.g. 5" min="1" max="31" style={inp} />
+                    </div>
+                  )}
+                  {form.frequency === 'yearly' && (
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Due date</label>
+                      <HelpText>The next renewal date — it repeats on this day every year, with a reminder.</HelpText>
+                      <input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)} style={inp} />
                     </div>
                   )}
                 </div>
@@ -964,8 +987,8 @@ export function CommitmentsPage({ state, d, onMarkPaid, onAdd, onUpdate, onDelet
         <PaidForSheet
           open={!!fixPaidFor}
           name={fixPaidFor?.name ?? ''}
-          options={fixPaidFor?.due_day != null && fixPaidFor.last_paid_date
-            ? scheduledDuesAround(fixPaidFor.frequency, fixPaidFor.due_day, parseIsoDate(fixPaidFor.last_paid_date), 1, 2)
+          options={fixPaidFor?.last_paid_date
+            ? itemDuesAround(fixPaidFor, parseIsoDate(fixPaidFor.last_paid_date), 1, 2)
             : []}
           current={fixPaidFor ? coveredDue(fixPaidFor, fixPaidFor.last_paid_date) : null}
           onClose={() => setFixPaidFor(null)}

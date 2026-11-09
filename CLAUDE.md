@@ -441,6 +441,14 @@ All in `src/lib/recurring.ts` — don't re-derive "paid this month" anywhere els
 - Edit sheets must **never** send `last_paid_date` / `last_contribution_date` / `paid_date` /
   `paid_through` — before v1.79 they sent `null` and silently un-paid the item.
 - The two push Edge Functions carry their own copy of the rule (string compare on ISO dates).
+- **Yearly commitments** (insurance, renewals) are due on `due_date`'s month/day every year
+  (29 Feb → 28 Feb in other years); `due_day` stays **null** on them, so no monthly path
+  (`allDueDates`, the push's `.eq('due_day')`, RemindersBar's "every month") can match them.
+  `hasSchedule` / `itemDuesAround` in `recurring.ts` are the one schedule; obligations count a
+  yearly bill only when its next unpaid renewal falls between cycle start and next income. A
+  yearly row with no `due_date` has no schedule: not reminded, not forecast, not in
+  obligations — the Bills list asks for the date. Savings have no `due_date`, so yearly savings
+  are unchanged. Pinned by `src/lib/__tests__/yearly-commitments.test.ts`.
 
 ## Mint CFO answers (v1.75)
 Eight core money questions get a **deterministic card** instead of free-form prose. Code owns

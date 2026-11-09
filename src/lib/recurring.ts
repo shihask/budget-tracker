@@ -134,17 +134,45 @@ function dueDateInPeriod(
   }
 }
 
+// Yearly: due on `due_date`'s month and day every year (its year is only where the
+// schedule was entered). 29 Feb falls on 28 Feb in other years. Only commitments carry
+// `due_date` on a recurring row; a yearly item without one has no schedule.
+function yearlyDueIn(dueDate: string, year: number): Date {
+  const [, m, d] = dueDate.split('-').map(Number)
+  return new Date(year, m - 1, Math.min(d, new Date(year, m, 0).getDate()))
+}
+
+// Does the item have a computable due date per period?
+export function hasSchedule(item: PaidSchedule): boolean {
+  const freq = item.frequency ?? 'monthly'
+  if (freq === 'yearly') return !!item.due_date
+  return item.due_day != null && supportsPaidFor(freq)
+}
+
+// The item's scheduled due dates from `back` periods before `anchor`'s period to `ahead`
+// after, oldest first. Empty when the item has no schedule.
+export function itemDuesAround(item: PaidSchedule, anchor: Date, back: number, ahead: number): Date[] {
+  if (!hasSchedule(item)) return []
+  if ((item.frequency ?? 'monthly') === 'yearly') {
+    const y = midnight(anchor).getFullYear()
+    return Array.from({ length: back + ahead + 1 }, (_, i) => yearlyDueIn(item.due_date!, y - back + i))
+  }
+  return scheduledDuesAround(item.frequency, item.due_day!, anchor, back, ahead)
+}
+
 // Returns the next scheduled due date for a recurring item using only the configured
-// schedule (due_day + frequency). Never derives dates from lastPayment + frequency
-// to prevent schedule drift from early or late payments.
+// schedule (due_day + frequency, or due_date for yearly). Never derives dates from
+// lastPayment + frequency to prevent schedule drift from early or late payments.
 //
-// Supported: monthly, weekly. Yearly returns null (due_month field deferred to future PR).
-// Missing due_day returns null — caller skips reservation.
+// Supported: monthly, weekly, yearly (commitments with a due_date).
+// No schedule returns null — caller skips reservation.
 export function getNextRecurringDueDate(
   item: {
     frequency: RecurringFrequency | null
     due_day?: number | null
+    due_date?: string | null
     last_contribution_date?: string | null
+    last_paid_date?: string | null
     paid_through?: string | null
   },
   referenceDate?: Date,
@@ -153,7 +181,12 @@ export function getNextRecurringDueDate(
   const ref = midnight(referenceDate ?? new Date())
   const dueDay = item.due_day ?? null
 
-  if (freq === 'yearly' || freq === 'custom') return null
+  if (freq === 'yearly') {
+    if (!item.due_date) return null
+    const last = item.last_contribution_date ?? item.last_paid_date ?? null
+    return itemDuesAround(item, ref, 0, 2).find(d => d >= ref && !isDueCovered(item, last, d)) ?? null
+  }
+  if (freq === 'custom') return null
   if (dueDay == null) return null
 
   if (item.paid_through && supportsPaidFor(freq)) {
@@ -195,6 +228,7 @@ const MAX_SCAN_PERIODS = 24
 export interface PaidSchedule {
   frequency: RecurringFrequency | null
   due_day?: number | null
+  due_date?: string | null   // yearly commitments: the month/day repeat every year
   paid_through?: string | null
 }
 
@@ -247,13 +281,13 @@ export function isDueCovered(item: PaidSchedule, lastPaidDate: string | null, du
 // sheet's starting value. Legacy rows: the due in the last payment's calendar period.
 export function coveredDue(item: PaidSchedule, lastPaidDate: string | null): Date | null {
   if (item.paid_through) return parseIsoDate(item.paid_through)
-  if (!lastPaidDate || item.due_day == null || !supportsPaidFor(item.frequency)) return null
-  return scheduledDuesAround(item.frequency, item.due_day, parseIsoDate(lastPaidDate), 0, 0)[0]
+  if (!lastPaidDate || !hasSchedule(item)) return null
+  return itemDuesAround(item, parseIsoDate(lastPaidDate), 0, 0)[0]
 }
 
-// Is nothing left to pay until the next cycle? Monthly items look to the end of the
-// salary cycle — paid on payday for the 10th is done for this cycle, even though the
-// 10th is next calendar month. Weekly items look to the end of the week.
+// Is nothing left to pay until the next cycle? Monthly and yearly items look to the end
+// of the salary cycle — paid on payday for the 10th is done for this cycle, even though
+// the 10th is next calendar month. Weekly items look to the end of the week.
 export function isPaidForCycle(
   item: PaidSchedule,
   lastPaidDate: string | null,
@@ -261,11 +295,11 @@ export function isPaidForCycle(
   cycleEnd: Date,
 ): boolean {
   const freq = item.frequency ?? 'monthly'
-  if (!item.paid_through || item.due_day == null || !supportsPaidFor(freq)) {
+  if (!item.paid_through || !hasSchedule(item)) {
     return isRecurringCompleted(lastPaidDate, freq, today)
   }
   const through = parseIsoDate(item.paid_through)
-  const next = scheduledDuesAround(freq, item.due_day, through, 0, 2).find(d => d > through)
+  const next = itemDuesAround(item, through, 0, 2).find(d => d > through)
   const ref = midnight(today)
   const periodEnd = freq === 'weekly' ? getCurrentRecurringPeriod(freq, ref).periodEnd : midnight(cycleEnd)
   const horizon = periodEnd > ref ? periodEnd : ref
@@ -287,10 +321,9 @@ export function paidForChoices(
   today: Date,
   cycleStart: Date,
 ): PaidForChoice | null {
-  const freq = item.frequency ?? 'monthly'
-  if (item.due_day == null || !supportsPaidFor(freq)) return null
+  if (!hasSchedule(item)) return null
   const ref = midnight(today)
-  const unpaid = scheduledDuesAround(freq, item.due_day, ref, 2, 3).filter(d => !isDueCovered(item, lastPaidDate, d))
+  const unpaid = itemDuesAround(item, ref, 2, 3).filter(d => !isDueCovered(item, lastPaidDate, d))
   const known = !!item.paid_through
   const late = unpaid.filter(d => d < ref).slice(known ? -2 : -1)
   const options = [...late, ...unpaid.filter(d => d >= ref)].slice(0, 3)
