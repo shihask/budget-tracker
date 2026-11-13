@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu &amp; Maaman S2 EP05 — നിന്റെ മാസം ഒന്നാം തീയതിയാണോ തുടങ്ങുന്നത്?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="s2.css">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head>
+<body>
+<!--
+  Season 2 · EP05 "നിന്റെ മാസം ഒന്നാം തീയതിയാണോ തുടങ്ങുന്നത്?" — budget by the salary cycle.
+  Screenplay: ep03-06-screenplays.md (EP05). Timed to the recorded voice (clip i starts at
+  LINES[i].a, b = a + measured speech end).
+  Dates match the REAL app recording (demo account, salary recorded on 28 Oct at ₹45,000):
+    salary 28 Oct → cycle 28 Oct – 27 Nov (31 days) → next cycle 28 Nov – 27 Dec. Illustrative.
+  The cycle is never "picked" on a calendar: it starts on the day the salary is RECORDED. Screens
+  (assets/app-cycle-*.png): hero "Free Money · 28 Oct – 27 Nov"; Budget Health on that cycle
+  (50/30/20 of ₹45,000 = 22,500 / 13,500 / 9,000, "this cycle"); Kakeibo "Day 13 of 31",
+  "Since 28 Oct · in progress".
+-->
+<canvas id="gl"></canvas>
+<div class="badge"><div class="handle"><img src="/public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">S2 · EP 05</div></div>
+<div class="title" id="title" style="font-size:32px">നിന്റെ മാസം ഒന്നാം തീയതിയാണോ തുടങ്ങുന്നത്?</div>
+<div class="example" id="example">EXAMPLE DATES</div>
+<div class="jar-tag" id="mtag" style="transform:translate(-50%,-50%)"><span class="ml" id="mname"></span></div>
+<div class="jar-tag" id="stag"><span class="ml">ശമ്പളം</span><span class="en" style="color:#B9821A">SALARY</span></div>
+<div class="jar-tag" id="ctag" style="transform:translate(-50%,0)"><span class="ml" id="cml"></span><span class="en" id="cen" style="color:#16A36E"></span></div>
+<div class="jar-tag" id="g0" style="transform:translate(-50%,0)"><span class="ml">Salary cycle</span><span class="en" style="color:#16A36E">FROM THE SALARY YOU RECORDED</span></div>
+<div class="jar-tag" id="g1" style="transform:translate(-50%,0)"><span class="ml">Budget Strategy</span><span class="en" style="color:#8B5CF6">THIS SALARY CYCLE</span></div>
+<div class="jar-tag" id="g2" style="transform:translate(-50%,0)"><span class="ml">Kakeibo</span><span class="en" style="color:#16A36E">SINCE 28 OCT · DAY 13 OF 31</span></div>
+<div class="bubble" id="bubble"></div>
+<div class="sub" id="sub"></div>
+<section class="scene green end" id="end">
+  <img class="logo" src="/public/email-logo.png" alt="">
+  <div class="name">YOUR MONTH STARTS<br>ON PAYDAY.</div>
+  <div class="next">Next · EP 06<br>Manu’s First Budget!</div>
+  <div class="pill">Follow @moneyplant.online</div>
+  <div class="disc">Example dates · illustrative</div>
+</section>
+
+<script type="module">
+import * as THREE from 'three'
+import { buildManu, buildMaaman, buildMint, buildHome, buildPhone, clipToScreen, lightRoom, ramp } from './cast3d.js'
+import { buildTable, buildSeedling, buildDatedCalendar, buildBike } from './props3d.js'
+import { createStage, shotAt, bootS2 } from './stage.js'
+
+const stage = createStage({ canvas: document.getElementById('gl') })
+const { scene, camera } = stage
+const home = buildHome({ door: true }); scene.add(home.root)
+lightRoom(scene)
+const manu = buildManu(), maaman = buildMaaman()
+scene.add(manu.root, maaman.root)
+
+// ── props ──
+const table = buildTable(); table.root.position.set(0, 0, 1.0); scene.add(table.root)
+const seedling = buildSeedling(); seedling.root.position.set(1.05, 1.06, -2.78); seedling.root.scale.setScalar(1.36); scene.add(seedling.root)
+const bike = buildBike(); bike.root.position.set(home.door.x + .1, 0, -4.7); bike.root.rotation.y = .55; scene.add(bike.root)
+// EP02's wall calendar spot, now with real dates (a little bigger: it's this episode's subject)
+const cal = buildDatedCalendar(); const CAL = [3.75, 1.78, -2.93], CS = 1.35
+cal.root.position.set(...CAL); cal.root.scale.setScalar(CS); scene.add(cal.root)
+const OCT = { year: 2026, month: 9 }, NOV = { year: 2026, month: 10 }
+const MONTH = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER']
+
+// the real app screens, with Mint standing in the screen
+const loader = new THREE.TextureLoader()
+const TEX = Object.fromEntries(await Promise.all(['hero', 'strategy', 'kakeibo'].map(async k => {
+  const t = await loader.loadAsync(`assets/app-cycle-${k}.png`); t.colorSpace = THREE.SRGBColorSpace; return [k, t]
+})))
+const phone = buildPhone(TEX.hero, { h: .3 }); scene.add(phone.root)
+const mint = buildMint(); phone.root.add(mint.root)
+mint.root.scale.setScalar(.12); mint.root.position.set(-phone.sw * .24, -phone.sh / 2 + .006, phone.d / 2 + .012)
+const updateClip = clipToScreen(mint.root, phone)
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+
+// ── script (timed to the recorded voice) ──
+const LINES = [
+  { who: 'manu',   a: 0.4, b: 3.99, ml: 'മാമാ, മാസാവസാനം എത്തുമ്പോൾ പൈസ തീരുന്നു!', en: 'Maaman, my money runs out by the end of the month!' },
+  { who: 'maaman', a: 4.65, b: 7.1, ml: 'നിന്റെ ശമ്പളം ഒന്നാം തീയതിയാണോ വരുന്നത്?', en: 'Does your salary arrive on the first?' },
+  { who: 'manu',   a: 7.7, b: 10.32, ml: 'അല്ല മാമാ, 28-ാം തീയതിയാണ്!', en: 'No, Maaman. It’s on the 28th!' },
+  { who: 'maaman', a: 10.8, b: 13.94, ml: 'എന്നിട്ടെന്തിനാ നിന്റെ ബജറ്റ് ഒന്നാം തീയതി തുടങ്ങുന്നത്?', en: 'Then why does your budget start on the first?' },
+  { who: 'manu',   a: 14.55, b: 18.54, ml: 'അപ്പോൾ എന്റെ മാസം 28-ാം തീയതി തുടങ്ങണമെന്നാണോ?', en: 'So my month should start on the 28th?' },
+  { who: 'mint',   a: 19.05, b: 26.28, ml: 'അതെ. 28-ാം തീയതി ശമ്പളം വന്നാൽ, അടുത്ത മാസം 27 വരെ ഒരു Budget Cycle ആയി പ്ലാൻ ചെയ്യാം.', en: 'Yes. If salary arrives on the 28th, plan one budget cycle through the 27th of the following month.' },
+  { who: 'manu',   a: 26.8, b: 31.42, ml: 'അപ്പോൾ 28 മുതൽ അടുത്ത 27 വരെ എന്റെ കണക്ക്!', en: 'So my financial month runs from the 28th to the next 27th!' },
+  { who: 'mint',   a: 32, b: 37.36, ml: 'Budget Strategy-യും Kakeibo-യും നിന്റെ recorded salary cycle അനുസരിച്ച് നോക്കാം.', en: 'You can use your recorded salary cycle for Budget Strategy and Kakeibo.' },
+  { who: 'maaman', a: 38, b: 42.73, ml: 'നിന്റെ മാസം തുടങ്ങുന്നത് ശമ്പളം വരുന്ന ദിവസമാണ്. അതനുസരിച്ച് പ്ലാൻ ചെയ്യണം!', en: 'Your month starts when your salary arrives. Plan accordingly!' },
+  { who: 'manu',   a: 43.35, b: 46.36, ml: 'ഇനി എന്റെ salary cycle-ന് അനുസരിച്ച് budget ചെയ്യാം!', en: 'Now I’ll budget according to my salary cycle!' },
+]
+const L = LINES
+// cuts: where each shot starts
+const C = { manuHook: 2.6, maaman: 4.5, manu: 7.55, two: 10.65, mark: 12.1, think: 14.4, cal: 18.9, phone: 26.65, apps: 31.85, close: 37.85, last: 43.2 }
+// beats inside the lines (measured from the recordings)
+const SALARY = 1.3                      // the salary lands on the 28th
+const CIRCLE = C.mark + .3              // Maaman's marker circles the 28th…
+const FILL = L[5].a + 1.0               // "28-ാം തീയതി ശമ്പളം വന്നാൽ": the cycle starts filling from the 28th
+const FLIP = L[5].a + 3.3               // "അടുത്ത മാസം 27 വരെ": page turns to November
+const NEXT = L[5].a + 6.15              // the next cycle, from 28 Nov
+const SWAP = L[7].a + 1.1               // "Kakeibo-യും": strategy → Kakeibo
+const PHONE_UP = [C.phone - .5, C.close + .2], END = 47.4, DURATION = 51
+
+const v = new THREE.Vector3()
+const wp = o => { o.getWorldPosition(v); return v.toArray() }
+let H = {}  // tracked points this frame
+// a day's cell on the wall, in world space
+const dayWorld = (page, d) => { const [x, y, z] = cal.dayAt(page, d); return new THREE.Vector3(CAL[0] + x * CS, CAL[1] + y * CS, CAL[2] + z * CS) }
+
+/* The shot list. bubble: whether the Malayalam bubble shows (wide/two-shots with the speaker
+   in frame); close-ups and prop shots carry the English subtitle only. */
+const CALF = [CAL[0], CAL[1], CAL[2] + .02]
+const CALL = [CAL[0], CAL[1] - .07, CAL[2] + .02]   // aim below centre: the calendar sits high, clear of the subtitles
+const SHOTS = [
+  // 1 · hook: the wall calendar, close — the 1st ringed green; the salary lands on the 28th
+  { t: 0,          pos: [CAL[0] - .12, CAL[1] + .02, CAL[2] + 1.75], look: CALL, lens: 36, focus: CALF, aperture: .02, bubble: false },
+  { t: C.manuHook, pos: [CAL[0] - .06, CAL[1], CAL[2] + 1.6], look: CALL, lens: 38, focus: CALF, aperture: .02, bubble: false },
+  // … and Manu, confused
+  { t: C.manuHook, cut: true, pos: [.5, 1.82, 2.9], look: 'manuFace', lens: 66, focus: 'manuHead', aperture: .03, bubble: false },
+  { t: C.maaman,   pos: [.52, 1.82, 2.8], look: 'manuFace', lens: 70, focus: 'manuHead', aperture: .03, bubble: false },
+  // 2 · Maaman MCU, eyebrow up, looking at the calendar
+  { t: C.maaman,   cut: true, pos: [-.45, 1.85, 3.0], look: 'maamanFace', lens: 62, focus: 'maamanHead', aperture: .025, bubble: false },
+  { t: C.manu,     pos: [-.48, 1.86, 2.85], look: 'maamanFace', lens: 64, focus: 'maamanHead', aperture: .025, bubble: false },
+  // 3 · Manu CU: "the 28th!", pointing at the calendar
+  { t: C.manu,     cut: true, pos: [.2, 1.62, 3.2], look: [1.1, 1.45, .2], lens: 45, focus: 'manuHead', aperture: .015, bubble: false },
+  { t: C.two,      pos: [.25, 1.62, 3.1], look: [1.2, 1.45, .2], lens: 46, focus: 'manuHead', aperture: .015, bubble: false },
+  // 4 · two-shot, then the calendar: Maaman's marker rings the 28th
+  { t: C.two,      cut: true, pos: [-.15, 1.45, 4.3], look: [0, 1.32, .5], lens: 34, focus: 'mid', aperture: .006, bubble: true },
+  { t: C.mark,     pos: [.1, 1.45, 4.2], look: [.02, 1.34, .5], lens: 35, focus: 'mid', aperture: .006, bubble: true },
+  { t: C.mark,     cut: true, pos: [CAL[0] - .06, CAL[1], CAL[2] + 1.7], look: CALL, lens: 36, focus: CALF, aperture: .02, bubble: false },
+  { t: C.think,    pos: [CAL[0] - .03, CAL[1] - .02, CAL[2] + 1.58], look: CALL, lens: 38, focus: CALF, aperture: .02, bubble: false },
+  // 5 · Manu MCU, thinking
+  { t: C.think,    cut: true, pos: [.62, 1.7, 3.2], look: 'manuFace', lens: 52, focus: 'manuHead', aperture: .02, bubble: false },
+  { t: C.cal,      pos: [.6, 1.72, 3.05], look: 'manuFace', lens: 56, focus: 'manuHead', aperture: .02, bubble: false },
+  // 6 · crane down onto the calendar: the cycle fills from the 28th, the page turns, through the 27th
+  { t: C.cal,      cut: true, pos: [CAL[0] - .35, CAL[1] + .8, CAL[2] + 2.5], look: CALL, lens: 34, focus: CALF, aperture: .012, bubble: false },
+  { t: FILL,       pos: [CAL[0] - .12, CAL[1] + .06, CAL[2] + 1.75], look: CALL, lens: 36, focus: CALF, aperture: .02, bubble: false },
+  { t: C.phone,    pos: [CAL[0] - .06, CAL[1] + .02, CAL[2] + 1.6], look: CALL, lens: 38, focus: CALF, aperture: .02, bubble: false },
+  // 7 · phone CU: the real cycle on the dashboard
+  { t: C.phone,    cut: true, pos: 'phoneNear', look: 'phone', lens: 80, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.apps,     pos: 'phoneNear', look: 'phone', lens: 86, focus: 'phone', aperture: .03, bubble: false },
+  // 8 · phone: Budget Strategy, then Kakeibo — both on that cycle
+  { t: C.apps,     cut: true, pos: 'phoneNearL', look: 'phone', lens: 80, focus: 'phone', aperture: .03, bubble: false },
+  { t: SWAP,       pos: 'phoneNearL', look: 'phone', lens: 84, focus: 'phone', aperture: .03, bubble: false },
+  { t: SWAP,       cut: true, pos: 'phoneNear', look: 'phone', lens: 82, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.close,    pos: 'phoneNear', look: 'phone', lens: 86, focus: 'phone', aperture: .03, bubble: false },
+  // 9 · Maaman CU, the takeaway
+  { t: C.close,    cut: true, pos: [-.4, 1.92, 3.05], look: 'maamanFace', lens: 66, focus: 'maamanHead', aperture: .03, bubble: false },
+  { t: C.last,     pos: [-.44, 1.92, 2.75], look: 'maamanFace', lens: 70, focus: 'maamanHead', aperture: .03, bubble: false },
+  // 10 · Manu nods, confident
+  { t: C.last,     cut: true, pos: [.62, 1.78, 3.2], look: 'manuFace', lens: 52, focus: 'manuHead', aperture: .02, bubble: false },
+  { t: DURATION,   pos: [.6, 1.8, 3.0], look: 'manuFace', lens: 58, focus: 'manuHead', aperture: .02, bubble: false },
+]
+const resolve = n => ({
+  manuHead: H.manu, maamanHead: H.maaman, phone: H.phone,
+  manuFace: [H.manu[0], H.manu[1] + .06, H.manu[2]], maamanFace: [H.maaman[0], H.maaman[1] + .06, H.maaman[2]],
+  mid: [0, 1.5, .25],
+  phoneNear: [H.phone[0] + .03, H.phone[1] + .01, H.phone[2] + .78],
+  phoneNearL: [H.phone[0] - .1, H.phone[1] + .02, H.phone[2] + .76],
+})[n]
+const shotKey = t => { let k = SHOTS[0]; for (const s of SHOTS) if (t >= s.t) k = s; return k }
+
+// ── helpers ──
+const during = (t, a, b) => t >= a && t < b
+const talking = (who, t) => LINES.some(l => l.who === who && during(t, l.a + .05, l.b - .15))
+const hop = (t, t0, d = .4) => during(t, t0, t0 + d) ? Math.sin((t - t0) / d * Math.PI) : 0
+
+const bubble = document.getElementById('bubble'), sub = document.getElementById('sub')
+const mtag = document.getElementById('mtag'), mname = document.getElementById('mname'), stag = document.getElementById('stag')
+const ctag = document.getElementById('ctag'), cml = document.getElementById('cml'), cen = document.getElementById('cen')
+const g0 = document.getElementById('g0'), g1 = document.getElementById('g1'), g2 = document.getElementById('g2')
+const example = document.getElementById('example'), end = document.getElementById('end')
+const place = (el, p, on) => { el.style.opacity = on; el.style.left = p.x + 'px'; el.style.top = p.y + 'px' }
+const onScreen = p => !p.behind && p.x > 60 && p.x < 1020 && p.y > 300 && p.y < 1560
+const fade = (t, a, b, d = .25) => during(t, a, b) ? Math.min(1, (t - a) / d, (b - t) / d) : 0
+
+// the calendar page at time t (the cycle is drawn from the RECORDED salary day, never chosen)
+function pageAt(t) {
+  if (t < FLIP) {
+    const p = { ...OCT, fill: null, ring: null, ringProg: 0, dot: t >= SALARY ? 28 : null, start: 1, dim: null }
+    if (t >= CIRCLE) { p.ring = 28; p.ringProg = clamp((t - CIRCLE) / .9) }
+    if (t >= C.think) { p.start = null; p.dim = 1 }             // the 1st no longer marks his month
+    if (t >= FILL) p.fill = [28, Math.min(31, 28 + Math.floor((t - FILL) / .3))]
+    return p
+  }
+  const p = { ...NOV, fill: [1, Math.min(27, 1 + Math.floor((t - FLIP - .6) / .045))], ring: 27, ringProg: clamp((t - FLIP - 1.85) / .6), dot: null, start: null, dim: null }
+  if (t >= NEXT) { p.fill2 = true }
+  return t >= NEXT ? { ...p, fill: [28, 30], fillColor: 'rgba(59,130,246,.36)', ring: 28, ringProg: clamp((t - NEXT) / .6) } : p
+}
+
+async function render(t) {
+  home.animate(t)
+
+  // ── Manu ──
+  const phoneUp = ramp(t, PHONE_UP[0], .5) * (1 - ramp(t, PHONE_UP[1] - .2, .4))
+  manu.pose(t, {
+    x: .75, z: .2, turn: -.35,
+    mood: t < C.maaman ? 'worried' : t < C.manu ? 'concerned' : t < C.two ? 'grin' : t < C.think ? 'surprised'
+      : t < C.cal ? 'concerned' : t < C.phone ? 'smile' : t < C.last ? 'grin' : 'determined',
+    talking: talking('manu', t),
+    look: during(t, C.manu, C.two) ? [.8, .2] : during(t, C.think, C.cal) ? [.5, .4] : [-.45, 0],
+    headTurn: during(t, C.manu, C.two) ? .5 : during(t, C.think, C.cal) ? .2 : -.2,
+    headTilt: during(t, C.think, C.cal) ? .12 : 0,
+    nod: t >= C.last ? Math.sin(t * 4.2) * .06 : 0,
+    armR: phoneUp > 0 ? { raise: .2 + .85 * phoneUp, elbow: .2 + 1.15 * phoneUp, out: .08, hand: 'fist' }
+      : during(t, C.manu, C.two) ? { raise: 1.25, elbow: .2, out: .75, hand: 'point' }                // at the 28th
+      : { raise: .05, elbow: .15, out: .1 },
+    armL: during(t, C.think, C.cal) ? { raise: .55, elbow: 2.3, out: -.05, across: .9, hand: 'fist' }   // chin in hand, thinking
+      : { raise: .05, elbow: .15, out: .12 },
+  })
+  // ── Maaman ──
+  const gesture = talking('maaman', t) ? 1 : 0
+  maaman.pose(t, {
+    x: -.8, z: .15, turn: .35,
+    mood: t < C.manu ? 'knowing' : t < C.cal ? 'amused' : 'smile',
+    talking: talking('maaman', t), look: during(t, C.maaman, C.manu) ? [.9, .25] : [.45, 0],
+    headTurn: during(t, C.maaman, C.manu) ? .35 : 0,
+    armR: during(t, L[3].a, L[3].b) ? { raise: .75, elbow: 1.5, out: .22, hand: 'point' }
+      : during(t, L[8].a, L[8].a + 2.4) ? { raise: .55 + .06 * Math.sin(t * 3), elbow: .45, out: .4 }
+      : during(t, L[8].a + 2.4, L[8].b) ? { raise: .75, elbow: 1.5, out: .22, hand: 'point' }
+      : { raise: .05 + gesture * .2, elbow: .15 + gesture * .5, out: .14 },
+    armL: { raise: .05, elbow: .15, out: .12 },
+  })
+  H = { manu: wp(manu.head), maaman: wp(maaman.head) }
+
+  // ── the calendar ──
+  const page = pageAt(t)
+  cal.show(page)
+  cal.flip(clamp((t - FLIP) / .7))
+  seedling.sprout.rotation.z = Math.sin(t * 1.4) * .06
+
+  // ── phone in Manu's hand: the dashboard cycle → Budget Strategy → Kakeibo ──
+  phone.root.visible = phoneUp > .01
+  manu.armR.hand.getWorldPosition(v)
+  phone.root.position.copy(v).add(new THREE.Vector3(-.02, .17, .1))
+  H.phone = phone.root.position.toArray()
+  const tex = t < C.apps ? TEX.hero : t < SWAP ? TEX.strategy : TEX.kakeibo
+  if (phone.screen.material.map !== tex) { phone.screen.material.map = tex; phone.screen.material.needsUpdate = true }
+  // on Kakeibo the cycle selector runs low across the screen: Mint stands small, bottom-right
+  if (t >= SWAP) { mint.root.scale.setScalar(.075); mint.root.position.x = phone.sw * .3 } else { mint.root.scale.setScalar(.12); mint.root.position.x = -phone.sw * .24 }
+
+  // ── camera (before anything aims at it) ──
+  const key = shotKey(t)
+  stage.frame(shotAt(SHOTS, t, resolve))
+  phone.root.lookAt(camera.position)
+  mint.pose(t, { mood: 'happy', talking: talking('mint', t) })
+  updateClip()
+  stage.render()
+
+  // ── overlays ──
+  const calShot = t < C.manuHook || during(t, C.mark, C.think) || during(t, C.cal, C.phone)
+  mname.textContent = MONTH[page.month]
+  const mp = stage.project(new THREE.Vector3(CAL[0], CAL[1] + .165 * CS, CAL[2] + .02))   // in the header's month bar
+  place(mtag, mp, calShot && onScreen(mp) ? 1 : 0)
+  const sp = stage.project(dayWorld(OCT, 28).add(new THREE.Vector3(0, .05, 0)))
+  place(stag, sp, (fade(t, SALARY + .1, C.manuHook) || fade(t, C.mark, C.think)) && onScreen(sp) ? 1 : 0)
+  // the cycle, in words, under the calendar
+  const cp = stage.project(new THREE.Vector3(CAL[0], CAL[1] - .245 * CS, CAL[2] + .02))
+  const cycleOn = during(t, FILL + .3, C.phone)
+  if (t < NEXT) { cml.textContent = t < FLIP + 1.85 ? 'Budget cycle · 28 Oct →' : 'Budget cycle · 28 Oct – 27 Nov'; cen.textContent = 'FROM PAYDAY'; cen.style.color = '#16A36E' }
+  else { cml.textContent = 'Next cycle · 28 Nov – 27 Dec'; cen.textContent = 'NEXT PAYDAY'; cen.style.color = '#3B82F6' }
+  place(ctag, cp, cycleOn && onScreen(cp) ? clamp((t - FILL - .3) / .3) : 0)
+  example.style.opacity = calShot ? 1 : 0
+  for (const [el, a, b] of [[g0, C.phone + .4, C.apps], [g1, C.apps + .3, SWAP], [g2, SWAP + .3, C.close]]) {
+    el.style.left = '540px'; el.style.top = '370px'; el.style.opacity = fade(t, a, b)
+  }
+
+  const ti = Math.min(ramp(t, C.maaman + .2, .3), 1 - ramp(t, C.maaman + 2.6, .3)); document.getElementById('title').style.opacity = ti
+  document.getElementById('title').style.transform = `scale(${.85 + .15 * ti})`
+
+  const line = LINES.find(l => during(t, l.a, l.b))
+  if (line) {
+    const fd = Math.min(1, (t - line.a) / .2, (line.b - t) / .2)
+    bubble.textContent = line.ml; sub.textContent = line.en
+    const speaker = H[line.who]
+    const p = speaker && stage.project(new THREE.Vector3(...speaker))
+    const showBubble = key.bubble && p && !p.behind && p.x > -100 && p.x < 1180
+    bubble.style.opacity = showBubble ? fd : 0; sub.style.opacity = fd
+    const [bl, bt, bw] = key.bubbleAt ?? [null, 400, 760]
+    bubble.style.top = bt + 'px'; bubble.style.maxWidth = bw + 'px'
+    if (showBubble) {
+      const w = bubble.offsetWidth, left = bl ?? Math.min(1080 - 50 - w, Math.max(50, p.x - w / 2))
+      bubble.style.left = left + 'px'; bubble.style.setProperty('--tail', Math.min(w - 60, Math.max(60, p.x - left)) + 'px')
+    }
+  } else { bubble.style.opacity = 0; sub.style.opacity = 0 }
+
+  // end card: soft green wipe in, then its lines rise one by one
+  const e = ramp(t, END, .5)
+  end.style.opacity = e; end.style.clipPath = `circle(${e * 150}% at 50% 100%)`
+  ;[...end.children].forEach((c, i) => { const k = ramp(t, END + .3 + i * .25, .4); c.style.opacity = k; c.style.transform = `translateY(${(1 - k) * 40}px)` })
+}
+
+window.REEL_OUT_DIR = 'manu-maaman/s2/ep05'
+window.REEL_SFX = [
+  { t: .2, kind: 'whoosh' }, { t: SALARY, kind: 'register' },
+  { t: C.manu + .2, kind: 'chime' },
+  { t: CIRCLE, kind: 'whoosh' },
+  { t: FILL, kind: 'chime' }, { t: FLIP, kind: 'whoosh' }, { t: FLIP + 1.85, kind: 'chime' }, { t: NEXT, kind: 'chime' },
+  { t: C.phone + .1, kind: 'chime' }, { t: SWAP, kind: 'whoosh' }, { t: SWAP + .25, kind: 'chime' },
+  { t: C.last + .2, kind: 'chime' },
+  { t: END, kind: 'whoosh' },
+]
+window.REEL_VOICE = { files: LINES.map((_, i) => `private/voice/s2-ep05/${String(i + 1).padStart(2, '0')}.mp3`), starts: LINES.map(l => l.a) }
+bootS2(stage, render, DURATION, [.3, 1.8, 3.2, 5.6, 8.8, 11.2, 12.8, 14.0, 16.4, 19.4, 21.2, 22.8, 24.0, 25.8, 28.6, 32.6, 34.6, 40.0, 45.0, 49.0])
+</script>
+</body>
+</html>

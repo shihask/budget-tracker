@@ -278,7 +278,7 @@ Illustrative example. Your budget may differ.
 ```
 
 ## Reel: Manu & Maaman S1 EP 04 "Credit Card ഉണ്ടെങ്കിൽ പണമുണ്ടെന്നല്ല!" (credit limit ≠ spending budget)
-File: `out/manu-maaman/s1-ep04/toon-s1-ep04.mp4` (42.6 s, sound effects only: add the voice-over before posting). Cover: the unrolling statement with the PAY BY DUE DATE stamp (~10.6 s).
+File: **`out/manu-maaman/s1-ep04/toon-s1-ep04-voice.mp4`** (ElevenLabs voices from `private/voice/s1-ep04/1–6.mp3`; turn on Instagram's AI info label). Silent-voice render: `toon-s1-ep04.mp4`. Cover: the unrolling statement with the PAY BY DUE DATE stamp (~10.6 s).
 Source: `toon-s1-ep04.html`. No amounts: the screenplay gives none for this episode.
 ```
 Credit Card ഒരു payment tool ആണ്, extra salary അല്ല.
@@ -295,7 +295,7 @@ Illustrative example. Not financial advice.
 ```
 
 ## Reel: Manu & Maaman S1 EP 05 "30 ദിവസം കഴിഞ്ഞപ്പോൾ എന്ത് സംഭവിച്ചു?" (season finale: Manu's ₹3,000 result)
-File: `out/manu-maaman/s1-ep05/toon-s1-ep05.mp4` (45 s, sound effects only: add the voice-over before posting). Cover: "Challenge goal achieved!" with the ₹3,000 kept (~11 s).
+File: **`out/manu-maaman/s1-ep05/toon-s1-ep05-voice.mp4`** (ElevenLabs voices from `private/voice/s1-ep05/1–7.mp3`; turn on Instagram's AI info label). Silent-voice render: `toon-s1-ep05.mp4`. Cover: "Challenge goal achieved!" with the ₹3,000 kept (~11 s).
 Source: `toon-s1-ep05.html`. Illustrative success scenario (the script's): ₹15,000 − ₹12,000 = ₹3,000.
 ```
 30 ദിവസത്തെ ചലഞ്ചിൽ ഏറ്റവും വലിയ വിജയം ₹3,000 മാത്രമല്ല — പണം എവിടെ പോകുന്നു എന്ന് മനസ്സിലാക്കാൻ പഠിച്ചതാണ്.

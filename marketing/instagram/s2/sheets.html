@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu &amp; Maaman S2 — character sheets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="s2.css">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<style>html, body { width: 1920px; height: 1080px; }</style>
+</head>
+<body class="sheet">
+<!--
+  Season 2 character sheets, for approval before any animation.
+    ?sheet=manu | maaman      turnaround: front · three-quarter · side · back
+    ?sheet=manu-faces | maaman-faces   six expressions each
+    ?sheet=mint              Mint inside the phone over a REAL MoneyPlant screen + views + moods
+    ?sheet=lineup            relative sizes, with the phone in hand
+  One instance of each character is re-posed and re-rendered into each cell (scissor viewports).
+-->
+<canvas id="gl"></canvas>
+<div class="sheet-head"><h1 id="h1"></h1><p id="sub"></p><span class="brand">MoneyPlant · Manu &amp; Maaman S2</span></div>
+<div id="labels"></div>
+
+<script type="module">
+import * as THREE from 'three'
+import { buildManu, buildMaaman, buildMint, buildPhone, clipToScreen, shadows, mat, C } from './cast3d.js'
+import { createStage, bootS2 } from './stage.js'
+
+const W = 1920, H = 1080, HEAD = 120
+const sheet = new URLSearchParams(location.search).get('sheet') ?? 'manu'
+const stage = createStage({ width: W, height: H, canvas: document.getElementById('gl'), background: '#EFE7DA' })
+const { renderer, scene, camera } = stage
+renderer.setScissorTest(true)
+
+// studio: a warm seamless floor, soft key + fill + rim
+const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 64), mat('#E6DCCB', { roughness: .9, clearcoat: 0 }))
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor)
+scene.fog = new THREE.Fog('#EFE7DA', 9, 22)  // floor melts into the backdrop: no horizon line
+scene.add(new THREE.HemisphereLight('#FFF4E2', '#C9B79C', .75))
+const key = new THREE.DirectionalLight('#FFF1DC', 2.2); key.position.set(-3, 5, 6); key.castShadow = true
+key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 8; key.shadow.blurSamples = 16; key.shadow.bias = -.0004; key.shadow.normalBias = .02
+Object.assign(key.shadow.camera, { left: -3, right: 3, top: 3, bottom: -1, near: .5, far: 20 }); scene.add(key)
+const rim = new THREE.DirectionalLight('#D6ECFF', 1.8); rim.position.set(3, 4, -5); scene.add(rim)
+const fill = new THREE.DirectionalLight('#FFE7C9', .6); fill.position.set(4, 2, 4); scene.add(fill)
+
+const manu = buildManu(), maaman = buildMaaman(), mint = buildMint()
+scene.add(manu.root, maaman.root, mint.root)
+const screenTex = await new THREE.TextureLoader().loadAsync('assets/app-dashboard-strategy.png')
+screenTex.colorSpace = THREE.SRGBColorSpace
+const phone = buildPhone(screenTex, { h: .3 }); scene.add(phone.root)
+const mintOnPhone = buildMint(); phone.root.add(mintOnPhone.root)
+mintOnPhone.root.scale.setScalar(.15); mintOnPhone.root.position.set(-phone.sw * .2, -phone.sh / 2 + .006, phone.d / 2 + .012)
+const updateClip = clipToScreen(mintOnPhone.root, phone)
+
+const all = [manu.root, maaman.root, mint.root, phone.root]
+const only = (...objs) => all.forEach(o => { o.visible = objs.includes(o) })
+const v = new THREE.Vector3()
+const headAt = p => p.head.getWorldPosition(v).toArray()
+
+function label(x, y, w, text, small = '') {
+  const d = document.createElement('div'); d.className = 'cell-label'
+  Object.assign(d.style, { left: x + 'px', top: y + 'px', width: w + 'px' }); d.innerHTML = text + (small ? `<small>${small}</small>` : '')
+  document.getElementById('labels').appendChild(d)
+}
+function swatches(x, y, colors) {
+  const d = document.createElement('div'); d.className = 'swatches'; Object.assign(d.style, { left: x + 'px', top: y + 'px' })
+  d.innerHTML = colors.map(c => `<i style="background:${c}"></i>`).join(''); document.getElementById('labels').appendChild(d)
+}
+// render one cell: rect in CSS px from top-left
+function cell([x, y, w, h], setup) {
+  setup()
+  camera.aspect = w / h; camera.updateProjectionMatrix()
+  renderer.setViewport(x, H - y - h, w, h); renderer.setScissor(x, H - y - h, w, h)
+  renderer.render(scene, camera)
+}
+function aim(pos, look, lens) { camera.position.set(...pos); camera.up.set(0, 1, 0); camera.lookAt(...look); camera.setFocalLength(lens); camera.updateProjectionMatrix() }
+
+const SHEETS = {
+  manu: { title: 'Manu', sub: 'about 28 · salaried · cheerful, impulsive, relatable', person: manu, swatch: [C.skinManu, C.manuShirt, C.trousers, C.hairManu, C.lanyard, C.shoes] },
+  maaman: { title: 'Maaman', sub: 'about 50 · warm, practical, gently funny · never scolds', person: maaman, swatch: [C.skinMaaman, C.maamanShirt, C.mundu, C.kasavu, C.hairMaaman, C.grey] },
+}
+const FACES = {
+  'manu-faces': { person: manu, title: 'Manu — expressions', moods: [['smile', 'Smile'], ['excited', 'Excited'], ['shocked', 'Shocked'], ['worried', 'Worried'], ['embarrassed', 'Embarrassed'], ['determined', 'Determined']] },
+  'maaman-faces': { person: maaman, title: 'Maaman — expressions', moods: [['smile', 'Warm smile'], ['amused', 'Amused'], ['knowing', 'Knowing look'], ['laugh', 'Laugh'], ['concerned', 'Concerned'], ['surprised', 'Surprised']] },
+}
+
+let draw
+if (SHEETS[sheet]) {
+  const S = SHEETS[sheet]
+  document.getElementById('h1').textContent = S.title + ' — turnaround'
+  document.getElementById('sub').textContent = S.sub
+  const views = [[0, 'Front'], [-.7, 'Three-quarter'], [-Math.PI / 2, 'Side'], [Math.PI, 'Back']]
+  const cw = W / 4
+  views.forEach(([, name], i) => label(i * cw, H - 70, cw, name))
+  swatches(60, HEAD + 6, S.swatch)
+  draw = t => views.forEach(([turn], i) => cell([i * cw, HEAD, cw, H - HEAD - 80], () => {
+    only(S.person.root); S.person.pose(t, { mood: 'smile', turn, x: 0, z: 0 })
+    aim([0, 1.12, 6.4], [0, 1.06, 0], 70)
+  }))
+} else if (FACES[sheet]) {
+  const F = FACES[sheet]
+  document.getElementById('h1').textContent = F.title
+  document.getElementById('sub').textContent = 'head and shoulders · camera at eye level · 85 mm'
+  const cw = W / 3, ch = (H - HEAD - 20) / 2
+  F.moods.forEach(([, name], i) => label((i % 3) * cw, HEAD + Math.floor(i / 3) * ch + ch - 44, cw, name))
+  draw = t => F.moods.forEach(([mood], i) => cell([(i % 3) * cw, HEAD + Math.floor(i / 3) * ch, cw, ch - 50], () => {
+    only(F.person.root); F.person.pose(t, { mood, turn: -.18, x: 0, z: 0, look: [.25, 0] })
+    const h = headAt(F.person); aim([h[0] + .3, h[1] + .05, h[2] + 3.5], [h[0], h[1] - .06, h[2]], 85)
+  }))
+} else if (sheet === 'mint') {
+  document.getElementById('h1').textContent = 'Mint'
+  document.getElementById('sub').textContent = 'stands inside the phone screen · the real MoneyPlant UI stays visible behind'
+  const big = [40, HEAD, 700, H - HEAD - 70]
+  label(big[0], H - 64, big[2], 'In the phone', 'screen: real app recording (demo account)')
+  const gx = 780, cw = (W - gx - 40) / 3, ch = (H - HEAD - 70) / 2
+  const cells = [['Front', { turn: 0 }], ['Three-quarter', { turn: -.7 }], ['Side', { turn: -1.45 }],
+    ['Happy · talking', { turn: -.15, mood: 'happy', talking: true }], ['Excited', { turn: -.15, mood: 'excited' }], ['Thinking', { turn: -.15, mood: 'thinking' }]]
+  cells.forEach(([name], i) => label(gx + (i % 3) * cw, HEAD + Math.floor(i / 3) * ch + ch - 44, cw, name))
+  draw = t => {
+    cell(big, () => {
+      only(phone.root); phone.root.position.set(0, 1, 0); phone.root.rotation.set(-.08, .28, 0)
+      mintOnPhone.pose(t, { mood: 'happy', talking: true }); updateClip()
+      aim([.08, 1.03, .62], [0, 1, 0], 50)
+    })
+    cells.forEach(([, st], i) => cell([gx + (i % 3) * cw, HEAD + Math.floor(i / 3) * ch, cw, ch - 50], () => {
+      only(mint.root); mint.root.position.set(0, 0, 0); mint.pose(t, st)
+      aim([0, .3, 2.6], [0, .28, 0], 85)
+    }))
+  }
+} else if (sheet === 'lineup') {
+  document.getElementById('h1').textContent = 'Lineup — relative sizes'
+  document.getElementById('sub').textContent = 'Maaman · Manu (phone in hand, Mint on screen)'
+  label(560, H - 70, 300, 'Maaman'); label(1060, H - 70, 300, 'Manu')
+  draw = t => cell([0, HEAD, W, H - HEAD - 80], () => {
+    only(manu.root, maaman.root, phone.root)
+    maaman.pose(t, { mood: 'smile', x: -.55, z: 0, turn: .2 })
+    manu.pose(t, { mood: 'grin', x: .55, z: 0, turn: -.2, armR: { raise: 1.05, elbow: 1.35, out: .05 } })
+    manu.armR.hand.getWorldPosition(v); phone.root.position.copy(v).add(new THREE.Vector3(0, .1, .04)); phone.root.rotation.set(-.1, -.15, 0)
+    mintOnPhone.pose(t, { mood: 'happy' }); updateClip()
+    aim([0, 1.15, 8.5], [0, 1.1, 0], 50)
+  })
+}
+
+if (sheet === 'arms') {
+  document.getElementById('h1').textContent = 'Arms & hands — every pose the episodes use'
+  document.getElementById('sub').textContent = 'three-quarter view · Manu top row, Maaman bottom row'
+  const POSES = [['Rest', {}, {}], ['Finger up', {}, { raise: .75, elbow: 1.5, out: .22, hand: 'point' }], ['Explain', {}, { raise: .55, elbow: .45, out: .4 }],
+    ['Hand on chest', { raise: .45, elbow: 1.9, out: -.1, across: 1.1 }, {}], ['Thumb at chest', {}, { raise: .75, elbow: 2.25, out: -.1, across: 1.0, hand: 'thumb' }],
+    ['Arms out', { raise: .9, elbow: .5, out: .55 }, { raise: .9, elbow: .5, out: .55 }], ['Phone', {}, { raise: 1.05, elbow: 1.35, out: .05 }],
+    ['Wallet up', { raise: 1.15, elbow: 1.5, out: -.05 }, {}]]
+  const cw = W / POSES.length, ch = (H - HEAD - 20) / 2
+  POSES.forEach(([name], i) => label(i * cw, H - 50, cw, name))
+  draw = t => [manu, maaman].forEach((p, r) => POSES.forEach(([, armL, armR], i) => cell([i * cw, HEAD + r * ch, cw, ch - 10], () => {
+    only(p.root); p.pose(t, { mood: 'smile', turn: -.55, x: 0, z: 0, armL, armR })
+    if (new URLSearchParams(location.search).has('close')) aim([.7, 1.45, 2.4], [0, 1.4, 0], 60); else aim([.9, 1.25, 4.2], [0, 1.15, 0], 60)
+  })))
+}
+
+async function render(t) { draw(t) }
+bootS2(stage, render, 4, [0], { size: [W, H] })
+window.REEL_OUT_DIR = 'manu-maaman/s2/sheets'
+</script>
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu &amp; Maaman S2 EP03 — വണ്ടി പണിമുടക്കി!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="s2.css">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head>
+<body>
+<!--
+  Season 2 · EP03 "വണ്ടി പണിമുടക്കി!" — prepare for unexpected expenses with an emergency fund.
+  Screenplay: ep03-06-screenplays.md (EP03). Timed to the recorded voice (clip i starts at
+  LINES[i].a, b = a + measured speech end).
+  Staging (approved): opens at the house gate — Manu's bike won't start — then the rest is the
+  living room. The bike is the only new prop; buildHome({ door: true }) opens the front door.
+  Example numbers only: bike repair ₹6,000 (not paid from the fund in one go — the episode never
+  says it is). On the phone, two REAL demo-account screens, shown separately (product note):
+    assets/app-emergency-goal.png    — Goals: a savings goal "Emergency Fund", ₹2,000 / ₹30,000
+    assets/app-emergency-reserve.png — the Emergency Fund reserve setting, "Amount reserved and
+                                        excluded from spendable balance", ₹2,000
+-->
+<canvas id="gl"></canvas>
+<div class="badge"><div class="handle"><img src="/public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">S2 · EP 03</div></div>
+<div class="title" id="title">വണ്ടി പണിമുടക്കി!</div>
+<div class="title" id="stamp" style="background:#E3463A;box-shadow:0 12px 0 #A92E25;left:50%;top:330px;transform-origin:center">UNEXPECTED EXPENSE!</div>
+<div class="example" id="example">EXAMPLE</div>
+<div class="jar-tag" id="etag"><span class="ml">Workshop estimate</span><span class="en" style="color:#E3463A">BIKE REPAIR · EXAMPLE</span><span class="amt">₹6,000</span></div>
+<div class="jar-tag" id="jtag"><span class="ml">Emergency Fund</span><span class="en" style="color:#16A36E">A LITTLE EVERY MONTH</span></div>
+<div class="jar-tag" id="g1" style="transform:translate(-50%,0)"><span class="ml">1 · Savings goal</span><span class="en" style="color:#16A36E">TRACKS WHAT YOU SET ASIDE</span></div>
+<div class="jar-tag" id="g2" style="transform:translate(-50%,0)"><span class="ml">2 · Emergency Fund reserve</span><span class="en" style="color:#B9821A">KEPT OUT OF FREE MONEY</span></div>
+<div class="bubble" id="bubble"></div>
+<div class="sub" id="sub"></div>
+<section class="scene green end" id="end">
+  <img class="logo" src="/public/email-logo.png" alt="">
+  <div class="name">BE READY<br>BEFORE IT HAPPENS.</div>
+  <div class="next">Next · EP 04<br>വർഷത്തിൽ ഒരിക്കൽ വരുന്ന ചെലവുകൾ!</div>
+  <div class="pill">Follow @moneyplant.online</div>
+  <div class="disc">Example amounts · not financial advice</div>
+</section>
+
+<script type="module">
+import * as THREE from 'three'
+import { buildManu, buildMaaman, buildMint, buildHome, buildPhone, clipToScreen, lightRoom, ramp, mat } from './cast3d.js'
+import { buildTable, buildSeedling, buildWallCalendar, buildWallet, buildJar, buildCoin, buildBike, JAR_COLORS } from './props3d.js'
+import { createStage, shotAt, bootS2 } from './stage.js'
+
+const stage = createStage({ canvas: document.getElementById('gl') })
+const { scene, camera } = stage
+const home = buildHome({ door: true }); scene.add(home.root)
+lightRoom(scene)
+const manu = buildManu(), maaman = buildMaaman()
+scene.add(manu.root, maaman.root)
+
+// ── props ──
+const table = buildTable(); table.root.position.set(0, 0, 1.0); scene.add(table.root)
+const TOP = table.TOP
+const seedling = buildSeedling(); seedling.root.position.set(1.05, 1.06, -2.78); seedling.root.scale.setScalar(1.12); scene.add(seedling.root)  // a little taller every episode
+const cal = buildWallCalendar(); cal.root.position.set(3.75, 1.78, -2.93); scene.add(cal.root)
+// Manu's bike, parked just inside the gate, three-quarter on to the front door
+const bike = buildBike(); const BIKE = [home.door.x + .1, 0, -4.7]
+bike.root.position.set(...BIKE); bike.root.rotation.y = .55; scene.add(bike.root)
+// the workshop's estimate: a paper slip (no text in 3D — the tag carries the words)
+const slip = new THREE.Group(); scene.add(slip)
+{
+  const c = document.createElement('canvas'); c.width = 128; c.height = 180; const g = c.getContext('2d')
+  g.fillStyle = '#FFFDF6'; g.fillRect(0, 0, 128, 180); g.fillStyle = '#E3463A'; g.fillRect(0, 0, 128, 22)
+  g.fillStyle = '#C9C2B4'; for (let i = 0; i < 6; i++) g.fillRect(14, 40 + i * 16, 70 + (i % 3) * 12, 6)
+  g.fillStyle = '#1C1410'; g.fillRect(14, 148, 100, 12)
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace
+  const paper = new THREE.Mesh(new THREE.BoxGeometry(.14, .2, .003), [0, 0, 0, 0, 1, 0].map(i => i ? new THREE.MeshPhysicalMaterial({ map: tex, roughness: .7 }) : mat('#FFFDF6', { roughness: .7 })))
+  paper.castShadow = true; slip.add(paper)
+}
+const wallet = buildWallet(); scene.add(wallet)
+// the emergency fund jar: a few coins, a month at a time
+const jar = buildJar(JAR_COLORS.needs); jar.root.position.set(-.05, TOP, 1.08); scene.add(jar.root)
+const JAR_FILL = [0, .1, .18, .26]
+const drops = [0, 1, 2].map(() => { const c = buildCoin(); scene.add(c); return c })
+// smoke from the exhaust on the failed starts
+const puffs = Array.from({ length: 7 }, () => {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(.05, 14, 10), new THREE.MeshStandardMaterial({ color: '#8A8F96', transparent: true, opacity: 0, roughness: 1, depthWrite: false }))
+  scene.add(m); return m
+})
+
+// the two real app screens, with Mint standing in the screen
+const loader = new THREE.TextureLoader()
+const [goalTex, reserveTex] = await Promise.all(['assets/app-emergency-goal.png', 'assets/app-emergency-reserve.png'].map(f => loader.loadAsync(f)))
+goalTex.colorSpace = reserveTex.colorSpace = THREE.SRGBColorSpace
+const phone = buildPhone(goalTex, { h: .3 }); scene.add(phone.root)
+const mint = buildMint(); phone.root.add(mint.root)
+mint.root.scale.setScalar(.12); mint.root.position.set(-phone.sw * .24, -phone.sh / 2 + .006, phone.d / 2 + .012)
+const updateClip = clipToScreen(mint.root, phone)
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+
+// ── script (timed to the recorded voice) ──
+const LINES = [
+  { who: 'manu',   a: 1.6, b: 4.3, ml: 'അയ്യോ! ഇപ്പോഴാണോ വണ്ടി പണിമുടക്കുന്നത്!', en: 'Oh no! Why did the bike have to break down now?' },
+  { who: 'manu',   a: 4.9, b: 8.31, ml: 'മാമാ! Workshop ആറായിരം രൂപ ചോദിക്കുന്നു!', en: 'Maaman! The workshop is asking for ₹6,000!' },
+  { who: 'maaman', a: 8.9, b: 11.88, ml: 'എന്താ? ആറായിരമോ? കയ്യിൽ പൈസയുണ്ടോ?', en: 'What? ₹6,000? Do you have the money?' },
+  { who: 'manu',   a: 12.45, b: 16.37, ml: 'അതാണ് പ്രശ്നം മാമാ. ഈ മാസം എല്ലാം പ്ലാൻ ചെയ്തതാ!', en: 'That’s the problem, Maaman. I’ve already planned everything this month!' },
+  { who: 'maaman', a: 16.95, b: 20.85, ml: 'അതുകൊണ്ടാണ് കുറച്ച് പൈസ Emergency-ക്കായി മാറ്റിവെക്കണമെന്ന് പറയുന്നത്!', en: 'That’s why I keep telling you to set some money aside for emergencies!' },
+  { who: 'mint',   a: 21.45, b: 26.85, ml: 'അപ്രതീക്ഷിത ചെലവുകൾക്കായി ഒരു Emergency Fund തുടങ്ങാം. ചെറിയ തുകയിൽ നിന്ന് തുടങ്ങാം.', en: 'Let’s start an emergency fund for unexpected expenses. You can begin with a small amount.' },
+  { who: 'manu',   a: 27.35, b: 30.57, ml: 'മാസം കുറച്ച് കുറച്ചായി മാറ്റിവെച്ചാൽ മതിയോ?', en: 'Can I set aside a little every month?' },
+  { who: 'mint',   a: 31.15, b: 36.88, ml: 'അതെ. Emergency Fund എന്നൊരു Savings Goal ഉണ്ടാക്കി നിന്റെ സംഭാവനകൾ ട്രാക്ക് ചെയ്യാം.', en: 'Yes. Create a Savings Goal called Emergency Fund and track your contributions.' },
+  { who: 'mint',   a: 37.45, b: 43.7, ml: 'മാറ്റിവെച്ച തുക Free Money-യിൽ നിന്ന് ഒഴിവാക്കാൻ Emergency Fund reserve-ഉം സെറ്റ് ചെയ്യാം.', en: 'You can also set an Emergency Fund reserve to keep that money out of Free Money.' },
+  { who: 'maaman', a: 44.15, b: 48.22, ml: 'വണ്ടി എപ്പോൾ പണിമുടക്കും എന്ന് അറിയില്ല. പക്ഷേ തയ്യാറായിരിക്കണം!', en: 'You never know when your bike will break down. But you can be prepared!' },
+  { who: 'manu',   a: 48.85, b: 52.27, ml: 'ഇനി ഒരു Emergency വന്നാലും ഇത്ര ടെൻഷൻ വേണ്ട!', en: 'Next time there’s an emergency, I won’t have to panic so much!' },
+]
+const L = LINES
+// cuts: where each shot starts
+const C = { engine: 1.3, shock: 2.6, inside: 4.7, maaman: 8.75, manu: 12.3, two: 16.8, phone: 21.2, jar: 27.15, goal: 31.0, reserve: 37.3, close: 44.0, last: 48.7 }
+// beats inside the lines (measured from the recordings)
+const STARTS = [.35, 1.0, 1.75]                        // three tries at the starter; the last one dies
+const DROP = [.5, 1.2, 1.9].map(o => L[6].a + o)       // "a little every month": a coin each month
+const PHONE_UP = [C.phone - .5, C.close + .2], END = 53.3, DURATION = 57
+
+const v = new THREE.Vector3()
+const wp = o => { o.getWorldPosition(v); return v.toArray() }
+let H = {}  // tracked points this frame
+
+/* The shot list. bubble: whether the Malayalam bubble shows (wide/two-shots with the speaker
+   in frame); close-ups and prop shots carry the English subtitle only. */
+const SHOTS = [
+  // 1 · from inside the living room, through the open front door: Manu at his bike by the gate
+  { t: 0,         pos: [-1.3, 1.42, -.1], look: [-1.3, .85, -4.9], lens: 30, focus: 'bike', aperture: .006, bubble: false },
+  { t: C.engine,  pos: [-1.33, 1.38, -.8], look: [-1.3, .85, -4.9], lens: 33, focus: 'bike', aperture: .006, bubble: false },
+  // 2 · the engine at the gate, close: it coughs and dies
+  { t: C.engine,  cut: true, pos: 'engineCam', look: 'engine', lens: 42, focus: 'engine', aperture: .03, shake: .015, bubble: false },
+  { t: C.shock,   pos: 'engineCam2', look: 'engine', lens: 48, focus: 'engine', aperture: .03, shake: .01, bubble: false },
+  // 3 · Manu beside the bike, shocked (the yard, gate and house wall behind him — nothing new)
+  { t: C.shock,   cut: true, pos: 'outsideCam', look: 'manuFace', lens: 50, focus: 'manuHead', aperture: .02, shake: .02, bubble: false },
+  { t: C.inside,  pos: 'outsideCam2', look: 'manuFace', lens: 56, focus: 'manuHead', aperture: .02, bubble: false },
+  // 4 · inside: he shows Maaman the estimate — two-shot, slow truck
+  { t: C.inside,  cut: true, pos: [-.15, 1.45, 4.3], look: [0, 1.32, .5], lens: 34, focus: 'mid', aperture: .006, bubble: true },
+  { t: C.maaman,  pos: [.12, 1.45, 4.2], look: [.02, 1.34, .5], lens: 35, focus: 'mid', aperture: .006, bubble: true },
+  // 5 · Maaman MCU: eyebrows up
+  { t: C.maaman,  cut: true, pos: [-.45, 1.85, 3.0], look: 'maamanFace', lens: 62, focus: 'maamanHead', aperture: .025, bubble: false },
+  { t: C.manu,    pos: [-.48, 1.86, 2.85], look: 'maamanFace', lens: 64, focus: 'maamanHead', aperture: .025, bubble: false },
+  // 6 · Manu CU: checks the wallet, embarrassed
+  { t: C.manu,    cut: true, pos: [.5, 1.82, 2.9], look: 'manuFace', lens: 66, focus: 'manuHead', aperture: .03, bubble: false },
+  { t: C.two,     pos: [.52, 1.82, 2.8], look: 'manuFace', lens: 70, focus: 'manuHead', aperture: .03, bubble: false },
+  // 7 · two-shot, slow dolly in; Maaman points at the estimate on the table
+  { t: C.two,     cut: true, pos: [0, 1.52, 4.4], look: [0, 1.22, .6], lens: 33, focus: 'mid', aperture: .006, bubble: true },
+  { t: C.phone,   pos: [0, 1.48, 3.7], look: [0, 1.22, .6], lens: 36, focus: 'mid', aperture: .008, bubble: true },
+  // 8 · push in on the phone: Mint, and the real Goals card
+  { t: C.phone,   cut: true, pos: [.62, 1.62, 3.0], look: 'phone', lens: 45, focus: 'phone', aperture: .02, bubble: false },
+  { t: C.phone + 2.2, pos: 'phoneNear', look: 'phone', lens: 85, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.jar,     pos: 'phoneNear', look: 'phone', lens: 85, focus: 'phone', aperture: .03, bubble: false },
+  // 9 · the table: the jar takes a coin a month
+  { t: C.jar,     cut: true, pos: [-.12, 1.32, 2.6], look: [-.05, .72, 1.08], lens: 40, focus: [-.05, .66, 1.08], aperture: .02, bubble: false },
+  { t: C.goal,    pos: [-.08, 1.26, 2.35], look: [-.05, .72, 1.08], lens: 42, focus: [-.05, .66, 1.08], aperture: .02, bubble: false },
+  // 10 · phone: (1) the savings goal …
+  { t: C.goal,    cut: true, pos: 'phoneNear', look: 'phone', lens: 80, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.reserve, pos: 'phoneNear', look: 'phone', lens: 86, focus: 'phone', aperture: .03, bubble: false },
+  // 11 · … then (2) the Emergency Fund reserve, a separate setting
+  { t: C.reserve, cut: true, pos: 'phoneNearL', look: 'phone', lens: 80, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.close,   pos: 'phoneNearL', look: 'phone', lens: 86, focus: 'phone', aperture: .03, bubble: false },
+  // 12 · Maaman close-up, the takeaway
+  { t: C.close,   cut: true, pos: [-.4, 1.92, 3.05], look: 'maamanFace', lens: 66, focus: 'maamanHead', aperture: .03, bubble: false },
+  { t: C.last,    pos: [-.44, 1.92, 2.75], look: 'maamanFace', lens: 70, focus: 'maamanHead', aperture: .03, bubble: false },
+  // 13 · Manu, relieved and determined
+  { t: C.last,    cut: true, pos: [.62, 1.78, 3.2], look: 'manuFace', lens: 52, focus: 'manuHead', aperture: .02, bubble: false },
+  { t: DURATION,  pos: [.6, 1.8, 3.0], look: 'manuFace', lens: 58, focus: 'manuHead', aperture: .02, bubble: false },
+]
+// the bike's near side faces the house: cameras for the yard shots sit out along that side
+const NEAR = [Math.sin(.55), 0, Math.cos(.55)]
+const resolve = n => ({
+  manuHead: H.manu, maamanHead: H.maaman, phone: H.phone, bike: [BIKE[0], .7, BIKE[2]], engine: H.engine,
+  manuFace: [H.manu[0], H.manu[1] + .06, H.manu[2]], maamanFace: [H.maaman[0], H.maaman[1] + .06, H.maaman[2]],
+  mid: [0, 1.5, .25],
+  engineCam: [H.engine[0] + NEAR[0] * 1.6 + .25, H.engine[1] + .3, H.engine[2] + NEAR[2] * 1.6],
+  engineCam2: [H.engine[0] + NEAR[0] * 1.35 + .2, H.engine[1] + .24, H.engine[2] + NEAR[2] * 1.35],
+  outsideCam: [H.manu[0] + .35, H.manu[1] - .02, H.manu[2] + 1.75],
+  outsideCam2: [H.manu[0] + .3, H.manu[1], H.manu[2] + 1.5],
+  phoneNear: [H.phone[0] + .03, H.phone[1] + .01, H.phone[2] + .78],
+  phoneNearL: [H.phone[0] - .1, H.phone[1] + .02, H.phone[2] + .76],
+})[n]
+const shotKey = t => { let k = SHOTS[0]; for (const s of SHOTS) if (t >= s.t) k = s; return k }
+
+// ── helpers ──
+const during = (t, a, b) => t >= a && t < b
+const talking = (who, t) => LINES.some(l => l.who === who && during(t, l.a + .05, l.b - .15))
+const hop = (t, t0, d = .4) => during(t, t0, t0 + d) ? Math.sin((t - t0) / d * Math.PI) : 0
+const outside = t => t < C.inside
+
+const bubble = document.getElementById('bubble'), sub = document.getElementById('sub')
+const etag = document.getElementById('etag'), jtag = document.getElementById('jtag')
+const g1 = document.getElementById('g1'), g2 = document.getElementById('g2')
+const example = document.getElementById('example'), end = document.getElementById('end'), stamp = document.getElementById('stamp')
+const place = (el, p, on) => { el.style.opacity = on; el.style.left = p.x + 'px'; el.style.top = p.y + 'px' }
+const onScreen = p => !p.behind && p.x > 60 && p.x < 1020 && p.y > 480 && p.y < 1560
+
+async function render(t) {
+  home.animate(t)
+
+  // ── Manu ──
+  const phoneUp = ramp(t, PHONE_UP[0], .5) * (1 - ramp(t, PHONE_UP[1] - .2, .4))
+  const kick = STARTS.reduce((a, s) => a + hop(t, s, .35), 0)   // a push on the handlebar for each try
+  manu.pose(t, outside(t) ? {
+    // at the bike, on its far side, facing the house; hands on the handlebar
+    x: BIKE[0] + .42, z: BIKE[2] - .58, turn: -.35,
+    mood: t < STARTS[2] + .4 ? 'concerned' : 'shocked', talking: talking('manu', t),
+    look: t < C.shock ? [-.35, -.4] : [0, 0], nod: t < C.shock ? -.12 : 0,
+    jump: hop(t, C.shock + .05, .45) * .08,
+    armR: t < C.shock ? { raise: .75 + kick * .08, elbow: .55, out: .05, hand: 'fist' } : { raise: .55, elbow: 1.7, out: .3 },
+    armL: t < C.shock ? { raise: .75 + kick * .08, elbow: .55, out: .05, hand: 'fist' } : { raise: .55, elbow: 1.7, out: .3 },
+  } : {
+    x: .75, z: .2, turn: -.35,
+    mood: t < C.maaman ? 'worried' : t < C.manu ? 'concerned' : t < C.two ? 'embarrassed' : t < C.phone ? 'concerned'
+      : t < C.close ? 'smile' : t < C.last ? 'smile' : 'determined',
+    talking: talking('manu', t),
+    look: during(t, C.manu, C.two) ? [-.2, -.45] : during(t, C.jar, C.goal) ? [-.3, -.45] : [-.45, 0],
+    headTurn: during(t, C.manu, C.two) ? -.05 : -.2, nod: during(t, C.manu, C.two) ? -.12 : t >= C.last ? Math.sin(t * 3) * .03 : 0,
+    armR: phoneUp > 0 ? { raise: .2 + .85 * phoneUp, elbow: .2 + 1.15 * phoneUp, out: .08, hand: 'fist' } : { raise: .05, elbow: .15, out: .1 },
+    armL: during(t, L[1].a - .3, C.maaman) ? { raise: .95, elbow: 1.35, out: .05, hand: 'fist' }                  // shows the estimate
+      : during(t, C.manu, C.two) ? { raise: .9, elbow: 1.5, out: -.02, hand: 'fist' }                              // the wallet, open
+      : t >= C.last ? { raise: .4, elbow: 1.9, out: -.1, across: 1.1 }                                            // hand on heart: relief
+      : { raise: .05, elbow: .15, out: .12 },
+  })
+  // ── Maaman ──
+  const gesture = talking('maaman', t) ? 1 : 0
+  maaman.pose(t, {
+    x: -.8, z: .15, turn: .35,
+    mood: t < C.maaman ? 'knowing' : t < C.manu ? 'surprised' : t < C.two ? 'concerned' : t < C.close ? 'smile' : 'smile',
+    talking: talking('maaman', t), look: during(t, C.two, C.phone) ? [.25, -.35] : [.45, 0],
+    nod: during(t, C.two, C.phone) ? -.06 : 0,
+    armR: during(t, L[4].a, L[4].b) ? { raise: .6, elbow: .35, out: .3, hand: 'point' }                           // points at the estimate
+      : during(t, L[9].a, L[9].a + 2.5) ? { raise: .55 + .06 * Math.sin(t * 3), elbow: .45, out: .4 }
+      : during(t, L[9].a + 2.5, L[9].b) ? { raise: .75, elbow: 1.5, out: .22, hand: 'point' }
+      : { raise: .05 + gesture * .2, elbow: .15 + gesture * .5, out: .14 },
+    armL: { raise: .05, elbow: .15, out: .12 },
+  })
+  H = { manu: wp(manu.head), maaman: wp(maaman.head) }
+
+  // ── props ──
+  // the bike: each failed start shakes the engine; smoke from the exhaust
+  const shake = STARTS.reduce((a, s, i) => a + (during(t, s, s + .5) ? Math.sin((t - s) * 70) * (1 - (t - s) / .5) * (i === 2 ? 1.4 : 1) : 0), 0)
+  bike.engine.position.set(.05 + shake * .004, .42 + Math.abs(shake) * .003, 0)
+  bike.root.position.set(BIKE[0], Math.abs(shake) * .002, BIKE[2])
+  H.engine = wp(bike.engine)
+  const tip = wp(bike.exhaustTip)
+  puffs.forEach((p, i) => {
+    const t0 = STARTS[Math.floor(i / 2.4)] + (i % 3) * .12, k = (t - t0) / 1.3
+    p.visible = k > 0 && k < 1 && t < C.inside
+    if (!p.visible) return
+    p.position.set(tip[0] - k * .35 + Math.sin(i * 2) * .04, tip[1] + k * .35, tip[2] + k * .12)
+    p.scale.setScalar(.6 + k * 2.6); p.material.opacity = .55 * Math.sin(k * Math.PI)
+  })
+  // the estimate: in Manu's hand while he tells Maaman, then on the table
+  slip.visible = t >= C.inside
+  if (t < C.maaman) {
+    manu.armL.hand.getWorldPosition(v); slip.position.copy(v).add(new THREE.Vector3(.02, .09, .06))
+    slip.rotation.set(-.1, -.3, .05)
+  } else { slip.position.set(.32, TOP + .003, 1.18); slip.rotation.set(-Math.PI / 2, 0, -.35) }
+  // the wallet: open in his hand, then back on the table
+  wallet.visible = t >= C.manu
+  if (during(t, C.manu, C.two)) {
+    manu.armL.hand.getWorldPosition(v); wallet.position.copy(v).add(new THREE.Vector3(.02, .06, .1))
+    wallet.rotation.set(1.2, .1, 0); wallet.scale.setScalar(1.4)
+  } else { wallet.position.set(.6, TOP + .006, .82); wallet.rotation.set(-Math.PI / 2, 0, .5); wallet.scale.setScalar(1.2) }
+  // the jar arrives with the jar shot and takes a coin per "month"
+  jar.root.visible = t >= C.jar - .1
+  jar.setFill(JAR_FILL[DROP.filter(d => t >= d + .45).length])
+  drops.forEach((c, i) => {
+    const k = (t - DROP[i]) / .45
+    c.visible = k > 0 && k < 1
+    c.position.set(-.05 + (1 - k) * .02, TOP + .36 + (1 - k * k) * .5, 1.08); c.rotation.set(Math.PI / 2 + k * 5, 0, 0); c.scale.setScalar(1.2)
+  })
+  seedling.sprout.rotation.z = Math.sin(t * 1.4) * .06
+  cal.sticky.rotation.z = -.12 + Math.sin(t * 2.2) * .02
+
+  // ── phone in Manu's hand: the Goals card first, the reserve setting from line 9 ──
+  phone.root.visible = phoneUp > .01
+  manu.armR.hand.getWorldPosition(v)
+  phone.root.position.copy(v).add(new THREE.Vector3(-.02, .17, .1))
+  H.phone = phone.root.position.toArray()
+  const tex = t >= C.reserve ? reserveTex : goalTex
+  if (phone.screen.material.map !== tex) { phone.screen.material.map = tex; phone.screen.material.needsUpdate = true }
+  // on the reserve screen the sheet fills the lower half: Mint stands smaller, bottom-right, clear of its words
+  if (t >= C.reserve) { mint.root.scale.setScalar(.075); mint.root.position.x = phone.sw * .3 } else { mint.root.scale.setScalar(.12); mint.root.position.x = -phone.sw * .24 }
+
+  // ── camera (before anything aims at it) ──
+  const key = shotKey(t)
+  stage.frame(shotAt(SHOTS, t, resolve))
+  phone.root.lookAt(camera.position)
+  mint.pose(t, { mood: 'happy', talking: talking('mint', t) })
+  updateClip()
+  stage.render()
+
+  // ── overlays ──
+  const ep = stage.project(new THREE.Vector3(.32, TOP + .2, 1.18))
+  const hp = stage.project(new THREE.Vector3(slip.position.x, slip.position.y + .16, slip.position.z))
+  const estimateOn = during(t, L[1].a + 1.2, C.maaman) ? hp : during(t, C.two + .4, C.phone) ? ep : null
+  place(etag, estimateOn ?? ep, estimateOn && onScreen(estimateOn) ? 1 : 0)
+  const jp = stage.project(new THREE.Vector3(-.05, TOP + .5, 1.08))
+  place(jtag, jp, during(t, C.jar + .3, C.goal) && onScreen(jp) ? clamp((t - C.jar - .3) / .3) : 0)
+  // which of the two separate things the phone is showing
+  g1.style.left = g2.style.left = '540px'; g1.style.top = g2.style.top = '370px'
+  g1.style.opacity = during(t, C.goal + .4, C.reserve) ? Math.min(1, (t - C.goal - .4) / .3, (C.reserve - t) / .2) : 0
+  g2.style.opacity = during(t, C.reserve + .3, C.close) ? Math.min(1, (t - C.reserve - .3) / .3, (C.close - t) / .2) : 0
+  example.style.opacity = during(t, C.jar + .2, C.goal) ? 1 : 0   // the estimate tag carries its own EXAMPLE (a chip would sit under the bubble)
+
+  const ti = Math.min(ramp(t, .2, .3), 1 - ramp(t, C.engine - .3, .3)); document.getElementById('title').style.opacity = ti
+  document.getElementById('title').style.transform = `scale(${.85 + .15 * ti})`
+  const st = during(t, C.engine + .9, C.shock + 1.4) ? Math.min(1, (t - C.engine - .9) / .15, (C.shock + 1.4 - t) / .25) : 0
+  stamp.style.opacity = st; stamp.style.transform = `translateX(-50%) rotate(-4deg) scale(${1 + (1 - Math.min(1, (t - C.engine - .9) / .2)) * .4})`
+
+  const line = LINES.find(l => during(t, l.a, l.b))
+  if (line) {
+    const fade = Math.min(1, (t - line.a) / .2, (line.b - t) / .2)
+    bubble.textContent = line.ml; sub.textContent = line.en
+    const speaker = H[line.who]
+    const p = speaker && stage.project(new THREE.Vector3(...speaker))
+    const showBubble = key.bubble && p && !p.behind && p.x > -100 && p.x < 1180
+    bubble.style.opacity = showBubble ? fade : 0; sub.style.opacity = fade
+    const [bl, bt, bw] = key.bubbleAt ?? [null, 400, 760]
+    bubble.style.top = bt + 'px'; bubble.style.maxWidth = bw + 'px'
+    if (showBubble) {
+      const w = bubble.offsetWidth, left = bl ?? Math.min(1080 - 50 - w, Math.max(50, p.x - w / 2))
+      bubble.style.left = left + 'px'; bubble.style.setProperty('--tail', Math.min(w - 60, Math.max(60, p.x - left)) + 'px')
+    }
+  } else { bubble.style.opacity = 0; sub.style.opacity = 0 }
+
+  // end card: soft green wipe in, then its lines rise one by one
+  const e = ramp(t, END, .5)
+  end.style.opacity = e; end.style.clipPath = `circle(${e * 150}% at 50% 100%)`
+  ;[...end.children].forEach((c, i) => { const k = ramp(t, END + .3 + i * .25, .4); c.style.opacity = k; c.style.transform = `translateY(${(1 - k) * 40}px)` })
+}
+
+window.REEL_OUT_DIR = 'manu-maaman/s2/ep03'
+window.REEL_SFX = [
+  ...STARTS.map(t => ({ t, kind: 'sputter' })), { t: C.shock + .05, kind: 'boing' },
+  { t: C.phone, kind: 'chime' },
+  ...DROP.map(t => ({ t: t + .45, kind: 'register' })),
+  { t: C.goal + .1, kind: 'chime' }, { t: C.reserve, kind: 'whoosh' }, { t: C.reserve + .25, kind: 'chime' },
+  { t: C.last + .2, kind: 'chime' },
+  { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
+]
+window.REEL_VOICE = { files: LINES.map((_, i) => `private/voice/s2-ep03/${String(i + 1).padStart(2, '0')}.mp3`), starts: LINES.map(l => l.a) }
+bootS2(stage, render, DURATION, [.2, .9, 1.6, 2.3, 3.2, 5.6, 7.2, 9.4, 13.5, 18.5, 20.8, 23.0, 26.0, 29.5, 31.0, 34.0, 40.0, 46.0, 50.5, 55.0])
+</script>
+</body>
+</html>

@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Money Experiments S01 EP01 — Cash vs UPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="s2.css">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<style>
+  /* Money Experiments overlays (this page only; s2.css stays Season 2's) */
+  .vs { position: absolute; left: 0; right: 0; top: 380px; display: flex; justify-content: center; align-items: center; gap: 26px; opacity: 0; z-index: 6; }
+  .vs .side { font-size: 92px; font-weight: 800; letter-spacing: -2px; color: #fff; padding: 10px 40px; border-radius: 30px; box-shadow: 0 12px 0 rgba(0,0,0,.18); }
+  .vs .cash { background: #8B6BC2; } .vs .upi { background: #16A36E; }
+  .vs .mid { width: 110px; height: 110px; border-radius: 50%; background: #1C1410; color: #FFE066; font-size: 46px; font-weight: 800; display: grid; place-items: center; }
+  .vsq { position: absolute; left: 0; right: 0; top: 540px; text-align: center; font-size: 50px; font-weight: 800; color: #fff; -webkit-text-stroke: 3px #2b1d00; paint-order: stroke fill; text-shadow: 0 5px 0 #2b1d00; opacity: 0; z-index: 6; }
+  .pill-top { position: absolute; left: 50%; top: 470px; transform: translateX(-50%); background: #fff; border-radius: 26px; padding: 14px 30px; text-align: center; box-shadow: 0 10px 26px rgba(0,0,0,.18); opacity: 0; z-index: 5; white-space: nowrap; }
+  .pill-top .en { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #B9821A; }
+  .pill-top .amt { font-size: 56px; font-weight: 800; letter-spacing: -1px; color: #1C1410; line-height: 1.1; }
+  .check { position: absolute; left: 50%; top: 470px; transform: translateX(-50%); background: rgba(255,255,255,.96); border-radius: 30px; padding: 22px 36px; box-shadow: 0 14px 40px rgba(0,0,0,.22); z-index: 5; opacity: 0; }
+  .check div { display: flex; align-items: center; gap: 16px; font-size: 40px; font-weight: 800; color: #1C1410; line-height: 1.5; opacity: 0; }
+  .check div.hl { color: #0A7A56; }
+  .ico { width: 40px; height: 40px; flex: none; }
+  .hud { position: absolute; left: 70px; top: 370px; background: rgba(255,255,255,.95); border-radius: 30px; padding: 18px 28px 20px; box-shadow: 0 14px 34px rgba(0,0,0,.2); opacity: 0; z-index: 6; min-width: 380px; }
+  .hud .mo { display: inline-block; font-size: 24px; font-weight: 800; letter-spacing: 2px; color: #fff; padding: 6px 16px; border-radius: 999px; }
+  .hud .row { display: flex; justify-content: space-between; gap: 30px; font-size: 34px; font-weight: 800; margin-top: 8px; color: #1C1410; }
+  .hud .row span:first-child { color: #6B5F57; font-weight: 700; }
+  .hud .day { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #6B5F57; margin-top: 6px; }
+  .hud .ill { font-size: 18px; font-weight: 800; letter-spacing: 2px; color: #B9821A; margin-top: 4px; }
+  .list { position: absolute; right: 60px; top: 370px; width: 400px; display: flex; flex-direction: column; gap: 10px; z-index: 6; }
+  .list .tx { display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,.95); border-radius: 20px; padding: 12px 18px; font-size: 30px; font-weight: 800; color: #1C1410; box-shadow: 0 8px 20px rgba(0,0,0,.15); }
+  .list .tx b { margin-left: auto; }
+  .list .tx .ico { width: 34px; height: 34px; }
+  .price { position: absolute; transform: translate(-50%, -100%); background: #1C1410; color: #fff; border-radius: 18px; padding: 8px 18px; font-size: 30px; font-weight: 800; white-space: nowrap; opacity: 0; z-index: 5; }
+  .paid { position: absolute; transform: translate(-50%, -100%); background: #16A36E; color: #fff; border-radius: 22px; padding: 10px 22px; font-size: 36px; font-weight: 800; white-space: nowrap; display: flex; gap: 10px; align-items: center; opacity: 0; z-index: 6; box-shadow: 0 10px 24px rgba(0,0,0,.2); }
+  .paid .ico { width: 36px; height: 36px; }
+  .result { position: absolute; left: 50%; top: 520px; transform: translateX(-50%); width: 820px; background: #fff; border-radius: 44px; padding: 36px 40px 40px; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,.3); opacity: 0; z-index: 7; }
+  .result .mo { display: inline-block; font-size: 30px; font-weight: 800; letter-spacing: 3px; color: #fff; padding: 8px 22px; border-radius: 999px; }
+  .result .big { display: flex; justify-content: space-around; margin-top: 26px; }
+  .result .big div { font-size: 30px; font-weight: 700; color: #6B5F57; }
+  .result .big b { display: block; font-size: 84px; font-weight: 800; letter-spacing: -2px; color: #1C1410; line-height: 1.05; }
+  .result .ill { margin-top: 18px; font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #B9821A; }
+  .chart { position: absolute; left: 90px; right: 90px; top: 450px; background: rgba(255,255,255,.96); border-radius: 44px; padding: 26px 50px 24px; box-shadow: 0 24px 60px rgba(0,0,0,.25); opacity: 0; z-index: 6; }
+  .chart .head { display: flex; justify-content: space-between; align-items: center; font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #B9821A; }
+  .chart .diff { background: #FFE066; color: #3b2a00; border-radius: 999px; padding: 8px 22px; font-size: 32px; font-weight: 800; letter-spacing: 0; white-space: nowrap; opacity: 0; box-shadow: 0 6px 0 #E3B51A; }
+  .chart .plot { position: relative; height: 380px; margin-top: 16px; border-bottom: 4px solid #D9CFC2; display: flex; justify-content: space-around; align-items: flex-end; }
+  .chart .budget { position: absolute; left: -10px; right: -10px; border-top: 4px dashed #B9821A; }
+  .chart .budget span { position: absolute; left: 10px; top: -34px; font-size: 22px; font-weight: 800; letter-spacing: 1px; color: #B9821A; }
+  .chart .col { width: 230px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .chart .val { font-size: 44px; font-weight: 800; letter-spacing: -1px; color: #fff; text-align: center; padding-top: 12px; }
+  .chart .left { display: block; font-size: 28px; font-weight: 800; color: #0A7A56; }
+  .chart .cbar { width: 100%; border-radius: 22px 22px 6px 6px; overflow: hidden; }
+  .chart .lbls { display: flex; justify-content: space-around; margin-top: 12px; }
+  .chart .lbl { width: 230px; text-align: center; font-size: 38px; font-weight: 800; color: #1C1410; }
+  .proof { position: absolute; left: 50%; top: 375px; transform: translateX(-50%); background: #1C1410; color: #FFE066; border-radius: 999px; padding: 14px 32px; font-size: 32px; font-weight: 800; white-space: nowrap; opacity: 0; z-index: 7; }
+  .data { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 20%, #0F8A61, #064D37); color: #fff; padding: 300px 70px 420px; opacity: 0; z-index: 8; overflow: hidden; }
+  .data .dots i { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #7CF2C2; box-shadow: 0 0 18px #7CF2C2; opacity: 0; }
+  .data h2 { position: relative; font-size: 66px; font-weight: 800; letter-spacing: -1px; line-height: 1.05; }
+  .data .real { display: inline-block; margin-bottom: 18px; background: #FFE066; color: #3b2a00; font-size: 24px; font-weight: 800; letter-spacing: 2px; padding: 8px 18px; border-radius: 999px; }
+  .data .yrs { position: relative; font-size: 30px; font-weight: 700; opacity: .85; margin-top: 10px; }
+  .panel { position: relative; margin-top: 32px; background: rgba(255,255,255,.1); border: 2px solid rgba(255,255,255,.18); border-radius: 36px; padding: 26px 30px 30px; opacity: 0; }
+  .panel .ph { display: flex; align-items: center; justify-content: space-between; font-size: 30px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; opacity: .9; }
+  .panel .x { background: #FFE066; color: #3b2a00; font-size: 30px; font-weight: 800; padding: 6px 18px; border-radius: 999px; letter-spacing: 0; text-transform: none; opacity: 0; }
+  .prow { margin-top: 22px; opacity: 0; }
+  .prow .yl { display: flex; justify-content: space-between; align-items: baseline; font-size: 28px; font-weight: 700; opacity: .9; }
+  .prow .yl b { font-size: 46px; font-weight: 800; letter-spacing: -1px; opacity: 1; }
+  .prow .track { margin-top: 10px; height: 34px; border-radius: 17px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .prow .fill { height: 100%; border-radius: 17px; background: linear-gradient(90deg, #7CF2C2, #FFE066); }
+  .data .src { position: relative; margin-top: 30px; font-size: 22px; font-weight: 600; opacity: .8; line-height: 1.4; }
+  .wipe { position: absolute; inset: 0; background: #0F8A61; z-index: 8; opacity: 0; }
+  .end .q { font-size: 108px; line-height: 1; font-weight: 800; letter-spacing: -3px; margin-top: 40px; }
+  .end .qml { font-size: 44px; font-weight: 800; line-height: 1.4; margin-top: 24px; }
+  .end .tagline { margin-top: 44px; font-size: 34px; font-weight: 800; letter-spacing: 1px; }
+  .end .pill { display: flex; gap: 16px; align-items: center; margin-top: 44px; }
+  .end .pill .ico { width: 44px; height: 44px; }
+</style>
+</head>
+<body>
+<!--
+  Money Experiments · S01 EP01 "Cash vs UPI". Screenplay: mx-ep01-screenplay.md.
+  Its own series (not Season 2): same 3D cast and pipeline, its own numbers. Maaman narrates.
+  Timed to the recorded voice (clip i starts at LINES[i].a, b = a + measured speech end).
+  Illustrative numbers, checkable on screen: salary ₹30,000 = fixed 18,000 + savings 6,000 + daily 6,000.
+    Cash month: 15 + 40 + 300 + 850 = 1,205 in the first four beats → ₹5,200 by day 30, ₹800 left.
+    UPI month: the same budget, ₹6,000 spent, ₹0 left. Difference ₹800.
+  Real data (Ministry of Finance in the Lok Sabha / NPCI), FY = April–March:
+    UPI volume FY 2016–17 1.78 crore → FY 2025–26 24,161.69 crore (≈13,000×, as the govt says);
+    value ≈ ₹7,000 crore → ₹314.23 lakh crore (4,000×+). Shown rounded, ≈ marked.
+  No India map: an approximate outline of India's borders is a liability; the data scene uses
+  payment "pings" instead. Phone screens: the salary/scan/paid screens are generic (no bank or app
+  branding); the closing MoneyPlant screen is a REAL recording (demo account).
+-->
+<canvas id="gl"></canvas>
+<div class="badge"><div class="handle"><img src="/public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">MONEY EXPERIMENTS · EP 01</div></div>
+<div class="example" id="example">ILLUSTRATIVE EXAMPLE</div>
+<div class="vs" id="vs"><div class="side cash">CASH</div><div class="mid">VS</div><div class="side upi">UPI</div></div>
+<div class="vsq" id="vsq">Which makes you spend more?</div>
+<div class="jar-tag" id="ntag" style="transform:translate(-50%,-50%)"><span class="en" style="color:#16A36E">SALARY CREDITED</span><span class="amt">₹30,000</span></div>
+<div class="pill-top" id="salary"><div class="en">SALARY</div><div class="amt">₹30,000</div></div>
+<div class="jar-tag" id="j0"><span class="ml">Fixed expenses</span><span class="en" style="color:#16A36E">RENT · EMI · BILLS</span><span class="amt">₹18,000</span></div>
+<div class="jar-tag" id="j1"><span class="ml">Savings</span><span class="en" style="color:#3B82F6">FIRST</span><span class="amt">₹6,000</span></div>
+<div class="jar-tag" id="j2"><span class="ml">Daily expenses</span><span class="en" style="color:#E07A12">FOR THE MONTH</span><span class="amt">₹6,000</span></div>
+<div class="check" id="check"></div>
+<div class="hud" id="hud"><span class="mo" id="hmo"></span><div class="row"><span>Spent</span><span id="hspent"></span></div><div class="row"><span>Left</span><span id="hleft"></span></div><div class="day" id="hday"></div><div class="ill">ILLUSTRATIVE</div></div>
+<div class="list" id="list"></div>
+<div class="price" id="price"></div>
+<div class="paid" id="paid"></div>
+<div class="result" id="result"><span class="mo" id="rmo"></span><div class="big"><div>Spent<b id="rspent"></b></div><div>Left<b id="rleft"></b></div></div><div class="ill">ILLUSTRATIVE EXAMPLE</div></div>
+<div class="chart" id="chart">
+  <div class="head">ILLUSTRATIVE EXAMPLE <span class="diff" id="cdiff">+₹800 with UPI</span></div>
+  <div class="plot">
+    <div class="budget" id="cbudget"><span>BUDGET ₹6,000</span></div>
+    <div class="col"><div class="cbar" id="cb0" style="background:#8B6BC2"><div class="val" id="cv0"></div></div></div>
+    <div class="col"><div class="cbar" id="cb1" style="background:#16A36E"><div class="val" id="cv1"></div></div></div>
+  </div>
+  <div class="lbls"><div class="lbl">CASH<span class="left" id="cl0">Left ₹800</span></div><div class="lbl">UPI<span class="left" id="cl1">Left ₹0</span></div></div>
+</div>
+<div class="proof" id="proof">Example only — not scientific proof</div>
+<div class="wipe" id="wipe"></div>
+<section class="data" id="data">
+  <div class="dots" id="dots"></div>
+  <div class="real">REAL DATA</div>
+  <h2>India’s UPI journey</h2>
+  <div class="yrs">FY 2016–17 → FY 2025–26</div>
+  <div class="panel" id="p0">
+    <div class="ph">Transactions a year <span class="x" id="x0">≈13,000×</span></div>
+    <div class="prow" id="r00"><div class="yl">FY 2016–17 <b>1.78 crore</b></div><div class="track"><div class="fill" style="width:6px"></div></div></div>
+    <div class="prow" id="r01"><div class="yl">FY 2025–26 <b id="n01"></b></div><div class="track"><div class="fill" id="f01"></div></div></div>
+  </div>
+  <div class="panel" id="p1">
+    <div class="ph">Value a year <span class="x" id="x1">4,000×+</span></div>
+    <div class="prow" id="r10"><div class="yl">FY 2016–17 <b>≈ ₹7,000 crore</b></div><div class="track"><div class="fill" style="width:6px"></div></div></div>
+    <div class="prow" id="r11"><div class="yl">FY 2025–26 <b id="n11"></b></div><div class="track"><div class="fill" id="f11"></div></div></div>
+  </div>
+  <div class="src">Source: Ministry of Finance (Lok Sabha) · NPCI. FY = April–March.</div>
+</section>
+<div class="bubble" id="bubble"></div>
+<div class="sub" id="sub"></div>
+<section class="scene green end" id="end">
+  <img class="logo" src="/public/email-logo.png" alt="">
+  <div class="q">CASH or UPI?</div>
+  <div class="qml">നിങ്ങൾ ഏതാണ് കൂടുതലായി<br>ഉപയോഗിക്കുന്നത്?</div>
+  <div class="pill"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>Comment below</div>
+  <div class="tagline">MoneyPlant · Know Before You Spend.</div>
+  <div class="disc">Manu’s months are an illustrative example</div>
+</section>
+
+<script type="module">
+import * as THREE from 'three'
+import { buildManu, buildMaaman, buildMint, buildHome, buildPhone, clipToScreen, lightRoom, ramp } from './cast3d.js'
+import { buildTable, buildJar, buildSeedling, buildBag, JAR_COLORS } from './props3d.js'
+import { buildShop, SHOP_BACKGROUND, buildNote, buildCashWallet, buildQrStand, buildTeaGlass, buildSnackPack, buildFuelCan, buildGroceryBag, phoneScreens } from './mx-props3d.js'
+import { createStage, shotAt, recordingTexture, bootS2 } from './stage.js'
+
+const live = !location.search.includes('render')
+const stage = createStage({ canvas: document.getElementById('gl') })
+const { scene: room, camera } = stage
+
+// ── two sets: the living room (stage's own scene) and the tea shop ──
+const home = buildHome(); room.add(home.root)
+lightRoom(room)
+const shop = new THREE.Scene()
+shop.background = new THREE.Color(SHOP_BACKGROUND); shop.environment = room.environment; shop.environmentIntensity = room.environmentIntensity
+lightRoom(shop, { sunFrom: [-4, 6.5, -5], target: [0, 1, .4] })
+const kada = buildShop(); shop.add(kada.root)
+const useSet = s => { stage.composer.passes[0].scene = s; stage.bokeh.scene = s }
+
+// the room: Manu twice ("the same Manu", cash on the left, UPI on the right), Maaman hosting between
+const manuA = buildManu(), manuB = buildManu(), maaman = buildMaaman()
+room.add(manuA.root, manuB.root, maaman.root)
+const table = buildTable(); table.root.position.set(0, 0, 1.0); room.add(table.root)
+const seedling = buildSeedling(); seedling.root.position.set(1.05, 1.06, -2.78); room.add(seedling.root)
+const JAR_X = [-.42, 0, .42]
+const jars = ['needs', 'savings', 'wants'].map((k, i) => { const j = buildJar(JAR_COLORS[k]); j.root.position.set(JAR_X[i], table.TOP, 1.0); room.add(j.root); return j })
+const JAR_FILL = [.9, .3, .3]   // 18,000 : 6,000 : 6,000 of 30,000
+
+const SCR = phoneScreens()   // generic screens; amounts are HTML
+const rec = await recordingTexture('assets/app-dashboard-screen.webm', { live })   // placeholder: the cash/UPI recording comes after stills approval
+const phoneA = buildPhone(SCR.home, { h: .3 }); room.add(phoneA.root)
+const mint = buildMint(); phoneA.root.add(mint.root)
+mint.root.scale.setScalar(.12); mint.root.position.set(-phoneA.sw * .24, -phoneA.sh / 2 + .006, phoneA.d / 2 + .012)
+const updateClip = clipToScreen(mint.root, phoneA)
+const phoneB = buildPhone(SCR.scan, { h: .3 }); room.add(phoneB.root)
+const walletA = buildCashWallet(); room.add(walletA.root)
+
+// the shop: one Manu at the counter, his wallet (cash month) or phone (UPI month)
+const manuS = buildManu(); shop.add(manuS.root)
+const walletS = buildCashWallet(); shop.add(walletS.root)
+const phoneS = buildPhone(SCR.scan, { h: .3 }); shop.add(phoneS.root)
+const qr = buildQrStand(); qr.position.set(-.3, kada.TOP, .8); qr.rotation.y = .25; shop.add(qr)
+const ITEM_AT = { tea: [.16, .8], snack: [.34, .78], fuel: [.54, .8], groc: [.75, .82] }
+const items = { tea: buildTeaGlass(), snack: buildSnackPack(), fuel: buildFuelCan(), groc: buildGroceryBag() }
+for (const [k, o] of Object.entries(items)) { o.position.set(ITEM_AT[k][0], kada.TOP, ITEM_AT[k][1]); o.rotation.y = -.2; shop.add(o) }
+// notes in the cash tray (they pile up as the wallet thins), and one note in flight
+const trayNotes = Array.from({ length: 12 }, (_, i) => { const n = buildNote(); n.position.set(kada.tray[0] + Math.sin(i * 2.1) * .02, kada.tray[1] + .002 + i * .0018, kada.tray[2] + Math.cos(i * 1.3) * .015); n.rotation.y = Math.sin(i * 3.7) * .4; shop.add(n); return n })
+const flyNote = buildNote(); shop.add(flyNote)
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+const inr = n => '₹' + Math.round(n).toLocaleString('en-IN')
+
+// ── script, refit to the voice (private/voice/mx-ep01/01–18.mp3, ElevenLabs voice Eclv6jJwMbGUhEki9Bro) ──
+// Maaman narrates every line. Speech lengths (s): 4.21 2.69 8.83 3.55 5.82 4.95 5.15 3.33 4.04 7.24 3.16 6.03 6.53 4.61 5.49 3.78 4.44 4.30.
+const LINES = [
+  { a: 0.4, b: 4.61, ml: 'Cash കൊടുക്കുമ്പോഴാണോ കൂടുതൽ ചെലവാകുന്നത്? അതോ UPI ഉപയോഗിക്കുമ്പോഴോ?', en: 'Do we spend more when we pay cash? Or when we use UPI?' },
+  { a: 5, b: 7.69, ml: 'ഒരേ Manu-നെ വെച്ച് ഒരു ചെറിയ experiment നോക്കാം!', en: 'Let’s try a small experiment with the same Manu!' },
+  { a: 8.2, b: 17.03, ml: 'Manu-ന്റെ salary ₹30,000. Fixed expenses ₹18,000, savings ₹6,000. ബാക്കി ₹6,000 daily expenses-ന്.', en: 'Manu earns ₹30,000. Fixed expenses ₹18,000, savings ₹6,000. The other ₹6,000 is for daily expenses.' },
+  { a: 17.5, b: 21.05, ml: 'രണ്ട് മാസവും ഒരേ budget, ഒരേ spending categories.', en: 'Both months: the same budget, the same spending categories.' },
+  { a: 21.6, b: 27.42, ml: 'ആദ്യ മാസം Cash മാത്രം. ഓരോ തവണയും wallet തുറക്കുമ്പോൾ പണം കുറയുന്നത് Manu-ന് കാണാം.', en: 'Month one: cash only. Every time he opens his wallet, Manu sees the money go down.' },
+  { a: 27.9, b: 32.85, ml: 'Tea, snacks, petrol, groceries… ഓരോ ചെലവും രേഖപ്പെടുത്തി.', en: 'Tea, snacks, petrol, groceries… every expense noted down.' },
+  { a: 35.2, b: 40.35, ml: 'അടുത്ത മാസം UPI മാത്രം. Scan ചെയ്തു, pay ചെയ്തു… ചെറിയ ചെറിയ payments.', en: 'Next month: UPI only. Scan, pay… small payment after small payment.' },
+  { a: 40.8, b: 44.13, ml: 'Wallet-ൽ നിന്ന് cash പോകുന്നത് പോലെ നേരിട്ട് കാണുന്നില്ല.', en: 'He doesn’t see it leave, the way cash leaves a wallet.' },
+  { a: 47.2, b: 51.24, ml: 'ഈ example-ൽ UPI മാസം ₹800 കൂടുതൽ ചെലവായി.', en: 'In this example, the UPI month cost ₹800 more.' },
+  { a: 51.7, b: 58.94, ml: 'പക്ഷേ ഇതുകൊണ്ട് UPI എപ്പോഴും കൂടുതൽ ചെലവാക്കും എന്ന് പറയാൻ പറ്റില്ല. ഇത് Manu-ന്റെ illustrative experiment മാത്രമാണ്.', en: 'But that doesn’t mean UPI always makes you spend more. This is only Manu’s illustrative experiment.' },
+  { a: 59.6, b: 62.76, ml: 'ഇനി ഇന്ത്യയുടെ യഥാർത്ഥ UPI കണക്കുകൾ നോക്കാം!', en: 'Now let’s look at India’s real UPI numbers!' },
+  { a: 63.2, b: 69.23, ml: '2016–17-ൽ ഒരു വർഷം നടന്നത് 1.78 കോടി UPI transactions മാത്രം.', en: 'In 2016–17, there were just 1.78 crore UPI transactions in the whole year.' },
+  { a: 69.7, b: 76.23, ml: '2025–26 ആയപ്പോഴേക്കും അത് 24,162 കോടി transactions ആയി!', en: 'By 2025–26, that grew to 24,162 crore transactions!' },
+  { a: 76.7, b: 81.31, ml: 'Transaction value നോക്കിയാലോ? ആദ്യ വർഷം ഏകദേശം ₹7,000 കോടി.', en: 'And the value? In the first year, about ₹7,000 crore.' },
+  { a: 81.8, b: 87.29, ml: '2025–26-ൽ ഏകദേശം ₹314 ലക്ഷം കോടി!', en: 'In 2025–26, about ₹314 lakh crore!' },
+  { a: 87.8, b: 91.58, ml: 'Cash ആയാലും UPI ആയാലും… പണം എങ്ങനെ ചെലവാകുന്നു എന്ന് അറിയണം.', en: 'Cash or UPI… you need to know where your money goes.' },
+  { a: 92, b: 96.44, ml: 'Convenience നല്ലതാണ്. പക്ഷേ spending awareness അതിലും പ്രധാനമാണ്!', en: 'Convenience is good. But knowing your spending matters more!' },
+  { a: 97.4, b: 101.7, ml: 'Cash or UPI? നിങ്ങൾ ഏതാണ് കൂടുതലായി ഉപയോഗിക്കുന്നത്? Comment ചെയ്യൂ!', en: 'Cash or UPI? Which do you use more? Tell us in the comments!' },
+]
+const L = LINES
+// cuts: where each shot starts
+const C = { wallet: 1.5, upi: 3.0, split: 4.5, jars: L[2].a - .2, same: L[3].a - .2, cash: L[4].a - .2 }
+C.counter = C.cash + 1.6; C.angle = L[5].a + .2; C.ff = L[5].a + 3.0; C.res1 = L[5].b - .1
+C.upiWide = L[6].a - .2; C.scan = C.upiWide + 1.0; C.face = C.upiWide + 5.6; C.ff2 = C.upiWide + 8.7; C.res2 = C.ff2 + 1.3
+C.compare = L[8].a - .2; C.zoom = L[10].a - .2; C.data = C.zoom + 1.4
+C.review = L[15].a - .2; C.phone = C.review + 1.8; C.maaman = L[16].a - .2
+const END = L[16].b + .45, DURATION = 103.5
+// beats
+const JAR_T = [L[2].a + 3.0, L[2].a + 5.0, L[2].a + 6.9]          // "Fixed…", "savings…", "ബാക്കി ആറായിരം…" (heard in clip 03)
+const CHECK_T = [L[3].a - .2, L[3].a + .7, L[3].a + 1.5, L[3].a + 2.4]
+// cash month: [time, item, amount, day]
+const CASH = [[L[4].a + 2.0, 'tea', 15, 1], [L[4].a + 3.8, 'snack', 40, 2], [L[5].a + .8, 'fuel', 300, 4], [L[5].a + 2.2, 'groc', 850, 6]]
+const CASH_TOTAL = 5200, BUDGET = 6000, UPI_TOTAL = 6000
+// UPI month: [time, label, amount, item?]
+const UPI = [[1.5, 'Tea', 15, 'tea'], [2.7, 'Snacks', 40, 'snack'], [3.8, 'Petrol', 300, 'fuel'], [4.9, 'Groceries', 850, 'groc'],
+  [5.9, 'Tea', 15], [6.6, 'Snacks', 30], [7.3, 'Juice', 60], [8.0, 'Tea', 15]].map(([dt, ...r]) => [C.upiWide + dt, ...r])
+const PH = { volume: [C.data + 2.4] }
+
+const v = new THREE.Vector3()
+const wp = o => { o.getWorldPosition(v); return v.toArray() }
+let H = {}  // tracked points this frame
+
+/* The shot list. bubble: whether Maaman's Malayalam bubble shows (wide shots with him in frame). */
+const SHOTS = [
+  // S1 · the question: salary lands on Manu's phone → cash into the wallet → the same Manu on UPI → both, side by side
+  { t: 0,         pos: 'phoneAWide', look: 'phoneAFace', lens: 44, focus: 'phoneA', aperture: .02 },
+  { t: C.wallet,  pos: 'phoneAWide', look: 'phoneAFace', lens: 48, focus: 'phoneA', aperture: .02 },
+  { t: C.wallet,  cut: true, pos: 'walletANear', look: 'walletA', lens: 62, focus: 'walletA', aperture: .025 },
+  { t: C.upi,     pos: 'walletANear', look: 'walletA', lens: 66, focus: 'walletA', aperture: .025 },
+  { t: C.upi,     cut: true, pos: 'phoneBNear', look: 'phoneB', lens: 74, focus: 'phoneB', aperture: .03 },
+  { t: C.split,   pos: 'phoneBNear', look: 'phoneB', lens: 80, focus: 'phoneB', aperture: .03 },
+  { t: C.split,   cut: true, pos: [0, 1.52, 4.7], look: [0, 1.72, .1], lens: 30, focus: [0, 1.6, .1], aperture: .005, bubble: true },
+  { t: C.jars,    pos: [0, 1.5, 4.3], look: [0, 1.72, .1], lens: 31, focus: [0, 1.6, .1], aperture: .005, bubble: true },
+  // S2 · the rules: three jars fill
+  { t: C.jars,    cut: true, pos: [0, 2.15, 3.0], look: [0, .7, .95], lens: 30, focus: [0, .66, 1.0], aperture: .008 },
+  { t: C.same,    pos: [0, 2.05, 2.8], look: [0, .7, .95], lens: 31, focus: [0, .66, 1.0], aperture: .008 },
+  { t: C.same,    cut: true, pos: [0, 1.25, 4.7], look: [0, 1.98, .3], lens: 30, focus: [0, 1.6, .2], aperture: .005 },
+  { t: C.cash,    pos: [0, 1.25, 4.4], look: [0, 1.98, .3], lens: 31, focus: [0, 1.6, .2], aperture: .005 },
+  // S3 · cash month at the kada (the camera is the shopkeeper)
+  { t: C.cash,    cut: true, pos: [.45, 1.55, 3.1], look: [0, 1.32, .3], lens: 30, focus: 'manuS', aperture: .006 },
+  { t: C.counter, pos: [.32, 1.5, 2.7], look: [0, 1.3, .3], lens: 33, focus: 'manuS', aperture: .006 },
+  { t: C.counter, cut: true, pos: [.05, 1.55, 2.4], look: [0, 1.3, .45], lens: 31, focus: [.05, 1.2, .5], aperture: .008 },
+  { t: C.angle,   pos: [.1, 1.52, 2.22], look: [0, 1.3, .45], lens: 32, focus: [.05, 1.2, .5], aperture: .008 },
+  { t: C.angle,   cut: true, pos: [.85, 1.52, 2.3], look: [.12, 1.28, .45], lens: 32, focus: [.3, 1.15, .6], aperture: .008 },
+  { t: C.ff,      pos: [.8, 1.5, 2.15], look: [.12, 1.28, .45], lens: 33, focus: [.3, 1.15, .6], aperture: .008 },
+  { t: C.ff,      cut: true, pos: 'walletSNear', look: 'walletS', lens: 62, focus: 'walletS', aperture: .025 },
+  { t: C.upiWide, pos: 'walletSNear', look: 'walletS', lens: 70, focus: 'walletS', aperture: .025 },
+  // S4 · UPI month, same counter: the QR stand, the phone; the wallet stays in his pocket
+  { t: C.upiWide, cut: true, pos: [.45, 1.55, 3.1], look: [0, 1.32, .3], lens: 30, focus: 'manuS', aperture: .006 },
+  { t: C.scan,    pos: [.35, 1.52, 2.8], look: [0, 1.3, .3], lens: 32, focus: 'manuS', aperture: .006 },
+  { t: C.scan,    cut: true, pos: [-.2, 1.52, 2.35], look: [-.1, 1.28, .5], lens: 31, focus: [-.2, 1.2, .6], aperture: .008 },
+  { t: C.face,    pos: [-.16, 1.5, 2.2], look: [-.1, 1.28, .5], lens: 32, focus: [-.2, 1.2, .6], aperture: .008 },
+  { t: C.face,    cut: true, pos: [.3, 1.68, 1.95], look: 'sFace', lens: 50, focus: 'manuS', aperture: .02 },
+  { t: C.ff2,     pos: [.28, 1.7, 1.8], look: 'sFace', lens: 54, focus: 'manuS', aperture: .02 },
+  { t: C.ff2,     cut: true, pos: 'phoneSNear', look: 'phoneS', lens: 70, focus: 'phoneS', aperture: .03 },
+  { t: C.compare, pos: 'phoneSNear', look: 'phoneS', lens: 76, focus: 'phoneS', aperture: .03 },
+  // S5 · the comparison: back home, both Manus and Maaman under the chart
+  { t: C.compare, cut: true, pos: [0, 1.25, 4.9], look: [0, 1.95, .1], lens: 29, focus: [0, 1.6, .1], aperture: .005 },
+  { t: C.zoom,    pos: [0, 1.3, 4.5], look: [0, 1.95, .1], lens: 30, focus: [0, 1.6, .1], aperture: .005 },
+  // S6 · into the UPI Manu's phone… and out into India's numbers
+  { t: C.zoom,    cut: true, pos: 'phoneBNear', look: 'phoneB', lens: 60, focus: 'phoneB', aperture: .02 },
+  { t: C.data,    pos: 'phoneBInto', look: 'phoneB', lens: 90, focus: 'phoneB', aperture: .02 },
+  // S7 · the takeaway: Manu checks where it went, in MoneyPlant; Maaman says it
+  { t: C.review,  cut: true, pos: [-.5, 1.72, 2.5], look: 'aFace', lens: 48, focus: 'manuA', aperture: .02 },
+  { t: C.phone,   pos: [-.52, 1.72, 2.35], look: 'aFace', lens: 52, focus: 'manuA', aperture: .02 },
+  { t: C.phone,   cut: true, pos: 'phoneANear', look: 'phoneA', lens: 80, focus: 'phoneA', aperture: .03 },
+  { t: C.maaman,  pos: 'phoneANear', look: 'phoneA', lens: 86, focus: 'phoneA', aperture: .03 },
+  { t: C.maaman,  cut: true, pos: [.05, 1.88, 2.7], look: 'mFace', lens: 54, focus: 'maaman', aperture: .03 },
+  { t: DURATION,  pos: [.05, 1.88, 2.45], look: 'mFace', lens: 58, focus: 'maaman', aperture: .03 },
+]
+const face = p => [p[0], p[1] + .06, p[2]]
+const near = (p, dx, dy, dz) => [p[0] + dx, p[1] + dy, p[2] + dz]
+const resolve = n => ({
+  manuA: H.manuA, manuS: H.manuS, maaman: H.maaman, phoneA: H.phoneA, phoneB: H.phoneB, phoneS: H.phoneS, walletA: H.walletA, walletS: H.walletS,
+  aFace: face(H.manuA), sFace: face(H.manuS), mFace: face(H.maaman),
+  phoneANear: near(H.phoneA, .03, .01, .78), phoneAWide: near(H.phoneA, .1, .2, 1.2), phoneAFace: H.phoneA.map((x, i) => (x + face(H.manuA)[i]) / 2), phoneBNear: near(H.phoneB, -.02, .01, .8), phoneBInto: near(H.phoneB, 0, 0, .2), phoneSNear: near(H.phoneS, .02, .01, .8),
+  walletANear: near(H.walletA, .05, .12, .85), walletSNear: near(H.walletS, .05, .1, .8),
+})[n]
+
+// ── helpers ──
+const during = (t, a, b) => t >= a && t < b
+const talking = t => LINES.some(l => during(t, l.a + .05, l.b - .15))
+const fade = (t, a, b, d = .25) => during(t, a, b) ? Math.min(1, (t - a) / d, (b - t) / d) : 0
+const $ = id => document.getElementById(id)
+const place = (el, p, on) => { el.style.opacity = on; el.style.left = p.x + 'px'; el.style.top = p.y + 'px' }
+const onScreen = p => !p.behind && p.x > 60 && p.x < 1020 && p.y > 300 && p.y < 1560
+const ICON = {
+  check: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#16A36E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>',
+  paid: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+}
+$('check').innerHTML = ['Same person', 'Same salary', 'Same budget', 'Only the payment method changes'].map((s, i) => `<div class="${i === 3 ? 'hl' : ''}">${ICON.check}${s}</div>`).join('')
+$('dots').innerHTML = Array.from({ length: 46 }, (_, i) => `<i style="left:${(Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1 * 100}%;top:${(Math.sin(i * 78.233) * 12345.678 % 1 + 1) % 1 * 100}%"></i>`).join('')
+const dots = [...$('dots').children]
+
+// a held prop: at the hand, turned to the camera (set after stage.frame)
+const hold = (obj, arm, off) => { arm.hand.getWorldPosition(v); obj.position.copy(v).add(off); return obj.position.toArray() }
+
+// the cash month at time t: { spent, notes in the wallet, day }
+function cashAt(t) {
+  let spent = 0, gone = 0, day = 1
+  for (const [bt, , amt, d] of CASH) if (t >= bt) { spent += amt; gone++; day = d }
+  const k = clamp((t - C.ff) / 1.0)                              // fast-forward to day 30
+  if (k > 0) { spent += (CASH_TOTAL - spent) * k; day = Math.round(6 + 24 * k); gone += Math.round((10 - gone) * k) }
+  return { spent, notes: 12 - gone, day }
+}
+function upiAt(t) {
+  let spent = 0, n = 0, day = 1
+  for (const [bt, , amt] of UPI) if (t >= bt) { spent += amt; n++; day = n }
+  const k = clamp((t - C.ff2 - .1) / 1.0)
+  if (k > 0) { spent += (UPI_TOTAL - spent) * k; day = Math.round(8 + 22 * k) }
+  return { spent, n, day }
+}
+
+async function render(t) {
+  const inShop = during(t, C.cash, C.compare)
+  useSet(inShop ? shop : room)
+  home.animate(t)
+
+  // ── the room ──
+  const twins = t < C.review                                   // Manu B exists until the takeaway
+  manuB.root.visible = twins
+  const notifUp = t < C.wallet ? 1 : 0, reviewUp = t >= C.review ? 1 : 0
+  const walletUp = during(t, C.wallet, C.jars) || during(t, C.compare, C.zoom) || t >= C.review
+  manuA.pose(t, {
+    x: -.78, z: .2, turn: .12,
+    mood: t < C.upi ? 'grin' : t < C.compare ? 'smile' : t < C.review ? 'determined' : 'smile',
+    look: t >= C.review ? [.35, -.45] : t < C.wallet ? [.3, -.4] : during(t, C.wallet, C.upi) ? [-.2, -.35] : [0, 0],
+    headTilt: t >= C.review ? .1 : 0, nod: t >= C.review ? .12 : 0,
+    armR: (notifUp || reviewUp) ? { raise: 1.05, elbow: 1.35, out: .08, hand: 'fist' } : { raise: .05, elbow: .15, out: .1 },
+    armL: walletUp ? { raise: .85, elbow: 1.25, out: .05, across: .25, hand: 'fist' } : { raise: .05, elbow: .15, out: .12 },
+  })
+  manuB.pose(t, {
+    x: .78, z: .2, turn: -.12,
+    mood: t < C.compare ? 'grin' : 'surprised',
+    look: during(t, C.upi, C.split) ? [-.3, -.4] : [0, 0],
+    armR: { raise: 1.05, elbow: 1.35, out: .08, hand: 'fist' },
+    armL: { raise: .05, elbow: .15, out: .12 },
+  })
+  maaman.pose(t, {
+    x: 0, z: -.3, turn: 0,
+    mood: t < C.compare ? 'amused' : t < C.review ? 'knowing' : 'smile',
+    talking: talking(t), look: [0, 0],
+    armR: talking(t) ? { raise: .4 + .08 * Math.sin(t * 3), elbow: .6, out: .35 } : { raise: .05, elbow: .15, out: .14 },
+    armL: during(t, L[1].a, L[1].b) ? { raise: .5, elbow: .4, out: .55 } : { raise: .05, elbow: .15, out: .12 },   // "the same Manu": both hands out to the twins
+  })
+  H.manuA = wp(manuA.head); H.maaman = wp(maaman.head)
+  H.phoneA = hold(phoneA.root, manuA.armR, new THREE.Vector3(-.02, .17, .1))
+  H.walletA = hold(walletA.root, manuA.armL, new THREE.Vector3(.03, .09, .1))
+  H.phoneB = hold(phoneB.root, manuB.armR, new THREE.Vector3(-.02, .17, .1))
+  phoneA.root.visible = !!(notifUp || reviewUp); walletA.root.visible = walletUp; phoneB.root.visible = twins
+  const texB = t >= C.zoom ? SCR.home : SCR.scan   // into the phone: its green screen becomes the data scene
+  if (phoneB.screen.material.map !== texB) { phoneB.screen.material.map = texB; phoneB.screen.material.needsUpdate = true }
+  walletA.setNotes(t < C.wallet + .2 ? 0 : t < C.jars ? Math.min(12, Math.floor((t - C.wallet - .2) / .1)) : 2)   // later: what month one left
+  const texA = reviewUp ? rec.tex : SCR.home
+  if (phoneA.screen.material.map !== texA) { phoneA.screen.material.map = texA; phoneA.screen.material.needsUpdate = true }
+  if (reviewUp) await rec.seek(t - C.phone + 1)
+  mint.root.visible = t >= C.phone
+  JAR_FILL.forEach((f, i) => jars[i].setFill(f * ramp(t, JAR_T[i], 1.0)))
+  seedling.sprout.rotation.z = Math.sin(t * 1.4) * .06
+
+  // ── the shop ──
+  const upiMonth = t >= C.upiWide
+  const cash = cashAt(t), upi = upiAt(t)
+  const paying = upiMonth && UPI.find(([bt]) => during(t, bt - .45, bt + .35))
+  manuS.pose(t, {
+    x: 0, z: 0, turn: 0,
+    mood: !upiMonth ? (t < C.ff ? 'smile' : 'neutral') : t < C.ff2 ? 'grin' : 'surprised',
+    look: !upiMonth ? [-.2, -.45] : [-.1, -.35],
+    headTilt: .06,
+    armL: !upiMonth ? { raise: .95, elbow: 1.2, out: .05, across: .2, hand: 'fist' } : { raise: .05, elbow: .15, out: .12 },
+    armR: upiMonth ? (paying ? { raise: 1.35, elbow: .75, out: -.12, across: .3, hand: 'fist' } : { raise: 1.0, elbow: 1.35, out: .05, hand: 'fist' })
+      : { raise: .1, elbow: .25, out: .1 },
+  })
+  H.manuS = wp(manuS.head)
+  H.walletS = hold(walletS.root, manuS.armL, new THREE.Vector3(.03, .09, .1))
+  H.phoneS = hold(phoneS.root, manuS.armR, new THREE.Vector3(-.02, .17, .1))
+  const payK = paying ? Math.min(ramp(t, paying[0] - .45, .25), 1 - ramp(t, paying[0] + .15, .2)) : 0
+  if (payK > 0) { phoneS.root.position.lerp(new THREE.Vector3(qr.position.x + .02, kada.TOP + .32, qr.position.z - .02), payK); H.phoneS = phoneS.root.position.toArray() }
+  walletS.root.visible = !upiMonth; phoneS.root.visible = upiMonth
+  walletS.setNotes(cash.notes)
+  const gone = 12 - cash.notes
+  trayNotes.forEach((n, i) => { n.visible = !upiMonth && i < gone })
+  // a note in flight: wallet → tray, over the half-second after each purchase
+  const fly = !upiMonth && CASH.find(([bt]) => during(t, bt - .5, bt))
+  flyNote.visible = !!fly
+  if (fly) {
+    const k = clamp((t - fly[0] + .5) / .5), a = new THREE.Vector3(...H.walletS), b = new THREE.Vector3(...kada.tray)
+    flyNote.position.lerpVectors(a, b, k); flyNote.position.y += Math.sin(k * Math.PI) * .12; flyNote.rotation.set(0, k * 2.4, Math.sin(k * 6) * .3)
+  }
+  // items arrive on the counter (re-bought in the UPI month)
+  for (const [k, o] of Object.entries(items)) {
+    const bt = upiMonth ? UPI.find(u => u[3] === k)?.[0] : CASH.find(c => c[1] === k)?.[0]
+    const s = bt ? ramp(t, bt - .9, .35) : 0
+    o.visible = s > .01; o.scale.setScalar(.001 + s)
+  }
+  qr.visible = upiMonth
+  const scr = paying && t >= paying[0] - .05 ? SCR.paid : SCR.scan
+  if (phoneS.screen.material.map !== scr) { phoneS.screen.material.map = scr; phoneS.screen.material.needsUpdate = true }
+
+  // ── camera (before anything aims at it) ──
+  stage.frame(shotAt(SHOTS, t, resolve))
+  for (const o of [phoneA.root, phoneB.root, phoneS.root, walletA.root, walletS.root]) o.lookAt(camera.position)
+  mint.pose(t, { mood: 'happy', talking: false })
+  updateClip()
+  stage.render()
+
+  // ── overlays ──
+  const key = SHOTS.reduce((k, s) => t >= s.t ? s : k, SHOTS[0])
+  // S1
+  const np = stage.project(new THREE.Vector3(H.phoneA[0], H.phoneA[1] + .085, H.phoneA[2] + .02))
+  place($('ntag'), np, fade(t, .3, C.wallet))
+  const vsOn = fade(t, C.split + .2, C.jars, .3)
+  $('vs').style.opacity = vsOn; $('vs').style.transform = `scale(${.85 + .15 * ramp(t, C.split + .2, .3)})`
+  $('vsq').style.opacity = fade(t, C.split + .6, C.jars, .3)
+  // S2
+  $('salary').style.opacity = fade(t, L[2].a + .2, JAR_T[0] + .2)
+  jars.forEach((j, i) => {
+    const p = stage.project(new THREE.Vector3(JAR_X[i], table.TOP + j.H + .1, 1.0))
+    place($('j' + i), p, during(t, C.jars, C.same) && onScreen(p) ? clamp((t - JAR_T[i]) / .3) : 0)
+  })
+  $('check').style.opacity = fade(t, C.same, C.cash, .3)
+  ;[...$('check').children].forEach((c, i) => { const k = ramp(t, CHECK_T[i], .3); c.style.opacity = k; c.style.transform = `translateX(${(1 - k) * -30}px)` })
+  $('example').style.opacity = during(t, C.jars, C.cash) ? 1 : 0   // the chart carries its own label
+  // S3 + S4 HUD
+  const hudOn = inShop && !during(t, C.res1, C.upiWide) && !during(t, C.res2, C.compare)
+  $('hud').style.opacity = hudOn ? fade(t, upiMonth ? C.upiWide + .2 : C.cash + .3, upiMonth ? C.res2 : C.res1) : 0
+  const m = upiMonth ? upi : cash
+  $('hmo').textContent = upiMonth ? 'MONTH 02 · UPI' : 'MONTH 01 · CASH'
+  $('hmo').style.background = upiMonth ? '#16A36E' : '#8B6BC2'
+  $('hspent').textContent = inr(m.spent); $('hleft').textContent = inr(BUDGET - m.spent); $('hday').textContent = `DAY ${m.day} OF 30`
+  // cash: a price tag over each item as it lands
+  const lastCash = [...CASH].reverse().find(([bt]) => during(t, bt - .9, bt + 1.0))
+  if (!upiMonth && lastCash && t < C.ff) {
+    const [, k, amt] = lastCash, at = ITEM_AT[k]
+    const p = stage.project(new THREE.Vector3(at[0], kada.TOP + .2, at[1]))
+    $('price').textContent = `${{ tea: 'Tea', snack: 'Snacks', fuel: 'Petrol', groc: 'Groceries' }[k]} ${inr(amt)}`
+    place($('price'), p, onScreen(p) ? fade(t, lastCash[0] - .9, lastCash[0] + 1.0, .2) : 0)
+  } else $('price').style.opacity = 0
+  // UPI: "Paid" pops over the phone; the transactions pile up on the right
+  if (paying && t < C.ff2) {
+    const p = stage.project(new THREE.Vector3(H.phoneS[0], H.phoneS[1] + .2, H.phoneS[2]))
+    $('paid').innerHTML = `${ICON.paid}${inr(paying[2])} paid`
+    place($('paid'), p, onScreen(p) ? fade(t, paying[0], paying[0] + .35, .08) : 0)
+  } else $('paid').style.opacity = 0
+  const rows = upiMonth && t < C.res2 ? UPI.filter(([bt]) => t >= bt) : []
+  const shown = rows.slice(-6)
+  $('list').innerHTML = shown.map(([bt, l, amt], i) => `<div class="tx" style="opacity:${clamp((t - bt) / .2)};transform:translateY(${(1 - clamp((t - bt) / .2)) * -16}px)">${ICON.check}${l}<b>${inr(amt)}</b></div>`).join('')
+  // results
+  const r1 = fade(t, C.res1, C.upiWide, .3), r2 = fade(t, C.res2, C.compare, .3)
+  $('result').style.opacity = Math.max(r1, r2)
+  $('result').style.transform = `translateX(-50%) scale(${.9 + .1 * Math.max(r1, r2)})`
+  if (r1 > 0) { $('rmo').textContent = 'MONTH 01 · CASH'; $('rmo').style.background = '#8B6BC2'; $('rspent').textContent = inr(CASH_TOTAL); $('rleft').textContent = inr(BUDGET - CASH_TOTAL) }
+  if (r2 > 0) { $('rmo').textContent = 'MONTH 02 · UPI'; $('rmo').style.background = '#16A36E'; $('rspent').textContent = inr(UPI_TOTAL); $('rleft').textContent = inr(BUDGET - UPI_TOTAL) }
+  // S5 chart
+  const ch = fade(t, C.compare + .2, C.zoom, .3)
+  $('chart').style.opacity = ch
+  const BAR_MAX = 240, grow = ramp(t, C.compare + .5, 1.0)   // the budget line sits at BAR_MAX
+  $('cb0').style.height = BAR_MAX * CASH_TOTAL / BUDGET * grow + 'px'; $('cb1').style.height = BAR_MAX * UPI_TOTAL / BUDGET * grow + 'px'
+  $('cv0').textContent = inr(CASH_TOTAL * grow); $('cv1').textContent = inr(UPI_TOTAL * grow)
+  $('cbudget').style.bottom = BAR_MAX + 'px'
+  const lk = ramp(t, C.compare + 1.6, .3)
+  $('cl0').style.opacity = lk; $('cl1').style.opacity = lk
+  const dk = ramp(t, L[8].a + 1.8, .3)
+  $('cdiff').style.opacity = dk; $('cdiff').style.transform = `scale(${.8 + .2 * dk})`
+  $('proof').style.opacity = fade(t, L[9].a + 4.3, C.zoom, .3)   // "ഇത് Manu-ന്റെ illustrative…"
+  // S6 data
+  const w = ramp(t, C.data - .5, .5)
+  $('wipe').style.opacity = during(t, C.data - .5, C.data + .4) ? 1 : 0
+  $('wipe').style.clipPath = `circle(${w * 150}% at 50% 45%)`
+  const dOn = fade(t, C.data, C.review, .35)
+  $('data').style.opacity = dOn
+  $('p0').style.opacity = ramp(t, PH.volume[0] - .3, .4)
+  $('r00').style.opacity = ramp(t, L[11].a + .3, .4)
+  $('r01').style.opacity = ramp(t, L[12].a, .4)
+  const gv = ramp(t, L[12].a + .4, 2.2)
+  $('f01').style.width = (6 + 794 * gv) + 'px'; $('n01').textContent = Math.round(24162 * gv).toLocaleString('en-IN') + ' crore'
+  $('x0').style.opacity = ramp(t, L[12].b - .4, .3)
+  $('p1').style.opacity = ramp(t, L[13].a, .4)
+  $('r10').style.opacity = ramp(t, L[13].a + 2.8, .4)   // "ആദ്യ വർഷം…"
+  $('r11').style.opacity = ramp(t, L[14].a, .4)
+  const gx = ramp(t, L[14].a + .3, 2.0)
+  $('f11').style.width = (6 + 794 * gx) + 'px'; $('n11').textContent = `≈ ₹${Math.round(314 * gx)} lakh crore`
+  $('x1').style.opacity = ramp(t, L[14].b - .2, .3)
+  // payments pinging all over: more and more of them as the years pass
+  const busy = clamp((t - C.data) / 18)
+  dots.forEach((d, i) => { const ph = (t * (1.3 + (i % 5) * .2) + i * .37) % 1, on = i / dots.length < .15 + .85 * busy; d.style.opacity = on ? (1 - ph) * .7 : 0; d.style.transform = `scale(${.4 + ph * 1.6})` })
+
+  // speech: English subtitle always; Maaman's bubble only in wide shots with him in frame
+  const line = LINES.find(l => during(t, l.a, l.b))
+  const bubble = $('bubble'), sub = $('sub')
+  if (line && t < END) {
+    const fd = Math.min(1, (t - line.a) / .2, (line.b - t) / .2)
+    bubble.textContent = line.ml; sub.textContent = line.en
+    const p = stage.project(new THREE.Vector3(...H.maaman))
+    const showBubble = key.bubble && !inShop && !p.behind && p.x > -100 && p.x < 1180
+    bubble.style.opacity = showBubble ? fd : 0; sub.style.opacity = fd
+    bubble.style.top = '640px'; bubble.style.maxWidth = '760px'
+    if (showBubble) {
+      const bw = bubble.offsetWidth, left = Math.min(1080 - 50 - bw, Math.max(50, p.x - bw / 2))
+      bubble.style.left = left + 'px'; bubble.style.setProperty('--tail', Math.min(bw - 60, Math.max(60, p.x - left)) + 'px')
+    }
+  } else { bubble.style.opacity = 0; sub.style.opacity = line ? Math.min(1, (t - line.a) / .2, (line.b - t) / .2) : 0; if (line) sub.textContent = line.en }
+
+  // end card: soft green wipe in, then its lines rise one by one
+  const e = ramp(t, END, .5)
+  $('end').style.opacity = e; $('end').style.clipPath = `circle(${e * 150}% at 50% 100%)`
+  ;[...$('end').children].forEach((c, i) => { const k = ramp(t, END + .3 + i * .25, .4); c.style.opacity = k; c.style.transform = `translateY(${(1 - k) * 40}px)` })
+}
+
+window.REEL_OUT_DIR = 'money-experiments/ep01'
+window.REEL_SFX = [
+  { t: .2, kind: 'register' }, { t: C.wallet + .2, kind: 'whoosh' }, { t: C.split + .2, kind: 'whoosh' },
+  ...JAR_T.map(t => ({ t, kind: 'chime' })),
+  { t: C.cash, kind: 'whoosh' }, ...CASH.map(([t]) => ({ t, kind: 'register' })), { t: C.res1, kind: 'chime' },
+  { t: C.upiWide, kind: 'whoosh' }, ...UPI.map(([t]) => ({ t, kind: 'chime' })), { t: C.res2, kind: 'chime' },
+  { t: C.compare, kind: 'whoosh' }, { t: L[8].a + 1.8, kind: 'boing' },
+  { t: C.data - .5, kind: 'whoosh' }, { t: L[12].b - .4, kind: 'chime' }, { t: L[14].b - .2, kind: 'chime' },
+  { t: C.review, kind: 'whoosh' }, { t: END, kind: 'whoosh' },
+]
+window.REEL_VOICE = { files: LINES.map((_, i) => `private/voice/mx-ep01/${String(i + 1).padStart(2, '0')}.mp3`), starts: LINES.map(l => l.a) }
+bootS2(stage, render, DURATION, [.8, 2.4, 3.8, 6.5, 13.0, 19.6, 22.4, 24.0, 29.0, 33.6, 35.6, 36.6, 39.7, 41.8, 44.0, 45.8, 50.0, 57.0, 60.2, 66.0, 73.5, 85.8, 88.6, 91.0, 94.0, 99.5])
+</script>
+</body>
+</html>

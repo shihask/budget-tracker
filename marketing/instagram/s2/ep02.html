@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu &amp; Maaman S2 EP02 — Salary കിട്ടിയിട്ട് പൈസ തീർന്നോ?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="s2.css">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head>
+<body>
+<!--
+  Season 2 · EP02 "Salary കിട്ടിയിട്ട് പൈസ തീർന്നോ?" — plan fixed commitments first. Screenplay: ep02-screenplay.md.
+  Timed to the recorded voice (clip i starts at LINES[i].a, b = a + measured speech end).
+  Example numbers only (S1/EP01 continuity: ₹45,000 salary on the 28th), all checkable on screen:
+    bills 9,000 + 4,500 + 500 + 1,000 = 15,000
+    half gone in 3 days: 45,000 − 22,500 = 22,500 left · 22,500 − 15,000 = 7,500 (27 days to go)
+    bills first: 45,000 − 15,000 = 30,000 to plan
+  On the table one coin stack = ₹7,500: 3 stacks → 1, and 6 stacks → 4, each time 2 stacks go to the bills.
+  Phone screen: the REAL Bills & Obligations page (demo account, the same four example bills),
+  assets/app-commitments-screen.png — Unpaid ₹15,000 · Monthly ₹15,000.
+-->
+<canvas id="gl"></canvas>
+<div class="badge"><div class="handle"><img src="/public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">S2 · EP 02</div></div>
+<div class="title" id="title">Salary കിട്ടിയിട്ട് പൈസ തീർന്നോ?</div>
+<div class="example" id="example">EXAMPLE · ₹45,000 SALARY</div>
+<div class="jar-tag" id="tk0"><span class="ml">വാടക</span><span class="en" style="color:#8B5CF6">RENT</span><span class="amt">₹9,000</span></div>
+<div class="jar-tag" id="tk1"><span class="ml">Bike EMI</span><span class="en" style="color:#E2572F">LOAN</span><span class="amt">₹4,500</span></div>
+<div class="jar-tag" id="tk2"><span class="ml">Phone bill</span><span class="en" style="color:#3B82F6">PHONE &amp; INTERNET</span><span class="amt">₹500</span></div>
+<div class="jar-tag" id="tk3"><span class="ml">Insurance</span><span class="en" style="color:#16A36E">HEALTH</span><span class="amt">₹1,000</span></div>
+<div class="jar-tag" id="btag"><span class="ml">Bills</span><span class="en" style="color:#8B5CF6">EVERY MONTH</span><span class="amt">₹15,000</span></div>
+<div class="jar-tag" id="mtag" style="transform:translate(-50%,0)"><span class="ml" id="mml"></span><span class="en" id="men" style="color:#B9821A"></span><span class="amt" id="mamt"></span></div>
+<div class="jar-tag" id="ctag"><span class="ml">Bike insurance</span><span class="en" style="color:#E3463A">RENEWAL</span></div>
+<div class="bubble" id="bubble"></div>
+<div class="sub" id="sub"></div>
+<section class="scene green end" id="end">
+  <img class="logo" src="/public/email-logo.png" alt="">
+  <div class="name">PLAN THE BILLS<br>BEFORE THEY COME.</div>
+  <div class="next">Next · EP 03<br>വണ്ടി പണിമുടക്കി!</div>
+  <div class="pill">Follow @moneyplant.online</div>
+  <div class="disc">Example amounts · not financial advice</div>
+</section>
+
+<script type="module">
+import * as THREE from 'three'
+import { buildManu, buildMaaman, buildMint, buildHome, buildPhone, clipToScreen, lightRoom, ramp } from './cast3d.js'
+import { buildTable, buildSeedling, buildWallet, buildCoin, buildToken, buildCoinStack, buildWallCalendar } from './props3d.js'
+import { createStage, shotAt, bootS2 } from './stage.js'
+
+const stage = createStage({ canvas: document.getElementById('gl') })
+const { scene, camera } = stage
+const home = buildHome(); scene.add(home.root)
+lightRoom(scene)
+const manu = buildManu(), maaman = buildMaaman()
+scene.add(manu.root, maaman.root)
+
+// ── props ──
+const table = buildTable(); table.root.position.set(0, 0, 1.0); scene.add(table.root)
+const TOP = table.TOP
+const seedling = buildSeedling(); seedling.root.position.set(1.05, 1.06, -2.78); scene.add(seedling.root)
+const cal = buildWallCalendar(); cal.root.position.set(3.75, 1.78, -2.93); scene.add(cal.root)
+const NOTE = [3.85, 1.71, -2.9]   // the sticky note on the calendar
+const wallet = buildWallet(), coin = buildCoin(); scene.add(wallet, coin)
+// the four example bills (the same ones the phone shows), in due-date order
+const BILLS = [
+  { kind: 'rent', color: '#8B5CF6' }, { kind: 'emi', color: '#EF6C4A' },
+  { kind: 'phone', color: '#3B82F6' }, { kind: 'insurance', color: '#16A36E' },
+]
+const tokens = BILLS.map(b => { const k = buildToken(b.kind, b.color); scene.add(k.root); return k })
+const TOK_X = [-.33, -.11, .11, .33], TOK_Z = .84
+const BILLS_AT = [0, TOP + .06, TOK_Z]                 // where paid-away stacks vanish into
+const SLOT = [[-.15, 1.07], [0, 1.07], [.15, 1.07], [-.15, 1.21], [0, 1.21], [.15, 1.21]]
+const stacks = SLOT.map(() => { const s = buildCoinStack(12); scene.add(s); return s })
+
+// the real Bills & Obligations page, with Mint standing in the screen
+const screenTex = await new THREE.TextureLoader().loadAsync('assets/app-commitments-screen.png')
+screenTex.colorSpace = THREE.SRGBColorSpace
+const phone = buildPhone(screenTex, { h: .3 }); scene.add(phone.root)
+const mint = buildMint(); phone.root.add(mint.root)
+mint.root.scale.setScalar(.12); mint.root.position.set(-phone.sw * .24, -phone.sh / 2 + .006, phone.d / 2 + .012)
+const updateClip = clipToScreen(mint.root, phone)
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+
+// ── script (timed to the recorded voice) ──
+const LINES = [
+  { who: 'manu',   a: 0.3, b: 5.27,  ml: 'മാമാ! ശമ്പളം കിട്ടി മൂന്ന് ദിവസം ആയതേയുള്ളൂ. പകുതി പൈസയും പോയി!', en: 'Maaman! It’s only been three days since payday. Half my money’s gone!' },
+  { who: 'maaman', a: 5.65, b: 9.59,  ml: 'നിന്റെ പൈസ ആദ്യം ആർക്കൊക്കെയാണ് കൊടുക്കേണ്ടതെന്ന് നിനക്കറിയാമോ?', en: 'Do you know who your money has to go to first?' },
+  { who: 'manu',   a: 10, b: 12.78, ml: 'ആർക്ക്? എനിക്ക് തന്നെ!', en: 'Who? Me, of course!' },
+  { who: 'maaman', a: 13.2, b: 20.87, ml: 'വാടക, bike EMI, insurance, phone bill... ഇവരെല്ലാം നിന്നെ കാത്തിരിക്കുന്നുണ്ട്!', en: 'Rent, bike EMI, insurance, phone bill... they’re all waiting for you!' },
+  { who: 'mint',   a: 21.3, b: 30.04, ml: 'ഈ മാസം bills ₹15,000. ബാക്കിയുള്ള ₹22,500-ൽ നിന്ന് ഇത് കൊടുത്താൽ ₹7,500 മാത്രം.', en: 'Bills this month: ₹15,000. Pay them from the ₹22,500 left, and only ₹7,500 remains.' },
+  { who: 'manu',   a: 30.45, b: 34.1, ml: '₹7,500-ഓ? ഇനിയും 27 ദിവസം ഉണ്ട്!', en: 'Just ₹7,500? There are still 27 days to go!' },
+  { who: 'mint',   a: 34.5, b: 40.17, ml: 'Salary വന്നാൽ ആദ്യം bills-നുള്ളത് മാറ്റിവെക്കാം. Due date-ന് മുൻപ് reminder-ഉം വരും.', en: 'When salary comes, set the bill money aside first. You’ll get a reminder before each due date.' },
+  { who: 'maaman', a: 40.6, b: 45.54, ml: 'ഇവയൊക്കെ എല്ലാ മാസവും വരുന്നതല്ലേ? വരുന്നതിന് മുൻപ് പ്ലാൻ ചെയ്യണം!', en: 'These come every month, don’t they? Plan for them before they come!' },
+  { who: 'manu',   a: 45.95, b: 48.4, ml: 'ഹാവൂ, ഇനി എല്ലാം set!', en: 'Phew, everything’s set now!' },
+  { who: 'manu',   a: 50.3, b: 52.47, ml: 'അയ്യോ! Bike insurance!', en: 'Oh no! Bike insurance!' },
+]
+const L = LINES
+// cuts: where each shot starts
+const C = { two: 5.45, me: 9.8, orbit: 13.0, phone: 21.05, stacks: 24.0, shock: 30.25, plan: 34.3, close: 40.4, relax: 45.75, cal: 48.6, oops: 50.2 }
+// beats on words inside the lines (measured from the recordings)
+const POP = [.8, 1.7, 3.4, 2.5].map(o => L[3].a + o)   // per bill: rent, EMI, phone, insurance pop up as Maaman names each
+const PAY5 = L[4].a + 5.6                              // "…ഇത് കൊടുത്താൽ": two stacks go to the bills
+const SAL = L[6].a + .2, FIRST = L[6].a + 1.5          // salary lands, then the bills take theirs first
+const REMIND = L[6].a + 4.6                            // "reminder": the bills hop in due-date order
+const PHONE_UP = [C.phone - .5, C.stacks + .2], END = 53.4, DURATION = 57
+const STACK = 7500                                     // ₹ per coin stack on the table
+
+const v = new THREE.Vector3()
+const wp = o => { o.getWorldPosition(v); return v.toArray() }
+let H = {}  // tracked points this frame
+
+/* The shot list. bubble: whether the Malayalam bubble shows (wide/two-shots with the speaker
+   in frame); close-ups and prop shots carry the English subtitle only. */
+const SHOTS = [
+  // 1 · hook: the empty wallet shaken upside down in the foreground; one coin drops; focus racks to Manu
+  { t: 0,         pos: [.38, 1.5, 2.6], look: 'hookMid', lens: 38, focus: 'wallet', aperture: .03, shake: .012, bubble: false },
+  { t: C.two,     pos: [.4, 1.55, 2.4], look: 'hookMid', lens: 42, focus: 'manuHead', aperture: .03, rack: [1.6, .8], bubble: false },
+  // 2 · two-shot, slow truck right
+  { t: C.two,     cut: true, pos: [-.15, 1.45, 4.3], look: [0, 1.32, .5], lens: 34, focus: 'mid', aperture: .006, bubble: true },
+  { t: C.me,      pos: [.15, 1.45, 4.2], look: [.02, 1.34, .5], lens: 35, focus: 'mid', aperture: .006, bubble: true },
+  // 3 · Manu close-up: "Me, of course!"
+  { t: C.me,      cut: true, pos: [.5, 1.84, 2.9], look: 'manuFace', lens: 70, focus: 'manuHead', aperture: .03, bubble: false },
+  { t: C.orbit,   pos: [.52, 1.84, 2.8], look: 'manuFace', lens: 72, focus: 'manuHead', aperture: .03, bubble: false },
+  // 4 · orbit round Manu as the bills appear and circle him
+  { t: C.orbit,   cut: true, pos: [-.25, 1.8, 2.35], look: 'ring', lens: 36, focus: 'manuHead', aperture: .012, bubble: false },
+  { t: C.phone,   pos: [1.75, 1.75, 2.25], via: [.75, 1.9, 2.95], look: 'ring', lens: 38, focus: 'manuHead', aperture: .012, bubble: false },
+  // 5 · push in on the phone: the real Bills & Obligations page, Mint in it
+  { t: C.phone,   cut: true, pos: [.62, 1.62, 3.0], look: 'phone', lens: 45, focus: 'phone', aperture: .02, bubble: false },
+  { t: C.phone + 2.2, pos: 'phoneNear', look: 'phone', lens: 85, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.stacks,  pos: 'phoneNear', look: 'phone', lens: 85, focus: 'phone', aperture: .03, bubble: false },
+  // 6 · the money on the table: 3 stacks left; two go to the bills
+  { t: C.stacks,  cut: true, pos: [-.08, 1.5, 2.5], look: [0, .5, 1.0], lens: 34, focus: [0, .52, 1.0], aperture: .012, bubble: false },
+  { t: C.shock,   pos: [.06, 1.42, 2.38], look: [0, .5, 1.0], lens: 36, focus: [0, .52, 1.0], aperture: .012, bubble: false },
+  // 7 · crash zoom on Manu's shock
+  { t: C.shock,   cut: true, pos: [.6, 1.75, 3.7], look: 'manuFace', lens: 38, focus: 'manuHead', aperture: .02, shake: .03, bubble: false },
+  { t: C.shock + .35, pos: [.55, 1.82, 2.75], look: 'manuFace', lens: 70, focus: 'manuHead', aperture: .03, shake: .02, bubble: false },
+  { t: C.plan,    pos: [.55, 1.82, 2.7], look: 'manuFace', lens: 72, focus: 'manuHead', aperture: .03, bubble: false },
+  // 8 · bills first: crane down over the table as the salary lands and the bills take theirs
+  { t: C.plan,    cut: true, pos: [0, 1.95, 2.05], look: [0, .48, 1.0], lens: 32, focus: [0, .5, 1.0], aperture: .01, bubble: false },
+  { t: C.close,   pos: [.08, 1.45, 2.5], look: [0, .5, 1.0], lens: 35, focus: [0, .52, 1.0], aperture: .012, bubble: false },
+  // 9 · Maaman close-up, the takeaway
+  { t: C.close,   cut: true, pos: [-.4, 1.92, 3.05], look: 'maamanFace', lens: 66, focus: 'maamanHead', aperture: .03, bubble: false },
+  { t: C.relax,   pos: [-.44, 1.92, 2.75], look: 'maamanFace', lens: 70, focus: 'maamanHead', aperture: .03, bubble: false },
+  // 10 · Manu leans back, pleased; the camera pans past him to the wall calendar and racks to the note
+  { t: C.relax,   cut: true, pos: [.95, 1.5, 3.2], look: [.75, 1.4, .2], lens: 45, focus: 'manuHead', aperture: .015, bubble: true },
+  { t: C.cal,     pos: [1.0, 1.52, 3.1], look: [.8, 1.42, .2], lens: 46, focus: 'manuHead', aperture: .015, bubble: true },
+  { t: C.cal + 1.2, pos: [2.85, 1.74, -.55], look: 'note', lens: 66, focus: 'note', aperture: .03, rack: [.45, .55], bubble: false },
+  { t: C.oops,    pos: [2.9, 1.74, -.75], look: 'note', lens: 70, focus: 'note', aperture: .03, bubble: false },
+  // 11 · smash back to Manu: "Bike insurance!"
+  { t: C.oops,    cut: true, pos: [.5, 1.84, 2.9], look: 'manuFace', lens: 70, focus: 'manuHead', aperture: .03, shake: .03, bubble: false },
+  { t: DURATION,  pos: [.5, 1.84, 2.75], look: 'manuFace', lens: 74, focus: 'manuHead', aperture: .03, bubble: false },
+]
+const resolve = n => ({
+  manuHead: H.manu, maamanHead: H.maaman, wallet: H.wallet, phone: H.phone, note: NOTE,
+  hookMid: [(H.manu[0] + H.wallet[0]) / 2, (H.manu[1] + H.wallet[1]) / 2 + .05, (H.manu[2] + H.wallet[2]) / 2],
+  manuFace: [H.manu[0], H.manu[1] + .06, H.manu[2]], maamanFace: [H.maaman[0], H.maaman[1] + .06, H.maaman[2]],
+  ring: [H.manu[0], H.manu[1] + .06, H.manu[2]], mid: [0, 1.5, .25],
+  phoneNear: [H.phone[0] + .03, H.phone[1] + .01, H.phone[2] + .78],
+})[n]
+const shotKey = t => { let k = SHOTS[0]; for (const s of SHOTS) if (t >= s.t) k = s; return k }
+
+// ── helpers ──
+const during = (t, a, b) => t >= a && t < b
+const backOut = k => { const c = 1.9; return 1 + (c + 1) * (k - 1) ** 3 + c * (k - 1) ** 2 }
+const talking = (who, t) => LINES.some(l => l.who === who && during(t, l.a + .05, l.b - .15))
+const lerp3 = (a, b, k) => a.map((x, i) => x + (b[i] - x) * k)
+const hop = (t, t0, d = .4) => during(t, t0, t0 + d) ? Math.sin((t - t0) / d * Math.PI) : 0
+// a stack paid away to the bills: slides in an arc into the bills and shrinks out of sight
+function payAway(o, t, t0, from) {
+  const k = clamp((t - t0) / .7)
+  const p = lerp3(from, BILLS_AT, k); p[1] += Math.sin(k * Math.PI) * .18
+  o.position.set(...p); o.scale.setScalar(Math.max(.001, 1 - k * k)); o.visible = k < 1
+}
+
+const bubble = document.getElementById('bubble'), sub = document.getElementById('sub')
+const tks = [0, 1, 2, 3].map(i => document.getElementById('tk' + i))
+const btag = document.getElementById('btag'), mtag = document.getElementById('mtag'), ctag = document.getElementById('ctag')
+const mml = document.getElementById('mml'), men = document.getElementById('men'), mamt = document.getElementById('mamt')
+const example = document.getElementById('example'), end = document.getElementById('end')
+const inr = n => '₹' + Math.round(n).toLocaleString('en-IN')
+const place = (el, p, on) => { el.style.opacity = on; el.style.left = p.x + 'px'; el.style.top = p.y + 'px' }
+const onScreen = p => !p.behind && p.x > 60 && p.x < 1020 && p.y > 480 && p.y < 1560
+
+async function render(t) {
+  home.animate(t)
+
+  // ── Manu ──
+  const phoneUp = ramp(t, PHONE_UP[0], .5) * (1 - ramp(t, PHONE_UP[1] - .2, .4))
+  const orbitLook = during(t, C.orbit, C.phone) ? Math.sin((t - C.orbit) * 1.6) : 0
+  manu.pose(t, {
+    x: .75, z: .2, turn: -.35,
+    mood: t < 1.4 ? 'shocked' : t < C.two ? 'worried' : t < C.me ? 'worried' : t < C.orbit ? 'grin' : t < C.phone ? 'worried'
+      : t < C.shock ? 'concerned' : t < C.plan ? 'shocked' : t < C.relax ? 'smile' : t < C.cal + .6 ? 'grin' : t < C.oops ? 'surprised' : 'shocked',
+    talking: talking('manu', t),
+    look: t < C.two ? [-.25, -.35] : during(t, C.orbit, C.phone) ? [orbitLook * .7, .15] : during(t, C.plan, C.close) ? [-.3, -.45]
+      : during(t, C.cal, C.oops) ? [.75, .15] : t >= C.oops ? [-.1, 0] : [-.45, 0],
+    headTurn: t < C.two ? -.1 : during(t, C.orbit, C.phone) ? orbitLook * .35 : during(t, C.cal, C.oops) ? .45 : -.2,
+    nod: t < C.two ? -.1 : during(t, C.plan, C.close) ? -.1 : 0,
+    lean: t < C.two ? .06 : during(t, C.relax, C.oops) ? -.07 * ramp(t, C.relax, .6) : 0,
+    jump: (hop(t, L[5].a, .5) + hop(t, L[9].a, .5)) * .1,
+    armR: phoneUp > 0 ? { raise: .2 + .85 * phoneUp, elbow: .2 + 1.15 * phoneUp, out: .08, hand: 'fist' }
+      : during(t, L[2].a, C.orbit) ? { raise: .75, elbow: 2.25, out: -.1, across: 1.0, hand: 'thumb' }                       // thumb at his own chest
+      : during(t, L[5].a, C.plan) ? { raise: .9 + .08 * Math.sin(t * 9), elbow: .5, out: .55 }   // arms flung out
+      : { raise: .05, elbow: .15, out: .1 },
+    armL: t < C.two ? { raise: 1.15 + .04 * Math.sin(t * 4), elbow: 1.5, out: -.05, hand: 'fist' }
+      : during(t, L[5].a, C.plan) ? { raise: .9 + .08 * Math.sin(t * 9 + 1), elbow: .5, out: .55 }
+      : during(t, C.oops, DURATION) ? { raise: 1.0 + .1 * Math.sin(t * 6), elbow: 1.4, out: .5 }
+      : { raise: .05, elbow: .15, out: .12 },
+  })
+  // ── Maaman ──
+  const gesture = talking('maaman', t) ? 1 : 0
+  maaman.pose(t, {
+    x: -.8, z: .15, turn: .35,
+    mood: t < C.two ? 'amused' : t < C.me ? 'knowing' : t < C.orbit ? 'laugh' : t < C.close ? 'smile' : t < C.oops ? 'smile' : 'laugh',
+    talking: talking('maaman', t), look: during(t, C.plan, C.close) ? [.25, -.45] : [.45, 0],
+    nod: during(t, C.plan, C.close) ? -.08 : 0,
+    armR: during(t, L[1].a, L[1].b) ? { raise: .75, elbow: 1.5, out: .22, hand: 'point' }
+      : during(t, L[3].a, L[3].b) ? { raise: .55 + .08 * Math.sin(t * 3), elbow: .45, out: .4 }
+      : during(t, L[7].a, L[7].a + 2.6) ? { raise: .75, elbow: 1.5, out: .22, hand: 'point' }
+      : { raise: .05 + gesture * .2, elbow: .15 + gesture * .5, out: .14 },
+    armL: during(t, L[7].a + 2.6, L[7].b) ? { raise: .45, elbow: 1.9, out: -.1, across: 1.1 } : { raise: .05, elbow: .15, out: .12 },
+  })
+  H = { manu: wp(manu.head), maaman: wp(maaman.head) }
+
+  // ── props ──
+  // hook: the open wallet, upside down in Manu's hand, shaken; then it lies open on the table
+  if (t < C.two) {
+    manu.armL.hand.getWorldPosition(v)
+    wallet.position.copy(v).add(new THREE.Vector3(.04, -.08, .14))
+    wallet.rotation.set(.15, .3, Math.PI + Math.sin(t * 15) * .18 * (1 - ramp(t, 2.2, .6)))
+    wallet.scale.setScalar(1.9)
+  } else {
+    wallet.position.set(.58, TOP + .006, 1.24); wallet.rotation.set(-Math.PI / 2, 0, .4); wallet.scale.setScalar(1.2)
+  }
+  H.wallet = wallet.position.toArray()
+  // the one coin: drops out at 1.0 s in comic slow motion (low gravity), bounces on the floor
+  const COIN = 1.0
+  coin.visible = during(t, COIN, C.two)
+  if (coin.visible) {
+    const G = 2.6, dt = t - COIN, y0 = H.wallet[1] - .05, fall = Math.sqrt(2 * y0 / G)
+    const y = dt < fall ? y0 - G / 2 * dt * dt : .03 + Math.abs(Math.sin((dt - fall) * 9)) * .08 * Math.exp(-(dt - fall) * 4)
+    coin.position.set(H.wallet[0] + dt * .05, Math.max(.03, y), H.wallet[2] + dt * .12)
+    coin.rotation.set(dt * 9, 0, dt * 6); coin.scale.setScalar(1.6)
+  }
+  // bills: circle Manu's head while Maaman names them, then sit on the table in due-date order
+  tokens.forEach((k, i) => {
+    const o = k.root
+    if (during(t, C.orbit, C.stacks)) {
+      const s = clamp((t - POP[i]) / .45)
+      o.visible = s > 0
+      const a = i * Math.PI / 2 + (t - C.orbit) * .7, r = .36
+      o.position.set(H.manu[0] + Math.cos(a) * r, H.manu[1] + .26 + Math.sin(a) * .05 + Math.sin(t * 2 + i) * .02, H.manu[2] + Math.sin(a) * r)
+      o.rotation.set(.35, -a + Math.PI / 2, 0)
+      o.scale.setScalar(Math.max(.001, 1.5 * backOut(s)))
+    } else if (t >= C.stacks) {
+      o.visible = true
+      o.position.set(TOK_X[i], TOP + (hop(t, REMIND + i * .35) + hop(t, PAY5 + .55) * .5 + hop(t, FIRST + .55) * .5) * .07, TOK_Z)
+      o.rotation.set(0, .15, 0); o.scale.setScalar(1)
+    } else o.visible = false
+  })
+  // money: one stack = ₹7,500 (22,500 → 7,500 in the first table shot; 45,000 → 30,000 in the second)
+  stacks.forEach((s, i) => {
+    const [x, z] = SLOT[i], home3 = [x, TOP, z]
+    s.position.set(...home3); s.scale.setScalar(1); s.visible = false
+    if (during(t, C.stacks, C.shock)) {
+      if (i < 3) { s.visible = true; if (i >= 1) payAway(s, t, PAY5 + (i - 1) * .15, home3) }
+    } else if (t >= C.plan) {
+      const k = clamp((t - SAL - i * .08) / .35)
+      s.visible = k > 0
+      s.position.y = TOP + (1 - k) * .5 + hop(t, SAL + i * .08 + .35, .2) * .02
+      if (i >= 4) payAway(s, t, FIRST + (i - 4) * .15, home3)
+    }
+  })
+  seedling.sprout.rotation.z = Math.sin(t * 1.4) * .06
+  cal.sticky.rotation.z = -.12 + Math.sin(t * 2.2) * .02
+
+  // ── phone in Manu's hand ──
+  phone.root.visible = phoneUp > .01
+  manu.armR.hand.getWorldPosition(v)
+  phone.root.position.copy(v).add(new THREE.Vector3(-.02, .17, .1))
+  H.phone = phone.root.position.toArray()
+
+  // ── camera (before anything aims at it) ──
+  const key = shotKey(t)
+  stage.frame(shotAt(SHOTS, t, resolve))
+  phone.root.lookAt(camera.position)
+  mint.pose(t, { mood: talking('mint', t) ? 'happy' : 'happy', talking: talking('mint', t) })
+  updateClip()
+  stage.render()
+
+  // ── overlays ──
+  // bill tags: while they circle Manu (only the ones on his near side, so they never stack up)
+  tokens.forEach((k, i) => {
+    const o = k.root, p = stage.project(new THREE.Vector3(o.position.x, o.position.y + .2, o.position.z))
+    const near = o.position.z > H.manu[2] - .15
+    const on = during(t, POP[i] + .2, POP[i] + 1.9) && o.visible && near && onScreen(p) ? Math.min(1, (t - POP[i] - .2) / .25, (POP[i] + 1.9 - t) / .25) : 0
+    place(tks[i], p, on)
+  })
+  // table tags: the bills' total over the tokens, the money left over the stacks
+  const tableShot = during(t, C.stacks, C.shock) || during(t, C.plan, C.close)
+  const bp = stage.project(new THREE.Vector3(TOK_X[0] + (TOK_X[3] - TOK_X[0]) / 2, TOP + .2, TOK_Z))
+  place(btag, bp, tableShot && onScreen(bp) ? Math.min(1, (t - (t < C.plan ? C.stacks : C.plan) - .3) / .3) : 0)
+  const shown = stacks.filter(s => s.visible && s.scale.x > .5)
+  if (tableShot && shown.length) {
+    const cx = shown.reduce((a, s) => a + s.position.x, 0) / shown.length, cz = shown.reduce((a, s) => a + s.position.z, 0) / shown.length
+    const mp = stage.project(new THREE.Vector3(cx, TOP, Math.max(...shown.map(s => s.position.z)) + .1))
+    let amt, ml, en, t0
+    if (t < C.shock) { t0 = C.stacks; amt = 22500 - 15000 * ramp(t, PAY5, .85); ml = 'ബാക്കി'; en = 'LEFT' }
+    else { t0 = SAL + .4; amt = 45000 - 15000 * ramp(t, FIRST, .85); const planned = t >= FIRST + .9; ml = planned ? 'പ്ലാൻ ചെയ്യാൻ' : 'ശമ്പളം'; en = planned ? 'TO PLAN' : 'SALARY' }
+    mml.textContent = ml; men.textContent = en; mamt.textContent = inr(amt)
+    place(mtag, mp, onScreen(mp) ? clamp((t - t0 - .3) / .3) : 0)
+  } else mtag.style.opacity = 0
+  // the wall calendar's note
+  const cp = stage.project(new THREE.Vector3(NOTE[0], NOTE[1] + .1, NOTE[2]))
+  place(ctag, cp, during(t, C.cal + .9, C.oops) && onScreen(cp) ? clamp((t - C.cal - .9) / .3) : 0)
+
+  const ti = Math.min(ramp(t, .2, .3), 1 - ramp(t, C.two - .4, .3)); document.getElementById('title').style.opacity = ti
+  document.getElementById('title').style.transform = `scale(${.85 + .15 * ti})`
+  example.style.opacity = tableShot ? Math.min(1, (t - (t < C.plan ? C.stacks : C.plan) - .2) / .3, ((t < C.plan ? C.shock : C.close) - t) / .3) : 0
+
+  const line = LINES.find(l => during(t, l.a, l.b))
+  if (line) {
+    const fade = Math.min(1, (t - line.a) / .2, (line.b - t) / .2)
+    bubble.textContent = line.ml; sub.textContent = line.en
+    const speaker = H[line.who]
+    const p = speaker && stage.project(new THREE.Vector3(...speaker))
+    const showBubble = key.bubble && p && !p.behind && p.x > -100 && p.x < 1180
+    bubble.style.opacity = showBubble ? fade : 0; sub.style.opacity = fade
+    // a shot may pin the bubble: bubbleAt = [left, top, max width], tail toward the speaker
+    const [bl, bt, bw] = key.bubbleAt ?? [null, 400, 760]
+    bubble.style.top = bt + 'px'; bubble.style.maxWidth = bw + 'px'
+    if (showBubble) {
+      const w = bubble.offsetWidth, left = bl ?? Math.min(1080 - 50 - w, Math.max(50, p.x - w / 2))
+      bubble.style.left = left + 'px'; bubble.style.setProperty('--tail', Math.min(w - 60, Math.max(60, p.x - left)) + 'px')
+    }
+  } else { bubble.style.opacity = 0; sub.style.opacity = 0 }
+
+  // end card: soft green wipe in, then its lines rise one by one
+  const e = ramp(t, END, .5)
+  end.style.opacity = e; end.style.clipPath = `circle(${e * 150}% at 50% 100%)`
+  ;[...end.children].forEach((c, i) => { const k = ramp(t, END + .3 + i * .25, .4); c.style.opacity = k; c.style.transform = `translateY(${(1 - k) * 40}px)` })
+}
+
+window.REEL_OUT_DIR = 'manu-maaman/s2/ep02'
+window.REEL_SFX = [
+  { t: .1, kind: 'whoosh' }, { t: 2.0, kind: 'boing' },
+  ...POP.map(t => ({ t, kind: 'chime' })),
+  { t: C.phone, kind: 'whoosh' },
+  { t: PAY5 + .7, kind: 'register' }, { t: C.shock + .05, kind: 'boing' },
+  { t: SAL + .35, kind: 'register' }, { t: FIRST + .7, kind: 'register' },
+  ...[0, 1, 2, 3].map(i => ({ t: REMIND + i * .35, kind: 'chime' })),
+  { t: C.cal, kind: 'whoosh' }, { t: C.oops + .05, kind: 'boing' },
+  { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
+]
+window.REEL_VOICE = { files: LINES.map((_, i) => `private/voice/s2-ep02/${String(i + 1).padStart(2, '0')}.mp3`), starts: LINES.map(l => l.a) }
+bootS2(stage, render, DURATION, [.6, 1.6, 3.0, 7.5, 11.2, 14.5, 17.2, 19.8, 22.5, 25.5, 27.6, 31.5, 36.0, 38.6, 43.0, 47.0, 49.8, 51.5, 55.0])
+</script>
+</body>
+</html>

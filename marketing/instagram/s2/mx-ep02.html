@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Money Experiments S01 EP02 — Save First vs Save Later</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="s2.css">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<style>
+  /* Money Experiments overlays (this page only; s2.css stays Season 2's). Shared look with mx-ep01.html */
+  .vs { position: absolute; left: 0; right: 0; top: 380px; display: flex; justify-content: center; align-items: center; gap: 18px; opacity: 0; z-index: 6; }
+  .vs .side { font-size: 60px; font-weight: 800; letter-spacing: -1px; color: #fff; padding: 12px 28px; border-radius: 28px; box-shadow: 0 12px 0 rgba(0,0,0,.18); white-space: nowrap; }
+  .vs .later { background: #F28C28; } .vs .first { background: #3B82F6; }
+  .vs .mid { width: 96px; height: 96px; flex: none; border-radius: 50%; background: #1C1410; color: #FFE066; font-size: 40px; font-weight: 800; display: grid; place-items: center; }
+  .vsq { position: absolute; left: 0; right: 0; top: 530px; text-align: center; font-size: 50px; font-weight: 800; color: #fff; -webkit-text-stroke: 3px #2b1d00; paint-order: stroke fill; text-shadow: 0 5px 0 #2b1d00; opacity: 0; z-index: 6; }
+  .pill-top { position: absolute; left: 50%; top: 470px; transform: translateX(-50%); background: #fff; border-radius: 26px; padding: 14px 30px; text-align: center; box-shadow: 0 10px 26px rgba(0,0,0,.18); opacity: 0; z-index: 5; white-space: nowrap; }
+  .pill-top .en { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #B9821A; }
+  .pill-top .amt { font-size: 56px; font-weight: 800; letter-spacing: -1px; color: #1C1410; line-height: 1.1; }
+  .hud { position: absolute; left: 70px; top: 370px; background: rgba(255,255,255,.95); border-radius: 30px; padding: 18px 28px 18px; box-shadow: 0 14px 34px rgba(0,0,0,.2); opacity: 0; z-index: 6; }
+  .hud.right { left: auto; right: 70px; }
+  .hud .mo { display: inline-block; font-size: 24px; font-weight: 800; letter-spacing: 2px; color: #fff; padding: 6px 16px; border-radius: 999px; }
+  .hud .rule { font-size: 34px; font-weight: 800; color: #1C1410; margin-top: 10px; }
+  .hud .day { font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #6B5F57; margin-top: 6px; }
+  .hud .ill { font-size: 18px; font-weight: 800; letter-spacing: 2px; color: #B9821A; margin-top: 4px; }
+  .price { position: absolute; transform: translate(-50%, -100%); background: #1C1410; color: #fff; border-radius: 18px; padding: 8px 18px; font-size: 30px; font-weight: 800; white-space: nowrap; opacity: 0; z-index: 5; }
+  .stamp { position: absolute; left: 50%; top: 400px; transform: translateX(-50%) rotate(-7deg); border: 8px solid #E23B4A; color: #E23B4A; background: rgba(255,255,255,.92); border-radius: 26px; padding: 12px 30px 14px; text-align: center; opacity: 0; z-index: 7; white-space: nowrap; }
+  .stamp b { display: block; font-size: 64px; font-weight: 800; letter-spacing: 6px; line-height: 1.05; }
+  .stamp span { display: block; font-size: 30px; font-weight: 800; color: #1C1410; }
+  .result { position: absolute; left: 50%; top: 520px; transform: translateX(-50%); width: 820px; background: #fff; border-radius: 44px; padding: 36px 40px 36px; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,.3); opacity: 0; z-index: 7; }
+  .result .mo { display: inline-block; font-size: 30px; font-weight: 800; letter-spacing: 3px; color: #fff; padding: 8px 22px; border-radius: 999px; }
+  .result .big { display: flex; justify-content: space-around; margin-top: 26px; }
+  .result .big div { font-size: 30px; font-weight: 700; color: #6B5F57; }
+  .result .big b { display: block; font-size: 84px; font-weight: 800; letter-spacing: -2px; color: #1C1410; line-height: 1.05; }
+  .result .big .saved b { color: #2563EB; }
+  .result .plus { margin-top: 14px; font-size: 32px; font-weight: 800; color: #0A7A56; }
+  .result .ill { margin-top: 16px; font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #B9821A; }
+  .chart { position: absolute; left: 90px; right: 90px; top: 450px; background: rgba(255,255,255,.96); border-radius: 44px; padding: 26px 50px 24px; box-shadow: 0 24px 60px rgba(0,0,0,.25); opacity: 0; z-index: 6; }
+  .chart .head { display: flex; justify-content: space-between; align-items: center; font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #B9821A; }
+  .chart .diff { background: #FFE066; color: #3b2a00; border-radius: 999px; padding: 8px 22px; font-size: 32px; font-weight: 800; letter-spacing: 0; white-space: nowrap; opacity: 0; box-shadow: 0 6px 0 #E3B51A; }
+  .chart .title { font-size: 44px; font-weight: 800; color: #1C1410; margin-top: 8px; letter-spacing: -1px; }
+  .chart .plot { position: relative; height: 400px; margin-top: 10px; border-bottom: 4px solid #D9CFC2; display: flex; justify-content: space-around; align-items: flex-end; }
+  .chart .col { width: 230px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .chart .val { font-size: 50px; font-weight: 800; letter-spacing: -1px; color: #1C1410; text-align: center; margin-bottom: 8px; }
+  .chart .cbar { width: 100%; border-radius: 22px 22px 6px 6px; }
+  .chart .lbls { display: flex; justify-content: space-around; margin-top: 12px; }
+  .chart .lbl { width: 260px; text-align: center; font-size: 36px; font-weight: 800; color: #1C1410; }
+  .chart .lbl span { display: block; font-size: 26px; font-weight: 700; color: #6B5F57; }
+  .proof { position: absolute; left: 50%; top: 375px; transform: translateX(-50%); background: #1C1410; color: #FFE066; border-radius: 999px; padding: 14px 32px; font-size: 32px; font-weight: 800; white-space: nowrap; opacity: 0; z-index: 7; }
+  .end .q { font-size: 96px; line-height: 1.02; font-weight: 800; letter-spacing: -3px; margin-top: 40px; }
+  .end .qml { font-size: 44px; font-weight: 800; line-height: 1.4; margin-top: 24px; }
+  .end .tagline { margin-top: 44px; font-size: 34px; font-weight: 800; letter-spacing: 1px; }
+  .end .pill { display: flex; gap: 16px; align-items: center; margin-top: 44px; }
+  .end .pill .ico { width: 44px; height: 44px; }
+</style>
+</head>
+<body>
+<!--
+  Money Experiments · S01 EP02 "Save First vs Save Later". Screenplay: mx-ep02-screenplay.md.
+  Same Manu, salary, fixed costs and room as EP01; only *when* he saves changes. Maaman narrates.
+  Timed to the recorded voice (clip i starts at LINES[i].a, b = a + measured speech end).
+  Illustrative numbers, checkable on screen: salary ₹30,000 − fixed 18,000 = 12,000.
+    Month 1 (save later): movie 600 + dinner 1,400 + sale 2,500 shown → ₹10,500 by day 30, ₹1,500 saved.
+    Month 2 (save first): ₹6,000 to savings on payday; movie 300 + dinner 700 shown → ₹5,700 by day 30, ₹300 left.
+    One year = × 12, no returns: 18,000 vs 72,000.
+  Three jars on the table: Fixed (green), Savings (blue, middle), To spend (orange). Coins = amount / JAR_SCALE.
+  The closing MoneyPlant screen is a real recording (record-app.mjs savefirst, demo account).
+-->
+<canvas id="gl"></canvas>
+<div class="badge"><div class="handle"><img src="/public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">MONEY EXPERIMENTS · EP 02</div></div>
+<div class="example" id="example">ILLUSTRATIVE EXAMPLE</div>
+<div class="vs" id="vs"><div class="side later">SAVE LATER</div><div class="mid">VS</div><div class="side first">SAVE FIRST</div></div>
+<div class="vsq" id="vsq">Which saves more?</div>
+<div class="jar-tag" id="ntag" style="transform:translate(-50%,-50%)"><span class="en" style="color:#16A36E">SALARY CREDITED</span><span class="amt">₹30,000</span></div>
+<div class="pill-top" id="salary"><div class="en">SALARY</div><div class="amt">₹30,000</div></div>
+<div class="jar-tag" id="j0"><span class="ml">Fixed expenses</span><span class="en" style="color:#16A36E">RENT · EMI · BILLS</span><span class="amt">₹18,000</span></div>
+<div class="jar-tag" id="j1"><span class="ml">Savings</span><span class="en" style="color:#3B82F6" id="j1en"></span><span class="amt" id="j1amt"></span></div>
+<div class="jar-tag" id="j2"><span class="ml">To spend</span><span class="en" style="color:#E07A12">THIS MONTH</span><span class="amt" id="j2amt"></span></div>
+<div class="hud" id="hud"><span class="mo" id="hmo"></span><div class="rule" id="hrule"></div><div class="day" id="hday"></div><div class="ill">ILLUSTRATIVE</div></div>
+<div class="price" id="price"></div>
+<div class="stamp" id="stamp"><b>PAYDAY</b><span>₹6,000 → Savings, first</span></div>
+<div class="result" id="result"><span class="mo" id="rmo"></span><div class="big"><div>Spent<b id="rspent"></b></div><div class="saved">Saved<b id="rsaved"></b></div></div><div class="plus" id="rplus">+ ₹300 still left to spend</div><div class="ill">ILLUSTRATIVE EXAMPLE</div></div>
+<div class="chart" id="chart">
+  <div class="head">ILLUSTRATIVE EXAMPLE <span class="diff" id="cdiff">4× more saved</span></div>
+  <div class="title">Saved in one year</div>
+  <div class="plot">
+    <div class="col"><div class="val" id="cv0"></div><div class="cbar" id="cb0" style="background:#F28C28"></div></div>
+    <div class="col"><div class="val" id="cv1"></div><div class="cbar" id="cb1" style="background:#3B82F6"></div></div>
+  </div>
+  <div class="lbls"><div class="lbl">SAVE LATER<span>₹1,500 × 12</span></div><div class="lbl">SAVE FIRST<span>₹6,000 × 12</span></div></div>
+</div>
+<div class="proof" id="proof">Illustrative example — results vary</div>
+<div class="bubble" id="bubble"></div>
+<div class="sub" id="sub"></div>
+<section class="scene green end" id="end">
+  <img class="logo" src="/public/email-logo.png" alt="">
+  <div class="q">SAVE FIRST<br>or LATER?</div>
+  <div class="qml">നിങ്ങൾ save ചെയ്യുന്നത്<br>ആദ്യമോ, അവസാനമോ?</div>
+  <div class="pill"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>Comment below</div>
+  <div class="tagline">MoneyPlant · Know Before You Spend.</div>
+  <div class="disc">Manu’s months are an illustrative example</div>
+</section>
+
+<script type="module">
+import * as THREE from 'three'
+import { buildManu, buildMaaman, buildMint, buildHome, buildPhone, clipToScreen, lightRoom, ramp } from './cast3d.js'
+import { buildTable, buildJar, buildSeedling, buildTicket, buildCoin, JAR_COLORS } from './props3d.js'
+import { phoneScreens, buildDinnerPlate, buildParcel, buildJarLid } from './mx-props3d.js'
+import { createStage, shotAt, recordingTexture, bootS2 } from './stage.js'
+
+const live = !location.search.includes('render')
+const stage = createStage({ canvas: document.getElementById('gl') })
+const { scene: room, camera } = stage
+const home = buildHome(); room.add(home.root)
+lightRoom(room)
+
+// Manu twice (save later on the left, save first on the right), Maaman hosting between
+const manuA = buildManu(), manuB = buildManu(), maaman = buildMaaman()
+room.add(manuA.root, manuB.root, maaman.root)
+const table = buildTable(); table.root.position.set(0, 0, 1.0); room.add(table.root)
+const seedling = buildSeedling(); seedling.root.position.set(1.05, 1.06, -2.78); room.add(seedling.root)
+const JAR_X = [-.42, 0, .42], JAR_Z = 1.0
+const jars = ['needs', 'savings', 'wants'].map((k, i) => { const j = buildJar(JAR_COLORS[k]); j.root.position.set(JAR_X[i], table.TOP, JAR_Z); room.add(j.root); return j })
+const [FIXED, SAVE, SPEND] = [0, 1, 2]
+const JAR_SCALE = 20000   // ₹ for a full jar: 18,000 → .9, 12,000 → .6, 6,000 → .3
+const lid = buildJarLid(JAR_COLORS.savings); lid.position.set(JAR_X[SAVE], 0, JAR_Z); room.add(lid)
+const coins = Array.from({ length: 6 }, () => { const c = buildCoin(); room.add(c); return c })
+// the month's wants, in front of the jars
+const ITEM_AT = { movie: [-.48, 1.28], dinner: [-.05, 1.27], sale: [.38, 1.27] }
+const items = { movie: buildTicket(), dinner: buildDinnerPlate(), sale: buildParcel() }
+for (const [k, o] of Object.entries(items)) { o.position.set(ITEM_AT[k][0], table.TOP, ITEM_AT[k][1]); o.rotation.y = k === 'movie' ? .15 : -.2; room.add(o) }
+
+const SCR = phoneScreens()
+const rec = await recordingTexture('assets/app-savefirst-screen.webm', { live })   // record-app.mjs savefirst: demo account, Record Contribution never confirmed
+const phone = buildPhone(SCR.home, { h: .3 }); room.add(phone.root)
+const mint = buildMint(); phone.root.add(mint.root)
+mint.root.scale.setScalar(.12); mint.root.position.set(-phone.sw * .24, -phone.sh / 2 + .006, phone.d / 2 + .012)
+const updateClip = clipToScreen(mint.root, phone)
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+const inr = n => '₹' + Math.round(n).toLocaleString('en-IN')
+
+// ── script, timed to the voice (private/voice/mx-ep02/01–13.mp3, ElevenLabs voice Eclv6jJwMbGUhEki9Bro) ──
+// Speech lengths (s): 5.64 1.88 6.35 4.36 4.60 3.55 4.60 2.35 4.21 5.25 4.91 4.36 5.49.
+const LINES = [
+  { a: 0.4, b: 6.04, ml: 'Salary കിട്ടിയാൽ ആദ്യം save ചെയ്യണോ? അതോ മാസം അവസാനം ബാക്കി വരുന്നത് save ചെയ്താൽ മതിയോ?', en: 'When the salary comes, save first? Or just save whatever is left at the end of the month?' },
+  { a: 6.4, b: 8.28, ml: 'Manu-നെ വെച്ച് അടുത്ത experiment!', en: 'Time for Manu’s next experiment!' },
+  { a: 8.7, b: 15.05, ml: 'Salary ₹30,000. Fixed expenses ₹18,000. ബാക്കി ₹12,000.', en: 'Salary ₹30,000. Fixed expenses ₹18,000. That leaves ₹12,000.' },
+  { a: 15.5, b: 19.86, ml: 'ആദ്യ മാസം: ചെലവെല്ലാം കഴിഞ്ഞ് ബാക്കി വരുന്നത് save ചെയ്യും.', en: 'Month one: spend first, then save whatever is left.' },
+  { a: 20.3, b: 24.9, ml: 'പണം കയ്യിലുണ്ടല്ലോ… ഒരു movie, ഒരു dinner, ഒരു online sale.', en: 'The money’s right there… a movie, a dinner, an online sale.' },
+  { a: 26.6, b: 30.15, ml: 'മാസം അവസാനം ബാക്കി വന്നത് ₹1,500 മാത്രം.', en: 'At the end of the month, only ₹1,500 was left.' },
+  { a: 31.0, b: 35.6, ml: 'അടുത്ത മാസം: salary വന്ന ദിവസം തന്നെ ₹6,000 savings-ലേക്ക്.', en: 'Next month: ₹6,000 goes to savings the day the salary arrives.' },
+  { a: 36.0, b: 38.35, ml: 'ബാക്കി ₹6,000 കൊണ്ട് മാസം മുഴുവൻ.', en: 'The other ₹6,000 lasts the whole month.' },
+  { a: 41.0, b: 45.21, ml: 'മാസം അവസാനം ₹6,000 savings-ൽ സുരക്ഷിതം. കൂടെ ₹300 ബാക്കിയും!', en: 'At month end, ₹6,000 is safe in savings. And ₹300 still left!' },
+  { a: 45.9, b: 51.15, ml: 'ഒരു വർഷം നോക്കിയാൽ… ₹18,000, അല്ലെങ്കിൽ ₹72,000.', en: 'Over a year… ₹18,000, or ₹72,000.' },
+  { a: 51.6, b: 56.51, ml: 'ഇത് Manu-ന്റെ illustrative experiment മാത്രമാണ്. എല്ലാവർക്കും ഒരേ result കിട്ടണമെന്നില്ല.', en: 'This is only Manu’s illustrative experiment. Not everyone will get the same result.' },
+  { a: 57.0, b: 61.36, ml: 'പക്ഷേ ഓർക്കുക… ബാക്കി വരുന്നതല്ല savings. ആദ്യം മാറ്റിവെക്കുന്നതാണ്.', en: 'But remember… savings isn’t what’s left over. It’s what you set aside first.' },
+  { a: 62.6, b: 68.09, ml: 'നിങ്ങൾ save ചെയ്യുന്നത് ആദ്യമോ, അവസാനമോ? Comment ചെയ്യൂ!', en: 'Do you save first, or last? Tell us in the comments!' },
+]
+const L = LINES
+// cuts and beats
+const C = { wide: 2.2, jars: L[2].a - .2, m1: L[3].a - .2 }
+C.ff1 = L[4].b + .1; C.move1 = L[5].a + 1.0; C.res1 = L[5].a + 2.2
+C.m2 = L[6].a - .2; C.stamp = L[6].a + 1.2; C.move2 = L[6].a + 2.6; C.lid = L[6].a + 4.0
+C.ff2 = L[7].b + .5; C.res2 = L[8].a + .2
+C.year = L[9].a - .2; C.note = L[10].a - .2; C.phone = L[11].a - .2; C.maaman = C.phone + 2.2
+const END = L[11].b + .45, DURATION = 70
+const FF = 1.2, MOVE = [1.0, 1.2]   // fast-forward to day 30; coins flying spend → savings
+const JAR_T = [L[2].a + 2.3, L[2].a + 4.4]   // "Fixed expenses…", "ബാക്കി…" (heard in clip 03)
+const SALARY = 30000, FIXED_AMT = 18000, FREE = SALARY - FIXED_AMT, SAVE_FIRST = 6000
+const M1 = { spent: 10500, beats: [[L[4].a + 1.7, 'movie', 600, 5], [L[4].a + 2.7, 'dinner', 1400, 11], [L[4].a + 3.7, 'sale', 2500, 16]] }
+const M2 = { spent: 5700, beats: [[L[7].a + .8, 'movie', 300, 6], [L[7].a + 2.0, 'dinner', 700, 13]] }
+const SAVED1 = FREE - M1.spent, LEFT2 = FREE - SAVE_FIRST - M2.spent   // 1,500 and 300
+const YEAR = [SAVED1 * 12, SAVE_FIRST * 12]
+
+const v = new THREE.Vector3()
+const wp = o => { o.getWorldPosition(v); return v.toArray() }
+let H = {}
+
+/* The shot list. bubble: whether Maaman's Malayalam bubble shows (wide shots with him in frame). */
+const SHOTS = [
+  // S1 · the question: salary lands on Manu's phone → the room, both Manus, Maaman asking
+  { t: 0,         pos: 'phoneWide', look: 'phoneFace', lens: 44, focus: 'phone', aperture: .02 },
+  { t: C.wide,    pos: 'phoneWide', look: 'phoneFace', lens: 48, focus: 'phone', aperture: .02 },
+  { t: C.wide,    cut: true, pos: [0, 1.52, 4.7], look: [0, 1.72, .1], lens: 30, focus: [0, 1.6, .1], aperture: .005, bubble: true },
+  { t: C.jars,    pos: [0, 1.5, 4.3], look: [0, 1.72, .1], lens: 31, focus: [0, 1.6, .1], aperture: .005, bubble: true },
+  // S2 · the money: overhead on the jars
+  { t: C.jars,    cut: true, pos: [0, 2.15, 3.0], look: [0, .7, .95], lens: 30, focus: [0, .66, 1.0], aperture: .008 },
+  { t: C.m1,      pos: [0, 2.05, 2.8], look: [0, .7, .95], lens: 31, focus: [0, .66, 1.0], aperture: .008 },
+  // S3 · month 1, save later: the table with the left Manu behind it
+  { t: C.m1,      cut: true, pos: [-.12, 1.7, 3.7], look: [-.06, .95, .75], lens: 30, focus: [0, .7, 1.0], aperture: .006 },
+  { t: C.move1,   pos: [-.1, 1.68, 3.45], look: [-.05, .95, .75], lens: 31, focus: [0, .7, 1.0], aperture: .006 },
+  { t: C.move1,   cut: true, pos: [.2, 1.25, 2.3], look: [.2, .78, 1.0], lens: 34, focus: [.2, .7, 1.0], aperture: .01 },
+  { t: C.m2,      pos: [.2, 1.23, 2.2], look: [.2, .78, 1.0], lens: 35, focus: [.2, .7, 1.0], aperture: .01 },
+  // S4 · month 2, save first: the right Manu; payday, the ₹6,000 moves, the lid closes
+  { t: C.m2,      cut: true, pos: [.12, 1.7, 3.7], look: [.06, .95, .75], lens: 30, focus: [0, .7, 1.0], aperture: .006 },
+  { t: C.move2,   pos: [.1, 1.68, 3.45], look: [.05, .95, .75], lens: 31, focus: [0, .7, 1.0], aperture: .006 },
+  { t: C.move2,   cut: true, pos: [.2, 1.25, 2.3], look: [.2, .78, 1.0], lens: 34, focus: [.2, .7, 1.0], aperture: .01 },
+  { t: L[7].a - .2, pos: [.2, 1.23, 2.2], look: [.2, .78, 1.0], lens: 35, focus: [.2, .7, 1.0], aperture: .01 },
+  { t: L[7].a - .2, cut: true, pos: [.12, 1.7, 3.7], look: [.06, .95, .75], lens: 30, focus: [0, .7, 1.0], aperture: .006 },
+  { t: C.year,    pos: [.1, 1.68, 3.45], look: [.05, .95, .75], lens: 31, focus: [0, .7, 1.0], aperture: .006 },
+  // S5 · one year: both Manus and Maaman under the chart
+  { t: C.year,    cut: true, pos: [0, 1.25, 4.9], look: [0, 1.95, .1], lens: 29, focus: [0, 1.6, .1], aperture: .005 },
+  { t: C.note,    pos: [0, 1.3, 4.5], look: [0, 1.95, .1], lens: 30, focus: [0, 1.6, .1], aperture: .005 },
+  // S6 · "illustrative": Maaman, medium
+  { t: C.note,    cut: true, pos: [.05, 1.75, 3.3], look: 'mFace', lens: 40, focus: 'maaman', aperture: .02, bubble: true },
+  { t: C.phone,   pos: [.05, 1.76, 3.05], look: 'mFace', lens: 42, focus: 'maaman', aperture: .02, bubble: true },
+  // S7 · the takeaway: save-first Manu records it in MoneyPlant; Maaman says it
+  { t: C.phone,   cut: true, pos: 'phoneNear', look: 'phone', lens: 80, focus: 'phone', aperture: .03 },
+  { t: C.maaman,  pos: 'phoneNear', look: 'phone', lens: 86, focus: 'phone', aperture: .03 },
+  { t: C.maaman,  cut: true, pos: [.05, 1.88, 2.7], look: 'mFace', lens: 54, focus: 'maaman', aperture: .03 },
+  { t: DURATION,  pos: [.05, 1.88, 2.45], look: 'mFace', lens: 58, focus: 'maaman', aperture: .03 },
+]
+const face = p => [p[0], p[1] + .06, p[2]]
+const near = (p, dx, dy, dz) => [p[0] + dx, p[1] + dy, p[2] + dz]
+const resolve = n => ({
+  maaman: H.maaman, phone: H.phone, mFace: face(H.maaman),
+  phoneNear: near(H.phone, -.02, .01, .78), phoneWide: near(H.phone, -.1, .2, 1.2), phoneFace: H.phone.map((x, i) => (x + face(H.manuB)[i]) / 2),
+})[n]
+
+// ── helpers ──
+const during = (t, a, b) => t >= a && t < b
+const talking = t => LINES.some(l => during(t, l.a + .05, l.b - .15))
+const fade = (t, a, b, d = .25) => during(t, a, b) ? Math.min(1, (t - a) / d, (b - t) / d) : 0
+const $ = id => document.getElementById(id)
+const place = (el, p, on) => { el.style.opacity = on; el.style.left = p.x + 'px'; el.style.top = p.y + 'px' }
+const onScreen = p => !p.behind && p.x > 60 && p.x < 1020 && p.y > 300 && p.y < 1560
+const hold = (obj, arm, off) => { arm.hand.getWorldPosition(v); obj.position.copy(v).add(off); return obj.position.toArray() }
+
+// a month at time t: { spent, day } — the shown beats, then a fast-forward to day 30
+function monthAt(M, t, ff) {
+  let spent = 0, day = 1
+  for (const [bt, , amt, d] of M.beats) if (t >= bt) { spent += amt; day = d }
+  const k = clamp((t - ff) / FF)
+  if (k > 0) { spent += (M.spent - spent) * k; day = Math.round(day + (30 - day) * k) }
+  return { spent, day }
+}
+// the jars at time t, in ₹: [fixed, savings, to spend]
+function jarsAt(t) {
+  if (t < C.m1) return [FIXED_AMT * ramp(t, JAR_T[0], 1.0), 0, FREE * ramp(t, JAR_T[1], 1.0)]
+  if (t < C.m2) {
+    const left = FREE - monthAt(M1, t, C.ff1).spent, k = ramp(t, C.move1, MOVE[0])
+    return [FIXED_AMT, left * k, left * (1 - k)]
+  }
+  const k = ramp(t, C.move2, MOVE[1]), spent = monthAt(M2, t, C.ff2).spent
+  return [FIXED_AMT, SAVE_FIRST * k, FREE - SAVE_FIRST * k - spent]
+}
+
+async function render(t) {
+  home.animate(t)
+  const m1 = during(t, C.m1, C.m2), m2 = during(t, C.m2, C.year)
+
+  // ── people ──
+  manuA.root.visible = !m2; manuB.root.visible = !m1   // each month shows only its own Manu
+  const phoneUp = t < C.wide || t >= C.phone
+  manuA.pose(t, {
+    x: -.78, z: .2, turn: .12,
+    mood: m1 ? (t < C.ff1 ? 'grin' : t < C.move1 ? 'surprised' : 'embarrassed') : t >= C.year ? 'smile' : 'smile',
+    look: m1 ? [.3, -.45] : [0, 0],
+    armR: m1 && t < C.ff1 ? { raise: .5, elbow: .5, out: .3 } : { raise: .05, elbow: .15, out: .1 },
+    armL: { raise: .05, elbow: .15, out: .12 },
+  })
+  manuB.pose(t, {
+    x: .78, z: .2, turn: -.12,
+    mood: m2 ? (t < C.res2 ? 'determined' : 'grin') : phoneUp ? 'grin' : 'smile',
+    look: m2 ? [-.3, -.45] : t < C.wide ? [-.3, -.4] : t >= C.phone ? [-.35, -.45] : [0, 0],
+    headTilt: t >= C.phone ? .1 : 0, nod: t >= C.phone ? .12 : 0,
+    armR: phoneUp ? { raise: 1.05, elbow: 1.35, out: .08, hand: 'fist' } : { raise: .05, elbow: .15, out: .1 },
+    armL: m2 && during(t, C.move2 - .3, C.lid + .6) ? { raise: .6, elbow: .5, out: .35 } : { raise: .05, elbow: .15, out: .12 },
+  })
+  maaman.pose(t, {
+    x: 0, z: -.3, turn: 0,
+    mood: t < C.year ? 'amused' : t < C.phone ? 'knowing' : 'smile',
+    talking: talking(t), look: [0, 0],
+    armR: talking(t) ? { raise: .4 + .08 * Math.sin(t * 3), elbow: .6, out: .35 } : { raise: .05, elbow: .15, out: .14 },
+    armL: during(t, L[1].a, L[1].b) ? { raise: .5, elbow: .4, out: .55 } : { raise: .05, elbow: .15, out: .12 },
+  })
+  H.manuB = wp(manuB.head); H.maaman = wp(maaman.head)
+  H.phone = hold(phone.root, manuB.armR, new THREE.Vector3(-.02, .17, .1))
+  phone.root.visible = phoneUp
+  const tex = t >= C.phone ? rec.tex : SCR.home
+  if (phone.screen.material.map !== tex) { phone.screen.material.map = tex; phone.screen.material.needsUpdate = true }
+  if (t >= C.phone) await rec.seek(t - C.phone + .2)   // the card, the tap (≈ .5 s), the sheet with "Paying for"
+  mint.root.visible = t >= C.phone
+
+  // ── the jars, the coins in flight, the lid ──
+  const J = jarsAt(t)
+  J.forEach((amt, i) => jars[i].setFill(amt / JAR_SCALE))
+  const mv = m1 ? [C.move1, MOVE[0], 3] : m2 ? [C.move2, MOVE[1], 6] : null
+  coins.forEach((c, i) => {
+    const k = mv && i < mv[2] ? clamp((t - mv[0] - i * (mv[1] - .5) / mv[2]) / .5) : 0
+    c.visible = k > 0 && k < 1
+    const top = table.TOP + jars[0].H + .06
+    c.position.set(JAR_X[SPEND] + (JAR_X[SAVE] - JAR_X[SPEND]) * k, top + Math.sin(k * Math.PI) * .16, JAR_Z)
+    c.rotation.set(k * 5, 0, k * 3)
+  })
+  const lidK = ramp(t, C.lid, .45)
+  lid.visible = t >= C.lid - .05 && t < C.year
+  lid.position.y = table.TOP + jars[SAVE].H + .012 + (1 - lidK) * .3
+  // the month's wants appear as they're bought
+  for (const [k, o] of Object.entries(items)) {
+    const M = m1 ? M1 : m2 ? M2 : null, bt = M?.beats.find(b => b[1] === k)?.[0]
+    const s = bt ? ramp(t, bt - .35, .35) : 0
+    o.visible = s > .01; o.scale.setScalar(.001 + s)
+  }
+  seedling.sprout.rotation.z = Math.sin(t * 1.4) * .06
+
+  // ── camera ──
+  stage.frame(shotAt(SHOTS, t, resolve))
+  phone.root.lookAt(camera.position)
+  mint.pose(t, { mood: 'happy', talking: false })
+  updateClip()
+  stage.render()
+
+  // ── overlays ──
+  const key = SHOTS.reduce((k, s) => t >= s.t ? s : k, SHOTS[0])
+  const np = stage.project(new THREE.Vector3(H.phone[0], H.phone[1] + .085, H.phone[2] + .02))
+  place($('ntag'), np, fade(t, .3, C.wide))
+  const vsOn = fade(t, L[1].a, C.jars, .3)
+  $('vs').style.opacity = vsOn; $('vs').style.transform = `scale(${.85 + .15 * ramp(t, L[1].a, .3)})`
+  $('vsq').style.opacity = fade(t, L[1].a + .4, C.jars, .3)
+  $('salary').style.opacity = fade(t, L[2].a + .2, JAR_T[0] + .2)
+  // jar tags: the overhead shot and both months
+  $('j1en').textContent = t < C.m2 ? (t < C.move1 ? 'WHAT’S LEFT?' : 'WHAT WAS LEFT') : 'FIRST'
+  $('j1amt').textContent = t < C.m1 || (m1 && t < C.move1) ? '?' : inr(J[SAVE])
+  $('j2amt').textContent = inr(J[SPEND])
+  const tagsOn = t >= C.jars && t < C.year && !during(t, C.res1, C.m2 + .3) && !during(t, C.res2, C.year)
+  jars.forEach((j, i) => {
+    const p = stage.project(new THREE.Vector3(JAR_X[i], table.TOP + j.H + (i === SAVE && lid.visible ? .08 : .1), JAR_Z))
+    const appear = t < C.m1 ? (i === FIXED ? ramp(t, JAR_T[0], .3) : i === SPEND ? ramp(t, JAR_T[1], .3) : ramp(t, JAR_T[1] + .6, .3)) : 1
+    place($('j' + i), p, tagsOn && onScreen(p) ? appear : 0)
+  })
+  $('example').style.opacity = during(t, C.jars, C.m1) ? 1 : 0
+  // month HUD
+  const M = m2 ? M2 : M1, mo = monthAt(M, t, m2 ? C.ff2 : C.ff1)
+  const hudOn = (m1 && t < C.res1) || (m2 && t < C.res2 && !during(t, C.stamp - .2, C.lid + .8))
+  $('hud').style.opacity = hudOn ? (m2 && t > C.lid ? ramp(t, C.lid + .8, .25) : fade(t, m2 ? C.m2 + .2 : C.m1 + .2, m2 ? C.stamp - .2 : C.res1)) : 0
+  $('hud').classList.toggle('right', !m2)
+  $('hmo').textContent = m2 ? 'MONTH 02 · SAVE FIRST' : 'MONTH 01 · SAVE LATER'
+  $('hmo').style.background = m2 ? '#3B82F6' : '#F28C28'
+  $('hrule').textContent = m2 ? 'Save on payday, spend the rest' : 'Spend first, save what’s left'
+  $('hday').textContent = `DAY ${m2 && t < C.ff2 && t < M2.beats[0][0] ? 1 : mo.day} OF 30`
+  // a price tag over each want as it lands
+  const beat = (m1 || m2) && [...M.beats].reverse().find(([bt]) => during(t, bt - .35, bt + 1.0))
+  if (beat && t < (m2 ? C.ff2 : C.ff1)) {
+    const [bt, k, amt] = beat, at = ITEM_AT[k]
+    const p = stage.project(new THREE.Vector3(at[0], table.TOP + .17, at[1]))
+    $('price').textContent = `${{ movie: 'Movie', dinner: 'Dinner', sale: 'Online sale' }[k]} ${inr(amt)}`
+    place($('price'), p, onScreen(p) ? fade(t, bt - .35, bt + 1.0, .2) : 0)
+  } else $('price').style.opacity = 0
+  // payday stamp
+  const st = fade(t, C.stamp, C.lid + .6, .15)
+  $('stamp').style.opacity = st; $('stamp').style.transform = `translateX(-50%) rotate(-7deg) scale(${1.5 - .5 * ramp(t, C.stamp, .2)})`
+  // results
+  const r1 = fade(t, C.res1, C.m2, .3), r2 = fade(t, C.res2, C.year, .3)
+  $('result').style.opacity = Math.max(r1, r2)
+  $('result').style.transform = `translateX(-50%) scale(${.9 + .1 * Math.max(r1, r2)})`
+  if (r1 > 0) { $('rmo').textContent = 'MONTH 01 · SAVE LATER'; $('rmo').style.background = '#F28C28'; $('rspent').textContent = inr(M1.spent); $('rsaved').textContent = inr(SAVED1); $('rplus').style.display = 'none' }
+  if (r2 > 0) { $('rmo').textContent = 'MONTH 02 · SAVE FIRST'; $('rmo').style.background = '#3B82F6'; $('rspent').textContent = inr(M2.spent); $('rsaved').textContent = inr(SAVE_FIRST); $('rplus').style.display = ''; $('rplus').style.opacity = ramp(t, L[8].a + 2.6, .3) }
+  // one year
+  const ch = fade(t, C.year + .2, C.note, .3)
+  $('chart').style.opacity = ch
+  const BAR_MAX = 290, g0 = ramp(t, L[9].a + 1.6, .8), g1 = ramp(t, L[9].a + 3.2, 1.0)
+  $('cb0').style.height = BAR_MAX * YEAR[0] / YEAR[1] * g0 + 'px'; $('cb1').style.height = BAR_MAX * g1 + 'px'
+  $('cv0').textContent = inr(YEAR[0] * g0); $('cv1').textContent = inr(YEAR[1] * g1)
+  const dk = ramp(t, L[9].b - .2, .3)
+  $('cdiff').style.opacity = dk; $('cdiff').style.transform = `scale(${.8 + .2 * dk})`
+  $('proof').style.opacity = fade(t, C.note + .3, C.phone, .3)
+
+  // speech: English subtitle always; Maaman's bubble only in shots marked bubble, with him in frame
+  const line = LINES.find(l => during(t, l.a, l.b))
+  const bubble = $('bubble'), sub = $('sub')
+  if (line && t < END) {
+    const fd = Math.min(1, (t - line.a) / .2, (line.b - t) / .2)
+    bubble.textContent = line.ml; sub.textContent = line.en
+    const p = stage.project(new THREE.Vector3(...H.maaman))
+    const showBubble = key.bubble && !p.behind && p.x > -100 && p.x < 1180
+    bubble.style.opacity = showBubble ? fd : 0; sub.style.opacity = fd
+    bubble.style.top = key.t >= C.note ? '470px' : line === L[0] ? '380px' : '640px'; bubble.style.maxWidth = '760px'
+    if (showBubble) {
+      const bw = bubble.offsetWidth, left = Math.min(1080 - 50 - bw, Math.max(50, p.x - bw / 2))
+      bubble.style.left = left + 'px'; bubble.style.setProperty('--tail', Math.min(bw - 60, Math.max(60, p.x - left)) + 'px')
+    }
+  } else { bubble.style.opacity = 0; sub.style.opacity = line ? Math.min(1, (t - line.a) / .2, (line.b - t) / .2) : 0; if (line) sub.textContent = line.en }
+
+  // end card
+  const e = ramp(t, END, .5)
+  $('end').style.opacity = e; $('end').style.clipPath = `circle(${e * 150}% at 50% 100%)`
+  ;[...$('end').children].forEach((c, i) => { const k = ramp(t, END + .3 + i * .25, .4); c.style.opacity = k; c.style.transform = `translateY(${(1 - k) * 40}px)` })
+}
+
+window.REEL_OUT_DIR = 'money-experiments/ep02'
+window.REEL_SFX = [
+  { t: .2, kind: 'register' }, { t: C.wide, kind: 'whoosh' }, { t: L[1].a, kind: 'whoosh' },
+  ...JAR_T.map(t => ({ t, kind: 'chime' })),
+  { t: C.m1, kind: 'whoosh' }, ...M1.beats.map(([t]) => ({ t, kind: 'register' })), { t: C.move1, kind: 'chime' }, { t: C.res1, kind: 'chime' },
+  { t: C.m2, kind: 'whoosh' }, { t: C.stamp, kind: 'boing' }, { t: C.move2, kind: 'chime' }, { t: C.lid + .4, kind: 'chime' },
+  ...M2.beats.map(([t]) => ({ t, kind: 'register' })), { t: C.res2, kind: 'chime' },
+  { t: C.year, kind: 'whoosh' }, { t: L[9].b - .2, kind: 'boing' },
+  { t: C.phone, kind: 'whoosh' }, { t: END, kind: 'whoosh' },
+]
+window.REEL_VOICE = { files: LINES.map((_, i) => `private/voice/mx-ep02/${String(i + 1).padStart(2, '0')}.mp3`), starts: LINES.map(l => l.a) }
+bootS2(stage, render, DURATION, [1.0, 4.0, 7.5, 11.0, 14.5, 17.5, 22.3, 24.3, 27.9, 29.5, 32.6, 34.2, 35.6, 37.0, 38.4, 39.6, 42.8, 47.6, 50.6, 53.5, 57.5, 60.0, 63.5, 67.0])
+</script>
+</body>
+</html>

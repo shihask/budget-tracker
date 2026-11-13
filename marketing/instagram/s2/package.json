@@ -1,0 +1,10 @@
+{
+  "name": "moneyplant-reels-s2",
+  "private": true,
+  "description": "Manu & Maaman Season 2 (3D). three.js lives here, not in the app.",
+  "type": "module",
+  "dependencies": {
+    "ffmpeg-static": "5.2.0",
+    "three": "0.170.0"
+  }
+}

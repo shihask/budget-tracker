@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu &amp; Maaman S2 EP06 — Manu's First Budget!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="s2.css">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<style>
+  /* the season flashback: one real frame from each episode, as polaroids */
+  .flash { position: absolute; inset: 0; background: rgba(28,20,16,.55); opacity: 0; z-index: 8; }
+  .pol { position: absolute; width: 400px; background: #fff; padding: 14px 14px 18px; border-radius: 10px; box-shadow: 0 18px 40px rgba(0,0,0,.35); opacity: 0; }
+  .pol img { width: 100%; height: 300px; object-fit: cover; border-radius: 4px; display: block; }
+  .pol .cap { font-size: 26px; font-weight: 800; color: #1C1410; margin-top: 10px; text-align: center; }
+  .pol .cap b { color: #0A7A56; }
+</style>
+</head>
+<body>
+<!--
+  Season 2 · EP06 (finale) "Manu's First Budget!" — review the cycle, learn, set a realistic next goal.
+  Screenplay: ep03-06-screenplays.md (EP06). Built to script timings; refit to the recorded voice
+  afterwards (clip i starts at LINES[i].a).
+  The phone shows Kakeibo's REAL review flow (demo account), on clearly labelled EXAMPLE story data
+  for one finished cycle, 28 Sep – 27 Oct: salary ₹45,000 · goal ₹9,000 · saved ₹5,000 (₹4,000 short)
+  · Survival ₹12,100 · Optional ₹9,740 (Shopping ₹9,700 in 2 expenses). Then "What will you do
+  differently next cycle?" and next cycle's goal, ₹6,000 (typed, as a realistic step from ₹5,000).
+  assets/app-review-*.png; the Budget Health card from EP05 (app-cycle-strategy.png) for line 3.
+  Flashback: one real frame from each episode (assets/flash-ep0N.jpg).
+-->
+<canvas id="gl"></canvas>
+<div class="badge"><div class="handle"><img src="/public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">S2 · EP 06</div></div>
+<div class="title" id="title" style="font-size:38px;top:1180px">ഇത്തവണ Manu-വിന്റെ കണക്ക് ശരിയായോ?</div>
+<div class="example" id="example">EXAMPLE DATA</div>
+<div class="jar-tag" id="g0" style="transform:translate(-50%,0)"><span class="ml">Needs · Wants · Savings</span><span class="en" style="color:#16A36E">THIS SALARY CYCLE</span></div>
+<div class="jar-tag" id="g1" style="transform:translate(-50%,0)"><span class="ml">Kakeibo · cycle review</span><span class="en" style="color:#16A36E">PLANNED ₹9,000 · SAVED ₹5,000</span></div>
+<div class="jar-tag" id="g2" style="transform:translate(-50%,0)"><span class="ml">Where it went</span><span class="en" style="color:#E2572F">SHOPPING ₹9,700</span></div>
+<div class="jar-tag" id="g3" style="transform:translate(-50%,0)"><span class="ml">One thing to do differently</span><span class="en" style="color:#8B5CF6">IN YOUR OWN WORDS</span></div>
+<div class="jar-tag" id="g4" style="transform:translate(-50%,0)"><span class="ml">Next cycle’s goal</span><span class="en" style="color:#16A36E">REALISTIC · ₹6,000</span></div>
+<div class="bubble" id="bubble"></div>
+<div class="sub" id="sub"></div>
+<div class="flash" id="flash">
+  <div class="pol" id="p0"><img src="assets/flash-ep01.jpg" alt=""><div class="cap"><b>EP01</b> · Needs, Wants, Savings</div></div>
+  <div class="pol" id="p1"><img src="assets/flash-ep02.jpg" alt=""><div class="cap"><b>EP02</b> · Bills first</div></div>
+  <div class="pol" id="p2"><img src="assets/flash-ep03.jpg" alt=""><div class="cap"><b>EP03</b> · Emergency Fund</div></div>
+  <div class="pol" id="p3"><img src="assets/flash-ep04.jpg" alt=""><div class="cap"><b>EP04</b> · Yearly, month by month</div></div>
+  <div class="pol" id="p4"><img src="assets/flash-ep05.jpg" alt=""><div class="cap"><b>EP05</b> · Month starts on payday</div></div>
+  <div class="pol" id="p5"><img src="assets/flash-ep06.jpg" alt=""><div class="cap"><b>EP06</b> · Review every month</div></div>
+</div>
+<section class="scene green end" id="end">
+  <img class="logo" src="/public/email-logo.png" alt="">
+  <div class="name">MANU &amp; MAAMAN<br>SEASON 2 COMPLETE</div>
+  <div class="next">YOUR SALARY. YOUR PLAN. YOUR PROGRESS.<br>Know Before You Spend.</div>
+  <div class="pill">Follow @moneyplant.online</div>
+  <div class="disc">Track your money with MoneyPlant · Example amounts</div>
+</section>
+
+<script type="module">
+import * as THREE from 'three'
+import { buildManu, buildMaaman, buildMint, buildHome, buildPhone, clipToScreen, lightRoom, ramp } from './cast3d.js'
+import { buildTable, buildSeedling, buildGrownPlant, buildDatedCalendar, buildBike } from './props3d.js'
+import { createStage, shotAt, bootS2 } from './stage.js'
+
+const stage = createStage({ canvas: document.getElementById('gl') })
+const { scene, camera } = stage
+const home = buildHome({ door: true }); scene.add(home.root)
+lightRoom(scene)
+const manu = buildManu(), maaman = buildMaaman()
+scene.add(manu.root, maaman.root)
+
+// ── props ──
+const table = buildTable(); table.root.position.set(0, 0, 1.0); scene.add(table.root)
+const PLANT = [.42, .48, 1.12]   // on the coffee table this time, in front of them: the finale grows it in view
+const seedling = buildSeedling(); seedling.root.position.set(...PLANT); seedling.root.scale.setScalar(1.48); scene.add(seedling.root)
+const plant = buildGrownPlant(); plant.root.position.set(...PLANT); plant.root.scale.setScalar(1.7); scene.add(plant.root)
+const bike = buildBike(); bike.root.position.set(home.door.x + .1, 0, -4.7); bike.root.rotation.y = .55; scene.add(bike.root)
+const cal = buildDatedCalendar(); cal.root.position.set(3.75, 1.78, -2.93); cal.root.scale.setScalar(1.35); scene.add(cal.root)
+cal.show({ year: 2026, month: 10, fill: [1, 27], ring: 27, ringProg: 1, dot: null, start: null, dim: null })
+
+// the real app screens, with Mint standing in the screen
+const loader = new THREE.TextureLoader()
+const load = async f => { const t = await loader.loadAsync(f); t.colorSpace = THREE.SRGBColorSpace; return t }
+const TEX = {
+  strategy: await load('assets/app-cycle-strategy.png'),
+  top: await load('assets/app-review-top.png'), spend: await load('assets/app-review-spend.png'),
+  note: await load('assets/app-review-note.png'), goal: await load('assets/app-review-goal.png'),
+}
+const phone = buildPhone(TEX.strategy, { h: .3 }); scene.add(phone.root)
+const mint = buildMint(); phone.root.add(mint.root)
+mint.root.scale.setScalar(.12); mint.root.position.set(-phone.sw * .24, -phone.sh / 2 + .006, phone.d / 2 + .012)
+const updateClip = clipToScreen(mint.root, phone)
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+
+// ── script (script timing; refit to the recorded voice afterwards) ──
+const LINES = [
+  { who: 'manu',   a: 0.8,  b: 3.6,  ml: 'മാമാ! ഇത്തവണ എന്റെ budget റെഡിയാണ്!', en: 'Maaman! This time my budget is ready!' },
+  { who: 'maaman', a: 4.2,  b: 8.2,  ml: 'ആഹാ! ഈ മാസം പൈസ എവിടെയൊക്കെ പോയെന്ന് അറിയാമോ?', en: 'Really? Do you know where your money went this month?' },
+  { who: 'manu',   a: 8.8,  b: 12.4, ml: 'അറിയാം! Needs, Wants, Savings എല്ലാം കണക്കിലുണ്ട്!', en: 'I do! Needs, Wants and Savings are all accounted for!' },
+  { who: 'maaman', a: 13.2, b: 19.0, ml: 'എന്നാൽ നോക്കാം. പ്ലാൻ ചെയ്തതും ശരിക്കും ചെലവായതും തമ്മിൽ വ്യത്യാസമുണ്ടോ?', en: 'Then let’s see. Is there a difference between what you planned and what you actually spent?' },
+  { who: 'mint',   a: 19.6, b: 27.4, ml: 'ഈ Budget Cycle-ലെ ചെലവുകൾ ഒന്ന് review ചെയ്യാം. എവിടെയാണ് കൂടുതൽ പോയതെന്ന് നോക്കാം.', en: 'Let’s review the spending in this budget cycle and see where more money went.' },
+  { who: 'manu',   a: 28.2, b: 31.6, ml: 'അയ്യോ! ഈ മാസം Shopping-ന് കുറച്ച് കൂടുതൽ പോയല്ലോ!', en: 'Oh! I spent a little too much on shopping this month!' },
+  { who: 'maaman', a: 32.2, b: 37.4, ml: 'അതാണ് review-ന്റെ കാര്യം. തെറ്റ് കണ്ടുപിടിച്ച് അടുത്ത മാസം മാറ്റണം!', en: 'That’s the point of a review. Find what went wrong and change it next month!' },
+  { who: 'mint',   a: 38.0, b: 43.6, ml: 'അടുത്ത മാസത്തേക്ക് നിനക്ക് കഴിയുന്ന ഒരു realistic savings goal സെറ്റ് ചെയ്യാം.', en: 'Let’s set a realistic savings goal for next month that you can afford.' },
+  { who: 'manu',   a: 44.0, b: 46.8, ml: 'ഇത്തവണത്തെക്കാൾ കുറച്ചുകൂടി നന്നായി ചെയ്യാം!', en: 'I’ll do a little better than this month!' },
+  { who: 'maaman', a: 47.6, b: 53.4, ml: 'ഓരോ മാസവും ഒന്ന് തിരിഞ്ഞുനോക്കിയാൽ, അടുത്ത മാസം കുറച്ചുകൂടി നന്നാക്കാം!', en: 'Review every month, and you can make the next one better!' },
+]
+const L = LINES
+// cuts: where each shot starts
+const C = { maaman: 4.0, manu: 8.6, two: 13.0, phone: 19.4, oops: 28.0, warm: 32.0, plan: 37.8, sure: 43.8, final: 47.4 }
+// beats inside the lines (re-measured from the recordings at the refit)
+const WALK = [.1, 2.7]                   // Manu walks in from the front door
+const SPEND = L[4].a + 3.6               // "എവിടെയാണ് കൂടുതൽ…": the review's spending
+const GOAL = L[7].a + 1.6                // the note, then next cycle's goal
+const GROW = C.final + .4                // the seedling grows into the plant
+const FLASH = L[9].b + .5                // the season flashback
+const PHONE_UP = [[-1, C.two + .2], [C.phone - .4, C.oops + .2], [C.plan - .4, C.sure + .2]]
+const END = FLASH + 3.6, DURATION = END + 4.2
+
+const v = new THREE.Vector3()
+const wp = o => { o.getWorldPosition(v); return v.toArray() }
+let H = {}  // tracked points this frame
+
+/* The shot list. bubble: whether the Malayalam bubble shows (wide/two-shots with the speaker
+   in frame); close-ups and prop shots carry the English subtitle only. */
+const SHOTS = [
+  // 1 · medium-wide, slow dolly: Manu walks in from the front door, phone in hand, confident
+  { t: 0,          pos: [1.2, 1.55, 3.9], look: [-.4, 1.15, -.8], lens: 30, focus: 'manuHead', aperture: .006, bubble: true },
+  { t: C.maaman,   pos: [.9, 1.5, 3.6], look: [.2, 1.2, 0], lens: 33, focus: 'manuHead', aperture: .006, bubble: true },
+  // 2 · Maaman CU: smile, eyebrow up
+  { t: C.maaman,   cut: true, pos: [-.4, 1.92, 3.05], look: 'maamanFace', lens: 66, focus: 'maamanHead', aperture: .03, bubble: false },
+  { t: C.manu,     pos: [-.44, 1.92, 2.8], look: 'maamanFace', lens: 70, focus: 'maamanHead', aperture: .03, bubble: false },
+  // 3 · Manu CU: proudly shows his phone (Budget Health: Needs, Wants, Savings)
+  { t: C.manu,     cut: true, pos: [.55, 1.72, 2.9], look: 'phoneManu', lens: 50, focus: 'phone', aperture: .02, bubble: false },
+  { t: C.two,      pos: [.55, 1.74, 2.8], look: 'phoneManu', lens: 52, focus: 'phone', aperture: .02, bubble: false },
+  // 4 · two-shot: Maaman points at the phone
+  { t: C.two,      cut: true, pos: [-.15, 1.45, 4.3], look: [0, 1.32, .5], lens: 34, focus: 'mid', aperture: .006, bubble: true },
+  { t: C.phone,    pos: [.12, 1.45, 4.1], look: [.02, 1.34, .5], lens: 36, focus: 'mid', aperture: .006, bubble: true },
+  // 5 · phone push-in: Mint and Kakeibo's real cycle review
+  { t: C.phone,    cut: true, pos: [.62, 1.62, 3.0], look: 'phone', lens: 45, focus: 'phone', aperture: .02, bubble: false },
+  { t: C.phone + 2.0, pos: 'phoneNear', look: 'phone', lens: 84, focus: 'phone', aperture: .03, bubble: false },
+  { t: SPEND,      pos: 'phoneNear', look: 'phone', lens: 86, focus: 'phone', aperture: .03, bubble: false },
+  { t: SPEND,      cut: true, pos: 'phoneNearL', look: 'phone', lens: 82, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.oops,     pos: 'phoneNearL', look: 'phone', lens: 86, focus: 'phone', aperture: .03, bubble: false },
+  // 6 · Manu CU: the shopping — embarrassed
+  { t: C.oops,     cut: true, pos: [.5, 1.82, 2.9], look: 'manuFace', lens: 66, focus: 'manuHead', aperture: .03, shake: .015, bubble: false },
+  { t: C.warm,     pos: [.52, 1.82, 2.8], look: 'manuFace', lens: 70, focus: 'manuHead', aperture: .03, bubble: false },
+  // 7 · Maaman CU, warm light
+  { t: C.warm,     cut: true, pos: [-.4, 1.9, 3.1], look: 'maamanFace', lens: 62, focus: 'maamanHead', aperture: .03, bubble: false },
+  { t: C.plan,     pos: [-.44, 1.92, 2.8], look: 'maamanFace', lens: 66, focus: 'maamanHead', aperture: .03, bubble: false },
+  // 8 · phone CU: one thing to do differently, then next cycle's goal
+  { t: C.plan,     cut: true, pos: 'phoneNear', look: 'phone', lens: 82, focus: 'phone', aperture: .03, bubble: false },
+  { t: GOAL,       pos: 'phoneNear', look: 'phone', lens: 86, focus: 'phone', aperture: .03, bubble: false },
+  { t: GOAL,       cut: true, pos: 'phoneNearL', look: 'phone', lens: 82, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.sure,     pos: 'phoneNearL', look: 'phone', lens: 86, focus: 'phone', aperture: .03, bubble: false },
+  // 9 · Manu CU, determined
+  { t: C.sure,     cut: true, pos: [.62, 1.78, 3.2], look: 'manuFace', lens: 52, focus: 'manuHead', aperture: .02, bubble: false },
+  { t: C.final,    pos: [.6, 1.8, 3.0], look: 'manuFace', lens: 56, focus: 'manuHead', aperture: .02, bubble: false },
+  // 10 · two-shot → pull back: Maaman's hand on Manu's shoulder; the plant has grown behind them
+  { t: C.final,    cut: true, pos: [.55, 1.55, 2.7], look: [.45, 1.4, .2], lens: 40, focus: 'mid2', aperture: .01, bubble: true, bubbleAt: [null, 300, 820] },
+  { t: FLASH,      pos: [.5, 1.75, 4.9], look: [.5, 1.3, -.6], lens: 32, focus: 'mid2', aperture: .006, bubble: true, bubbleAt: [null, 300, 820] },
+  { t: DURATION,   pos: [.5, 1.8, 5.1], look: [.5, 1.3, -.6], lens: 31, focus: 'mid2', aperture: .006, bubble: false },
+]
+const resolve = n => ({
+  manuHead: H.manu, maamanHead: H.maaman, phone: H.phone,
+  manuFace: [H.manu[0], H.manu[1] + .06, H.manu[2]], maamanFace: [H.maaman[0], H.maaman[1] + .06, H.maaman[2]],
+  phoneManu: [(H.manu[0] + H.phone[0]) / 2, (H.manu[1] + H.phone[1]) / 2 + .04, (H.manu[2] + H.phone[2]) / 2],
+  mid: [0, 1.5, .25], mid2: [.45, 1.45, .25],
+  phoneNear: [H.phone[0] + .03, H.phone[1] + .01, H.phone[2] + .78],
+  phoneNearL: [H.phone[0] - .1, H.phone[1] + .02, H.phone[2] + .76],
+})[n]
+const shotKey = t => { let k = SHOTS[0]; for (const s of SHOTS) if (t >= s.t) k = s; return k }
+
+// ── helpers ──
+const during = (t, a, b) => t >= a && t < b
+const talking = (who, t) => LINES.some(l => l.who === who && during(t, l.a + .05, l.b - .15))
+const fade = (t, a, b, d = .25) => during(t, a, b) ? Math.min(1, (t - a) / d, (b - t) / d) : 0
+const ease = k => k * k * (3 - 2 * k)
+
+const bubble = document.getElementById('bubble'), sub = document.getElementById('sub')
+const g = [0, 1, 2, 3, 4].map(i => document.getElementById('g' + i))
+const example = document.getElementById('example'), end = document.getElementById('end')
+const flash = document.getElementById('flash'), pols = [0, 1, 2, 3, 4, 5].map(i => document.getElementById('p' + i))
+const POL_AT = [[60, 400, -6], [620, 430, 5], [70, 830, 4], [610, 870, -5], [80, 1250, -3], [600, 1280, 6]]   // left, top, tilt
+
+async function render(t) {
+  home.animate(t)
+
+  // ── Manu: walks in from the front door, then stands at his spot ──
+  const w = ease(clamp((t - WALK[0]) / (WALK[1] - WALK[0])))
+  const from = [home.door.x, -2.4], to = [.75, .2]
+  const walking = during(t, WALK[0], WALK[1])
+  const phoneUp = PHONE_UP.reduce((a, [s, e]) => Math.max(a, ramp(t, s, .5) * (1 - ramp(t, e - .2, .4))), 0)
+  manu.pose(t, {
+    x: from[0] + (to[0] - from[0]) * w, z: from[1] + (to[1] - from[1]) * w,
+    turn: walking ? 2.4 - 2.75 * w : -.35,
+    jump: walking ? Math.abs(Math.sin(t * 9)) * .03 : 0,
+    mood: t < C.oops ? 'grin' : t < C.warm ? 'embarrassed' : t < C.plan ? 'concerned' : t < C.final ? 'determined' : 'smile',
+    talking: talking('manu', t),
+    look: during(t, C.oops, C.warm) ? [-.2, -.4] : [-.45, 0],
+    nod: during(t, C.oops, C.warm) ? -.12 : during(t, C.sure, C.final) ? Math.sin(t * 4.2) * .05 : 0,
+    armR: phoneUp > 0 ? { raise: .2 + .85 * phoneUp, elbow: .2 + 1.15 * phoneUp, out: .08, hand: 'fist' } : { raise: .05, elbow: .15, out: .1 },
+    armL: during(t, C.oops, C.warm) ? { raise: 2.25, elbow: 2.2 + .08 * Math.sin(t * 9), out: .5 }               // scratches his head
+      : walking ? { raise: .2 * Math.sin(t * 9), elbow: .3, out: .1 } : { raise: .05, elbow: .15, out: .12 },
+  })
+  // ── Maaman: in his place, then beside Manu for the last line, hand on his shoulder ──
+  const gesture = talking('maaman', t) ? 1 : 0
+  const fin = t >= C.final
+  maaman.pose(t, {
+    x: fin ? .08 : -.8, z: fin ? .28 : .15, turn: fin ? .55 : .35,
+    mood: t < C.maaman ? 'amused' : t < C.two ? 'knowing' : t < C.oops ? 'smile' : t < C.final ? 'smile' : 'laugh',
+    talking: talking('maaman', t), look: fin ? [.6, .1] : [.45, 0],
+    armR: fin ? { raise: .95, elbow: .35, out: .85 }                                                             // hand on Manu's shoulder
+      : during(t, L[3].a, L[3].b) ? { raise: .75, elbow: .5, out: .5, hand: 'point' }                           // at the phone
+      : during(t, L[6].a, L[6].a + 2.4) ? { raise: .55 + .06 * Math.sin(t * 3), elbow: .45, out: .4 }
+      : during(t, L[6].a + 2.4, L[6].b) ? { raise: .75, elbow: 1.5, out: .22, hand: 'point' }
+      : { raise: .05 + gesture * .2, elbow: .15 + gesture * .5, out: .14 },
+    armL: { raise: .05, elbow: .15, out: .12 },
+  })
+  H = { manu: wp(manu.head), maaman: wp(maaman.head) }
+
+  // ── the plant: the seedling until the last line, then it grows ──
+  const gk = clamp((t - GROW) / 1.6)
+  seedling.root.visible = t < GROW; plant.root.visible = t >= GROW
+  plant.grow(ease(gk)); plant.sway.rotation.z = Math.sin(t * 1.2) * .03
+  seedling.sprout.rotation.z = Math.sin(t * 1.4) * .06
+
+  // ── phone in Manu's hand ──
+  phone.root.visible = phoneUp > .01
+  manu.armR.hand.getWorldPosition(v)
+  phone.root.position.copy(v).add(new THREE.Vector3(-.02, .17, .1))
+  H.phone = phone.root.position.toArray()
+  const tex = t < C.phone ? TEX.strategy : t < SPEND ? TEX.top : t < C.plan ? TEX.spend : t < GOAL ? TEX.note : TEX.goal
+  if (phone.screen.material.map !== tex) { phone.screen.material.map = tex; phone.screen.material.needsUpdate = true }
+  mint.root.visible = t >= C.phone
+  // where a screen's key words sit low (spending list, note, goal sheet), Mint stands small, bottom-right
+  if (t >= SPEND) { mint.root.scale.setScalar(.075); mint.root.position.x = phone.sw * .3 } else { mint.root.scale.setScalar(.12); mint.root.position.x = -phone.sw * .24 }
+
+  // ── camera (before anything aims at it) ──
+  const key = shotKey(t)
+  stage.frame(shotAt(SHOTS, t, resolve))
+  phone.root.lookAt(camera.position)
+  mint.pose(t, { mood: 'happy', talking: talking('mint', t) })
+  updateClip()
+  stage.render()
+
+  // ── overlays ──
+  const tags = [[C.manu + .5, C.two], [C.phone + 2.2, SPEND], [SPEND + .3, C.oops], [C.plan + .3, GOAL], [GOAL + .3, C.sure]]
+  tags.forEach(([a, b], i) => { g[i].style.left = '540px'; g[i].style.top = '450px'; g[i].style.opacity = fade(t, a, b) })
+  example.style.opacity = during(t, C.phone + 2.2, C.oops) || during(t, C.plan + .3, C.sure) ? 1 : 0
+
+  const ti = Math.min(ramp(t, .2, .3), 1 - ramp(t, C.maaman - .4, .3)); document.getElementById('title').style.opacity = ti
+  document.getElementById('title').style.transform = `scale(${.85 + .15 * ti})`
+
+  const line = LINES.find(l => during(t, l.a, l.b))
+  if (line && t < FLASH) {
+    const fd = Math.min(1, (t - line.a) / .2, (line.b - t) / .2)
+    bubble.textContent = line.ml; sub.textContent = line.en
+    const speaker = H[line.who]
+    const p = speaker && stage.project(new THREE.Vector3(...speaker))
+    const showBubble = key.bubble && p && !p.behind && p.x > -100 && p.x < 1180
+    bubble.style.opacity = showBubble ? fd : 0; sub.style.opacity = fd
+    const [bl, bt, bw] = key.bubbleAt ?? [null, 400, 760]
+    bubble.style.top = bt + 'px'; bubble.style.maxWidth = bw + 'px'
+    if (showBubble) {
+      const ww = bubble.offsetWidth, left = bl ?? Math.min(1080 - 50 - ww, Math.max(50, p.x - ww / 2))
+      bubble.style.left = left + 'px'; bubble.style.setProperty('--tail', Math.min(ww - 60, Math.max(60, p.x - left)) + 'px')
+    }
+  } else { bubble.style.opacity = 0; sub.style.opacity = 0 }
+
+  // the season flashback: six polaroids drop in, one per episode
+  flash.style.opacity = during(t, FLASH, END + .6) ? Math.min(1, (t - FLASH) / .3) : 0
+  pols.forEach((el, i) => {
+    const k = ease(clamp((t - FLASH - .2 - i * .42) / .35)), [x, y, r] = POL_AT[i]
+    el.style.opacity = k; el.style.left = x + 'px'; el.style.top = (y - (1 - k) * 80) + 'px'
+    el.style.transform = `rotate(${r}deg) scale(${.8 + .2 * k})`
+  })
+
+  // end card: soft green wipe in, then its lines rise one by one
+  const e = ramp(t, END, .5)
+  end.style.opacity = e; end.style.clipPath = `circle(${e * 150}% at 50% 100%)`
+  ;[...end.children].forEach((c, i) => { const k = ramp(t, END + .3 + i * .25, .4); c.style.opacity = k; c.style.transform = `translateY(${(1 - k) * 40}px)` })
+}
+
+window.REEL_OUT_DIR = 'manu-maaman/s2/ep06'
+window.REEL_SFX = [
+  { t: .1, kind: 'whoosh' }, { t: C.manu + .3, kind: 'chime' },
+  { t: C.phone, kind: 'chime' }, { t: SPEND, kind: 'whoosh' }, { t: C.oops + .05, kind: 'boing' },
+  { t: C.plan + .1, kind: 'chime' }, { t: GOAL, kind: 'whoosh' }, { t: GOAL + .3, kind: 'register' },
+  { t: GROW, kind: 'chime' }, { t: GROW + .8, kind: 'chime' },
+  ...[0, 1, 2, 3, 4, 5].map(i => ({ t: FLASH + .2 + i * .42, kind: 'chime' })),
+  { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
+]
+bootS2(stage, render, DURATION, [.4, 1.6, 3.0, 6.0, 10.4, 15.6, 20.4, 23.0, 25.6, 29.6, 34.6, 39.0, 42.4, 45.4, 48.4, 50.6, 53.0, 56.0, 57.4, 60.0])
+</script>
+</body>
+</html>

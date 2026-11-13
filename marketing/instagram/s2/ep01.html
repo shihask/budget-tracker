@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ml">
+<head>
+<meta charset="utf-8">
+<title>Manu &amp; Maaman S2 EP01 — Salary എവിടെ ചെലവാക്കണം?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+Malayalam:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="s2.css">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head>
+<body>
+<!--
+  Season 2 · EP01 "Salary എവിടെ ചെലവാക്കണം?" — needs, wants, savings. Screenplay: ep01-screenplay.md.
+  Built to script timings; refit to the recorded voice afterwards (clip i starts at LINES[i].a).
+  Example numbers only (S1 continuity: ₹45,000 salary), all checkable on screen:
+    50% of 45,000 = 22,500 · 30% = 13,500 · 20% = 9,000 · 22,500 + 13,500 + 9,000 = 45,000
+  Phone screen: the REAL Budget Strategy picker (demo account), assets/app-strategy-screen.webm.
+-->
+<canvas id="gl"></canvas>
+<div class="badge"><div class="handle"><img src="/public/email-logo.png" alt="">@moneyplant.online</div><div class="ep">S2 · EP 01</div></div>
+<div class="title" id="title">Salary എവിടെ ചെലവാക്കണം?</div>
+<div class="example" id="example">EXAMPLE · ₹45,000 SALARY</div>
+<div class="jar-tag" id="tag0"><span class="ml">ആവശ്യങ്ങൾ</span><span class="en" style="color:#16A36E">NEEDS · 50%</span><span class="amt" id="amt0"></span></div>
+<div class="jar-tag" id="tag1"><span class="ml">ആഗ്രഹങ്ങൾ</span><span class="en" style="color:#E07A12">WANTS · 30%</span><span class="amt" id="amt1"></span></div>
+<div class="jar-tag" id="tag2"><span class="ml">സേവിങ്സ്</span><span class="en" style="color:#3B82F6">SAVINGS · 20%</span><span class="amt" id="amt2"></span></div>
+<div class="bubble" id="bubble"></div>
+<div class="sub" id="sub"></div>
+<section class="scene green end" id="end">
+  <img class="logo" src="/public/email-logo.png" alt="">
+  <div class="name">KNOW BEFORE<br>YOU SPEND.</div>
+  <div class="next">Next · EP 02<br>Salary കിട്ടിയിട്ട് പൈസ തീർന്നോ?</div>
+  <div class="pill">Follow @moneyplant.online</div>
+  <div class="disc">Example amounts · not financial advice</div>
+</section>
+
+<script type="module">
+import * as THREE from 'three'
+import { buildManu, buildMaaman, buildMint, buildHome, buildPhone, clipToScreen, lightRoom, ramp } from './cast3d.js'
+import { buildTable, buildJar, buildHouse, buildBiryani, buildSproutCoin, buildPhoneBox, buildBag, buildTicket, buildSeedling, JAR_COLORS } from './props3d.js'
+import { createStage, shotAt, recordingTexture, bootS2 } from './stage.js'
+
+const live = !location.search.includes('render')
+const stage = createStage({ canvas: document.getElementById('gl') })
+const { scene, camera } = stage
+const home = buildHome(); scene.add(home.root)
+lightRoom(scene)
+const manu = buildManu(), maaman = buildMaaman()
+scene.add(manu.root, maaman.root)
+
+// ── props ──
+const table = buildTable(); table.root.position.set(0, 0, 1.0); scene.add(table.root)
+const TOP = table.TOP
+const JAR_X = [-.42, 0, .42], JAR_Z = 1.0
+const jars = ['needs', 'wants', 'savings'].map((k, i) => { const j = buildJar(JAR_COLORS[k]); j.root.position.set(JAR_X[i], TOP, JAR_Z); scene.add(j.root); return j })
+const house = buildHouse(), biryani = buildBiryani(), sprout = buildSproutCoin()
+const box = buildPhoneBox(), box2 = buildPhoneBox(), bag = buildBag(), ticket = buildTicket(), biryani2 = buildBiryani()
+;[house, biryani, sprout, box.root, box2.root, bag, ticket, biryani2].forEach(o => scene.add(o))
+const seedling = buildSeedling(); seedling.root.position.set(1.05, 1.06, -2.78); scene.add(seedling.root)
+
+// the real Budget Strategy picker, with Mint standing in the screen
+const rec = await recordingTexture('assets/app-strategy-screen.webm', { live })
+const phone = buildPhone(rec.tex, { h: .3 }); scene.add(phone.root)
+const mint = buildMint(); phone.root.add(mint.root)
+mint.root.scale.setScalar(.12); mint.root.position.set(-phone.sw * .24, -phone.sh / 2 + .006, phone.d / 2 + .012)
+const updateClip = clipToScreen(mint.root, phone)
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+
+// ── script, refitted to the recorded voice (private/voice/s2-ep01/01–09.mp3) ──
+// Speech lengths (s): 4.30 4.33 3.82 5.07 5.76 6.41 10.33 3.97 4.97. Clip n starts at LINES[n-1].a.
+const LINES = [
+  { who: 'manu',   a: .3,   b: 4.7,  ml: 'മാമാ, ഈ മാസം ശമ്പളം കിട്ടിയാൽ ആദ്യം പുതിയ ഫോൺ വാങ്ങട്ടെ?', en: 'Maaman, when my salary comes this month, can I buy a new phone first?' },
+  { who: 'maaman', a: 5.0,  b: 9.4,  ml: 'വാങ്ങാം. പക്ഷേ അതിന് മുൻപ് ഒരു കാര്യം പഠിക്കണം!', en: 'You can. But first, there’s one thing to learn!' },
+  { who: 'maaman', a: 9.7,  b: 13.6, ml: 'അപ്പോ വാടകയോ? EMI-യോ? നാളത്തേക്ക് എന്തെങ്കിലും?', en: 'And the rent? The EMI? Something for tomorrow?' },
+  { who: 'maaman', a: 14.9, b: 20.0, ml: 'ശമ്പളം മൂന്നായി തിരിക്ക്. ആവശ്യങ്ങൾ, ആഗ്രഹങ്ങൾ, സേവിങ്സ്.', en: 'Split your salary three ways: needs, wants, savings.' },
+  { who: 'maaman', a: 20.4, b: 26.2, ml: 'വാടക ആവശ്യം. ബിരിയാണി ആഗ്രഹം. സേവിങ്സ് നാളേക്കുള്ള സുരക്ഷ.', en: 'Rent is a need. Biryani is a want. Savings keep tomorrow safe.' },
+  { who: 'mint',   a: 26.7, b: 33.15, ml: 'തുടക്കത്തിന് 50/30/20 നോക്കാം. ഇതൊരു നിയമമല്ല, നിനക്ക് പറ്റുംപോലെ മാറ്റാം.', en: 'Start with 50/30/20. It’s not a rule: change it to suit you.' },
+  { who: 'mint',   a: 33.5, b: 43.9, ml: '₹45,000 ആണെങ്കിൽ: 22,500 ആവശ്യങ്ങൾക്ക്, 13,500 ആഗ്രഹങ്ങൾക്ക്, 9,000 സേവിങ്സിന്.', en: 'On ₹45,000: 22,500 for needs, 13,500 for wants, 9,000 for savings.' },
+  { who: 'manu',   a: 44.5, b: 48.5, ml: 'അയ്യോ... എന്റെ ആഗ്രഹങ്ങളുടെ ജാർ നിറഞ്ഞു കവിഞ്ഞല്ലോ!', en: 'Oh no... my wants jar is overflowing!' },
+  { who: 'maaman', a: 48.9, b: 53.9, ml: 'എല്ലാ പൈസയും ചെലവാക്കാനുള്ളതല്ല. ചിലത് നാളേക്കും മാറ്റിവെക്കണം!', en: 'Not all money is for spending. Some must be kept for tomorrow!' },
+]
+const L = LINES
+// cuts: where each shot starts
+const C = { two: 4.9, maaman: 9.5, blush: 13.6, crane: 14.6, track: 20.2, phone: 26.4, orbit: 33.3, spill: 44.0, close: 48.7, seed: 54.1 }
+// beats synced to words inside the clips (offsets measured from the recordings)
+const JAR_T = [2.2, 3.17, 4.18].map(o => L[3].a + o)            // each jar pops as Maaman names it
+const DROP = { house: L[4].a + .05, biryani: L[4].a + 1.45, sprout: L[4].a + 3.75 }  // each lands on its word
+const FILL = [[2.64, 2.6, .85], [5.63, 2.5, .51], [8.64, 1.6, .34]].map(([o, d, k]) => [L[6].a + o, d, k])  // coins rise as Mint says each amount: 50/30/20 of the jar
+const AMOUNTS = [22500, 13500, 9000]
+const SPILL = [.2, .6, 1.0, 1.4].map(o => C.spill + o)           // wants pile into the wants jar; the last tumbles out
+const PHONE_UP = [C.phone - .5, C.orbit + .2], SEED = C.seed, END = 55.9, DURATION = 60
+// the real recording: hold Balanced (50/30/20) while Mint says "start with 50/30/20", then let the
+// Custom tap play so the editable split opens on "change it to suit you". Times are as the browser
+// shows them (checked in-page): Balanced until ~2.2 s, Custom tapped ~2.2, fields open ~2.7, back at ~4.2.
+const recAt = t => clamp(1.1 + Math.max(0, t - L[5].a - 3.7), 1.1, 3.9)
+
+const v = new THREE.Vector3()
+const wp = o => { o.getWorldPosition(v); return v.toArray() }
+let H = {}  // tracked points this frame
+
+/* The shot list. bubble: whether the Malayalam bubble shows (wide/two-shots with the speaker
+   in frame); close-ups and prop shots carry the English subtitle only. */
+const SHOTS = [
+  // 1 · hook: Manu holds the box up by his face; focus racks from the box to his eyes
+  { t: 0,         pos: [.42, 1.6, 2.35], look: 'hookMid', lens: 50, focus: 'box', aperture: .035, bubble: false },
+  { t: C.two,     pos: [.44, 1.62, 2.15], look: 'hookMid', lens: 54, focus: 'manuHead', aperture: .035, rack: [1.0, 1.0], bubble: false },
+  // 2 · two-shot, slow truck right
+  { t: C.two,     cut: true, pos: [-.15, 1.45, 4.3], look: [0, 1.32, .5], lens: 34, focus: 'mid', aperture: .006, bubble: true },
+  { t: C.maaman,  pos: [.15, 1.45, 4.2], look: [.02, 1.34, .5], lens: 35, focus: 'mid', aperture: .006, bubble: true },
+  // 3 · Maaman MCU, then a cut-in on Manu's blush
+  { t: C.maaman,  cut: true, pos: [-.25, 1.92, 3.1], look: 'maamanFace', lens: 62, focus: 'maamanHead', aperture: .03, bubble: false },
+  { t: C.blush,   pos: [-.28, 1.92, 2.9], look: 'maamanFace', lens: 64, focus: 'maamanHead', aperture: .03, bubble: false },
+  { t: C.blush,   cut: true, pos: [.5, 1.84, 2.9], look: 'manuFace', lens: 70, focus: 'manuHead', aperture: .03, bubble: false },
+  { t: C.crane,   pos: [.52, 1.84, 2.8], look: 'manuFace', lens: 72, focus: 'manuHead', aperture: .03, bubble: false },
+  // 4 · low-angle crane up as the jars rise
+  { t: C.crane,   cut: true, pos: [0, .58, 2.65], look: [0, .7, 1.0], lens: 24, focus: [0, .66, 1.0], aperture: .01, bubble: true },
+  { t: C.track,   pos: [0, 1.3, 3.05], look: [0, .86, 1.0], lens: 26, focus: [0, .66, 1.0], aperture: .01, bubble: true },
+  // 5 · tracking along the jars; holds on each jar until its item lands, focus hops jar to jar
+  { t: C.track,   cut: true, pos: [-.6, .98, 2.15], look: [-.42, .76, 1.0], lens: 45, focus: 'jar0', aperture: .025, bubble: false, hold: DROP.house + .85 - C.track },
+  { t: DROP.biryani + .45, pos: [-.15, .98, 2.15], look: [-.05, .76, 1.0], lens: 45, focus: 'jar1', aperture: .025, rack: [DROP.house + .85 - C.track, .5], bubble: false, hold: DROP.sprout - .7 - (DROP.biryani + .45) },
+  { t: DROP.sprout + .45, pos: [.58, .98, 2.15], look: [.42, .76, 1.0], lens: 45, focus: 'jar2', aperture: .025, rack: [DROP.sprout - .7 - (DROP.biryani + .45), .5], bubble: false },
+  // 6 · push in on the phone: the real Budget Strategy screen, Mint in it
+  { t: C.phone,   cut: true, pos: [.62, 1.62, 3.0], look: 'phone', lens: 45, focus: 'phone', aperture: .02, bubble: false },
+  { t: C.phone + 2.6, pos: 'phoneNear', look: 'phone', lens: 85, focus: 'phone', aperture: .03, bubble: false },
+  { t: C.orbit,   pos: 'phoneNear', look: 'phone', lens: 85, focus: 'phone', aperture: .03, bubble: false },
+  // 7 · orbit round the jars as the coins rise to 50/30/20
+  { t: C.orbit,   cut: true, pos: [-1.15, 1.05, 2.3], look: [0, .72, 1.0], lens: 38, focus: [0, .7, 1.0], aperture: .012, bubble: false },
+  { t: C.spill,   pos: [1.1, 1.0, 2.25], via: [0, 1.2, 3.1], look: [0, .72, 1.0], lens: 38, focus: [0, .7, 1.0], aperture: .012, bubble: false },
+  // 8 · dolly-zoom on Manu as the wants jar overflows
+  // (Manu's head sits high in this framing: the bubble drops to the empty left, beside him)
+  { t: C.spill,   cut: true, pos: [.3, 1.2, 2.45], look: [.32, 1.08, .6], lens: 26, focus: 'manuHead', aperture: .01, bubble: true, bubbleAt: [40, 640, 520] },
+  { t: C.close,   pos: [.3, 1.2, 4.9], look: [.34, 1.14, .6], lens: 50, focus: 'manuHead', aperture: .01, bubble: true, bubbleAt: [40, 640, 520] },
+  // 9 · Maaman close-up, the takeaway
+  { t: C.close,   cut: true, pos: [-.4, 1.92, 3.05], look: 'maamanFace', lens: 66, focus: 'maamanHead', aperture: .03, bubble: false },
+  { t: C.seed,    pos: [-.44, 1.92, 2.75], look: 'maamanFace', lens: 70, focus: 'maamanHead', aperture: .03, bubble: false },
+  // 10 · the seedling on the windowsill, backlit, slow push
+  { t: C.seed,    cut: true, pos: [1.12, 1.34, -2.12], look: [1.05, 1.17, -2.8], lens: 50, focus: [1.05, 1.12, -2.78], aperture: .03, bubble: false },
+  { t: DURATION,  pos: [1.1, 1.32, -2.3], look: [1.05, 1.17, -2.8], lens: 55, focus: [1.05, 1.12, -2.78], aperture: .03, bubble: false },
+]
+const resolve = n => ({
+  manuHead: H.manu, maamanHead: H.maaman, box: H.box, phone: H.phone,
+  hookMid: [(H.manu[0] + H.box[0]) / 2, (H.manu[1] + H.box[1]) / 2 + .05, (H.manu[2] + H.box[2]) / 2],
+  manuFace: [H.manu[0], H.manu[1] + .06, H.manu[2]], maamanFace: [H.maaman[0], H.maaman[1] + .06, H.maaman[2]],
+  mid: [0, 1.5, .25], jar0: [JAR_X[0], .66, JAR_Z], jar1: [JAR_X[1], .66, JAR_Z], jar2: [JAR_X[2], .66, JAR_Z],
+  phoneNear: [H.phone[0] + .03, H.phone[1] + .01, H.phone[2] + .78],
+})[n]
+const shotKey = t => { let k = SHOTS[0]; for (const s of SHOTS) if (t >= s.t) k = s; return k }
+
+// ── helpers ──
+const during = (t, a, b) => t >= a && t < b
+const backOut = k => { const c = 1.9; return 1 + (c + 1) * (k - 1) ** 3 + c * (k - 1) ** 2 }
+const talking = (who, t) => LINES.some(l => l.who === who && during(t, l.a + .05, l.b - .15))
+const lerp3 = (a, b, k) => a.map((x, i) => x + (b[i] - x) * k)
+// an arc from `from` into a jar's mouth, then sinking out of sight inside it
+function dropInto(o, t, t0, from, jarI, { flyDur = .55, spin = 3 } = {}) {
+  const top = [JAR_X[jarI], TOP + jars[jarI].H + .02, JAR_Z]
+  if (t < t0) { o.visible = false; return }
+  const k = clamp((t - t0) / flyDur), sink = clamp((t - t0 - flyDur) / .5)
+  o.visible = sink < 1
+  const p = lerp3(from, top, k); p[1] += Math.sin(k * Math.PI) * .25 - sink * .22
+  o.position.set(...p); o.rotation.set(0, k * spin, 0)
+  o.scale.setScalar((.8 + .2 * k) * (1 - sink * .6))
+}
+
+const bubble = document.getElementById('bubble'), sub = document.getElementById('sub')
+const tags = [0, 1, 2].map(i => document.getElementById('tag' + i)), amts = [0, 1, 2].map(i => document.getElementById('amt' + i))
+const example = document.getElementById('example'), end = document.getElementById('end')
+const inr = n => '₹' + Math.round(n).toLocaleString('en-IN')
+
+async function render(t) {
+  home.animate(t)
+
+  // ── Manu ──
+  const phoneUp = ramp(t, PHONE_UP[0], .5) * (1 - ramp(t, PHONE_UP[1] - .2, .4))
+  const R0 = DROP.biryani - .1, reach = during(t, R0, R0 + 1.3) ? Math.sin(clamp((t - R0) / 1.3) * Math.PI) : 0
+  manu.pose(t, {
+    x: .75, z: .2, turn: -.35,
+    mood: t < C.two ? 'excited' : t < C.maaman ? 'grin' : t < L[2].a + 1.6 ? 'smile' : t < C.blush ? 'worried' : t < C.crane ? 'embarrassed'
+      : during(t, R0, R0 + 1.1) ? 'excited' : during(t, R0 + 1.1, R0 + 2.2) ? 'embarrassed' : t < C.spill ? 'smile' : t < C.close ? 'shocked' : 'determined',
+    talking: talking('manu', t),
+    look: t < C.two ? [-.3, -.55] : during(t, C.blush, C.crane) ? [0, -.6] : during(t, C.crane, C.spill) ? [-.35, -.45] : [-.45, 0],
+    headTurn: t < C.two ? -.12 : -.2, nod: t < C.two ? -.12 : during(t, C.blush, C.crane) ? -.18 : during(t, C.crane, C.spill) ? -.1 : 0,
+    lean: t < C.two ? .06 : reach * .12,
+    jump: during(t, L[7].a, L[7].a + .5) ? Math.sin((t - L[7].a) / .5 * Math.PI) * .1 : 0,
+    armR: phoneUp > 0 ? { raise: .2 + .85 * phoneUp, elbow: .2 + 1.15 * phoneUp, out: .08, hand: 'fist' }
+      : t < C.two ? { raise: .55, elbow: .35, out: .05, twist: -.3 }
+      : { raise: .05 + reach * 1.0, elbow: .15 + reach * .1, out: .1 + reach * .15 },
+    armL: t < C.two ? { raise: 1.15 + .04 * Math.sin(t * 4), elbow: 1.5, out: -.05, hand: 'fist' } : during(t, L[7].a, C.close) ? { raise: 1.0 + .1 * Math.sin(t * 6), elbow: 1.4, out: .5 } : { raise: .05, elbow: .15, out: .12 },
+  })
+  // ── Maaman ──
+  const gesture = talking('maaman', t) ? 1 : 0
+  maaman.pose(t, {
+    x: -.8, z: .15, turn: .35,
+    mood: t < C.maaman ? 'amused' : t < C.crane ? 'knowing' : t < SPILL[2] ? 'smile' : t < C.close ? 'laugh' : 'smile',
+    talking: talking('maaman', t), look: during(t, C.crane, C.spill) ? [.25, -.45] : [.45, 0],
+    nod: during(t, C.crane, C.spill) ? -.08 : 0, headTurn: during(t, C.maaman, C.blush) ? .12 : 0,
+    armR: during(t, L[1].a, L[1].b) ? { raise: .75, elbow: 1.5, out: .22, hand: 'point' }
+      : during(t, L[2].a, L[2].b) ? { raise: .6 + .08 * Math.sin(t * 7), elbow: 1.2, out: .3 }
+      : during(t, L[3].a, L[4].b) ? { raise: .55 + .05 * Math.sin(t * 3), elbow: .4, out: .35 }
+      : { raise: .05 + gesture * .2, elbow: .15 + gesture * .5, out: .14 },
+    armL: during(t, L[8].a, L[8].b) ? { raise: .45, elbow: 1.9, out: -.1, across: 1.1 } : { raise: .05, elbow: .15, out: .12 },
+  })
+  H = { manu: wp(manu.head), maaman: wp(maaman.head) }
+
+  // ── props ──
+  // hook box on the table, tag swinging; it leaves when the jars arrive
+  const boxOut = ramp(t, C.crane - .3, .3)
+  box.root.visible = boxOut < 1
+  if (t < C.two) {  // in Manu's hand, turned to camera, with a little excited shake
+    manu.armL.hand.getWorldPosition(v)
+    box.root.position.copy(v).add(new THREE.Vector3(.02, -.06, .1)); box.root.rotation.set(0, .25 + Math.sin(t * 9) * .05, Math.sin(t * 7) * .04)
+    box.root.scale.setScalar(1.25)
+  } else {
+    box.root.position.set(.3 + boxOut * .6, TOP, 1.15); box.root.rotation.set(0, -.2, 0); box.root.scale.setScalar(1)
+  }
+  box.tagPivot.rotation.z = Math.sin(t * 3.2) * .3
+  H.box = box.root.position.toArray(); H.box[1] += .13
+  jars.forEach((j, i) => {
+    const k = clamp((t - JAR_T[i]) / .5)
+    j.root.visible = k > 0
+    j.root.scale.setScalar(Math.max(.001, backOut(k)))
+    const f = FILL[i]; j.setFill(ramp(t, f[0], f[1]) * f[2])
+    j.root.rotation.z = i === 1 && during(t, SPILL[2], SPILL[2] + 2.2) ? Math.sin((t - SPILL[2]) * 14) * .06 * (1 - (t - SPILL[2]) / 2.2) : 0
+  })
+  dropInto(house, t, DROP.house, [-.8, 1.6, 1.3], 0)
+  dropInto(biryani, t, DROP.biryani, [-.1, 1.7, 1.4], 1)
+  dropInto(sprout, t, DROP.sprout, [.8, 1.6, 1.3], 2)
+  // the overflow: wants pile up in the wants jar; the last one tumbles over the rim
+  const pile = [bag, ticket, box2.root, biryani2]
+  pile.forEach((o, i) => {
+    const t0 = SPILL[i]
+    if (t < t0 || t >= DURATION) { o.visible = false; return }
+    o.visible = true
+    const restY = TOP + jars[1].H - .06 + i * .075
+    const k = clamp((t - t0) / .45)
+    const from = [JAR_X[1] + (i % 2 ? .25 : -.25), 1.5, JAR_Z + .2]
+    const p = lerp3(from, [JAR_X[1], restY, JAR_Z], k); p[1] += Math.sin(k * Math.PI) * .15
+    if (i === pile.length - 1) {  // tumble out onto the table
+      const f = clamp((t - t0 - .5) / .5)
+      p[0] += f * .26; p[1] = p[1] * (1 - f) + (TOP + .02) * f + Math.sin(f * Math.PI) * .06; p[2] += f * .08
+      o.rotation.set(0, 0, -f * 1.4)
+    } else o.rotation.set(0, i * .8 + k, (i % 2 ? .3 : -.3) * k)
+    o.position.set(...p); o.scale.setScalar(.85)
+  })
+  seedling.sprout.rotation.z = Math.sin(t * 1.4) * .06
+
+  // ── phone in Manu's hand ──
+  phone.root.visible = phoneUp > .01
+  manu.armR.hand.getWorldPosition(v)
+  phone.root.position.copy(v).add(new THREE.Vector3(-.02, .17, .1))
+  H.phone = phone.root.position.toArray()
+
+  // ── camera (before anything aims at it) ──
+  const key = shotKey(t)
+  stage.frame(shotAt(SHOTS, t, resolve))
+  phone.root.lookAt(camera.position)
+  mint.pose(t, { mood: during(t, L[5].a + 4.8, L[5].b) ? 'excited' : 'happy', talking: talking('mint', t) })
+  updateClip()
+  if (phone.root.visible) await rec.seek(recAt(t))
+  stage.render()
+
+  // ── overlays ──
+  // jar tags: on whenever a jar is up and on screen (not in the phone / close-up shots)
+  // tags only in the crane and the orbit: in the tracking and overflow shots they'd cover the action
+  const jarShot = during(t, C.crane, C.track) || during(t, C.orbit, C.spill)
+  jars.forEach((j, i) => {
+    const p = stage.project(new THREE.Vector3(JAR_X[i], TOP + j.H * j.root.scale.y + .05, JAR_Z))
+    const on = jarShot && j.root.visible && !p.behind && p.x > 60 && p.x < 1020 && p.y > 480 && p.y < 1560
+    tags[i].style.opacity = on ? clamp((t - JAR_T[i] - .3) / .3) : 0
+    tags[i].style.left = p.x + 'px'; tags[i].style.top = p.y + 'px'
+    const f = FILL[i], k = ramp(t, f[0], f[1])
+    amts[i].textContent = t >= f[0] ? inr(AMOUNTS[i] * k) : ''
+  })
+  const ti = Math.min(ramp(t, .2, .3), 1 - ramp(t, C.two - .4, .3)); document.getElementById('title').style.opacity = ti
+  document.getElementById('title').style.transform = `scale(${.85 + .15 * ti})`
+  example.style.opacity = during(t, C.orbit + .2, C.spill) ? Math.min(1, (t - C.orbit - .2) / .3, (C.spill - t) / .3) : 0
+
+  const line = LINES.find(l => during(t, l.a, l.b))
+  if (line) {
+    const fade = Math.min(1, (t - line.a) / .2, (line.b - t) / .2)
+    bubble.textContent = line.ml; sub.textContent = line.en
+    const speaker = H[line.who]
+    const p = speaker && stage.project(new THREE.Vector3(...speaker))
+    const showBubble = key.bubble && p && !p.behind && p.x > -100 && p.x < 1180
+    bubble.style.opacity = showBubble ? fade : 0; sub.style.opacity = fade
+    // a shot may pin the bubble: bubbleAt = [left, top, max width], tail toward the speaker
+    const [bl, bt, bw] = key.bubbleAt ?? [null, 400, 760]
+    bubble.style.top = bt + 'px'; bubble.style.maxWidth = bw + 'px'
+    if (showBubble) {
+      const w = bubble.offsetWidth, left = bl ?? Math.min(1080 - 50 - w, Math.max(50, p.x - w / 2))
+      bubble.style.left = left + 'px'; bubble.style.setProperty('--tail', Math.min(w - 60, Math.max(60, p.x - left)) + 'px')
+    }
+  } else { bubble.style.opacity = 0; sub.style.opacity = 0 }
+
+  // end card: soft green wipe in, then its lines rise one by one
+  const e = ramp(t, END, .5)
+  end.style.opacity = e; end.style.clipPath = `circle(${e * 150}% at 50% 100%)`
+  ;[...end.children].forEach((c, i) => { const k = ramp(t, END + .3 + i * .25, .4); c.style.opacity = k; c.style.transform = `translateY(${(1 - k) * 40}px)` })
+}
+
+window.REEL_OUT_DIR = 'manu-maaman/s2/ep01'
+window.REEL_SFX = [
+  { t: .1, kind: 'whoosh' }, { t: C.blush + .1, kind: 'boing' },
+  ...JAR_T.map(t => ({ t, kind: 'chime' })),
+  { t: DROP.house + .55, kind: 'register' }, { t: DROP.biryani + .55, kind: 'register' }, { t: DROP.biryani + .6, kind: 'boing' }, { t: DROP.sprout + .55, kind: 'register' },
+  { t: C.phone, kind: 'whoosh' },
+  ...FILL.map(([a, d]) => ({ t: a + d, kind: 'register' })),
+  { t: SPILL[2] + .3, kind: 'boing' }, { t: SPILL[3] + .9, kind: 'boing' },
+  { t: SEED + .2, kind: 'chime' }, { t: END, kind: 'whoosh' }, { t: END + .3, kind: 'chime' },
+]
+// voice-over, mixed by render-s2.mjs into <name>-voice.mp4: clip n starts at LINES[n-1].a
+window.REEL_VOICE = { files: LINES.map((_, i) => `private/voice/s2-ep01/${String(i + 1).padStart(2, '0')}.mp3`), starts: LINES.map(l => l.a) }
+bootS2(stage, render, DURATION, [1.0, 3.6, 7.0, 11.5, 14.0, 18.6, 21.2, 22.6, 24.9, 28.0, 32.0, 36.5, 41.0, 45.8, 50.5, 55.0, 58.0])
+</script>
+</body>
+</html>
