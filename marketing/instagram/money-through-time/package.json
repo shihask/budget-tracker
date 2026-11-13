@@ -1,0 +1,9 @@
+{
+  "name": "moneyplant-money-through-time",
+  "private": true,
+  "description": "Money Through Time — photoreal historical series assembled from Flow clips. Tooling only; not part of the app.",
+  "type": "module",
+  "dependencies": {
+    "ffmpeg-static": "5.2.0"
+  }
+}

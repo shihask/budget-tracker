@@ -1,0 +1,38 @@
+[
+  {
+    "id": "133b42ea-752f-4da2-965d-73ddbf3fcd51",
+    "name": "Bike EMI",
+    "remaining": 4500,
+    "category_id": "43daa76a-fe33-4343-8490-ed889d8c2e71",
+    "amount": 4500,
+    "is_recurring": true,
+    "frequency": "monthly",
+    "due_day": 11,
+    "from_account_id": "ff8fda70-99c0-4413-9f31-4bbac2c2fbcc",
+    "is_active": true,
+    "user_id": "ac0f662e-1d6c-40ac-9d4d-3c4077610630",
+    "last_paid_date": "2026-10-12",
+    "total_installments": 18,
+    "current_installment": 6,
+    "due_date": "2026-11-11",
+    "paid_through": null
+  },
+  {
+    "id": "331261d7-219b-4a74-bf55-5fc944f9ef68",
+    "name": "Rent",
+    "remaining": 18000,
+    "category_id": "31839a83-f0b8-4e11-a1c6-43bc9768a2c2",
+    "amount": 18000,
+    "is_recurring": true,
+    "frequency": "monthly",
+    "due_day": 25,
+    "from_account_id": "ff8fda70-99c0-4413-9f31-4bbac2c2fbcc",
+    "is_active": true,
+    "user_id": "ac0f662e-1d6c-40ac-9d4d-3c4077610630",
+    "last_paid_date": "2026-10-26",
+    "total_installments": null,
+    "current_installment": 0,
+    "due_date": "2026-11-25",
+    "paid_through": null
+  }
+]

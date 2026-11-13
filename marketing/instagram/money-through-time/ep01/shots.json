@@ -1,0 +1,378 @@
+{
+  "episode": "S01E01",
+  "title": "Before Money, How Did People Keep Accounts?",
+  "fps": 24,
+  "size": [
+    1080,
+    1920
+  ],
+  "tag": "Dramatised reconstruction",
+  "shots": [
+    {
+      "id": "S01-black",
+      "black": true,
+      "duration": 0.7083,
+      "note": "Scene 01 opens on black (screenplay: Black. Wind.)"
+    },
+    {
+      "id": "01A",
+      "duration": 3.875,
+      "in": 0,
+      "approved": "01A.mp4",
+      "grade": {
+        "gamma": 0.9,
+        "contrast": 1.04,
+        "saturation": 0.95
+      },
+      "audio": {
+        "keep": false
+      },
+      "factCheck": "markings not verified — see takes[].notes",
+      "takes": [
+        {
+          "file": "01A.mp4",
+          "status": "approved",
+          "notes": "Generated tablet markings (incl. wedge-like and other invented signs) are a visual reconstruction, NOT verified proto-cuneiform; never described as real signs. Approved for the Scene 01 edit by the user 2026-11-11. No visible watermark (clean Google-encoded download; its watermarked twin is Camera_reveals_ancient_clay_tablet_ea49d3cb_1080p.mp4 in Downloads).",
+          "dur": 3.92,
+          "w": 1080,
+          "h": 1920,
+          "fps": 24,
+          "audio": true
+        }
+      ]
+    },
+    {
+      "id": "01B",
+      "duration": 3.875,
+      "in": 0,
+      "approved": "01B.mp4",
+      "grade": {
+        "gamma": 0.9,
+        "contrast": 1.04,
+        "saturation": 0.95
+      },
+      "zoom": 1.1,
+      "focus": [
+        0,
+        0.5
+      ],
+      "audio": {
+        "keep": false
+      },
+      "factCheck": "markings not verified — see takes[].notes",
+      "takes": [
+        {
+          "file": "01B.mp4",
+          "status": "approved",
+          "notes": "Generated tablet markings (incl. wedge-like and other invented signs) are a visual reconstruction, NOT verified proto-cuneiform; never described as real signs. Approved for the Scene 01 edit by the user 2026-11-11. No visible watermark. 1.1x push-in anchored left to favour the round impressions.",
+          "dur": 3.92,
+          "w": 1080,
+          "h": 1920,
+          "fps": 24,
+          "audio": true
+        }
+      ]
+    },
+    {
+      "id": "01C",
+      "duration": 3.875,
+      "in": 0,
+      "approved": "01C.mp4",
+      "grade": {
+        "gamma": 0.9,
+        "contrast": 1.04,
+        "saturation": 0.95
+      },
+      "dissolve": 0.5,
+      "hold": 1.25,
+      "fade": {
+        "out": 1
+      },
+      "audio": {
+        "keep": false
+      },
+      "factCheck": "markings not verified — see takes[].notes",
+      "takes": [
+        {
+          "file": "01C.mp4",
+          "status": "approved",
+          "notes": "Generated tablet markings (incl. wedge-like and other invented signs) are a visual reconstruction, NOT verified proto-cuneiform; never described as real signs. Approved for the Scene 01 edit by the user 2026-11-11. VISIBLE WATERMARK (sparkle, bottom right ~x1000 y1700) kept as delivered — never cropped, blurred or covered. User to supply a clean Flow download; replace the file only then.",
+          "dur": 3.92,
+          "w": 1080,
+          "h": 1920,
+          "fps": 24,
+          "audio": true
+        }
+      ]
+    },
+    {
+      "id": "02A",
+      "duration": 4.9167,
+      "in": 0,
+      "approved": "02A.mp4",
+      "fade": {
+        "in": 0.5
+      },
+      "audio": {
+        "keep": false
+      },
+      "factCheck": "mud brick, flat roofs, flat terrace platform (no stepped ziggurat); street layout DRAMATISATION",
+      "takes": [
+        {
+          "file": "02A.mp4",
+          "status": "approved",
+          "notes": "Aerial city (prompt \"Shot 04\"). Camera barely moves. VISIBLE WATERMARK (sparkle, bottom right ~x865-935 y1700-1770) kept as delivered - never cropped, blurred or covered. Approved for the Scene 02 edit by the user 2026-11-11.",
+          "dur": 4.96,
+          "w": 1080,
+          "h": 1920,
+          "fps": 24,
+          "audio": true
+        }
+      ]
+    },
+    {
+      "id": "02B",
+      "duration": 4.7083,
+      "in": 0,
+      "approved": "02B.mp4",
+      "zoom": 1.137,
+      "focus": [
+        0,
+        1
+      ],
+      "audio": {
+        "keep": false
+      },
+      "factCheck": "wheeled cart cropped out by the push-in; battlemented towers (medieval-looking) remain by decision",
+      "takes": [
+        {
+          "file": "02B.mp4",
+          "status": "approved",
+          "notes": "Street (prompt \"Shot 05\"). Contains a wheeled cart (anachronism, right edge, x >= ~970) and battlemented towers. Push-in 1.137x anchored bottom-left removes the cart and keeps the watermark fully in frame; the requested 1.2x would have cropped the watermark. VISIBLE WATERMARK (sparkle, bottom right ~x865-935 y1700-1770) kept as delivered - never cropped, blurred or covered. Approved for the Scene 02 edit by the user 2026-11-11.",
+          "dur": 4.96,
+          "w": 1080,
+          "h": 1920,
+          "fps": 24,
+          "audio": true
+        }
+      ]
+    },
+    {
+      "id": "02C",
+      "duration": 6.875,
+      "in": 0,
+      "approved": "02C.mp4",
+      "audio": {
+        "keep": false
+      },
+      "factCheck": "hand grinding stone on a quern (documented); the round quern shape and a decorative wall disc are reconstruction",
+      "takes": [
+        {
+          "file": "02C.mp4",
+          "status": "approved",
+          "notes": "Grinding grain and basket weaving (prompt \"Shot 06\"). Quern is round (period querns are saddle-shaped); faint distant battlements; decorative disc on a wall. VISIBLE WATERMARK (sparkle, bottom right ~x865-935 y1700-1770) kept as delivered - never cropped, blurred or covered. Approved for the Scene 02 edit by the user 2026-11-11.",
+          "dur": 6.98,
+          "w": 1080,
+          "h": 1920,
+          "fps": 24,
+          "audio": true
+        }
+      ]
+    },
+    {
+      "id": "T01",
+      "duration": 7,
+      "prompt": "prompts/T01.md",
+      "factCheck": "prompt checked 2026-11-10; video not reviewed",
+      "approved": null,
+      "in": 0.5,
+      "audio": {
+        "keep": true,
+        "gain": 0.6
+      },
+      "takes": []
+    }
+  ],
+  "lines": [
+    {
+      "voice": "01.mp3",
+      "a": 0.7,
+      "b": 3.85,
+      "en": "What is written on this small clay tablet?"
+    },
+    {
+      "voice": "02.mp3",
+      "a": 4.05,
+      "b": 7.35,
+      "en": "A story? A king's name?"
+    },
+    {
+      "voice": "03.mp3",
+      "a": 7.55,
+      "b": 12.68,
+      "en": "No. It is an account kept by people about 5,000 years ago."
+    },
+    {
+      "voice": "04.mp3",
+      "a": 13.78,
+      "b": 16.93,
+      "en": "Around 3200 BCE."
+    },
+    {
+      "voice": "05.mp3",
+      "a": 17.13,
+      "b": 19.23,
+      "en": "Uruk, in southern Mesopotamia."
+    },
+    {
+      "voice": "06.mp3",
+      "a": 19.43,
+      "b": 22.58,
+      "en": "One of the largest early cities in the world."
+    },
+    {
+      "voice": "07.mp3",
+      "a": 22.78,
+      "b": 29.19,
+      "en": "The city is growing. Farming, trade and administration are becoming more complex."
+    },
+    {
+      "voice": "08.mp3",
+      "a": 30.29,
+      "b": 34.44,
+      "en": "Grain, livestock, workers and goods..."
+    },
+    {
+      "voice": "09.mp3",
+      "a": 34.64,
+      "b": 37.87,
+      "en": "Large institutions had to manage them all."
+    },
+    {
+      "voice": "10.mp3",
+      "a": 38.07,
+      "b": 43.78,
+      "en": "Who received how much grain? How much arrived? How much remained?"
+    },
+    {
+      "voice": "11.mp3",
+      "a": 43.98,
+      "b": 47.6,
+      "en": "Keeping all of this in memory alone was not easy."
+    },
+    {
+      "voice": "12.mp3",
+      "a": 48.7,
+      "b": 51.27,
+      "en": "No paper. No books."
+    },
+    {
+      "voice": "13.mp3",
+      "a": 51.47,
+      "b": 57.1,
+      "en": "Long before coins, people in Uruk kept records by pressing marks into clay."
+    },
+    {
+      "voice": "14.mp3",
+      "a": 57.3,
+      "b": 61.96,
+      "en": "The quantity and details of every item were recorded in marks."
+    },
+    {
+      "voice": "15.mp3",
+      "a": 63.06,
+      "b": 69,
+      "en": "Many of the earliest tablets found at Uruk are administrative records."
+    },
+    {
+      "voice": "16.mp3",
+      "a": 69.2,
+      "b": 74.01,
+      "en": "How much grain was there? Who delivered it? How much was handed out?"
+    },
+    {
+      "voice": "17.mp3",
+      "a": 74.21,
+      "b": 80.39,
+      "en": "The same number sign could stand for different quantities, depending on what was being counted."
+    },
+    {
+      "voice": "18.mp3",
+      "a": 81.49,
+      "b": 87.59,
+      "en": "But many of the tablets we study today were not found in carefully kept collections."
+    },
+    {
+      "voice": "19.mp3",
+      "a": 87.79,
+      "b": 93.81,
+      "en": "They had been thrown away, and later buried in building fill."
+    },
+    {
+      "voice": "20.mp3",
+      "a": 94.01,
+      "b": 97.71,
+      "en": "Thousands of years later, they came to light again."
+    },
+    {
+      "voice": "21.mp3",
+      "a": 99.61,
+      "b": 102.6,
+      "en": "One group of signs appears in an ancient account..."
+    },
+    {
+      "voice": "22.mp3",
+      "a": 102.8,
+      "b": 103.8,
+      "en": "\"KU.ŠIM\"."
+    },
+    {
+      "voice": "23.mp3",
+      "a": 104,
+      "b": 110.33,
+      "en": "Was it a person's name? A title? Or the name of an institution?"
+    },
+    {
+      "voice": "24.mp3",
+      "a": 110.53,
+      "b": 114.7,
+      "en": "Even after 5,000 years, the question remains unresolved."
+    }
+  ],
+  "cards": [],
+  "ambience": [
+    {
+      "file": "ambience/wind-ep01-s01-s02.wav",
+      "at": 0,
+      "gain": 0.15,
+      "note": "Wind, synthesized; full through Scene 01, fades out 14-19 s under the city bed"
+    },
+    {
+      "file": "ambience/city-ep01-s02.wav",
+      "at": 13.0833,
+      "gain": 0.18,
+      "note": "Distant city, synthesized; fades in over the first 4 s of Scene 02"
+    }
+  ],
+  "tests": {
+    "T01": {
+      "note": "TEST ONLY — local time for a T01-only render (--test). Never part of the episode timeline.",
+      "lines": [
+        {
+          "voice": "13.mp3",
+          "a": 0.3,
+          "b": 5.93,
+          "en": "Long before coins, people in Uruk kept records by pressing marks into clay."
+        }
+      ],
+      "cards": [
+        {
+          "a": 0.3,
+          "b": 5.2,
+          "title": "Uruk · Southern Mesopotamia",
+          "sub": "c. 3200 BCE"
+        }
+      ]
+    }
+  }
+}
