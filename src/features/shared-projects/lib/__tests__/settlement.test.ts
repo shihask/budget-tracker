@@ -395,6 +395,22 @@ describe('regression vs the legacy calcSettlement', () => {
     expect(r.transfers).toEqual([])
     expect(nets(r)).toEqual({ A: 0, B: 0, C: 0, Kitty: 0 })
   })
+  it('R5 Wayanad + ₹2,000 sponsor money still in hand: shares drop, kitty pays it out', () => {
+    const m = crew('Muneer', 'Kabeer', 'Jasi', 'Safvan', 'Noushad', 'Shihas', 'Mukeeth')
+    const t = [
+      ...['Muneer', 'Kabeer', 'Jasi', 'Safvan'].map(n => contrib(2000, n)), contrib(1700, 'Noushad'),
+      contrib(2000, null), // "From outside the group" — the sponsor
+      spend(200, 'Shihas'), spend(980, 'Kabeer'), spend(220, 'Kabeer'), spend(280, 'Muneer'), spend(10467.08, 'Safvan'), spend(9700),
+    ]
+    const r = computeSettlement(m, t)
+    expectBalanced(r)
+    expect(r.totals).toEqual({ expenses: 2184708, groupMoney: 200000, sharedCost: 1984708 })
+    // 1,984,708 p ÷ 7 = 283,529 r 5 → first five by order get 283,530.
+    expect(r.participants.slice(0, 7).map(p => p.share)).toEqual([283530, 283530, 283530, 283530, 283530, 283529, 283529])
+    expect(nets(r)).toEqual({ Muneer: -555.3, Kabeer: 364.7, Jasi: -835.3, Safvan: 9631.78, Noushad: -1135.3, Shihas: -2635.29, Mukeeth: -2835.29, Kitty: -2000 })
+    expect(r.kitty.balance).toBe(200000)
+    expect(r.reconciliation).toEqual({ membersPay: 799648, kittyPays: 200000, kittyOwed: 0, membersReceive: 999648 })
+  })
   it('parity: active-only, empty kitty → member nets within ₹0.01 of legacy', () => {
     const m = crew('A', 'B', 'C')
     const t = [contrib(1000, 'A'), contrib(500, 'B'), spend(1500), spend(733.33, 'C'), spend(100.01, 'A')]

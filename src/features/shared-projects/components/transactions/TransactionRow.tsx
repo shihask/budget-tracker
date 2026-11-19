@@ -3,7 +3,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import type { ColorTokens } from '@/lib/tokens'
 import type { ProjectTransaction } from '../../types'
-import { describeTransaction } from '../../lib/transactions'
+import { describeTransaction, GROUP_MONEY_SOURCE } from '../../lib/transactions'
 import { FONT } from '../overview/styles'
 import { kindTile } from './kindTile'
 
@@ -30,7 +30,9 @@ export function TransactionRow({ txn, attachmentCount, wide, onOpen }: Props) {
   const c = useTheme()
   const v = describeTransaction(txn)
   const tile = kindTile(c, v.kind)
-  const isContrib = v.kind === 'contribution'
+  // Money into the kitty: a member's contribution or group money.
+  const isContrib = v.sign === 1
+  const isGroup = v.kind === 'group-money'
 
   const amount = (
     <span style={{ font: `700 14px ${FONT}`, color: isContrib ? c.good : c.ink, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
@@ -44,7 +46,7 @@ export function TransactionRow({ txn, attachmentCount, wide, onOpen }: Props) {
     </span>
   )
   const who = isContrib
-    ? <span style={{ color: c.sub }}>Contribution{txn.description ? ` · ${txn.description}` : ''}</span>
+    ? <span style={{ color: c.sub }}>{isGroup ? GROUP_MONEY_SOURCE : 'Contribution'}{txn.description ? ` · ${txn.description}` : ''}</span>
     : v.kind === 'expense-kitty'
       ? <KittyPill c={c} />
       : <span>Paid by {v.memberName}</span>
@@ -69,7 +71,7 @@ export function TransactionRow({ txn, attachmentCount, wide, onOpen }: Props) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ font: `600 14px ${FONT}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {/* In columns the member has its own column, so a contribution is titled by type. */}
-          {wide && isContrib ? 'Contribution' : v.title}
+          {wide && isContrib && !isGroup ? 'Contribution' : v.title}
         </div>
         {wide ? (
           (isContrib ? txn.description : v.subtitleCategory) && (
@@ -91,7 +93,7 @@ export function TransactionRow({ txn, attachmentCount, wide, onOpen }: Props) {
       {wide ? (
         <>
           <div style={{ font: `500 13px ${FONT}`, color: c.sub, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {isContrib ? v.memberName : v.kind === 'expense-kitty' ? <KittyPill c={c} /> : v.memberName}
+            {isGroup ? 'Outside the group' : v.kind === 'expense-kitty' ? <KittyPill c={c} /> : v.memberName}
           </div>
           <div style={{ textAlign: 'right' }}>{amount}</div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{clip}</div>

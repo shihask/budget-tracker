@@ -28,6 +28,10 @@ interface Props {
   existingAttachmentCount?: number
 }
 
+/** Select values for "no member": a kitty-paid expense, or group money for a contribution. */
+const FUND = '__fund__'
+const OUTSIDE = '__outside__'
+
 export function ProjectTransactionSheet({ open, onClose, mode, members, projectId, onSave, editTxn, budgets = [], existingAttachmentCount = 0 }: Props) {
   const c = useTheme()
   const [memberId, setMemberId] = useState<string>('')
@@ -44,7 +48,8 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
 
   useEffect(() => {
     if (open && editTxn) {
-      setMemberId(editTxn.member_id || '')
+      // No member: a kitty-paid expense, or group money (a contribution from outside the group).
+      setMemberId(editTxn.member_id || (editTxn.transaction_type === 'contribution' ? OUTSIDE : FUND))
       setAmount(String(editTxn.amount))
       setDescription(editTxn.description || '')
       setCategory(editTxn.category || '')
@@ -69,7 +74,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
     try {
       await onSave({
         project_id: projectId,
-        member_id: (memberId && memberId !== '__fund__') ? memberId : null,
+        member_id: (memberId && memberId !== FUND && memberId !== OUTSIDE) ? memberId : null,
         transaction_type: mode,
         amount: amt,
         description: description.trim() || undefined,
@@ -113,24 +118,30 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {members.length > 0 && (
             <div>
-              <div style={labelStyle}>{isContribution ? 'Member' : 'Paid By'}</div>
+              <div style={labelStyle}>{isContribution ? 'From' : 'Paid By'}</div>
               <select
                 value={memberId}
                 onChange={e => setMemberId(e.target.value)}
                 style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}
               >
                 {isContribution ? (
-                  <option value="">Select member</option>
+                  <option value="">Select who it's from</option>
                 ) : (
                   <>
                     <option value="">Select who paid</option>
-                    <option value="__fund__">Project Fund (from contributions)</option>
+                    <option value={FUND}>Project Fund (from contributions)</option>
                   </>
                 )}
                 {members.filter(m => m.is_active).map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
+                {isContribution && <option value={OUTSIDE}>Outside the group</option>}
               </select>
+              {isContribution && memberId === OUTSIDE && (
+                <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 6, lineHeight: 1.5 }}>
+                  Group money, like a sponsor, refund or cashback. It goes into the kitty and lowers everyone's share. It isn't credited to any member, and nobody owes it back.
+                </div>
+              )}
             </div>
           )}
 

@@ -1,5 +1,6 @@
 import { round2 } from '@/lib/utils'
 import type { ProjectSummary, ProjectTransaction } from '../types'
+import { transactionKind } from './transactions'
 
 // Display-only helpers for the Overview tab. Nothing here is a new
 // calculation: kitty spend/remaining were already computed inline by the old
@@ -13,14 +14,14 @@ const PAISE_EPSILON = 0.01
 export type KittyState = 'remaining' | 'used' | 'overspent' | 'none'
 
 export interface KittySource {
-  key: 'members'
+  key: 'members' | 'group'
   label: string
   amount: number
 }
 
 export interface KittyBreakdown {
-  /** Money that entered the kitty, by source. Only member contributions exist
-   *  today; a future non-member inflow type adds a row here and the total follows. */
+  /** Money that entered the kitty, by source: member contributions, plus group money
+   *  (contributions with no member — sponsors, refunds) when there is any. */
   sources: KittySource[]
   kittyFunds: number
   /** Expenses paid from the Project Fund (no member). */
@@ -33,8 +34,14 @@ export interface KittyBreakdown {
 }
 
 export function kittyBreakdown(summary: ProjectSummary, transactions: ProjectTransaction[]): KittyBreakdown {
+  // Same rule as the settlement engine and the Transactions tab: a contribution with
+  // no (existing) member is group money.
+  const groupMoney = round2(transactions
+    .filter(t => transactionKind(t) === 'group-money')
+    .reduce((s, t) => s + t.amount, 0))
   const sources: KittySource[] = [
-    { key: 'members', label: 'Member contributions', amount: summary.totalContributions },
+    { key: 'members', label: 'Member contributions', amount: round2(summary.totalContributions - groupMoney) },
+    ...(groupMoney > 0 ? [{ key: 'group' as const, label: 'Group money (outside the group)', amount: groupMoney }] : []),
   ]
   const kittyFunds = round2(sources.reduce((s, x) => s + x.amount, 0))
   const fundSpent = round2(transactions

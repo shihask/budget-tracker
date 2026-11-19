@@ -2,6 +2,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import type { ProjectTransaction } from '../../types'
 import { FONT, cardStyle, shortDate } from './styles'
+import { GROUP_MONEY_LABEL, GROUP_MONEY_SOURCE } from '../../lib/transactions'
 import { SectionHeader } from './ui'
 
 const MAX_SHOWN = 5
@@ -24,10 +25,10 @@ export function RecentTransactionsCard({ transactions, onViewAll }: Props) {
           const isContrib = txn.transaction_type === 'contribution'
           const fromKitty = !isContrib && txn.member_id == null
           const title = isContrib
-            ? (txn.member?.name || 'Unknown')
+            ? (txn.member?.name || GROUP_MONEY_LABEL)
             : (txn.description || txn.category || 'Expense')
           const meta = isContrib
-            ? 'Contribution'
+            ? (txn.member ? 'Contribution' : GROUP_MONEY_SOURCE)
             : fromKitty ? 'From kitty' : `Paid by ${txn.member?.name || 'Unknown'}`
           return (
             <div key={txn.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>

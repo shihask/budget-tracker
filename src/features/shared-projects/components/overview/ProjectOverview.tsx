@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import type { Project, ProjectRole, ProjectSummary, MemberSummary, ProjectTransaction, BudgetSummary, ProjectTab } from '../../types'
 import { kittyBreakdown } from '../../lib/overview'
+import { transactionKind } from '../../lib/transactions'
 import { BudgetBreakdownSection } from '../BudgetBreakdownSection'
 import { KittySummaryCard } from './KittySummaryCard'
 import { TargetProgressCard } from './TargetProgressCard'
@@ -66,7 +67,7 @@ export function ProjectOverview({
             {showContribs && (
               <ContributionsCard
                 memberSummaries={memberSummaries}
-                contributionCount={summary.contributionCount}
+                contributionCount={transactions.filter(t => transactionKind(t) === 'contribution').length}
                 hasTarget={target > 0}
                 onViewAll={() => onGoToTab('members')}
               />

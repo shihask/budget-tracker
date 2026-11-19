@@ -51,9 +51,11 @@ export function TransactionsTab({ transactions, attachments, members, canEdit, o
   const paidByOptions = useMemo((): PaidByOption[] => {
     const counts = new Map<string, number>()
     for (const t of transactions) if (t.member_id) counts.set(t.member_id, (counts.get(t.member_id) ?? 0) + 1)
+    const outside = transactions.filter(t => transactionKind(t) === 'group-money').length
     return [
       { id: 'all', label: 'Everyone', count: transactions.length },
       { id: 'kitty', label: 'Kitty', hint: 'project fund', count: transactions.filter(t => transactionKind(t) === 'expense-kitty').length },
+      ...(outside > 0 ? [{ id: 'outside', label: 'Outside the group', hint: 'group money', count: outside }] : []),
       ...members
         .filter(m => m.is_active || counts.has(m.id))
         .map(m => ({ id: m.id, label: m.name, hint: m.is_active ? undefined : 'inactive', count: counts.get(m.id) ?? 0 })),

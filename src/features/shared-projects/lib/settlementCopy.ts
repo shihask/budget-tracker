@@ -92,7 +92,7 @@ export function notes(d: SettlementComputation): Note[] {
         out.push({ tone: 'warn', text: "Settlement couldn't be verified, so no payments are suggested." })
         break
       case 'unassigned_contributions':
-        out.push({ tone: 'info', text: `${rs(i.amount)} came from people no longer in this project, or contributions not assigned to anyone. It's treated as group money: it lowers everyone's share and isn't credited to any current member.` })
+        out.push({ tone: 'info', text: `${rs(i.amount)} is group money: from outside the group (a sponsor, refund or cashback) or from people no longer in this project. It lowers everyone's share and isn't credited to any member.` })
         break
       case 'kitty_overspent':
         out.push({ tone: 'warn', text: `The kitty's balance is −${rs(i.amount)}. It paid out more than it received, so it needs ${rs(i.amount)} topped up. Usually an expense someone paid personally was marked as paid from the kitty — fixing that expense will credit them instead.` })

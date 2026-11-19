@@ -4,7 +4,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from '@/components/BottomSheet'
 import type { ProjectAttachment, ProjectTransaction } from '../../types'
-import { describeTransaction, deleteLabel, formatLongDate } from '../../lib/transactions'
+import { describeTransaction, deleteLabel, formatLongDate, GROUP_MONEY_LABEL } from '../../lib/transactions'
 import { FONT } from '../overview/styles'
 import { KittyPill } from './TransactionRow'
 import { kindTile } from './kindTile'
@@ -36,7 +36,9 @@ export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClos
 
   const v = describeTransaction(txn)
   const tile = kindTile(c, v.kind)
-  const isContrib = v.kind === 'contribution'
+  const isContrib = v.sign === 1
+  const isGroup = v.kind === 'group-money'
+  const typeLabel = isGroup ? GROUP_MONEY_LABEL : isContrib ? 'Contribution' : 'Expense'
   const own = attachments.filter(a => a.project_transaction_id === txn.id)
 
   const handleDelete = async () => {
@@ -51,16 +53,19 @@ export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClos
   }
 
   const rows: { label: string; value: React.ReactNode }[] = [
-    {
-      label: isContrib ? 'Contributed by' : 'Paid by',
-      value: v.kind === 'expense-kitty'
-        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><KittyPill c={c} />Project fund</span>
-        : v.memberName,
-    },
+    isGroup
+      ? { label: 'From', value: 'Outside the group' }
+      : {
+        label: isContrib ? 'Contributed by' : 'Paid by',
+        value: v.kind === 'expense-kitty'
+          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><KittyPill c={c} />Project fund</span>
+          : v.memberName,
+      },
     ...(v.category ? [{ label: 'Category', value: v.category }] : []),
     { label: 'Date', value: formatLongDate(txn.transaction_date) },
     ...(isContrib && txn.description ? [{ label: 'Note', value: txn.description }] : []),
     ...(txn.notes ? [{ label: 'Notes', value: <span style={{ whiteSpace: 'pre-wrap' }}>{txn.notes}</span> }] : []),
+    ...(isGroup ? [{ label: 'In settlement', value: "Lowers everyone's share. Not credited to any member." }] : []),
   ]
 
   return (
@@ -79,11 +84,11 @@ export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClos
               {isContrib ? '+' : '−'}{fmt(txn.amount)}
             </div>
             <div style={{ font: `600 14px ${FONT}`, color: c.sub, marginTop: 2, overflowWrap: 'anywhere' }}>
-              {isContrib ? 'Contribution' : v.title}
+              {isContrib ? typeLabel : v.title}
             </div>
           </div>
           <span style={{ font: `700 11px ${FONT}`, color: c.muted, background: c.surface2, padding: '3px 8px', borderRadius: 999, flexShrink: 0 }}>
-            {isContrib ? 'Contribution' : 'Expense'}
+            {typeLabel}
           </span>
         </div>
 

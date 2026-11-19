@@ -91,7 +91,7 @@ describe('summary, equation, headline', () => {
 describe('notes', () => {
   it('unassigned contributions in plain words', () => {
     const d = computeSettlement([member('A', 0), member('B', 1)], [contrib(2000, null), contrib(2000, 'A'), spend(4000)])
-    expect(notes(d).map(x => x.text)).toContain("₹2,000 came from people no longer in this project, or contributions not assigned to anyone. It's treated as group money: it lowers everyone's share and isn't credited to any current member.")
+    expect(notes(d).map(x => x.text)).toContain("₹2,000 is group money: from outside the group (a sponsor, refund or cashback) or from people no longer in this project. It lowers everyone's share and isn't credited to any member.")
   })
   it('no sharers and invalid data are warnings', () => {
     expect(notes(computeSettlement([member('I', 0, 1, false)], [spend(100, 'I')]))[0]).toMatchObject({ tone: 'warn' })

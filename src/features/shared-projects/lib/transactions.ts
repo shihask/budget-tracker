@@ -4,13 +4,22 @@ import type { ProjectTransaction } from '../types'
 // Display-only helpers for the Transactions tab. They read the ledger exactly as
 // stored; nothing here feeds calculations.ts or settlement.
 
-/** How a row reads. A future non-member inflow/refund is one more kind here. */
-export type TransactionKind = 'expense-member' | 'expense-kitty' | 'contribution'
+/**
+ * How a row reads. 'group-money' is a contribution with no member behind it — money
+ * from outside the group (a sponsor, refund, cashback) or from a member who was
+ * removed. Settlement treats both the same way: it lowers everyone's share.
+ */
+export type TransactionKind = 'expense-member' | 'expense-kitty' | 'contribution' | 'group-money'
 
 export function transactionKind(t: ProjectTransaction): TransactionKind {
-  if (t.transaction_type === 'contribution') return 'contribution'
+  // `member` is attached only for members that still exist — the same rule the
+  // settlement engine uses to decide what counts as group money.
+  if (t.transaction_type === 'contribution') return t.member ? 'contribution' : 'group-money'
   return t.member_id == null ? 'expense-kitty' : 'expense-member'
 }
+
+export const GROUP_MONEY_LABEL = 'Group money'
+export const GROUP_MONEY_SOURCE = 'From outside the group'
 
 export interface TransactionView {
   kind: TransactionKind
@@ -28,7 +37,10 @@ export interface TransactionView {
 export function describeTransaction(t: ProjectTransaction): TransactionView {
   const kind = transactionKind(t)
   if (kind === 'contribution') {
-    return { kind, title: t.member?.name || 'Unknown', category: null, subtitleCategory: null, memberName: t.member?.name || 'Unknown', sign: 1 }
+    return { kind, title: t.member!.name, category: null, subtitleCategory: null, memberName: t.member!.name, sign: 1 }
+  }
+  if (kind === 'group-money') {
+    return { kind, title: GROUP_MONEY_LABEL, category: null, subtitleCategory: null, memberName: null, sign: 1 }
   }
   return {
     kind,
@@ -49,8 +61,8 @@ export const TYPE_FILTERS: { id: TypeFilter; label: string }[] = [
   { id: 'contribution', label: 'Contributions' },
 ]
 
-/** 'all', 'kitty' (expenses paid from the Project Fund), or a member id. */
-export type PaidByFilter = 'all' | 'kitty' | string
+/** 'all', 'kitty' (expenses paid from the Project Fund), 'outside' (group money), or a member id. */
+export type PaidByFilter = 'all' | 'kitty' | 'outside' | string
 
 export interface TransactionFilters {
   type: TypeFilter
@@ -71,13 +83,15 @@ export function matchesType(t: ProjectTransaction, type: TypeFilter): boolean {
 function matchesPaidBy(t: ProjectTransaction, paidBy: PaidByFilter): boolean {
   if (paidBy === 'all') return true
   if (paidBy === 'kitty') return transactionKind(t) === 'expense-kitty'
+  if (paidBy === 'outside') return transactionKind(t) === 'group-money'
   return t.member_id === paidBy
 }
 
 function matchesQuery(t: ProjectTransaction, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  const text = [t.description, t.category, t.notes, t.member?.name]
+  const groupWords = transactionKind(t) === 'group-money' ? `${GROUP_MONEY_LABEL} ${GROUP_MONEY_SOURCE}` : null
+  const text = [t.description, t.category, t.notes, t.member?.name, groupWords]
     .filter(Boolean).join(' ').toLowerCase()
   if (text.includes(q)) return true
   // "980", "9,700" and "₹9700" all find ₹9,700.
@@ -139,7 +153,7 @@ export function resultTotals(txns: ProjectTransaction[]): ResultTotals {
 export function deleteLabel(t: ProjectTransaction): string {
   const amount = fmt(t.amount)
   if (t.transaction_type === 'contribution') {
-    return `Delete ${t.member?.name ? `${t.member.name}'s contribution` : 'this contribution'} (${amount})?`
+    return t.member ? `Delete ${t.member.name}'s contribution (${amount})?` : `Delete this group money (${amount})?`
   }
   return t.description ? `Delete expense "${t.description}" (${amount})?` : `Delete this expense (${amount})?`
 }

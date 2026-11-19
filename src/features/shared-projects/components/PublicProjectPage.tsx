@@ -209,9 +209,13 @@ export function PublicProjectPage({ shareCode }: Props) {
                         <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(txn.amount)}</div>
                         <div style={{ font: '700 10px Plus Jakarta Sans', color: isContrib ? '#10B981' : c.accent, textTransform: 'uppercase' }}>{txn.transaction_type}</div>
                       </div>
-                      {txn.member && (
+                      {txn.member ? (
                         <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, paddingLeft: 16 }}>
                           {isContrib ? 'From' : 'Paid by'} {txn.member.name}
+                        </div>
+                      ) : isContrib && (
+                        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, paddingLeft: 16 }}>
+                          Group money · from outside the group
                         </div>
                       )}
                       {(txn.description || txn.category) && (

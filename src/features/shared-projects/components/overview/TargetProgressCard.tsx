@@ -58,7 +58,7 @@ export function TargetProgressCard({ summary, target, onSetTarget }: Props) {
           {over ? `${fmt(Math.abs(t.left))} over target` : `${fmt(t.left)} left`}
         </div>
         <div style={{ font: `500 12px ${FONT}`, color: c.muted }}>
-          Member contributions {fmt(summary.totalContributions)} · {summary.fundingProgress.toFixed(0)}% of target
+          Kitty funds {fmt(summary.totalContributions)} · {summary.fundingProgress.toFixed(0)}% of target
         </div>
       </div>
     </div>

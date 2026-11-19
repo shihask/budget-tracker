@@ -12,11 +12,13 @@ const member = (id: string): ProjectMember => ({
   id, project_id: 'p', name: id, email: null, share_ratio: 1, display_order: 0, is_active: true, created_at: '',
 })
 let n = 0
+const members = ['a', 'b', 'c'].map(member)
+// Like loaded data: the member object is attached whenever member_id points at a member.
 const tx = (type: 'contribution' | 'expense', amount: number, member_id: string | null): ProjectTransaction => ({
   id: `t${n++}`, project_id: 'p', member_id, transaction_type: type, amount,
   description: null, category: null, notes: null, transaction_date: '2026-11-18', display_order: 0, created_at: '',
+  member: members.find(m => m.id === member_id),
 })
-const members = ['a', 'b', 'c'].map(member)
 
 function run(txns: ProjectTransaction[], target = 0) {
   const summary = calcProjectSummary(project(target), members, txns)
@@ -52,6 +54,17 @@ describe('kittyBreakdown', () => {
     const { k, summary } = run([tx('contribution', 2000, 'a'), tx('contribution', 1700, 'b')])
     expect(k.sources).toEqual([{ key: 'members', label: 'Member contributions', amount: 3700 }])
     expect(k.kittyFunds).toBe(summary.totalContributions)
+  })
+
+  it('group money (no member) is its own source; kitty funds still total everything', () => {
+    const { k, summary } = run([tx('contribution', 9700, 'a'), tx('contribution', 2000, null), tx('expense', 11700, null)])
+    expect(k.sources).toEqual([
+      { key: 'members', label: 'Member contributions', amount: 9700 },
+      { key: 'group', label: 'Group money (outside the group)', amount: 2000 },
+    ])
+    expect(k.kittyFunds).toBe(11700)
+    expect(k.kittyFunds).toBe(summary.totalContributions)
+    expect(k.state).toBe('used')
   })
 
   it('mixed trip: the parts reconcile with the existing summary', () => {

@@ -37,9 +37,16 @@ describe('describeTransaction', () => {
     expect(describeTransaction(lunch).subtitleCategory).toBe('Food')
     expect(describeTransaction(tx({ transaction_type: 'expense', amount: 5 })).title).toBe('Expense')
   })
-  it('contribution is titled by member', () => {
+  it('contribution is titled by member; one with no member is group money', () => {
     expect(describeTransaction(contrib)).toMatchObject({ kind: 'contribution', title: 'Muneer', sign: 1 })
-    expect(describeTransaction(tx({ transaction_type: 'contribution', amount: 1 })).title).toBe('Unknown')
+    expect(describeTransaction(tx({ transaction_type: 'contribution', amount: 1 }))).toMatchObject({ kind: 'group-money', title: 'Group money', memberName: null, sign: 1 })
+  })
+  it('group money: Paid-by "outside" filter and search', () => {
+    const sponsor = tx({ transaction_type: 'contribution', amount: 2000, description: 'sponsor' })
+    const list = [...all, sponsor]
+    expect(filterTransactions(list, { ...NO_FILTERS, paidBy: 'outside' }).map(t => t.id)).toEqual([sponsor.id])
+    expect(filterTransactions(list, { ...NO_FILTERS, query: 'group money' }).map(t => t.id)).toEqual([sponsor.id])
+    expect(filterTransactions(list, { ...NO_FILTERS, paidBy: 'kitty' }).map(t => t.id)).toEqual([fuel.id])
   })
 })
 
@@ -100,7 +107,7 @@ describe('deleteLabel', () => {
     expect(deleteLabel(lunch)).toBe('Delete expense "Lunch" (₹980)?')
     expect(deleteLabel(tx({ transaction_type: 'expense', amount: 200 }))).toBe('Delete this expense (₹200)?')
     expect(deleteLabel(contrib)).toBe("Delete Muneer's contribution (₹2,000)?")
-    expect(deleteLabel(tx({ transaction_type: 'contribution', amount: 50 }))).toBe('Delete this contribution (₹50)?')
+    expect(deleteLabel(tx({ transaction_type: 'contribution', amount: 50 }))).toBe('Delete this group money (₹50)?')
   })
 })
 
