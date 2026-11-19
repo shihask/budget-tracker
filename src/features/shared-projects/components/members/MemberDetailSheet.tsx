@@ -138,11 +138,11 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
                   Removing {m.name} changes past records
                 </div>
                 <div style={{ font: `500 13px ${FONT}`, color: c.ink, marginTop: 8, lineHeight: 1.5 }}>
-                  {m.name} has {impact.count} transaction{impact.count === 1 ? '' : 's'}. After removing:
+                  {m.name} has {impact.atLeast ? 'at least ' : ''}{impact.count} transaction{impact.count === 1 ? '' : 's'}. After removing:
                 </div>
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18, font: `500 13px ${FONT}`, color: c.ink, lineHeight: 1.55 }}>
-                  {impact.contributed > 0 && <li>{fmt(impact.contributed)} put in kitty will no longer be credited to anyone. It will show as "Unknown".</li>}
-                  {impact.paidPersonally > 0 && <li>{fmt(impact.paidPersonally)} paid personally will look like it was paid from the Kitty.</li>}
+                  {impact.contributed > 0 && <li>{impact.atLeast ? 'At least ' : ''}{fmt(impact.contributed)} that {m.name} put in the kitty will <strong>no longer be credited to {m.name}</strong>. Settlement will treat it as <strong>group money</strong>, shared by everyone who remains.</li>}
+                  {impact.paidPersonally > 0 && <li>{impact.atLeast ? 'At least ' : ''}{fmt(impact.paidPersonally)} paid personally will look like it was paid from the Kitty.</li>}
                   <li>Settlement will no longer include {m.name}, so what they're owed or owe won't be shown.</li>
                   <li><strong>This can't be undone.</strong></li>
                 </ul>

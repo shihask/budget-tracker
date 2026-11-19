@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
 import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSummary } from '../lib/calculations'
 import { ProjectFormSheet } from './ProjectFormSheet'
 import { ProjectTransactionSheet } from './ProjectTransactionSheet'
@@ -9,6 +8,7 @@ import { ShareSheet } from './ShareSheet'
 import { ProjectOverview } from './overview/ProjectOverview'
 import { TransactionsTab } from './transactions/TransactionsTab'
 import { MembersTab } from './members/MembersTab'
+import { SettlementTab } from './settlement/SettlementTab'
 import { BudgetManageSheet } from './BudgetManageSheet'
 import { CollaboratorInviteSheet } from './CollaboratorInviteSheet'
 import { ActivityLogTab } from './ActivityLogTab'
@@ -297,7 +297,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
           />
         )}
         {tab === 'settlement' && (
-          <SettlementTab settlement={settlement} />
+          <SettlementTab settlement={settlement} projectName={project.name} />
         )}
         {tab === 'activity' && (
           <ActivityLogTab activityLog={activityLog} />
@@ -364,78 +364,3 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
 }
 
 // ── Tab components ──────────────────────────────────────────────────────
-
-function SettlementTab({ settlement }: { settlement: ReturnType<typeof calcSettlement> }) {
-  const c = useTheme()
-
-  if (settlement.settlements.length === 0 && settlement.creditors.length === 0 && settlement.debtors.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', paddingTop: 30 }}>
-        <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted }}>All settled up!</div>
-        <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 4 }}>Add expenses to see settlement calculations</div>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Settlement suggestions */}
-      {settlement.settlements.length > 0 && (
-        <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
-            Suggested Settlements
-          </div>
-          {settlement.settlements.map((s, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: i < settlement.settlements.length - 1 ? 12 : 0 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ font: '700 14px Plus Jakarta Sans', color: '#EF4444' }}>{s.fromMemberName}</div>
-                <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>owes</div>
-              </div>
-              <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>
-                {fmt(s.amount)}
-              </div>
-              <div style={{ flex: 1, textAlign: 'right' }}>
-                <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>to</div>
-                <div style={{ font: '700 14px Plus Jakarta Sans', color: '#10B981' }}>{s.toMemberName}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Creditors */}
-      {settlement.creditors.length > 0 && (
-        <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
-            Should Receive
-          </div>
-          {settlement.creditors.map(cr => (
-            <div key={cr.memberId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{cr.memberName}</div>
-              <div style={{ font: '700 14px Plus Jakarta Sans', color: '#10B981' }}>{fmt(cr.netCredit)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Debtors */}
-      {settlement.debtors.length > 0 && (
-        <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
-            Should Pay
-          </div>
-          {settlement.debtors.map(db => (
-            <div key={db.memberId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{db.memberName}</div>
-              <div style={{ font: '700 14px Plus Jakarta Sans', color: '#EF4444' }}>{fmt(db.netDebt)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, textAlign: 'center', padding: '8px 0' }}>
-        Settlement calculations are read-only suggestions
-      </div>
-    </div>
-  )
-}

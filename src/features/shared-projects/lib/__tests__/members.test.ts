@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { calcMemberSummaries, calcSettlement } from '../calculations'
-import { buildMemberRows, settlementStatus, moneyLine, removalImpact } from '../members'
+import { buildMemberRows, settlementStatus, moneyLine, removalImpact, LOADED_ROWS_CAP } from '../members'
 import type { Project, ProjectMember, ProjectTransaction } from '../../types'
 
 const project = (target = 0): Project => ({
@@ -49,9 +49,34 @@ describe('buildMemberRows', () => {
     expect(g).toMatchObject({ inactive: true, net: null, txnCount: 1 })
   })
 
-  it('no status without expenses, or with fewer than two active members', () => {
+  it('no status without expenses, or for a solo member', () => {
     expect(rows([a, b], [tx('contribution', 500, 'a')]).every(x => x.net === null)).toBe(true)
-    expect(rows([a, gone], [tx('expense', 500, 'a')]).every(x => x.net === null)).toBe(true)
+    expect(rows([a], [tx('expense', 500, 'a')]).every(x => x.net === null)).toBe(true)
+  })
+
+  // v1.108.0: eligibility comes from the engine's `balanced`, not "≥ 2 active".
+  it('1 active + 1 inactive is a valid settlement: active member gets a status, inactive stays hidden', () => {
+    const ira = member('i', 'Ira', 1, false)
+    const txns = [tx('contribution', 1000, 'i'), tx('expense', 600, null), tx('expense', 400, 'a')]
+    const r = rows([a, ira], txns)
+    const s = calcSettlement([a, ira], txns)
+    expect(s.balanced).toBe(true)
+    expect(r.find(x => x.member.id === 'a')!.net).toBe(-s.debtors.find(d => d.memberId === 'a')!.netDebt)
+    expect(r.find(x => x.member.id === 'i')!.net).toBeNull()
+  })
+
+  it('no_sharers (only inactive members) → no status for anyone', () => {
+    const i1 = member('i1', 'Ira', 1, false), i2 = member('i2', 'Joe', 1, false)
+    const txns = [tx('expense', 500, 'i1')]
+    expect(calcSettlement([i1, i2], txns).balanced).toBe(false)
+    expect(rows([i1, i2], txns).every(x => x.net === null)).toBe(true)
+  })
+
+  it('the kitty never appears as a member', () => {
+    const txns = [tx('contribution', 3000, 'a'), tx('expense', 1000, null), tx('expense', 500, 'b')]
+    const s = calcSettlement([a, b], txns)
+    expect([...s.creditors, ...s.debtors].some(x => x.memberId === 'kitty')).toBe(false)
+    expect(rows([a, b], txns).map(x => x.member.id)).toEqual(['a', 'b'])
   })
 
   it('a member absent from creditors and debtors is even (0)', () => {
@@ -84,7 +109,22 @@ describe('moneyLine', () => {
 describe('removalImpact', () => {
   it('counts what a delete would orphan', () => {
     const txns = [tx('contribution', 2000, 'a'), tx('expense', 980, 'a'), tx('expense', 220.5, 'a'), tx('expense', 50, null)]
-    expect(removalImpact('a', txns)).toEqual({ count: 3, contributed: 2000, paidPersonally: 1200.5 })
-    expect(removalImpact('c', txns)).toEqual({ count: 0, contributed: 0, paidPersonally: 0 })
+    expect(removalImpact('a', txns)).toEqual({ count: 3, contributed: 2000, paidPersonally: 1200.5, atLeast: false })
+    expect(removalImpact('c', txns)).toEqual({ count: 0, contributed: 0, paidPersonally: 0, atLeast: false })
+  })
+  it('sums several contribution rows; zero contributions stay zero', () => {
+    const txns = [tx('contribution', 1500, 'a'), tx('contribution', 500, 'a'), tx('expense', 300, 'b')]
+    expect(removalImpact('a', txns)).toMatchObject({ count: 2, contributed: 2000, paidPersonally: 0 })
+    expect(removalImpact('b', txns)).toMatchObject({ count: 1, contributed: 0, paidPersonally: 300 })
+  })
+  it('flags a lower bound when the loaded list hits the row cap', () => {
+    const many = Array.from({ length: LOADED_ROWS_CAP }, () => tx('expense', 1, 'a'))
+    expect(removalImpact('a', many).atLeast).toBe(true)
+  })
+  it('matches the deletion rule: every row with this member_id, contributions and expenses alike', () => {
+    const txns = [tx('contribution', 100, 'a'), tx('expense', 40, 'a'), tx('contribution', 7, 'b'), tx('expense', 9, null)]
+    const after = txns.map(t => (t.member_id === 'a' ? { ...t, member_id: null } : t)) // ON DELETE SET NULL
+    const orphaned = after.filter((t, i) => t.member_id === null && txns[i].member_id === 'a')
+    expect(removalImpact('a', txns).count).toBe(orphaned.length)
   })
 })

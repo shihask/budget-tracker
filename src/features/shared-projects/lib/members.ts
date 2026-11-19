@@ -33,9 +33,13 @@ export function buildMemberRows(
   const counts = new Map<string, number>()
   for (const t of transactions) if (t.member_id) counts.set(t.member_id, (counts.get(t.member_id) ?? 0) + 1)
 
-  // calcSettlement returns nothing with fewer than two active members, and with no
-  // expenses there is nothing to settle — "Even" would be noise in both cases.
-  const settles = members.filter(m => m.is_active).length >= 2 && transactions.some(t => t.transaction_type === 'expense')
+  // Status shows only when the engine verified a balanced settlement, there is spending
+  // to settle, and there are at least two members (the Settlement tab's own condition).
+  // 1 active + 1 inactive member is a valid settlement; no one able to share the cost
+  // (no_sharers) or invalid data is not — then nobody gets a status.
+  const settles = settlement.balanced === true
+    && members.length >= 2
+    && transactions.some(t => t.transaction_type === 'expense')
 
   return members.map(member => {
     const s = summaryById.get(member.id)
@@ -71,13 +75,25 @@ export function moneyLine(row: Pick<MemberRowData, 'putInKitty' | 'paidPersonall
   return parts.length ? parts.join(' · ') : 'Nothing recorded yet'
 }
 
+/**
+ * Supabase returns at most this many rows per select (the project's max-rows setting,
+ * 1,000 by default). A project loaded at the cap may have more rows than we can see.
+ */
+export const LOADED_ROWS_CAP = 1000
+
 export interface RemovalImpact {
   count: number
   contributed: number
   paidPersonally: number
+  /** The loaded list hit LOADED_ROWS_CAP, so these figures are a lower bound. */
+  atLeast: boolean
 }
 
-/** What a hard delete would orphan: the member's rows become member-less (FK ON DELETE SET NULL). */
+/**
+ * What deleting the member would orphan. Mirrors the database exactly: the only FK to
+ * project_members is project_transactions.member_id ON DELETE SET NULL, so every row with
+ * member_id = id — contributions and expenses alike — becomes member-less.
+ */
 export function removalImpact(memberId: string, transactions: ProjectTransaction[]): RemovalImpact {
   let count = 0, contributed = 0, paidPersonally = 0
   for (const t of transactions) {
@@ -86,5 +102,8 @@ export function removalImpact(memberId: string, transactions: ProjectTransaction
     if (t.transaction_type === 'contribution') contributed += t.amount
     else paidPersonally += t.amount
   }
-  return { count, contributed: round2(contributed), paidPersonally: round2(paidPersonally) }
+  return {
+    count, contributed: round2(contributed), paidPersonally: round2(paidPersonally),
+    atLeast: transactions.length >= LOADED_ROWS_CAP,
+  }
 }

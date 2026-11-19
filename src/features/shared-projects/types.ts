@@ -1,3 +1,5 @@
+import type { SettlementComputation } from './lib/settlement'
+
 export type ProjectStatus = 'active' | 'completed' | 'archived'
 export type ProjectTransactionType = 'contribution' | 'expense'
 export type ProjectTab = 'overview' | 'expenses' | 'members' | 'settlement' | 'activity'
@@ -98,17 +100,27 @@ export interface MemberSummary {
 }
 
 export interface SettlementEntry {
+  /** 'kitty' when the kitty pays (fromKind === 'kitty'). */
   fromMemberId: string
   fromMemberName: string
   toMemberId: string
   toMemberName: string
+  /** Rupees. */
   amount: number
+  /** Optional so older entries still read as member-to-member. */
+  fromKind?: 'member' | 'kitty'
+  toKind?: 'member' | 'kitty'
 }
 
 export interface SettlementResult {
+  /** Members only — the kitty never appears here. Rupees. */
   creditors: Array<{ memberId: string; memberName: string; netCredit: number }>
   debtors: Array<{ memberId: string; memberName: string; netDebt: number }>
   settlements: SettlementEntry[]
+  /** True only when the plan was verified to settle everyone to exactly zero. */
+  balanced?: boolean
+  /** The full paise engine output (lib/settlement.ts). */
+  detail?: SettlementComputation
 }
 
 export interface BudgetBreakdown {

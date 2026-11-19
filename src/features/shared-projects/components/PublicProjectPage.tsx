@@ -5,6 +5,7 @@ import { fmt } from '@/lib/utils'
 import { loadPublicProject } from '../lib/publicApi'
 import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSummary } from '../lib/calculations'
 import { BudgetBreakdownSection } from './BudgetBreakdownSection'
+import { PublicSettlementList } from './settlement/PublicSettlementList'
 import { ActivityLogTab } from './ActivityLogTab'
 import type { Project, ProjectMember, ProjectTransaction, ProjectAttachment, ProjectBudget, ProjectActivityLog } from '../types'
 
@@ -258,28 +259,7 @@ export function PublicProjectPage({ shareCode }: Props) {
         )}
 
         {tab === 'settlement' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {settlement.settlements.length === 0 ? (
-              <div style={{ font: '600 14px Plus Jakarta Sans', color: c.muted, textAlign: 'center', paddingTop: 30 }}>All settled up!</div>
-            ) : (
-              <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Suggested Settlements</div>
-                {settlement.settlements.map((s, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: i < settlement.settlements.length - 1 ? 12 : 0 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ font: '700 14px Plus Jakarta Sans', color: '#EF4444' }}>{s.fromMemberName}</div>
-                      <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>owes</div>
-                    </div>
-                    <div style={{ font: '800 16px Plus Jakarta Sans', color: c.ink }}>{fmt(s.amount)}</div>
-                    <div style={{ flex: 1, textAlign: 'right' }}>
-                      <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>to</div>
-                      <div style={{ font: '700 14px Plus Jakarta Sans', color: '#10B981' }}>{s.toMemberName}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <PublicSettlementList settlement={settlement} hasExpenses={transactions.some(t => t.transaction_type === 'expense')} />
         )}
 
         {tab === 'activity' && (
