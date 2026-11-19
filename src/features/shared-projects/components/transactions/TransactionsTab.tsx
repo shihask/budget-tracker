@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useState } from 'react'
 import { Search, X, ChevronDown, Plus } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
@@ -13,6 +13,7 @@ import { LinkButton } from '../overview/ui'
 import { TransactionRow } from './TransactionRow'
 import { TransactionDetailSheet } from './TransactionDetailSheet'
 import { PaidByFilterSheet, type PaidByOption } from './PaidByFilterSheet'
+import { useIsWide } from '../shared/useIsWide'
 
 interface Props {
   transactions: ProjectTransaction[]
@@ -26,16 +27,6 @@ interface Props {
   onViewAttachment: (path: string) => void
   onDeleteAttachment: (att: ProjectAttachment) => Promise<void>
 }
-
-// The page is full-screen and the content is capped at 960px, so the viewport
-// width is a fair stand-in for the list's width. Only the row structure changes.
-const WIDE_QUERY = '(min-width: 760px)'
-const subscribeWide = (cb: () => void) => {
-  const mq = window.matchMedia(WIDE_QUERY)
-  mq.addEventListener('change', cb)
-  return () => mq.removeEventListener('change', cb)
-}
-const useIsWide = () => useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE_QUERY).matches)
 
 export function TransactionsTab({ transactions, attachments, members, canEdit, onAdd, onEdit, onDelete, onViewAttachment, onDeleteAttachment }: Props) {
   const c = useTheme()

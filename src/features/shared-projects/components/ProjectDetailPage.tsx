@@ -8,10 +8,11 @@ import { ProjectTransactionSheet } from './ProjectTransactionSheet'
 import { ShareSheet } from './ShareSheet'
 import { ProjectOverview } from './overview/ProjectOverview'
 import { TransactionsTab } from './transactions/TransactionsTab'
+import { MembersTab } from './members/MembersTab'
 import { BudgetManageSheet } from './BudgetManageSheet'
 import { CollaboratorInviteSheet } from './CollaboratorInviteSheet'
 import { ActivityLogTab } from './ActivityLogTab'
-import type { Project, ProjectTab, ProjectMember, ProjectTransaction, ProjectStatus, ProjectRole } from '../types'
+import type { Project, ProjectTab, ProjectTransaction, ProjectStatus, ProjectRole } from '../types'
 
 interface Props {
   project: Project
@@ -29,10 +30,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
   const [addMode, setAddMode] = useState<'contribution' | 'expense' | null>(null)
   const [editTxn, setEditTxn] = useState<ProjectTransaction | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
-  const [addMemberOpen, setAddMemberOpen] = useState(false)
-  const [memberName, setMemberName] = useState('')
-  const [memberEmail, setMemberEmail] = useState('')
-  const [editMember, setEditMember] = useState<ProjectMember | null>(null)
   const [budgetManageOpen, setBudgetManageOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -45,9 +42,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
   const attachments = data.detail?.attachments ?? []
   const collaborators = data.detail?.collaborators ?? []
 
-  const collaboratorEmails = new Set(
-    collaborators.map(c => c.invited_email).filter(Boolean) as string[]
-  )
   const budgets = data.detail?.budgets ?? []
 
   const summary = useMemo(() => calcProjectSummary(project, members, transactions), [project, members, transactions])
@@ -133,18 +127,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
     onProjectUpdated?.(updated)
   }
 
-  const handleAddMember = async () => {
-    if (!memberName.trim()) return
-    if (editMember) {
-      await data.updateMember(editMember.id, { name: memberName.trim(), email: memberEmail.trim() || undefined })
-    } else {
-      await data.addMember(project.id, { name: memberName.trim(), email: memberEmail.trim() || undefined })
-    }
-    setMemberName('')
-    setMemberEmail('')
-    setAddMemberOpen(false)
-    setEditMember(null)
-  }
 
   const handleAddTxn = async (form: Parameters<typeof data.addProjectTransaction>[0] & { files?: File[] }) => {
     const { files, ...txnForm } = form
@@ -182,12 +164,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
     { id: 'activity', label: 'Activity' },
   ]
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '10px 14px', borderRadius: 14,
-    border: `1.5px solid ${c.faint}`, background: c.surface2,
-    font: '600 14px Plus Jakarta Sans', color: c.ink,
-    outline: 'none', boxSizing: 'border-box',
-  }
 
   return createPortal(
     <div
@@ -302,56 +278,23 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
           />
         )}
         {tab === 'members' && (
-          <>
           <MembersTab
             members={members}
             memberSummaries={memberSummaries}
+            settlement={settlement}
             transactions={transactions}
+            collaborators={collaborators}
+            target={project.target_amount || 0}
             canEdit={canEdit}
-            collaboratorEmails={collaboratorEmails}
-            onAdd={() => { setEditMember(null); setMemberName(''); setMemberEmail(''); setAddMemberOpen(true) }}
-            onEdit={m => { setEditMember(m); setMemberName(m.name); setMemberEmail(m.email || ''); setAddMemberOpen(true) }}
-            onRemove={id => data.removeMember(id)}
-            onInvite={isOwner ? (email) => { setInviteEmail(email); setInviteOpen(true) } : undefined}
+            isOwner={isOwner}
+            canSettle={tabs.some(t => t.id === 'settlement')}
+            onAddMember={async ({ name, email }) => { await data.addMember(project.id, { name, email: email ?? undefined }) }}
+            onUpdateMember={(id, { name, email }) => data.updateMember(id, { name, email })}
+            onRemoveMember={id => data.removeMember(id)}
+            onInvite={email => { setInviteEmail(email ?? ''); setInviteOpen(true) }}
+            onRemoveCollaborator={id => data.removeCollaborator(project.id, id)}
+            onGoToSettlement={() => setTab('settlement')}
           />
-          {/* Collaborators section */}
-          <div style={{ marginTop: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>Collaborators</div>
-              {isOwner && (
-                <button onClick={() => setInviteOpen(true)} style={{ padding: '6px 14px', borderRadius: 10, border: 'none', background: c.accent, color: '#fff', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}>+ Invite</button>
-              )}
-            </div>
-            {collaborators.length === 0 ? (
-              <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted }}>
-                {isOwner ? 'No collaborators yet. Invite someone to share this project.' : 'No other collaborators.'}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {collaborators.map(collab => (
-                  <div key={collab.id} style={{ background: c.surface, borderRadius: 14, padding: '10px 14px', border: `1px solid ${c.faint}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink }}>{collab.invited_email || 'Unknown'}</div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 3 }}>
-                        <span style={{ font: '700 10px Plus Jakarta Sans', color: collab.role === 'editor' ? '#6366F1' : c.muted, background: collab.role === 'editor' ? '#6366F118' : c.surface2, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase' }}>{collab.role}</span>
-                        {collab.status === 'pending' && (
-                          <span style={{ font: '700 10px Plus Jakarta Sans', color: '#F59E0B', background: '#F59E0B18', padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase' }}>Pending</span>
-                        )}
-                      </div>
-                    </div>
-                    {isOwner && (
-                      <button onClick={() => { if (confirm(`Remove ${collab.invited_email}?`)) data.removeCollaborator(project.id, collab.id) }} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          </>
         )}
         {tab === 'settlement' && (
           <SettlementTab settlement={settlement} />
@@ -409,58 +352,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
         initialEmail={inviteEmail}
       />
 
-      {/* Add member dialog */}
-      {addMemberOpen && createPortal(
-        <div
-          onClick={() => { setAddMemberOpen(false); setEditMember(null) }}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 250,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24,
-          }}
-        >
-          <div onClick={e => e.stopPropagation()} style={{
-            background: c.surface, borderRadius: 22, padding: 20,
-            width: '100%', maxWidth: 360, boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
-          }}>
-            <div style={{ font: '800 18px Plus Jakarta Sans', color: c.ink, marginBottom: 16 }}>
-              {editMember ? 'Edit Member' : 'Add Member'}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div>
-                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Name</div>
-                <input value={memberName} onChange={e => setMemberName(e.target.value)} placeholder="Member name" style={inputStyle} autoFocus />
-              </div>
-              <div>
-                <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email (optional)</div>
-                <input value={memberEmail} onChange={e => setMemberEmail(e.target.value)} placeholder="email@example.com" style={inputStyle} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button
-                onClick={() => { setAddMemberOpen(false); setEditMember(null) }}
-                style={{
-                  flex: 1, padding: '12px 0', borderRadius: 14,
-                  border: `1.5px solid ${c.faint}`, background: 'transparent',
-                  color: c.muted, font: '700 14px Plus Jakarta Sans', cursor: 'pointer',
-                }}
-              >Cancel</button>
-              <button
-                onClick={handleAddMember}
-                disabled={!memberName.trim()}
-                style={{
-                  flex: 1, padding: '12px 0', borderRadius: 14,
-                  border: 'none', background: memberName.trim() ? c.accent : c.faint,
-                  color: '#fff', font: '700 14px Plus Jakarta Sans', cursor: memberName.trim() ? 'pointer' : 'default',
-                }}
-              >{editMember ? 'Update' : 'Add'}</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
       <style>{`
         @keyframes slideInFromRight2 {
           from { transform: translateX(100%); }
@@ -473,130 +364,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
 }
 
 // ── Tab components ──────────────────────────────────────────────────────
-
-function MembersTab({ members, memberSummaries, transactions, canEdit, collaboratorEmails, onAdd, onEdit, onRemove, onInvite }: {
-  members: ProjectMember[]
-  memberSummaries: ReturnType<typeof calcMemberSummaries>
-  transactions: ProjectTransaction[]
-  canEdit: boolean
-  collaboratorEmails?: Set<string>
-  onAdd: () => void
-  onEdit: (m: ProjectMember) => void
-  onRemove: (id: string) => void
-  onInvite?: (email: string) => void
-}) {
-  const c = useTheme()
-  const summaryMap = new Map(memberSummaries.map(ms => [ms.memberId, ms]))
-
-  const totalContributions = transactions
-    .filter(t => t.transaction_type === 'contribution')
-    .reduce((s, t) => s + t.amount, 0)
-  const fundExpenses = transactions
-    .filter(t => t.transaction_type === 'expense' && t.member_id == null)
-    .reduce((s, t) => s + t.amount, 0)
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{members.length} Member{members.length !== 1 ? 's' : ''}</div>
-        {canEdit && (
-          <button
-            onClick={onAdd}
-            style={{
-              padding: '8px 16px', borderRadius: 12,
-              border: 'none', background: c.accent, color: '#fff',
-              font: '700 13px Plus Jakarta Sans', cursor: 'pointer',
-            }}
-          >+ Add Member</button>
-        )}
-      </div>
-
-      {members.length === 0 ? (
-        <div style={{ textAlign: 'center', paddingTop: 30 }}>
-          <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>No members added yet</div>
-          <button onClick={onAdd} style={{ marginTop: 10, padding: '8px 16px', borderRadius: 12, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Add first member</button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {members.map(m => {
-            const ms = summaryMap.get(m.id)
-            return (
-              <div key={m.id} style={{ background: c.surface, borderRadius: 16, padding: '12px 14px', border: `1px solid ${c.faint}`, opacity: m.is_active ? 1 : 0.5 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{m.name}</div>
-                    {m.email && <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>{m.email}</div>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    {onInvite && m.email && !collaboratorEmails?.has(m.email) && (
-                      <button
-                        onClick={() => onInvite(m.email!)}
-                        title="Invite to collaborate"
-                        style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: c.accent }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                          <polyline points="22,6 12,13 2,6"/>
-                        </svg>
-                      </button>
-                    )}
-                    <button onClick={() => onEdit(m)} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: c.muted }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button>
-                    <button onClick={() => { if (confirm(`Remove ${m.name}?`)) onRemove(m.id) }} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                {ms && (() => {
-                  const fundUsed = totalContributions > 0
-                    ? (ms.actualContribution / totalContributions) * fundExpenses
-                    : 0
-                  const fundRemaining = ms.actualContribution - fundUsed
-                  return (
-                    <>
-                      <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                        <div>
-                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Contributed</div>
-                          <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981' }}>{fmt(ms.actualContribution)}</div>
-                        </div>
-                        <div>
-                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Expected</div>
-                          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{fmt(ms.expectedContribution)}</div>
-                        </div>
-                        <div>
-                          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Paid Direct</div>
-                          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.accent }}>{fmt(ms.totalExpensesPaid)}</div>
-                        </div>
-                      </div>
-                      {ms.actualContribution > 0 && (
-                        <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
-                          <div>
-                            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Fund Used</div>
-                            <div style={{ font: '700 13px Plus Jakarta Sans', color: c.accent }}>{fmt(Math.round(fundUsed))}</div>
-                          </div>
-                          <div>
-                            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Fund Remaining</div>
-                            <div style={{ font: '700 13px Plus Jakarta Sans', color: fundRemaining >= 0 ? '#10B981' : '#EF4444' }}>{fmt(Math.round(fundRemaining))}</div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function SettlementTab({ settlement }: { settlement: ReturnType<typeof calcSettlement> }) {
   const c = useTheme()
