@@ -1,0 +1,170 @@
+import { useState } from 'react'
+import { FileText, Image, Pencil, Trash2, X } from 'lucide-react'
+import { useTheme } from '@/lib/theme-context'
+import { fmt } from '@/lib/utils'
+import { BottomSheet } from '@/components/BottomSheet'
+import type { ProjectAttachment, ProjectTransaction } from '../../types'
+import { describeTransaction, deleteLabel, formatLongDate } from '../../lib/transactions'
+import { FONT } from '../overview/styles'
+import { KittyPill } from './TransactionRow'
+import { kindTile } from './kindTile'
+
+interface Props {
+  open: boolean
+  /** Kept while the sheet slides closed; null once the row no longer exists. */
+  txn: ProjectTransaction | null
+  attachments: ProjectAttachment[]
+  canEdit: boolean
+  onClose: () => void
+  onEdit: (txn: ProjectTransaction) => void
+  onDelete: (id: string) => Promise<void>
+  onViewAttachment: (path: string) => void
+  onDeleteAttachment: (att: ProjectAttachment) => Promise<void>
+}
+
+const errorText = (e: unknown) => (e instanceof Error && e.message) ? e.message : 'Something went wrong. Try again.'
+
+// Viewing and managing one transaction. Editing itself stays in ProjectTransactionSheet.
+export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClose, onEdit, onDelete, onViewAttachment, onDeleteAttachment }: Props) {
+  const c = useTheme()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const close = () => { setError(null); onClose() }
+
+  if (!txn) return <BottomSheet open={false} onClose={close} showHelpButton={false}>{null}</BottomSheet>
+
+  const v = describeTransaction(txn)
+  const tile = kindTile(c, v.kind)
+  const isContrib = v.kind === 'contribution'
+  const own = attachments.filter(a => a.project_transaction_id === txn.id)
+
+  const handleDelete = async () => {
+    if (!confirm(deleteLabel(txn))) return
+    setBusy(true); setError(null)
+    try { await onDelete(txn.id); close() } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
+  }
+  const handleDeleteReceipt = async (att: ProjectAttachment) => {
+    if (!confirm(`Delete receipt "${att.file_name}"?`)) return
+    setBusy(true); setError(null)
+    try { await onDeleteAttachment(att) } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
+  }
+
+  const rows: { label: string; value: React.ReactNode }[] = [
+    {
+      label: isContrib ? 'Contributed by' : 'Paid by',
+      value: v.kind === 'expense-kitty'
+        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><KittyPill c={c} />Project fund</span>
+        : v.memberName,
+    },
+    ...(v.category ? [{ label: 'Category', value: v.category }] : []),
+    { label: 'Date', value: formatLongDate(txn.transaction_date) },
+    ...(isContrib && txn.description ? [{ label: 'Note', value: txn.description }] : []),
+    ...(txn.notes ? [{ label: 'Notes', value: <span style={{ whiteSpace: 'pre-wrap' }}>{txn.notes}</span> }] : []),
+  ]
+
+  return (
+    <BottomSheet open={open} onClose={close} showHelpButton={false}>
+      <div style={{ padding: '0 4px 12px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div aria-hidden style={{
+            width: 40, height: 40, borderRadius: 12, background: tile.bg, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <tile.Icon size={18} color={tile.fg} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: `800 26px ${FONT}`, color: isContrib ? c.good : c.ink, lineHeight: 1.15 }}>
+              {isContrib ? '+' : '−'}{fmt(txn.amount)}
+            </div>
+            <div style={{ font: `600 14px ${FONT}`, color: c.sub, marginTop: 2, overflowWrap: 'anywhere' }}>
+              {isContrib ? 'Contribution' : v.title}
+            </div>
+          </div>
+          <span style={{ font: `700 11px ${FONT}`, color: c.muted, background: c.surface2, padding: '3px 8px', borderRadius: 999, flexShrink: 0 }}>
+            {isContrib ? 'Contribution' : 'Expense'}
+          </span>
+        </div>
+
+        {/* Facts */}
+        <div style={{ marginTop: 16, borderTop: `1px solid ${c.faint}` }}>
+          {rows.map(r => (
+            <div key={r.label} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: `1px solid ${c.faint}` }}>
+              <div style={{ width: 110, flexShrink: 0, font: `500 13px ${FONT}`, color: c.muted }}>{r.label}</div>
+              <div style={{ flex: 1, minWidth: 0, font: `600 13px ${FONT}`, color: c.ink, overflowWrap: 'anywhere' }}>{r.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Receipts */}
+        {own.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ font: `700 11px ${FONT}`, color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+              Receipts · {own.length}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {own.map(att => {
+                const isImage = /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(att.file_name)
+                const Icon = isImage ? Image : FileText
+                return (
+                  <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 12, background: c.surface2 }}>
+                    <Icon size={15} color={c.sub} style={{ flexShrink: 0 }} />
+                    <span style={{ flex: 1, minWidth: 0, font: `500 13px ${FONT}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {att.file_name}
+                    </span>
+                    <button onClick={() => onViewAttachment(att.path)} style={{
+                      flexShrink: 0, background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer',
+                      color: c.accent, font: `700 12px ${FONT}`,
+                    }}>View</button>
+                    {canEdit && (
+                      <button aria-label={`Delete ${att.file_name}`} disabled={busy} onClick={() => handleDeleteReceipt(att)} style={{
+                        flexShrink: 0, background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: c.muted, display: 'flex',
+                      }}>
+                        <X size={15} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div role="alert" style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: c.badSoft, color: c.bad, font: `600 12px ${FONT}` }}>
+            {error}
+          </div>
+        )}
+
+        {/* Actions — owner and editors only */}
+        {canEdit && (
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+            <button
+              onClick={() => { close(); onEdit(txn) }}
+              disabled={busy}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '12px 0', borderRadius: 14, border: 'none', background: c.accent, color: '#fff',
+                font: `700 14px ${FONT}`, cursor: 'pointer',
+              }}
+            >
+              <Pencil size={15} /> Edit
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={busy}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '12px 0', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: 'transparent', color: c.bad,
+                font: `700 14px ${FONT}`, cursor: 'pointer', opacity: busy ? 0.6 : 1,
+              }}
+            >
+              <Trash2 size={15} /> {busy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        )}
+      </div>
+    </BottomSheet>
+  )
+}

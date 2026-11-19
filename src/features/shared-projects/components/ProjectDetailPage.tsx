@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Coins } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSummary } from '../lib/calculations'
@@ -8,10 +7,11 @@ import { ProjectFormSheet } from './ProjectFormSheet'
 import { ProjectTransactionSheet } from './ProjectTransactionSheet'
 import { ShareSheet } from './ShareSheet'
 import { ProjectOverview } from './overview/ProjectOverview'
+import { TransactionsTab } from './transactions/TransactionsTab'
 import { BudgetManageSheet } from './BudgetManageSheet'
 import { CollaboratorInviteSheet } from './CollaboratorInviteSheet'
 import { ActivityLogTab } from './ActivityLogTab'
-import type { Project, ProjectTab, ProjectMember, ProjectTransaction, ProjectAttachment, ProjectStatus, ProjectRole } from '../types'
+import type { Project, ProjectTab, ProjectMember, ProjectTransaction, ProjectStatus, ProjectRole } from '../types'
 
 interface Props {
   project: Project
@@ -292,6 +292,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
           <TransactionsTab
             transactions={transactions}
             attachments={attachments}
+            members={members}
             canEdit={canEdit}
             onAdd={mode => setAddMode(mode)}
             onEdit={txn => { setEditTxn(txn); setAddMode(txn.transaction_type) }}
@@ -359,30 +360,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
           <ActivityLogTab activityLog={activityLog} />
         )}
       </div>
-
-      {/* FAB for adding transactions */}
-      {tab === 'expenses' && canEdit && (
-        <div style={{ position: 'fixed', bottom: 24, right: 20, display: 'flex', gap: 10, zIndex: 140 }}>
-          <button
-            onClick={() => setAddMode('contribution')}
-            style={{
-              padding: '12px 18px', borderRadius: 16, border: 'none',
-              background: '#10B981', color: '#fff',
-              font: '700 14px Plus Jakarta Sans', cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(16,185,129,0.3)',
-            }}
-          >+ Contribution</button>
-          <button
-            onClick={() => setAddMode('expense')}
-            style={{
-              padding: '12px 18px', borderRadius: 16, border: 'none',
-              background: c.accent, color: '#fff',
-              font: '700 14px Plus Jakarta Sans', cursor: 'pointer',
-              boxShadow: `0 4px 16px ${c.accent}44`,
-            }}
-          >+ Expense</button>
-        </div>
-      )}
 
       {/* Sheets */}
       <ProjectFormSheet
@@ -496,161 +473,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
 }
 
 // ── Tab components ──────────────────────────────────────────────────────
-
-function TransactionsTab({ transactions, attachments, canEdit, onAdd, onEdit, onDelete, onViewAttachment, onDeleteAttachment }: {
-  transactions: ProjectTransaction[]
-  attachments: ProjectAttachment[]
-  canEdit: boolean
-  onAdd: (mode: 'contribution' | 'expense') => void
-  onEdit: (txn: ProjectTransaction) => void
-  onDelete: (id: string) => void
-  onViewAttachment: (path: string) => void
-  onDeleteAttachment: (att: ProjectAttachment) => void
-}) {
-  const c = useTheme()
-  const [filter, setFilter] = useState<'all' | 'contribution' | 'expense'>('all')
-
-  const filtered = (filter === 'all' ? transactions : transactions.filter(t => t.transaction_type === filter))
-    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.created_at.localeCompare(a.created_at))
-
-  return (
-    <div>
-      {/* Filter chips */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {(['all', 'contribution', 'expense'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            style={{
-              padding: '6px 14px', borderRadius: 10,
-              border: `1.5px solid ${filter === f ? c.accent : c.faint}`,
-              background: filter === f ? c.accentSoft : 'transparent',
-              color: filter === f ? c.accent : c.muted,
-              font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
-              textTransform: 'capitalize',
-            }}
-          >
-            {f === 'all' ? `All (${transactions.length})` : `${f}s (${transactions.filter(t => t.transaction_type === f).length})`}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 24px' }}>
-          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><Coins size={28} color="#A09890" /></div>
-          <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Track contributions and expenses</div>
-          <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5, marginBottom: 16 }}>Record contributions from members or log project expenses to start tracking progress.</div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button onClick={() => onAdd('contribution')} style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: '#10B981', color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>+ Contribution</button>
-            <button onClick={() => onAdd('expense')} style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: c.accent, color: '#fff', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>+ Expense</button>
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(txn => {
-            const isContrib = txn.transaction_type === 'contribution'
-            const txnAttachments = attachments.filter(a => a.project_transaction_id === txn.id)
-            return (
-              <div
-                key={txn.id}
-                style={{
-                  background: c.surface, borderRadius: 16, padding: '12px 14px',
-                  border: `1px solid ${c.faint}`,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{
-                        width: 8, height: 8, borderRadius: 4,
-                        background: isContrib ? '#10B981' : c.accent,
-                        flexShrink: 0,
-                      }} />
-                      <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>
-                        {fmt(txn.amount)}
-                      </div>
-                      <div style={{
-                        font: '700 10px Plus Jakarta Sans',
-                        color: isContrib ? '#10B981' : c.accent,
-                        textTransform: 'uppercase',
-                      }}>
-                        {txn.transaction_type}
-                      </div>
-                    </div>
-                    <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, paddingLeft: 16 }}>
-                      {txn.member
-                        ? `${isContrib ? 'From' : 'Paid by'} ${txn.member.name}`
-                        : (!isContrib ? 'Paid from Project Fund' : null)
-                      }
-                    </div>
-                    {(txn.description || txn.category) && (
-                      <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, paddingLeft: 16 }}>
-                        {[txn.category, txn.description].filter(Boolean).join(' · ')}
-                      </div>
-                    )}
-                    {txnAttachments.length > 0 && (
-                      <div style={{ paddingLeft: 16, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {txnAttachments.map(att => {
-                          const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(att.file_name)
-                          return (
-                            <div key={att.id} style={{
-                              display: 'flex', alignItems: 'center', gap: 6,
-                              padding: '4px 8px', borderRadius: 8, background: c.surface2,
-                            }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isImage ? '#6366F1' : c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                {isImage ? (
-                                  <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>
-                                ) : (
-                                  <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></>
-                                )}
-                              </svg>
-                              <span
-                                onClick={() => onViewAttachment(att.path)}
-                                style={{ font: '500 11px Plus Jakarta Sans', color: c.accent, cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                              >
-                                {att.file_name}
-                              </span>
-                              {canEdit && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${att.file_name}?`)) onDeleteAttachment(att) }}
-                                  style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>{txn.transaction_date}</div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => onEdit(txn)} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: c.muted }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                      <button onClick={() => { if (confirm(`Delete "${txn.description}" (${txn.amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })})?`)) onDelete(txn.id) }} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#EF4444' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function MembersTab({ members, memberSummaries, transactions, canEdit, collaboratorEmails, onAdd, onEdit, onRemove, onInvite }: {
   members: ProjectMember[]
