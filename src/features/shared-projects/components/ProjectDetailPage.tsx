@@ -7,7 +7,7 @@ import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSumm
 import { ProjectFormSheet } from './ProjectFormSheet'
 import { ProjectTransactionSheet } from './ProjectTransactionSheet'
 import { ShareSheet } from './ShareSheet'
-import { BudgetBreakdownSection } from './BudgetBreakdownSection'
+import { ProjectOverview } from './overview/ProjectOverview'
 import { BudgetManageSheet } from './BudgetManageSheet'
 import { CollaboratorInviteSheet } from './CollaboratorInviteSheet'
 import { ActivityLogTab } from './ActivityLogTab'
@@ -275,7 +275,18 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
       {/* Tab content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px 120px', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
         {tab === 'overview' && (
-          <OverviewTab project={project} summary={summary} memberSummaries={memberSummaries} transactions={transactions} budgetSummary={budgetSummary} role={role} onManageBudgets={() => setBudgetManageOpen(true)} />
+          <ProjectOverview
+            project={project}
+            summary={summary}
+            memberSummaries={memberSummaries}
+            transactions={transactions}
+            budgetSummary={budgetSummary}
+            role={role}
+            canSettle={tabs.some(t => t.id === 'settlement')}
+            onManageBudgets={() => setBudgetManageOpen(true)}
+            onEditProject={() => setEditOpen(true)}
+            onGoToTab={setTab}
+          />
         )}
         {tab === 'expenses' && (
           <TransactionsTab
@@ -485,230 +496,6 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
 }
 
 // ── Tab components ──────────────────────────────────────────────────────
-
-function OverviewTab({ project, summary, memberSummaries, transactions, budgetSummary, role, onManageBudgets }: {
-  project: Project
-  summary: ReturnType<typeof calcProjectSummary>
-  memberSummaries: ReturnType<typeof calcMemberSummaries>
-  transactions: ProjectTransaction[]
-  budgetSummary: ReturnType<typeof calcBudgetSummary>
-  role: ProjectRole
-  onManageBudgets: () => void
-}) {
-  const c = useTheme()
-  const target = project.target_amount || 0
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Funding progress */}
-      {target > 0 && (
-        <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
-            Funding Progress
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-            <div style={{ font: '800 24px Plus Jakarta Sans', color: '#10B981' }}>
-              {fmt(summary.totalContributions)}
-            </div>
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>
-              of {fmt(target)}
-            </div>
-          </div>
-          <div style={{ height: 8, borderRadius: 4, background: c.faint, overflow: 'hidden' }}>
-            <div style={{ height: '100%', borderRadius: 4, background: '#10B981', width: `${summary.fundingProgress}%`, transition: 'width 0.3s ease' }} />
-          </div>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: '#10B981', marginTop: 6, textAlign: 'right' }}>
-            {summary.fundingProgress.toFixed(0)}%
-          </div>
-        </div>
-      )}
-
-      {/* Spending progress */}
-      {target > 0 && (
-        <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
-            Spending Progress
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-            <div style={{ font: '800 24px Plus Jakarta Sans', color: c.accent }}>
-              {fmt(summary.totalExpenses)}
-            </div>
-            <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>
-              of {fmt(target)}
-            </div>
-          </div>
-          <div style={{ height: 8, borderRadius: 4, background: c.faint, overflow: 'hidden' }}>
-            <div style={{ height: '100%', borderRadius: 4, background: c.accent, width: `${summary.spendingProgress}%`, transition: 'width 0.3s ease' }} />
-          </div>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.accent, marginTop: 6, textAlign: 'right' }}>
-            {summary.spendingProgress.toFixed(0)}%
-          </div>
-        </div>
-      )}
-
-      {/* Project Fund */}
-      {summary.totalContributions > 0 && (() => {
-        const fundExpenses = transactions
-          .filter(t => t.transaction_type === 'expense' && t.member_id == null)
-          .reduce((s, t) => s + t.amount, 0)
-        const fundBalance = summary.totalContributions - fundExpenses
-        const usedPct = summary.totalContributions > 0 ? Math.min(100, (fundExpenses / summary.totalContributions) * 100) : 0
-        return (
-          <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-            <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
-              Project Fund
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Contributed</div>
-                <div style={{ font: '800 18px Plus Jakarta Sans', color: '#10B981', marginTop: 2 }}>{fmt(summary.totalContributions)}</div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Used</div>
-                <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent, marginTop: 2 }}>{fmt(fundExpenses)}</div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Remaining</div>
-                <div style={{ font: '800 18px Plus Jakarta Sans', color: fundBalance >= 0 ? '#10B981' : '#EF4444', marginTop: 2 }}>{fmt(fundBalance)}</div>
-              </div>
-            </div>
-            <div style={{ height: 6, borderRadius: 3, background: c.faint, overflow: 'hidden' }}>
-              <div style={{ height: '100%', borderRadius: 3, background: c.accent, width: `${usedPct}%`, transition: 'width 0.3s ease' }} />
-            </div>
-            <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, marginTop: 4, textAlign: 'right' }}>{usedPct.toFixed(0)}% used</div>
-          </div>
-        )
-      })()}
-
-      {/* Budget breakdown */}
-      <BudgetBreakdownSection
-        budgetSummary={budgetSummary}
-        targetAmount={project.target_amount || 0}
-        role={role}
-        onManage={onManageBudgets}
-      />
-
-      {/* Stats row */}
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1, background: c.surface, borderRadius: 14, padding: '12px 14px', border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Collected</div>
-          <div style={{ font: '800 18px Plus Jakarta Sans', color: '#10B981', marginTop: 4 }}>{fmt(summary.totalContributions)}</div>
-        </div>
-        <div style={{ flex: 1, background: c.surface, borderRadius: 14, padding: '12px 14px', border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Spent</div>
-          <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent, marginTop: 4 }}>{fmt(summary.totalExpenses)}</div>
-        </div>
-        <div style={{ flex: 1, background: c.surface, borderRadius: 14, padding: '12px 14px', border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Balance</div>
-          <div style={{ font: '800 18px Plus Jakarta Sans', color: summary.remainingBudget >= 0 ? '#10B981' : '#EF4444', marginTop: 4 }}>{fmt(summary.remainingBudget)}</div>
-        </div>
-      </div>
-
-      {/* Metrics */}
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1, background: c.surface2, borderRadius: 14, padding: '10px 14px' }}>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Members</div>
-          <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{summary.memberCount}</div>
-        </div>
-        <div style={{ flex: 1, background: c.surface2, borderRadius: 14, padding: '10px 14px' }}>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Expenses</div>
-          <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{summary.expenseCount}</div>
-        </div>
-        <div style={{ flex: 1, background: c.surface2, borderRadius: 14, padding: '10px 14px' }}>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted }}>Contributions</div>
-          <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginTop: 2 }}>{summary.contributionCount}</div>
-        </div>
-      </div>
-
-      {/* Contribution leaderboard */}
-      {memberSummaries.length > 0 && (
-        <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
-            Contributions
-          </div>
-          {[...memberSummaries]
-            .sort((a, b) => b.actualContribution - a.actualContribution)
-            .map(ms => {
-              const pct = project.target_amount > 0
-                ? Math.min(100, (ms.actualContribution / project.target_amount) * 100)
-                : 0
-              return (
-                <div key={ms.memberId} style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{ms.memberName}</div>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981' }}>{fmt(ms.actualContribution)}</div>
-                  </div>
-                  {project.target_amount > 0 && (
-                    <div style={{ height: 4, borderRadius: 2, background: c.faint, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', borderRadius: 2, background: '#10B981', width: `${pct}%` }} />
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-        </div>
-      )}
-
-      {/* Recent Activity */}
-      {transactions.length > 0 && (
-        <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
-            Recent Activity
-          </div>
-          {(() => {
-            const recent = transactions.slice(0, 8)
-            let lastDate = ''
-            return recent.map(txn => {
-              const isContrib = txn.transaction_type === 'contribution'
-              const showDate = txn.transaction_date !== lastDate
-              lastDate = txn.transaction_date
-              return (
-                <div key={txn.id}>
-                  {showDate && (
-                    <div style={{ font: '700 11px Plus Jakarta Sans', color: c.muted, marginTop: 8, marginBottom: 6 }}>
-                      {new Date(txn.transaction_date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, paddingLeft: 8 }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: 4, flexShrink: 0,
-                      background: isContrib ? '#10B981' : txn.member_id ? c.accent : '#6366F1',
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ font: '600 13px Plus Jakarta Sans', color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {isContrib
-                          ? `${txn.member?.name || 'Unknown'} Contribution`
-                          : txn.description || txn.category || 'Expense'
-                        }
-                      </div>
-                      {!isContrib && txn.member_id == null && (
-                        <div style={{ font: '500 10px Plus Jakarta Sans', color: '#6366F1' }}>From Project Fund</div>
-                      )}
-                      {!isContrib && txn.member && (
-                        <div style={{ font: '500 10px Plus Jakarta Sans', color: c.muted }}>Paid by {txn.member.name}</div>
-                      )}
-                    </div>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: isContrib ? '#10B981' : c.ink, flexShrink: 0 }}>
-                      {isContrib ? '+' : '−'}{fmt(txn.amount)}
-                    </div>
-                  </div>
-                </div>
-              )
-            })
-          })()}
-        </div>
-      )}
-
-      {/* Notes */}
-      {project.notes && (
-        <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-          <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Notes</div>
-          <div style={{ font: '500 13px Plus Jakarta Sans', color: c.ink, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{project.notes}</div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 function TransactionsTab({ transactions, attachments, canEdit, onAdd, onEdit, onDelete, onViewAttachment, onDeleteAttachment }: {
   transactions: ProjectTransaction[]
