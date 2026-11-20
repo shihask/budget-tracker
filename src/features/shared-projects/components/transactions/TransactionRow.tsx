@@ -2,8 +2,9 @@ import { Paperclip } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import type { ColorTokens } from '@/lib/tokens'
-import type { ProjectTransaction } from '../../types'
+import type { ProjectMember, ProjectTransaction } from '../../types'
 import { describeTransaction, GROUP_MONEY_SOURCE } from '../../lib/transactions'
+import { sharedByCount } from '../../lib/sharedBy'
 import { FONT } from '../overview/styles'
 import { kindTile } from './kindTile'
 
@@ -12,6 +13,8 @@ interface Props {
   attachmentCount: number
   /** Column layout for wide screens; two-line layout otherwise. */
   wide: boolean
+  /** This project's members, for the "Shared by" count. */
+  members: ProjectMember[]
   onOpen: () => void
 }
 
@@ -26,7 +29,7 @@ export function KittyPill({ c }: { c: ColorTokens }) {
   )
 }
 
-export function TransactionRow({ txn, attachmentCount, wide, onOpen }: Props) {
+export function TransactionRow({ txn, attachmentCount, wide, members, onOpen }: Props) {
   const c = useTheme()
   const v = describeTransaction(txn)
   const tile = kindTile(c, v.kind)
@@ -45,6 +48,9 @@ export function TransactionRow({ txn, attachmentCount, wide, onOpen }: Props) {
       <Paperclip size={12} />{attachmentCount > 1 ? attachmentCount : null}
     </span>
   )
+  // Only for expenses with an explicit group; nothing for Everyone.
+  const sharedCount = sharedByCount(txn, members)
+  const sharedLabel = sharedCount !== null ? `Shared by ${sharedCount}` : null
   const who = isContrib
     ? <span style={{ color: c.sub }}>{isGroup ? GROUP_MONEY_SOURCE : 'Contribution'}{txn.description ? ` · ${txn.description}` : ''}</span>
     : v.kind === 'expense-kitty'
@@ -74,9 +80,9 @@ export function TransactionRow({ txn, attachmentCount, wide, onOpen }: Props) {
           {wide && isContrib && !isGroup ? 'Contribution' : v.title}
         </div>
         {wide ? (
-          (isContrib ? txn.description : v.subtitleCategory) && (
+          (isContrib ? txn.description : (v.subtitleCategory || sharedCount)) && (
             <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {isContrib ? txn.description : v.subtitleCategory}
+              {isContrib ? txn.description : [v.subtitleCategory, sharedLabel].filter(Boolean).join(' · ')}
             </div>
           )
         ) : (
@@ -86,6 +92,7 @@ export function TransactionRow({ txn, attachmentCount, wide, onOpen }: Props) {
           }}>
             {v.subtitleCategory && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.subtitleCategory} ·</span>}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-flex', minWidth: 0 }}>{who}</span>
+            {sharedLabel && <span style={{ flexShrink: 0 }}>· {sharedLabel}</span>}
           </div>
         )}
       </div>

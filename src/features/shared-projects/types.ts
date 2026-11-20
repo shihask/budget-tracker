@@ -46,6 +46,8 @@ export interface ProjectTransaction {
   display_order: number
   created_at: string
   member?: ProjectMember
+  /** Expenses only. Members who shared it (split by share ratio). NULL/absent = everyone active. */
+  shared_by?: string[] | null
 }
 
 export interface ProjectAttachment {

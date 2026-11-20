@@ -1,5 +1,10 @@
 import { fmt } from '@/lib/utils'
 import type { SettlementComputation, SettlementParticipant, Transfer } from './settlement'
+import { formatDayHeader } from './transactions'
+
+/** "'Dinner' (Wed, 18 Nov)" or "An expense (Wed, 18 Nov)". */
+const expenseLabel = (description: string | null, date: string) =>
+  `${description ? `"${description}"` : 'An expense'} (${formatDayHeader(date)})`
 
 // Every sentence on the Settlement screen and in the shared text is built here from
 // engine values (paise). Nothing is hand-written arithmetic, so the words always
@@ -90,6 +95,17 @@ export function notes(d: SettlementComputation): Note[] {
         break
       case 'invariant_failed':
         out.push({ tone: 'warn', text: "Settlement couldn't be verified, so no payments are suggested." })
+        break
+      case 'invalid_participants': {
+        const what = expenseLabel(i.description, i.date)
+        const why = i.reason === 'none_valid' ? 'has no one left to share it'
+          : i.reason === 'zero_ratio' ? 'is shared only by members with a 0 share ratio, so it can\'t be split'
+            : 'has "Shared by" details that couldn\'t be read'
+        out.push({ tone: 'warn', text: `${what} ${why}. Edit who shared it to settle up.` })
+        break
+      }
+      case 'deleted_participants':
+        out.push({ tone: 'info', text: `${expenseLabel(i.description, i.date)}: ${i.count} ${i.count === 1 ? 'person' : 'people'} who shared it ${i.count === 1 ? 'is' : 'are'} no longer in this project, so it's split among the rest.` })
         break
       case 'unassigned_contributions':
         out.push({ tone: 'info', text: `${rs(i.amount)} is group money: from outside the group (a sponsor, refund or cashback) or from people no longer in this project. It lowers everyone's share and isn't credited to any member.` })

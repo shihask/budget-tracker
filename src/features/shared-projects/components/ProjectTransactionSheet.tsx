@@ -5,6 +5,8 @@ import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpre
 import { BottomSheet } from '@/components/BottomSheet'
 import { AmountOperatorRow } from '@/components/AmountOperatorRow'
 import type { ProjectMember, ProjectTransaction, ProjectBudget } from '../types'
+import { SharedByPicker } from './transactions/SharedByPicker'
+import { resolveSharedBy } from '../lib/sharedBy'
 
 interface Props {
   open: boolean
@@ -22,6 +24,8 @@ interface Props {
     notes?: string
     transaction_date: string
     files?: File[]
+    /** Expenses only. null = everyone active. */
+    shared_by?: string[] | null
   }) => Promise<void>
   editTxn?: ProjectTransaction | null
   budgets?: ProjectBudget[]
@@ -45,6 +49,10 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   const amountRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const [amountFocused, setAmountFocused] = useState(false)
+  // null = everyone active (stored as NULL); otherwise the chosen member ids.
+  const [sharedBy, setSharedBy] = useState<string[] | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open && editTxn) {
@@ -55,6 +63,8 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
       setCategory(editTxn.category || '')
       setNotes(editTxn.notes || '')
       setDate(editTxn.transaction_date)
+      setSharedBy(editTxn.shared_by ?? null)
+      setSaveError(null)
     } else if (open) {
       setMemberId(members.length === 1 ? members[0].id : '')
       setAmount('')
@@ -63,6 +73,8 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
       setNotes('')
       setDate(localIso(new Date()))
       setFiles([])
+      setSharedBy(null)
+      setSaveError(null)
     }
   }, [open, editTxn, members])
 
@@ -82,10 +94,13 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
         notes: notes.trim() || undefined,
         transaction_date: date,
         files: files.length > 0 ? files : undefined,
+        shared_by: mode === 'expense' ? sharedBy : null,
       })
       onClose()
     } catch (e) {
       console.error('Failed to save project transaction', e)
+      const msg = (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') ? (e as { message: string }).message : ''
+      setSaveError(msg ? `Couldn't save: ${msg}` : "Couldn't save. Check your connection and try again.")
     } finally {
       setSaving(false)
     }
@@ -106,7 +121,10 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   const isContribution = mode === 'contribution'
   const hasAmount = (evaluateAmountExpression(amount) ?? 0) > 0
   const hasSelection = members.length === 0 || !!memberId
-  const valid = hasAmount && hasSelection
+  // An explicit group must name at least one person (the picker never returns [], and the
+  // database rejects it too).
+  const validShared = isContribution || sharedBy === null || sharedBy.length > 0
+  const valid = hasAmount && hasSelection && validShared
 
   return (
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
@@ -146,6 +164,34 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
               )}
             </div>
           )}
+
+          {/* Who shared this expense — expenses only */}
+          {!isContribution && members.length > 0 && (() => {
+            const activeCount = members.filter(m => m.is_active).length
+            const r = resolveSharedBy(sharedBy, members)
+            const summary = r.everyone
+              ? `Everyone (${activeCount})`
+              : r.malformed ? 'Needs fixing'
+                : `${r.people.length} ${r.people.length === 1 ? 'person' : 'people'}${r.removed ? ` + ${r.removed} removed` : ''}`
+            return (
+              <div>
+                <div style={labelStyle}>Shared by</div>
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  style={{ ...inputStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
+                  <span style={{ font: '700 13px Plus Jakarta Sans', color: c.accent, flexShrink: 0 }}>Change</span>
+                </button>
+                {!r.everyone && !r.malformed && (
+                  <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 6, lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+                    Split by share ratio between {r.people.map(m => m.name).join(', ') || 'no one'}.
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           <div>
             <div style={labelStyle}>Amount</div>
@@ -323,7 +369,23 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
         >
           {saving ? 'Saving…' : editTxn ? 'Update' : `Add ${isContribution ? 'Contribution' : 'Expense'}`}
         </button>
+        {saveError && (
+          <div role="alert" style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: c.badSoft, color: c.bad, font: '600 12px Plus Jakarta Sans', overflowWrap: 'anywhere' }}>
+            {saveError}
+          </div>
+        )}
       </div>
+
+      {!isContribution && (
+        <SharedByPicker
+          key={pickerOpen ? 'open' : 'closed'}
+          open={pickerOpen}
+          members={members}
+          value={sharedBy}
+          onClose={() => setPickerOpen(false)}
+          onDone={v => { setSharedBy(v); setPickerOpen(false) }}
+        />
+      )}
     </BottomSheet>
   )
 }

@@ -267,6 +267,8 @@ export function useProjectsData(userId: string) {
     category?: string
     notes?: string
     transaction_date: string
+    /** Expenses only. null/absent = everyone. */
+    shared_by?: string[] | null
   }): Promise<ProjectTransaction> => {
     const amount = round2(form.amount)
     const { data, error } = await supabase
@@ -280,6 +282,9 @@ export function useProjectsData(userId: string) {
         category: form.category || null,
         notes: form.notes || null,
         transaction_date: form.transaction_date,
+        // Sent only for an explicit group, so ordinary expenses still save on a database
+        // that doesn't have the shared_by column yet (migration applied by hand).
+        ...(form.transaction_type === 'expense' && form.shared_by?.length ? { shared_by: form.shared_by } : {}),
       })
       .select()
       .single()
@@ -305,7 +310,7 @@ export function useProjectsData(userId: string) {
   const updateProjectTransaction = useCallback(async (
     id: string,
     patch: Partial<Pick<ProjectTransaction,
-      'member_id' | 'amount' | 'description' | 'category' | 'notes' | 'transaction_date'
+      'member_id' | 'amount' | 'description' | 'category' | 'notes' | 'transaction_date' | 'shared_by'
     >>
   ) => {
     if (patch.amount !== undefined) patch = { ...patch, amount: round2(patch.amount) }

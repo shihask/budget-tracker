@@ -23,11 +23,16 @@ export type SettlementIssue =
   | { kind: 'invalid_ratio'; memberId: string; value: unknown }
   | { kind: 'no_sharers'; amount: number }
   | { kind: 'invariant_failed'; detail: string }
+  // An expense's "Shared by" group can't be split: no valid member left, members whose
+  // ratios sum to 0, or unreadable data. Blocking — never charged to everyone instead.
+  | { kind: 'invalid_participants'; reason: 'none_valid' | 'zero_ratio' | 'malformed'; transactionId: string; description: string | null; date: string }
+  // Some ids in a group are not members of this project (deleted, or foreign); the rest share it.
+  | { kind: 'deleted_participants'; count: number; transactionId: string; description: string | null; date: string }
   // Informational — they explain the result but don't make it unbalanced.
   | { kind: 'unassigned_contributions'; amount: number }
   | { kind: 'kitty_overspent'; amount: number }
 
-const BLOCKING: SettlementIssue['kind'][] = ['invalid_amount', 'invalid_ratio', 'no_sharers', 'invariant_failed']
+const BLOCKING: SettlementIssue['kind'][] = ['invalid_amount', 'invalid_ratio', 'no_sharers', 'invariant_failed', 'invalid_participants']
 export const isBlocking = (i: SettlementIssue) => BLOCKING.includes(i.kind)
 
 export interface PartyRef {
@@ -210,6 +215,10 @@ export function computeSettlement(
   const putIn = new Map<string, number>()
   const paid = new Map<string, number>()
   let unassigned = 0, kittyPaid = 0, expenses = 0
+  // Expenses with shared_by NULL go into the "everyone" pool (exactly the pre-v1.112 rule);
+  // expenses with an explicit group are split on their own.
+  let everyoneExpenses = 0
+  const explicit: { t: ProjectTransaction; paise: number }[] = []
   for (const t of transactions) {
     const p = toPaise(t.amount)
     if (p === null) { issues.push({ kind: 'invalid_amount', transactionId: t.id, value: t.amount }); continue }
@@ -221,16 +230,60 @@ export function computeSettlement(
       expenses += p
       if (owner) paid.set(owner, (paid.get(owner) ?? 0) + p)
       else kittyPaid += p
+      if (t.shared_by == null) everyoneExpenses += p
+      else explicit.push({ t, paise: p })
     }
   }
 
   const groupMoney = unassigned + (inflows ?? 0)
+  // Everyone pool: group money lowers it, shared by active members by ratio. With no
+  // explicit expenses this is the same S as before v1.112, through the same call.
+  const poolCost = everyoneExpenses - groupMoney
   const sharedCost = expenses - groupMoney
   const totalWeight = weights.reduce((s, w) => s + w, 0)
 
   let shares = sorted.map(() => 0)
-  if (totalWeight > 0) shares = allocate(sharedCost, weights)
-  else if (sharedCost !== 0) issues.push({ kind: 'no_sharers', amount: sharedCost })
+  if (totalWeight > 0) shares = allocate(poolCost, weights)
+  else if (poolCost !== 0) issues.push({ kind: 'no_sharers', amount: poolCost })
+
+  // Explicit groups: resolved only against this project's members, deduplicated, in display
+  // order; active or inactive alike. Never falls back to everyone.
+  const indexOf = new Map(sorted.map((m, i) => [m.id, i]))
+  for (const { t, paise } of explicit) {
+    const where = { transactionId: t.id, description: t.description ?? null, date: t.transaction_date }
+    const raw: unknown = t.shared_by
+    if (!Array.isArray(raw) || raw.length === 0 || raw.some(x => typeof x !== 'string' || x === '')) {
+      issues.push({ kind: 'invalid_participants', reason: 'malformed', ...where })
+      continue
+    }
+    const ids = [...new Set(raw as string[])]
+    const valid = ids.filter(id => known.has(id))
+    if (valid.length === 0) {
+      issues.push({ kind: 'invalid_participants', reason: 'none_valid', ...where })
+      continue
+    }
+    if (valid.length < ids.length) issues.push({ kind: 'deleted_participants', count: ids.length - valid.length, ...where })
+
+    const group = valid.map(id => indexOf.get(id)!).sort((a, b) => a - b)
+    let badRatio = false
+    const groupWeights = group.map(i => {
+      const r = sorted[i].share_ratio
+      if (typeof r !== 'number' || !Number.isFinite(r) || r < 0) {
+        if (!issues.some(x => x.kind === 'invalid_ratio' && x.memberId === sorted[i].id)) {
+          issues.push({ kind: 'invalid_ratio', memberId: sorted[i].id, value: r })
+        }
+        badRatio = true
+        return 0
+      }
+      return r
+    })
+    if (badRatio) continue
+    if (groupWeights.reduce((s, w) => s + w, 0) <= 0) {
+      issues.push({ kind: 'invalid_participants', reason: 'zero_ratio', ...where })
+      continue
+    }
+    allocate(paise, groupWeights).forEach((part, k) => { shares[group[k]] += part })
+  }
 
   const memberParticipants: SettlementParticipant[] = sorted.map((m, i) => {
     const pi = putIn.get(m.id) ?? 0, pp = paid.get(m.id) ?? 0

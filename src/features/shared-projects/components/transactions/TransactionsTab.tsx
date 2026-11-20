@@ -164,6 +164,7 @@ export function TransactionsTab({ transactions, attachments, members, canEdit, o
                       txn={t}
                       attachmentCount={attachmentCounts.get(t.id) ?? 0}
                       wide={wide}
+                      members={members}
                       onOpen={() => setDetail({ id: t.id, open: true })}
                     />
                   </div>
@@ -195,6 +196,7 @@ export function TransactionsTab({ transactions, attachments, members, canEdit, o
         open={!!detail?.open && !!detailTxn}
         txn={detailTxn}
         attachments={attachments}
+        members={members}
         canEdit={canEdit}
         onClose={() => setDetail(d => d ? { ...d, open: false } : d)}
         onEdit={onEdit}

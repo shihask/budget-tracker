@@ -3,8 +3,9 @@ import { FileText, Image, Pencil, Trash2, X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from '@/components/BottomSheet'
-import type { ProjectAttachment, ProjectTransaction } from '../../types'
+import type { ProjectAttachment, ProjectMember, ProjectTransaction } from '../../types'
 import { describeTransaction, deleteLabel, formatLongDate, GROUP_MONEY_LABEL } from '../../lib/transactions'
+import { resolveSharedBy, sharedByText } from '../../lib/sharedBy'
 import { FONT } from '../overview/styles'
 import { KittyPill } from './TransactionRow'
 import { kindTile } from './kindTile'
@@ -14,6 +15,8 @@ interface Props {
   /** Kept while the sheet slides closed; null once the row no longer exists. */
   txn: ProjectTransaction | null
   attachments: ProjectAttachment[]
+  /** This project's members — "Shared by" names resolve only against these. */
+  members: ProjectMember[]
   canEdit: boolean
   onClose: () => void
   onEdit: (txn: ProjectTransaction) => void
@@ -27,7 +30,7 @@ interface Props {
 const errorText = (e: unknown) => (e instanceof Error && e.message) ? e.message : 'Something went wrong. Try again.'
 
 // Viewing and managing one transaction. Editing itself stays in ProjectTransactionSheet.
-export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClose, onEdit, onDelete, onViewAttachment, onDeleteAttachment, canViewReceipts = true }: Props) {
+export function TransactionDetailSheet({ open, txn, attachments, members, canEdit, onClose, onEdit, onDelete, onViewAttachment, onDeleteAttachment, canViewReceipts = true }: Props) {
   const c = useTheme()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +45,7 @@ export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClos
   const isGroup = v.kind === 'group-money'
   const typeLabel = isGroup ? GROUP_MONEY_LABEL : isContrib ? 'Contribution' : 'Expense'
   const own = attachments.filter(a => a.project_transaction_id === txn.id)
+  const shared = isContrib ? null : resolveSharedBy(txn.shared_by, members)
 
   const handleDelete = async () => {
     if (!confirm(deleteLabel(txn))) return
@@ -64,6 +68,12 @@ export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClos
           : v.memberName,
       },
     ...(v.category ? [{ label: 'Category', value: v.category }] : []),
+    ...(!isContrib ? [{
+      label: 'Shared by',
+      value: shared && (shared.malformed || (!shared.everyone && shared.people.length === 0))
+        ? <span style={{ color: c.bad }}>{sharedByText(shared)} — no one can be charged. Edit who shared it.</span>
+        : sharedByText(shared!),
+    }] : []),
     { label: 'Date', value: formatLongDate(txn.transaction_date) },
     ...(isContrib && txn.description ? [{ label: 'Note', value: txn.description }] : []),
     ...(txn.notes ? [{ label: 'Notes', value: <span style={{ whiteSpace: 'pre-wrap' }}>{txn.notes}</span> }] : []),

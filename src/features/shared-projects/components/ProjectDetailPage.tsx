@@ -132,6 +132,10 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
     const { files, ...txnForm } = form
     let txnId: string
     if (editTxn) {
+      // "Shared by" is sent only when it changed — so editing other fields of an expense
+      // works on a database without the column, and never touches a saved group.
+      const nextShared = txnForm.transaction_type === 'expense' ? (txnForm.shared_by?.length ? txnForm.shared_by : null) : null
+      const sharedChanged = JSON.stringify(nextShared) !== JSON.stringify(editTxn.shared_by ?? null)
       await data.updateProjectTransaction(editTxn.id, {
         member_id: txnForm.member_id,
         amount: txnForm.amount,
@@ -139,6 +143,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
         category: txnForm.category || null,
         notes: txnForm.notes || null,
         transaction_date: txnForm.transaction_date,
+        ...(sharedChanged ? { shared_by: nextShared } : {}),
       })
       txnId = editTxn.id
       setEditTxn(null)
