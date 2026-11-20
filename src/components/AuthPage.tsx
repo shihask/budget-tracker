@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   BarChart3, Bell, BellRing, Bot, Briefcase, CalendarCheck, Check,
-  ChevronDown, Cloud, CloudOff, CreditCard, Eye, EyeOff, FileUp, Flame, FolderOpen, Gem, GraduationCap, HandCoins,
+  ChevronDown, Cloud, CloudOff, CreditCard, Eye, EyeOff, FileUp, Flame, Gem, GraduationCap, HandCoins,
   House, LayoutDashboard, LineChart, Lock, Mail, NotebookPen, Paperclip, PiggyBank, Receipt, Repeat, Shield,
-  ShieldCheck, Sparkles, Split, Sprout, Star, Tag, Target, TrendingUp, Trophy, Users, Wallet,
+  ShieldCheck, Sparkles, Split, Sprout, Star, Tag, Target, TrendingUp, Trophy, Users, UsersRound, Wallet,
   X as XIcon, Zap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -137,7 +137,7 @@ const tourFeatures = [
     mock: 'events',
   },
   {
-    id: 'projects', icon: FolderOpen,
+    id: 'projects', icon: UsersRound,
     title: 'Group Expenses',
     desc: 'Split costs with friends and family for trips or shared households. Track contributions, manage budgets, see who owes whom, and settle up — all in one place.',
     mock: 'projects',
@@ -185,7 +185,7 @@ const badges = [
   { icon: Sprout, label: 'Plant Growth' },
   { icon: Trophy, label: 'Goal Tracking' },
   { icon: Gem, label: 'Life Events' },
-  { icon: FolderOpen, label: 'Group Expenses' },
+  { icon: UsersRound, label: 'Group Expenses' },
   ...(HOUSEHOLD_ENABLED ? [{ icon: House, label: 'Household' }] as const : []),
   { icon: NotebookPen, label: 'Kakeibo Reflection' },
   { icon: Receipt, label: 'Expense Tracking' },

@@ -7,6 +7,7 @@ import { ProjectFormSheet } from './ProjectFormSheet'
 import { ProjectDetailPage } from './ProjectDetailPage'
 import type { Project, ProjectStatus, ProjectRole } from '../types'
 import { Plus } from 'lucide-react'
+import { FEATURE_ICONS } from '@/lib/feature-icons'
 
 interface Props {
   userId: string
@@ -218,7 +219,7 @@ export function ProjectsListPage({ userId, userName, onClose, onSwipeProgress, i
         ) : filtered.length === 0 && filteredShared.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 24px' }}>
             <div style={{ width: 60, height: 60, borderRadius: 18, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              <FEATURE_ICONS.projects size={28} color="#6366F1" aria-hidden />
             </div>
             <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Start your first group</div>
             <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.6, marginBottom: 24 }}>Plan a group trip, track home renovation costs or split expenses with flatmates.</div>

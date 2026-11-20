@@ -1,7 +1,7 @@
 import {
-  Banknote, CalendarClock, CalendarHeart, ChartColumn, ChartPie, CreditCard, FolderOpen, HandCoins,
+  Banknote, CalendarClock, CalendarHeart, ChartColumn, ChartPie, ContactRound, CreditCard, HandCoins,
   House, Layers, LayoutDashboard, Leaf, NotebookPen, PiggyBank, Plus, Receipt, Settings, ShoppingCart,
-  Sprout, Tag, Target, TrendingUp, Users, Wallet,
+  Sprout, Tag, Target, TrendingUp, Users, UsersRound, Wallet,
   BookOpen, Gift, Heart, Plane, ShoppingBag, ShoppingBasket, Star, Utensils, Wrench, Zap,
   type LucideIcon,
 } from 'lucide-react'
@@ -28,11 +28,11 @@ export const FEATURE_ICONS: Record<FeatureKey, LucideIcon> = {
   borrowing:       HandCoins,
   credit_cards:    CreditCard,
   events:          CalendarHeart,
-  projects:        FolderOpen,
+  projects:        UsersRound,
   household:       House,
   grow:            Sprout,
   plant:           Leaf,
-  masters:         Users,
+  masters:         ContactRound,
   categories:      Tag,
   settings:        Settings,
   create:          Plus,
