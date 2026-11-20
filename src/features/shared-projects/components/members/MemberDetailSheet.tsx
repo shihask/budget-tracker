@@ -22,9 +22,11 @@ interface Props {
   onEdit: (m: ProjectMember) => void
   onInvite: (email: string) => void
   onRemove: (id: string) => Promise<void>
+  /** Public share page: never show a member's email. */
+  hideEmail?: boolean
 }
 
-export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite, onClose, onEdit, onInvite, onRemove }: Props) {
+export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite, onClose, onEdit, onInvite, onRemove, hideEmail = false }: Props) {
   const c = useTheme()
   const [step, setStep] = useState<'view' | 'confirm'>('view')
   const [understood, setUnderstood] = useState(false)
@@ -72,7 +74,7 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
               <span style={{ font: `800 20px ${FONT}`, color: c.ink, overflowWrap: 'anywhere' }}>{m.name}</span>
               <MemberBadges c={c} row={row} />
             </div>
-            {m.email && <div style={{ font: `500 13px ${FONT}`, color: c.muted, marginTop: 2, overflowWrap: 'anywhere' }}>{m.email}</div>}
+            {m.email && !hideEmail && <div style={{ font: `500 13px ${FONT}`, color: c.muted, marginTop: 2, overflowWrap: 'anywhere' }}>{m.email}</div>}
           </div>
         </div>
 

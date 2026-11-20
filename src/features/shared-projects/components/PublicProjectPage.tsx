@@ -1,17 +1,23 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Inbox } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
-import { fmt } from '@/lib/utils'
 import { loadPublicProject } from '../lib/publicApi'
 import { calcProjectSummary, calcMemberSummaries, calcSettlement, calcBudgetSummary } from '../lib/calculations'
-import { BudgetBreakdownSection } from './BudgetBreakdownSection'
-import { PublicSettlementList } from './settlement/PublicSettlementList'
+import { ProjectOverview } from './overview/ProjectOverview'
+import { TransactionsTab } from './transactions/TransactionsTab'
+import { MembersTab } from './members/MembersTab'
+import { SettlementTab } from './settlement/SettlementTab'
 import { ActivityLogTab } from './ActivityLogTab'
-import type { Project, ProjectMember, ProjectTransaction, ProjectAttachment, ProjectBudget, ProjectActivityLog } from '../types'
+import type { Project, ProjectMember, ProjectTransaction, ProjectAttachment, ProjectBudget, ProjectActivityLog, ProjectTab } from '../types'
 
 interface Props {
   shareCode: string
 }
+
+// The public share link. Same screens as inside the app, read-only:
+// role 'viewer' / canEdit false everywhere, no emails, no collaborators, and no
+// receipt opening (receipt files are private to project members).
+const noop = () => {}
+const noopAsync = async () => {}
 
 export function PublicProjectPage({ shareCode }: Props) {
   const c = useTheme()
@@ -23,7 +29,7 @@ export function PublicProjectPage({ shareCode }: Props) {
   const [budgets, setBudgets] = useState<ProjectBudget[]>([])
   const [activityLog, setActivityLog] = useState<ProjectActivityLog[]>([])
   const [notFound, setNotFound] = useState(false)
-  const [tab, setTab] = useState<'overview' | 'expenses' | 'members' | 'settlement' | 'activity'>('overview')
+  const [tab, setTab] = useState<ProjectTab>('overview')
 
   useEffect(() => {
     loadPublicProject(shareCode).then(result => {
@@ -53,7 +59,7 @@ export function PublicProjectPage({ shareCode }: Props) {
     () => calcSettlement(members, transactions),
     [members, transactions]
   )
-  const budgetSummaryData = useMemo(
+  const budgetSummary = useMemo(
     () => project ? calcBudgetSummary(project, budgets, transactions) : null,
     [project, budgets, transactions]
   )
@@ -66,7 +72,7 @@ export function PublicProjectPage({ shareCode }: Props) {
     )
   }
 
-  if (notFound || !project || !summary) {
+  if (notFound || !project || !summary || !budgetSummary) {
     return (
       <div style={{ minHeight: '100dvh', background: c.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ font: '800 24px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Project Not Found</div>
@@ -77,197 +83,107 @@ export function PublicProjectPage({ shareCode }: Props) {
     )
   }
 
-  const target = project.target_amount || 0
-
-  const tabs = [
-    { id: 'overview' as const, label: 'Overview' },
-    { id: 'expenses' as const, label: 'Transactions' },
-    { id: 'members' as const, label: 'Members' },
-    ...(members.length >= 2 ? [{ id: 'settlement' as const, label: 'Settlement' }] : []),
-    { id: 'activity' as const, label: 'Activity' },
+  const canSettle = members.length >= 2
+  const tabs: { id: ProjectTab; label: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'expenses', label: 'Transactions' },
+    { id: 'members', label: 'Members' },
+    ...(canSettle ? [{ id: 'settlement' as ProjectTab, label: 'Settlement' }] : []),
+    { id: 'activity', label: 'Activity' },
   ]
 
   return (
     <div style={{ minHeight: '100dvh', background: c.bg }}>
       {/* Header */}
-      <div style={{ padding: '20px 18px 14px', borderBottom: `1px solid ${c.faint}` }}>
-        <div style={{ font: '600 11px Plus Jakarta Sans', color: c.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-          MoneyPlant · Shared Project
-        </div>
-        <div style={{ font: '800 24px Plus Jakarta Sans', color: c.ink }}>{project.name}</div>
-        {project.description && (
-          <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, marginTop: 4, lineHeight: 1.4 }}>{project.description}</div>
-        )}
+      <div style={{ padding: '20px 18px 12px', borderBottom: `1px solid ${c.faint}` }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+            MoneyPlant · Shared Project
+          </div>
+          <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, overflowWrap: 'anywhere' }}>{project.name}</div>
+          {project.description && (
+            <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, marginTop: 4, lineHeight: 1.4 }}>{project.description}</div>
+          )}
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginTop: 14 }}>
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              style={{
-                flex: 1, padding: '8px 0', borderRadius: 10,
-                border: 'none',
-                background: tab === t.id ? c.accent : 'transparent',
-                color: tab === t.id ? '#fff' : c.muted,
-                font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
+          {/* Tabs — scroll inside their own row on narrow phones, never the page */}
+          <div role="tablist" style={{ display: 'flex', gap: 4, marginTop: 14, overflowX: 'auto', scrollbarWidth: 'none' }}>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                style={{
+                  flex: '1 0 auto', padding: '8px 12px', borderRadius: 10, border: 'none', whiteSpace: 'nowrap',
+                  background: tab === t.id ? c.accent : 'transparent',
+                  color: tab === t.id ? '#fff' : c.muted,
+                  font: '700 12px Plus Jakarta Sans', cursor: 'pointer',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ padding: '16px 18px 40px', maxWidth: 720, margin: '0 auto' }}>
+      <div style={{ padding: '16px 18px 40px' }}>
         {tab === 'overview' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Funding progress */}
-            {target > 0 && (
-              <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Funding Progress</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                  <div style={{ font: '800 24px Plus Jakarta Sans', color: '#10B981' }}>{fmt(summary.totalContributions)}</div>
-                  <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>of {fmt(target)}</div>
-                </div>
-                <div style={{ height: 8, borderRadius: 4, background: c.faint, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', borderRadius: 4, background: '#10B981', width: `${summary.fundingProgress}%` }} />
-                </div>
-                <div style={{ font: '700 12px Plus Jakarta Sans', color: '#10B981', marginTop: 6, textAlign: 'right' }}>{summary.fundingProgress.toFixed(0)}%</div>
-              </div>
-            )}
-
-            {/* Spending progress */}
-            {target > 0 && (
-              <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Spending Progress</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                  <div style={{ font: '800 24px Plus Jakarta Sans', color: c.accent }}>{fmt(summary.totalExpenses)}</div>
-                  <div style={{ font: '600 13px Plus Jakarta Sans', color: c.muted }}>of {fmt(target)}</div>
-                </div>
-                <div style={{ height: 8, borderRadius: 4, background: c.faint, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', borderRadius: 4, background: c.accent, width: `${summary.spendingProgress}%` }} />
-                </div>
-                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.accent, marginTop: 6, textAlign: 'right' }}>{summary.spendingProgress.toFixed(0)}%</div>
-              </div>
-            )}
-
-            {/* Budget breakdown */}
-            {budgetSummaryData && budgetSummaryData.breakdowns.length > 0 && (
-              <BudgetBreakdownSection budgetSummary={budgetSummaryData} targetAmount={target} role="viewer" />
-            )}
-
-            {/* Stats */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1, background: c.surface, borderRadius: 14, padding: '12px 14px', border: `1px solid ${c.faint}` }}>
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Collected</div>
-                <div style={{ font: '800 18px Plus Jakarta Sans', color: '#10B981', marginTop: 4 }}>{fmt(summary.totalContributions)}</div>
-              </div>
-              <div style={{ flex: 1, background: c.surface, borderRadius: 14, padding: '12px 14px', border: `1px solid ${c.faint}` }}>
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Spent</div>
-                <div style={{ font: '800 18px Plus Jakarta Sans', color: c.accent, marginTop: 4 }}>{fmt(summary.totalExpenses)}</div>
-              </div>
-              <div style={{ flex: 1, background: c.surface, borderRadius: 14, padding: '12px 14px', border: `1px solid ${c.faint}` }}>
-                <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Balance</div>
-                <div style={{ font: '800 18px Plus Jakarta Sans', color: summary.remainingBudget >= 0 ? '#10B981' : '#EF4444', marginTop: 4 }}>{fmt(summary.remainingBudget)}</div>
-              </div>
-            </div>
-
-            {/* Leaderboard */}
-            {memberSummaries.length > 0 && (
-              <div style={{ background: c.surface, borderRadius: 18, padding: 16, border: `1px solid ${c.faint}` }}>
-                <div style={{ font: '700 12px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Contributions</div>
-                {[...memberSummaries].sort((a, b) => b.actualContribution - a.actualContribution).map(ms => (
-                  <div key={ms.memberId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>{ms.memberName}</div>
-                    <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981' }}>{fmt(ms.actualContribution)}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ProjectOverview
+            project={project}
+            summary={summary}
+            memberSummaries={memberSummaries}
+            transactions={transactions}
+            budgetSummary={budgetSummary}
+            role="viewer"
+            canSettle={canSettle}
+            onManageBudgets={noop}
+            onEditProject={noop}
+            onGoToTab={setTab}
+          />
         )}
-
         {tab === 'expenses' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {transactions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 24px' }}>
-                <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}><Inbox size={24} color="#A09890" /></div>
-                <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Project hasn't started yet</div>
-                <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, lineHeight: 1.5 }}>The owner hasn't recorded any contributions or expenses.</div>
-              </div>
-            ) : transactions.map(txn => {
-              const isContrib = txn.transaction_type === 'contribution'
-              const txnAttach = attachments.filter(a => a.project_transaction_id === txn.id)
-              return (
-                <div key={txn.id} style={{ background: c.surface, borderRadius: 16, padding: '12px 14px', border: `1px solid ${c.faint}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 4, background: isContrib ? '#10B981' : c.accent }} />
-                        <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{fmt(txn.amount)}</div>
-                        <div style={{ font: '700 10px Plus Jakarta Sans', color: isContrib ? '#10B981' : c.accent, textTransform: 'uppercase' }}>{txn.transaction_type}</div>
-                      </div>
-                      {txn.member ? (
-                        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, paddingLeft: 16 }}>
-                          {isContrib ? 'From' : 'Paid by'} {txn.member.name}
-                        </div>
-                      ) : isContrib && (
-                        <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginTop: 3, paddingLeft: 16 }}>
-                          Group money · from outside the group
-                        </div>
-                      )}
-                      {(txn.description || txn.category) && (
-                        <div style={{ font: '500 12px Plus Jakarta Sans', color: c.muted, marginTop: 2, paddingLeft: 16 }}>
-                          {[txn.category, txn.description].filter(Boolean).join(' · ')}
-                        </div>
-                      )}
-                      {txnAttach.length > 0 && (
-                        <div style={{ font: '500 11px Plus Jakarta Sans', color: c.accent, marginTop: 3, paddingLeft: 16 }}>
-                          {txnAttach.length} attachment{txnAttach.length > 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted }}>{txn.transaction_date}</div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <TransactionsTab
+            transactions={transactions}
+            attachments={attachments}
+            members={members}
+            canEdit={false}
+            receiptsViewable={false}
+            onAdd={noop}
+            onEdit={noop}
+            onDelete={noopAsync}
+            onViewAttachment={noop}
+            onDeleteAttachment={noopAsync}
+          />
         )}
-
         {tab === 'members' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {members.map(m => {
-              const ms = memberSummaries.find(s => s.memberId === m.id)
-              return (
-                <div key={m.id} style={{ background: c.surface, borderRadius: 16, padding: '12px 14px', border: `1px solid ${c.faint}` }}>
-                  <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>{m.name}</div>
-                  {ms && (
-                    <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                      <div>
-                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Contributed</div>
-                        <div style={{ font: '700 13px Plus Jakarta Sans', color: '#10B981' }}>{fmt(ms.actualContribution)}</div>
-                      </div>
-                      <div>
-                        <div style={{ font: '600 10px Plus Jakarta Sans', color: c.muted, textTransform: 'uppercase' }}>Expenses Paid</div>
-                        <div style={{ font: '700 13px Plus Jakarta Sans', color: c.accent }}>{fmt(ms.totalExpensesPaid)}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+          <MembersTab
+            members={members}
+            memberSummaries={memberSummaries}
+            settlement={settlement}
+            transactions={transactions}
+            collaborators={[]}
+            target={project.target_amount || 0}
+            canEdit={false}
+            isOwner={false}
+            canSettle={canSettle}
+            publicView
+            onAddMember={noopAsync}
+            onUpdateMember={noopAsync}
+            onRemoveMember={noopAsync}
+            onInvite={noop}
+            onRemoveCollaborator={noopAsync}
+            onGoToSettlement={() => setTab('settlement')}
+          />
         )}
-
         {tab === 'settlement' && (
-          <PublicSettlementList settlement={settlement} hasExpenses={transactions.some(t => t.transaction_type === 'expense')} />
+          <SettlementTab settlement={settlement} projectName={project.name} />
         )}
-
         {tab === 'activity' && (
-          <ActivityLogTab activityLog={activityLog} />
+          <div style={{ maxWidth: 960, margin: '0 auto' }}>
+            <ActivityLogTab activityLog={activityLog} />
+          </div>
         )}
       </div>
     </div>

@@ -26,9 +26,11 @@ interface Props {
   onDelete: (id: string) => Promise<void>
   onViewAttachment: (path: string) => void
   onDeleteAttachment: (att: ProjectAttachment) => Promise<void>
+  /** false on the public share page: receipt files are private to project members. */
+  receiptsViewable?: boolean
 }
 
-export function TransactionsTab({ transactions, attachments, members, canEdit, onAdd, onEdit, onDelete, onViewAttachment, onDeleteAttachment }: Props) {
+export function TransactionsTab({ transactions, attachments, members, canEdit, onAdd, onEdit, onDelete, onViewAttachment, onDeleteAttachment, receiptsViewable = true }: Props) {
   const c = useTheme()
   const wide = useIsWide()
   const [filters, setFilters] = useState<TransactionFilters>(NO_FILTERS)
@@ -199,6 +201,7 @@ export function TransactionsTab({ transactions, attachments, members, canEdit, o
         onDelete={onDelete}
         onViewAttachment={onViewAttachment}
         onDeleteAttachment={onDeleteAttachment}
+        canViewReceipts={receiptsViewable}
       />
     </div>
   )

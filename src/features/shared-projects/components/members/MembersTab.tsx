@@ -33,11 +33,13 @@ interface Props {
   onInvite: (email?: string) => void
   onRemoveCollaborator: (collaboratorId: string) => Promise<void>
   onGoToSettlement: () => void
+  /** Public share page: no emails, no collaborators — a link anyone can open. */
+  publicView?: boolean
 }
 
 export function MembersTab({
   members, memberSummaries, settlement, transactions, collaborators, target, canEdit, isOwner, canSettle,
-  onAddMember, onUpdateMember, onRemoveMember, onInvite, onRemoveCollaborator, onGoToSettlement,
+  onAddMember, onUpdateMember, onRemoveMember, onInvite, onRemoveCollaborator, onGoToSettlement, publicView = false,
 }: Props) {
   const c = useTheme()
   const wide = useIsWide()
@@ -110,7 +112,7 @@ export function MembersTab({
         </div>
       )}
 
-      <CollaboratorsSection collaborators={collaborators} isOwner={isOwner} onInvite={() => onInvite()} onRemove={onRemoveCollaborator} />
+      {!publicView && <CollaboratorsSection collaborators={collaborators} isOwner={isOwner} onInvite={() => onInvite()} onRemove={onRemoveCollaborator} />}
 
       <MemberFormSheet
         key={`form-${form.key}`}
@@ -125,7 +127,8 @@ export function MembersTab({
         row={detailRow}
         transactions={transactions}
         canEdit={canEdit}
-        canInvite={isOwner && !!detailRow?.member.email && !collaboratorEmails.has(detailRow.member.email)}
+        hideEmail={publicView}
+        canInvite={!publicView && isOwner && !!detailRow?.member.email && !collaboratorEmails.has(detailRow.member.email)}
         onClose={() => setDetail(d => d ? { ...d, open: false } : d)}
         onEdit={m => { setDetail(d => d ? { ...d, open: false } : d); openForm(m) }}
         onInvite={email => { setDetail(d => d ? { ...d, open: false } : d); onInvite(email) }}

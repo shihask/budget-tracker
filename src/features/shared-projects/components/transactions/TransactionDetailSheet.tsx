@@ -19,13 +19,15 @@ interface Props {
   onEdit: (txn: ProjectTransaction) => void
   onDelete: (id: string) => Promise<void>
   onViewAttachment: (path: string) => void
+  /** false on the public share page: receipt files are private to project members. */
+  canViewReceipts?: boolean
   onDeleteAttachment: (att: ProjectAttachment) => Promise<void>
 }
 
 const errorText = (e: unknown) => (e instanceof Error && e.message) ? e.message : 'Something went wrong. Try again.'
 
 // Viewing and managing one transaction. Editing itself stays in ProjectTransactionSheet.
-export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClose, onEdit, onDelete, onViewAttachment, onDeleteAttachment }: Props) {
+export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClose, onEdit, onDelete, onViewAttachment, onDeleteAttachment, canViewReceipts = true }: Props) {
   const c = useTheme()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -118,10 +120,12 @@ export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClos
                     <span style={{ flex: 1, minWidth: 0, font: `500 13px ${FONT}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {att.file_name}
                     </span>
-                    <button onClick={() => onViewAttachment(att.path)} style={{
-                      flexShrink: 0, background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer',
-                      color: c.accent, font: `700 12px ${FONT}`,
-                    }}>View</button>
+                    {canViewReceipts && (
+                      <button onClick={() => onViewAttachment(att.path)} style={{
+                        flexShrink: 0, background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer',
+                        color: c.accent, font: `700 12px ${FONT}`,
+                      }}>View</button>
+                    )}
                     {canEdit && (
                       <button aria-label={`Delete ${att.file_name}`} disabled={busy} onClick={() => handleDeleteReceipt(att)} style={{
                         flexShrink: 0, background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: c.muted, display: 'flex',
@@ -133,6 +137,11 @@ export function TransactionDetailSheet({ open, txn, attachments, canEdit, onClos
                 )
               })}
             </div>
+            {!canViewReceipts && (
+              <div style={{ font: `500 11px ${FONT}`, color: c.muted, marginTop: 6 }}>
+                Receipts can be opened by project members in MoneyPlant.
+              </div>
+            )}
           </div>
         )}
 
