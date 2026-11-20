@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
@@ -27,10 +27,14 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
   const c = useTheme()
   const [rows, setRows] = useState<BudgetRow[]>([])
   const [saving, setSaving] = useState(false)
-  const rowRefs = useRef<Array<HTMLInputElement | null>>([])
-  const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null)
+  // The focused amount input, for the calculator row (kept in state — never read a ref during render).
+  const [focused, setFocused] = useState<{ idx: number; el: HTMLInputElement } | null>(null)
 
-  useEffect(() => {
+  // Re-sync rows when the sheet opens or the saved budgets change while open — the same
+  // moments the old effect ran, done during render as React recommends.
+  const [synced, setSynced] = useState<{ open: boolean; budgets: typeof budgets } | null>(null)
+  if (!synced || synced.open !== open || synced.budgets !== budgets) {
+    setSynced({ open, budgets })
     if (open) {
       setRows(budgets.map(b => ({
         id: b.id,
@@ -39,7 +43,7 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
         isNew: false,
       })))
     }
-  }, [open, budgets])
+  }
 
   const total = rows.reduce((s, r) => s + (evaluateAmountExpression(r.budget_amount) ?? 0), 0)
   const overBudget = targetAmount > 0 && total > targetAmount
@@ -123,13 +127,12 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
                   style={{ ...inputStyle, flex: 2 }}
                 />
                 <input
-                  ref={el => { rowRefs.current[idx] = el }}
                   type="text"
                   value={row.budget_amount}
                   onChange={e => updateRow(idx, 'budget_amount', sanitizeAmountInput(e.target.value))}
-                  onFocus={e => { selectOnFocus(e.target); setFocusedRowIndex(idx) }}
+                  onFocus={e => { selectOnFocus(e.target); setFocused({ idx, el: e.target }) }}
                   onBlur={e => {
-                    setFocusedRowIndex(null)
+                    setFocused(null)
                     const r = evaluateAmountExpression(e.target.value)
                     updateRow(idx, 'budget_amount', r === null ? '' : String(round2(r)))
                   }}
@@ -151,8 +154,8 @@ export function BudgetManageSheet({ open, onClose, budgets, targetAmount, onAdd,
                   </svg>
                 </button>
               </div>
-              {focusedRowIndex === idx && (
-                <AmountOperatorRow inputRef={{ current: rowRefs.current[idx] }} onChange={v => updateRow(idx, 'budget_amount', v)} />
+              {focused?.idx === idx && (
+                <AmountOperatorRow inputRef={{ current: focused.el }} onChange={v => updateRow(idx, 'budget_amount', v)} />
               )}
             </div>
           ))}

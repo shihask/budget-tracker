@@ -9,6 +9,7 @@ import { ProjectOverview } from './overview/ProjectOverview'
 import { TransactionsTab } from './transactions/TransactionsTab'
 import { MembersTab } from './members/MembersTab'
 import { SettlementTab } from './settlement/SettlementTab'
+import { openReceipt } from '../lib/openReceipt'
 import { BudgetManageSheet } from './BudgetManageSheet'
 import { CollaboratorInviteSheet } from './CollaboratorInviteSheet'
 import { ActivityLogTab } from './ActivityLogTab'
@@ -282,7 +283,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
               setEditTxn(txn); setAddMode(txn.transaction_type)
             }}
             onDelete={id => data.deleteProjectTransaction(id)}
-            onViewAttachment={path => data.getAttachmentUrl(path).then(url => { if (url) window.open(url, '_blank') })}
+            onViewAttachment={path => openReceipt(() => data.getAttachmentUrl(path))}
             onDeleteAttachment={att => data.deleteAttachment(att)}
           />
         )}

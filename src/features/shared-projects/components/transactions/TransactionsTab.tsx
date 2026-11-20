@@ -24,7 +24,7 @@ interface Props {
   onAdd: (mode: 'contribution' | 'expense') => void
   onEdit: (txn: ProjectTransaction) => void
   onDelete: (id: string) => Promise<void>
-  onViewAttachment: (path: string) => void
+  onViewAttachment: (path: string) => void | Promise<void>
   onDeleteAttachment: (att: ProjectAttachment) => Promise<void>
   /** false on the public share page: receipt files are private to project members. */
   receiptsViewable?: boolean

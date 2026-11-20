@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { localIso, round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
@@ -54,29 +54,33 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (open && editTxn) {
-      // No member: a kitty-paid expense, or group money (a contribution from outside the group).
-      setMemberId(editTxn.member_id || (editTxn.transaction_type === 'contribution' ? OUTSIDE : FUND))
-      setAmount(String(editTxn.amount))
-      setDescription(editTxn.description || '')
-      setCategory(editTxn.category || '')
-      setNotes(editTxn.notes || '')
-      setDate(editTxn.transaction_date)
-      setSharedBy(editTxn.shared_by ?? null)
-      setSaveError(null)
-    } else if (open) {
-      setMemberId(members.length === 1 ? members[0].id : '')
-      setAmount('')
-      setDescription('')
-      setCategory('')
-      setNotes('')
-      setDate(localIso(new Date()))
-      setFiles([])
-      setSharedBy(null)
-      setSaveError(null)
-    }
-  }, [open, editTxn, members])
+  // Reset the form when it opens or its inputs change — the same moments the old effect
+  // ran, done during render as React recommends (no cascading effect renders).
+  const [synced, setSynced] = useState<{ open: boolean; editTxn: ProjectTransaction | null | undefined; members: ProjectMember[] } | null>(null)
+  if (!synced || synced.open !== open || synced.editTxn !== editTxn || synced.members !== members) {
+    setSynced({ open, editTxn, members })
+      if (open && editTxn) {
+        // No member: a kitty-paid expense, or group money (a contribution from outside the group).
+        setMemberId(editTxn.member_id || (editTxn.transaction_type === 'contribution' ? OUTSIDE : FUND))
+        setAmount(String(editTxn.amount))
+        setDescription(editTxn.description || '')
+        setCategory(editTxn.category || '')
+        setNotes(editTxn.notes || '')
+        setDate(editTxn.transaction_date)
+        setSharedBy(editTxn.shared_by ?? null)
+        setSaveError(null)
+      } else if (open) {
+        setMemberId(members.length === 1 ? members[0].id : '')
+        setAmount('')
+        setDescription('')
+        setCategory('')
+        setNotes('')
+        setDate(localIso(new Date()))
+        setFiles([])
+        setSharedBy(null)
+        setSaveError(null)
+      }
+  }
 
   const handleSave = async () => {
     const rawAmt = evaluateAmountExpression(amount)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { round2, selectOnFocus } from '@/lib/utils'
 import { evaluateAmountExpression, sanitizeAmountInput } from '@/lib/amountExpression'
@@ -24,21 +24,25 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
   const targetRef = useRef<HTMLInputElement | null>(null)
   const [targetFocused, setTargetFocused] = useState(false)
 
-  useEffect(() => {
-    if (open && project) {
-      setName(project.name)
-      setDescription(project.description || '')
-      setNotes(project.notes || '')
-      setTarget(String(project.target_amount || ''))
-      setStatus(project.status)
-    } else if (open) {
-      setName('')
-      setDescription('')
-      setNotes('')
-      setTarget('')
-      setStatus('active')
-    }
-  }, [open, project])
+  // Reset the form when it opens or its inputs change — the same moments the old effect
+  // ran, done during render as React recommends (no cascading effect renders).
+  const [synced, setSynced] = useState<{ open: boolean; project: Project | null | undefined } | null>(null)
+  if (!synced || synced.open !== open || synced.project !== project) {
+    setSynced({ open, project })
+      if (open && project) {
+        setName(project.name)
+        setDescription(project.description || '')
+        setNotes(project.notes || '')
+        setTarget(String(project.target_amount || ''))
+        setStatus(project.status)
+      } else if (open) {
+        setName('')
+        setDescription('')
+        setNotes('')
+        setTarget('')
+        setStatus('active')
+      }
+  }
 
   const handleSave = async () => {
     if (!name.trim() || saving) return

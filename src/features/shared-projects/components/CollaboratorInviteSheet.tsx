@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { BottomSheet } from '@/components/BottomSheet'
@@ -15,10 +15,12 @@ interface Props {
 export function CollaboratorInviteSheet({ open, onClose, onInvite, projectName, initialEmail }: Props) {
   const c = useTheme()
   const [email, setEmail] = useState(initialEmail ?? '')
-
-  useEffect(() => {
+  // Reset the email when the sheet opens or the prefill changes (same moments as the old effect).
+  const [synced, setSynced] = useState<{ open: boolean; initialEmail: string | undefined } | null>(null)
+  if (!synced || synced.open !== open || synced.initialEmail !== initialEmail) {
+    setSynced({ open, initialEmail })
     if (open) setEmail(initialEmail ?? '')
-  }, [open, initialEmail])
+  }
   const [role, setRole] = useState<'editor' | 'viewer'>('viewer')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
@@ -37,8 +39,10 @@ export function CollaboratorInviteSheet({ open, onClose, onInvite, projectName, 
       }).then(() => {}, () => {})
       setSent(true)
       setTimeout(() => { setSent(false); setEmail(''); setError(null); onClose() }, 1500)
-    } catch (e: any) {
-      const msg = e?.message || 'Failed to send invitation'
+    } catch (e: unknown) {
+      const msg = (e instanceof Error || (typeof e === 'object' && e !== null && 'message' in e))
+        ? String((e as { message: unknown }).message || 'Failed to send invitation')
+        : 'Failed to send invitation'
       if (msg.includes('Cannot add yourself')) setError('You cannot invite yourself')
       else setError(msg)
     } finally {

@@ -24,12 +24,6 @@ export function useProjectsData(userId: string) {
   const [detailProjectId, setDetailProjectId] = useState<string | null>(null)
   const mountedRef = useRef(true)
 
-  useEffect(() => {
-    mountedRef.current = true
-    supabase.rpc('mp_resolve_pending_invites').then(() => fetchProjects(), () => fetchProjects())
-    return () => { mountedRef.current = false }
-  }, [userId])
-
   const fetchProjects = useCallback(async () => {
     setLoading(true)
 
@@ -70,6 +64,14 @@ export function useProjectsData(userId: string) {
       setLoading(false)
     }
   }, [userId])
+
+  // Declared after fetchProjects so it never reads it before initialisation. Re-runs when
+  // the user changes (fetchProjects is keyed on userId), exactly as before.
+  useEffect(() => {
+    mountedRef.current = true
+    supabase.rpc('mp_resolve_pending_invites').then(() => fetchProjects(), () => fetchProjects())
+    return () => { mountedRef.current = false }
+  }, [fetchProjects])
 
   // ── Activity logging ───────────────────────────────────────────────────
 

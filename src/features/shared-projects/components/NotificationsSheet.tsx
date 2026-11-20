@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTheme } from '@/lib/theme-context'
-import { toneColor, toneSoft, type ToneKey } from '@/lib/tokens'
+import { toneColor, toneSoft, type ToneKey, type ColorTokens } from '@/lib/tokens'
 import { BottomSheet } from '@/components/BottomSheet'
 import type { Project } from '../types'
 import type { PendingInvite } from '../hooks/useProjectsSummary'
@@ -316,7 +316,7 @@ export function NotificationsSheet({
                       <polyline points="9 18 15 12 9 6"/>
                     </svg>
                     <button
-                      onClick={e => { e.stopPropagation(); reflectionAlertId && onDismissBanner?.(reflectionAlertId) }}
+                      onClick={e => { e.stopPropagation(); if (reflectionAlertId) onDismissBanner?.(reflectionAlertId) }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: c.muted + '80' }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -444,7 +444,7 @@ export function NotificationsSheet({
 
 function NotifCard({ n, c, menuOpen, onToggleMenu, onSnooze, onNavigate }: {
   n: AppNotification
-  c: any
+  c: ColorTokens
   menuOpen: boolean
   onToggleMenu: () => void
   onSnooze: (d: SnoozeDuration) => void

@@ -21,7 +21,8 @@ interface Props {
   onClose: () => void
   onEdit: (txn: ProjectTransaction) => void
   onDelete: (id: string) => Promise<void>
-  onViewAttachment: (path: string) => void
+  /** May return a promise; a rejection is shown in the sheet. */
+  onViewAttachment: (path: string) => void | Promise<void>
   /** false on the public share page: receipt files are private to project members. */
   canViewReceipts?: boolean
   onDeleteAttachment: (att: ProjectAttachment) => Promise<void>
@@ -139,7 +140,7 @@ export function TransactionDetailSheet({ open, txn, attachments, members, canEdi
                       {att.file_name}
                     </span>
                     {canViewReceipts && (
-                      <button onClick={() => onViewAttachment(att.path)} style={{
+                      <button onClick={() => { setError(null); Promise.resolve(onViewAttachment(att.path)).catch(e => setError(errorText(e))) }} style={{
                         flexShrink: 0, background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer',
                         color: c.accent, font: `700 12px ${FONT}`,
                       }}>View</button>
