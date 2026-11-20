@@ -29,7 +29,7 @@ describe('buildMemberRows', () => {
   it('reads amounts from the existing summaries', () => {
     const r = rows([a, b, c, gone], txns)
     expect(r.map(x => [x.member.id, x.putInKitty, x.paidPersonally])).toEqual([
-      ['a', 3000, 0], ['b', 0, 1200], ['c', 0, 0], ['g', 0, 0],
+      ['a', 3000, 0], ['b', 0, 1200], ['c', 0, 0], ['g', 0, 300], // inactive: still credited (from the engine)
     ])
   })
 
@@ -44,9 +44,10 @@ describe('buildMemberRows', () => {
     }
   })
 
-  it('inactive members have no settlement status but keep their transaction count', () => {
+  it('inactive members keep their amounts, settlement status and transaction count (v1.111.0)', () => {
     const g = rows([a, b, c, gone], txns).find(x => x.member.id === 'g')!
-    expect(g).toMatchObject({ inactive: true, net: null, txnCount: 1 })
+    // 'g' paid ₹300 personally and shares no costs → gets it back.
+    expect(g).toMatchObject({ inactive: true, paidPersonally: 300, txnCount: 1, net: 300 })
   })
 
   it('no status without expenses, or for a solo member', () => {
@@ -55,14 +56,76 @@ describe('buildMemberRows', () => {
   })
 
   // v1.108.0: eligibility comes from the engine's `balanced`, not "≥ 2 active".
-  it('1 active + 1 inactive is a valid settlement: active member gets a status, inactive stays hidden', () => {
+  it('1 active + 1 inactive is a valid settlement: both get a status from the engine', () => {
     const ira = member('i', 'Ira', 1, false)
     const txns = [tx('contribution', 1000, 'i'), tx('expense', 600, null), tx('expense', 400, 'a')]
     const r = rows([a, ira], txns)
     const s = calcSettlement([a, ira], txns)
     expect(s.balanced).toBe(true)
     expect(r.find(x => x.member.id === 'a')!.net).toBe(-s.debtors.find(d => d.memberId === 'a')!.netDebt)
-    expect(r.find(x => x.member.id === 'i')!.net).toBeNull()
+    expect(r.find(x => x.member.id === 'i')!.net).toBe(s.creditors.find(c => c.memberId === 'i')!.netCredit)
+  })
+
+  describe('member lifecycle: marking inactive instead of deleting', () => {
+    const kabeer = member('k', 'Kabeer')
+    const txns = [
+      tx('contribution', 2000, 'a'), tx('contribution', 2000, 'b'), tx('contribution', 2000, 'k'),
+      tx('expense', 4500, null), tx('expense', 1200, 'k'),
+    ]
+    const inactive = { ...kabeer, is_active: false }
+
+    it('contributions and personal payments stay credited to the inactive member', () => {
+      const k = rows([a, b, inactive], txns).find(x => x.member.id === 'k')!
+      expect(k).toMatchObject({ inactive: true, putInKitty: 2000, paidPersonally: 1200, txnCount: 2 })
+    })
+
+    it('an inactive member shares no costs, so can be owed money', () => {
+      const s = calcSettlement([a, b, inactive], txns)
+      expect(s.balanced).toBe(true)
+      // put in 2,000 + paid 1,200, share 0 → gets back 3,200
+      expect(rows([a, b, inactive], txns).find(x => x.member.id === 'k')!.net).toBe(3200)
+    })
+
+    it('an inactive member who put nothing in is never charged a share', () => {
+      const z = member('z', 'Zed', 1, false)
+      const r = rows([a, b, z], [tx('expense', 1000, 'a')]) // shared by A (×1) and Bilal (×2) only
+      expect(r.find(x => x.member.id === 'z')!.net).toBe(0)
+      expect(r.find(x => x.member.id === 'a')!.net).toBe(666.67)
+    })
+
+    it('rule A: an inactive member can be owed or even, but never owes (share is 0)', () => {
+      // net = put in + paid personally − 0. Inputs are never negative, so net ≥ 0 — even when
+      // the kitty is overspent, the top-up falls on members who share costs.
+      const z = { ...member('z', 'Zed'), is_active: false }
+      for (const t of [
+        [tx('contribution', 500, 'a'), tx('expense', 800, null)],                 // kitty overspent
+        [tx('contribution', 700, 'z'), tx('expense', 2000, 'a')],                 // Zed put money in
+        [tx('expense', 900, 'z'), tx('expense', 300, null), tx('contribution', 300, 'b')], // Zed paid personally
+      ]) {
+        expect(calcSettlement([a, b, z], t).balanced).toBe(true)
+        expect(rows([a, b, z], t).find(x => x.member.id === 'z')!.net).toBeGreaterThanOrEqual(0)
+      }
+    })
+
+    it('marking inactive never orphans rows: nothing becomes group money or kitty spend', () => {
+      const before = calcSettlement([a, b, kabeer], txns).detail!
+      const after = calcSettlement([a, b, inactive], txns).detail!
+      expect(after.kitty).toEqual(before.kitty)            // no new "unassigned" money
+      expect(after.totals.expenses).toBe(before.totals.expenses)
+      expect(after.kitty.unassigned).toBe(0)
+    })
+
+    it('making them active again restores their share', () => {
+      const again = rows([a, b, kabeer], txns).find(x => x.member.id === 'k')!
+      expect(again.inactive).toBe(false)
+      // Ratios A ×1, Bilal ×2, Kabeer ×1 → Kabeer's share of ₹5,700 is ₹1,425; net 3,200 − 1,425.
+      expect(calcSettlement([a, b, kabeer], txns).detail!.participants.find(p => p.id === 'k')!.share).toBe(142500)
+      expect(again.net).toBe(1775)
+    })
+
+    it('a member with no transactions has zero impact, so deleting is harmless', () => {
+      expect(removalImpact('nobody', txns)).toMatchObject({ count: 0, contributed: 0, paidPersonally: 0 })
+    })
   })
 
   it('no_sharers (only inactive members) → no status for anyone', () => {

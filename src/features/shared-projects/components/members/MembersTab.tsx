@@ -30,6 +30,8 @@ interface Props {
   onAddMember: (form: { name: string; email: string | null }) => Promise<void>
   onUpdateMember: (id: string, form: { name: string; email: string | null }) => Promise<void>
   onRemoveMember: (id: string) => Promise<void>
+  /** Mark a member inactive (false) or active again (true). Nothing is deleted. */
+  onSetMemberActive: (id: string, active: boolean) => Promise<void>
   onInvite: (email?: string) => void
   onRemoveCollaborator: (collaboratorId: string) => Promise<void>
   onGoToSettlement: () => void
@@ -39,7 +41,7 @@ interface Props {
 
 export function MembersTab({
   members, memberSummaries, settlement, transactions, collaborators, target, canEdit, isOwner, canSettle,
-  onAddMember, onUpdateMember, onRemoveMember, onInvite, onRemoveCollaborator, onGoToSettlement, publicView = false,
+  onAddMember, onUpdateMember, onRemoveMember, onSetMemberActive, onInvite, onRemoveCollaborator, onGoToSettlement, publicView = false,
 }: Props) {
   const c = useTheme()
   const wide = useIsWide()
@@ -133,6 +135,7 @@ export function MembersTab({
         onEdit={m => { setDetail(d => d ? { ...d, open: false } : d); openForm(m) }}
         onInvite={email => { setDetail(d => d ? { ...d, open: false } : d); onInvite(email) }}
         onRemove={onRemoveMember}
+        onSetActive={onSetMemberActive}
       />
     </div>
   )

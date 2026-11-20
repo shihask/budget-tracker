@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Mail, Pencil } from 'lucide-react'
+import { AlertTriangle, Mail, Pencil, RotateCcw } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from '@/components/BottomSheet'
@@ -22,13 +22,15 @@ interface Props {
   onEdit: (m: ProjectMember) => void
   onInvite: (email: string) => void
   onRemove: (id: string) => Promise<void>
+  /** Mark inactive (false) or active again (true). Never deletes anything. */
+  onSetActive: (id: string, active: boolean) => Promise<void>
   /** Public share page: never show a member's email. */
   hideEmail?: boolean
 }
 
-export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite, onClose, onEdit, onInvite, onRemove, hideEmail = false }: Props) {
+export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite, onClose, onEdit, onInvite, onRemove, onSetActive, hideEmail = false }: Props) {
   const c = useTheme()
-  const [step, setStep] = useState<'view' | 'confirm'>('view')
+  const [step, setStep] = useState<'view' | 'deactivate' | 'delete'>('view')
   const [understood, setUnderstood] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +44,10 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
   const remove = async () => {
     setBusy(true); setError(null)
     try { await onRemove(m.id); onClose() } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
+  }
+  const setActive = async (active: boolean) => {
+    setBusy(true); setError(null)
+    try { await onSetActive(m.id, active); if (active) setStep('view'); else onClose() } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
   }
 
   const facts: { label: string; value: React.ReactNode; note?: string }[] = [
@@ -93,7 +99,7 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
             </div>
             {row.inactive && (
               <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 10 }}>
-                Inactive members aren't included in shares or Settlement.
+                Inactive: doesn't share the trip's costs. Their contributions and payments still count in Settlement.
               </div>
             )}
 
@@ -101,6 +107,15 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
 
             {(canEdit || canInvite) && (
               <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
+                {canEdit && row.inactive && (
+                  <button onClick={() => setActive(true)} disabled={busy} style={{
+                    flex: '1 1 140px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: '12px 0', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: 'transparent',
+                    color: c.ink, font: `700 14px ${FONT}`, cursor: 'pointer',
+                  }}>
+                    <RotateCcw size={15} /> Make active again
+                  </button>
+                )}
                 {canEdit && (
                   <button onClick={() => onEdit(m)} style={{
                     flex: '1 1 140px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -122,25 +137,62 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
               </div>
             )}
             {canEdit && (
-              <button onClick={() => { setStep('confirm'); setError(null) }} style={{
+              // Active with history → mark inactive. No history → plain delete. Inactive → only permanent delete is left.
+              <button onClick={() => { setStep(!row.inactive && hasHistory ? 'deactivate' : 'delete'); setError(null) }} style={{
                 display: 'block', margin: '14px auto 0', background: 'none', border: 'none', padding: '6px 10px',
                 color: c.bad, font: `700 13px ${FONT}`, cursor: 'pointer',
               }}>
-                Remove member
+                {row.inactive ? 'Delete permanently' : 'Remove member'}
               </button>
             )}
           </>
+        ) : step === 'deactivate' ? (
+          /* Remove = mark inactive. Nothing is deleted; it can be undone. */
+          <div style={{ marginTop: 16 }}>
+            <div role="alert" style={{ padding: 14, borderRadius: 14, background: c.surface2 }}>
+              <div style={{ font: `800 15px ${FONT}`, color: c.ink }}>Remove {m.name}?</div>
+              <div style={{ font: `500 13px ${FONT}`, color: c.ink, marginTop: 8, lineHeight: 1.55 }}>
+                This member will no longer share trip costs. If they participated in the trip, keep them active. Their existing contributions, payments and settlement history will be preserved.
+              </div>
+              <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 8, lineHeight: 1.5 }}>
+                They can't be picked for new entries, and you can make them active again at any time.
+              </div>
+            </div>
+
+            {errorBanner}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button onClick={() => setStep('view')} disabled={busy} style={{
+                flex: 1, padding: '12px 0', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: 'transparent',
+                color: c.ink, font: `700 14px ${FONT}`, cursor: 'pointer',
+              }}>
+                Keep member
+              </button>
+              <button onClick={() => setActive(false)} disabled={busy} style={{
+                flex: 1, padding: '12px 0', borderRadius: 14, border: 'none', background: busy ? c.faint : c.bad, color: '#fff',
+                font: `700 14px ${FONT}`, cursor: busy ? 'default' : 'pointer',
+              }}>
+                {busy ? 'Removing…' : 'Remove member'}
+              </button>
+            </div>
+            <button onClick={() => { setStep('delete'); setError(null) }} style={{
+              display: 'block', margin: '12px auto 0', background: 'none', border: 'none', padding: '6px 10px',
+              color: c.muted, font: `600 12px ${FONT}`, cursor: 'pointer', textDecoration: 'underline',
+            }}>
+              Delete permanently instead
+            </button>
+          </div>
         ) : (
-          /* Removal confirmation — same hard delete as before, with its consequences spelled out */
+          /* Permanent delete — the hard delete, with its consequences spelled out */
           <div style={{ marginTop: 16 }}>
             {hasHistory ? (
               <div role="alert" style={{ padding: 14, borderRadius: 14, background: c.warnSoft, border: `1px solid ${c.warn}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: `800 15px ${FONT}`, color: c.ink }}>
                   <AlertTriangle size={18} color={c.warn} style={{ flexShrink: 0 }} />
-                  Removing {m.name} changes past records
+                  Deleting {m.name} permanently changes past records
                 </div>
                 <div style={{ font: `500 13px ${FONT}`, color: c.ink, marginTop: 8, lineHeight: 1.5 }}>
-                  {m.name} has {impact.atLeast ? 'at least ' : ''}{impact.count} transaction{impact.count === 1 ? '' : 's'}. After removing:
+                  {m.name} has {impact.atLeast ? 'at least ' : ''}{impact.count} transaction{impact.count === 1 ? '' : 's'}. After deleting:
                 </div>
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18, font: `500 13px ${FONT}`, color: c.ink, lineHeight: 1.55 }}>
                   {impact.contributed > 0 && <li>{impact.atLeast ? 'At least ' : ''}{fmt(impact.contributed)} that {m.name} put in the kitty will <strong>no longer be credited to {m.name}</strong>. Settlement will treat it as <strong>group money</strong>, shared by everyone who remains.</li>}
@@ -151,7 +203,7 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 12, font: `600 13px ${FONT}`, color: c.ink, cursor: 'pointer' }}>
                   <input type="checkbox" checked={understood} onChange={e => setUnderstood(e.target.checked)}
                     style={{ width: 18, height: 18, marginTop: 1, accentColor: c.bad, flexShrink: 0 }} />
-                  I understand. Remove {m.name} anyway.
+                  I understand. Delete {m.name} permanently.
                 </label>
               </div>
             ) : (
@@ -163,7 +215,7 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
             {errorBanner}
 
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button onClick={() => { setStep('view'); setUnderstood(false) }} disabled={busy} style={{
+              <button onClick={() => { setStep('view'); setUnderstood(false); setError(null) }} disabled={busy} style={{
                 flex: 1, padding: '12px 0', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: 'transparent',
                 color: c.ink, font: `700 14px ${FONT}`, cursor: 'pointer',
               }}>
@@ -174,7 +226,7 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
                 background: busy || (hasHistory && !understood) ? c.faint : c.bad, color: '#fff',
                 font: `700 14px ${FONT}`, cursor: busy || (hasHistory && !understood) ? 'default' : 'pointer',
               }}>
-                {busy ? 'Removing…' : hasHistory ? 'Remove anyway' : 'Remove'}
+                {busy ? 'Deleting…' : hasHistory ? 'Delete permanently' : 'Remove'}
               </button>
             </div>
           </div>

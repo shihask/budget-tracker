@@ -172,6 +172,7 @@ export function PublicProjectPage({ shareCode }: Props) {
             onAddMember={noopAsync}
             onUpdateMember={noopAsync}
             onRemoveMember={noopAsync}
+            onSetMemberActive={noopAsync}
             onInvite={noop}
             onRemoveCollaborator={noopAsync}
             onGoToSettlement={() => setTab('settlement')}

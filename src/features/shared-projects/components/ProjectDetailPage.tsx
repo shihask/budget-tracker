@@ -291,6 +291,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
             onAddMember={async ({ name, email }) => { await data.addMember(project.id, { name, email: email ?? undefined }) }}
             onUpdateMember={(id, { name, email }) => data.updateMember(id, { name, email })}
             onRemoveMember={id => data.removeMember(id)}
+            onSetMemberActive={(id, active) => data.updateMember(id, { is_active: active })}
             onInvite={email => { setInviteEmail(email ?? ''); setInviteOpen(true) }}
             onRemoveCollaborator={id => data.removeCollaborator(project.id, id)}
             onGoToSettlement={() => setTab('settlement')}

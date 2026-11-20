@@ -41,15 +41,23 @@ export function buildMemberRows(
     && members.length >= 2
     && transactions.some(t => t.transaction_type === 'expense')
 
+  // calcMemberSummaries skips inactive members, but the settlement engine credits them
+  // (their contributions and payments stay theirs; they just share no costs). Amounts
+  // come from the engine when available, so inactive members show what they really put in.
+  const engine = new Map((settlement.detail?.participants ?? [])
+    .filter(p => p.kind === 'member').map(p => [p.id, p]))
+
   return members.map(member => {
     const s = summaryById.get(member.id)
+    const e = engine.get(member.id)
     const inactive = !member.is_active
+    // Inactive members still settle — they can be owed money or owe it.
     let net: number | null = null
-    if (settles && !inactive) net = credit.get(member.id) ?? (debt.has(member.id) ? -debt.get(member.id)! : 0)
+    if (settles) net = credit.get(member.id) ?? (debt.has(member.id) ? -debt.get(member.id)! : 0)
     return {
       member,
-      putInKitty: s?.actualContribution ?? 0,
-      paidPersonally: s?.totalExpensesPaid ?? 0,
+      putInKitty: e ? e.putIn / 100 : (s?.actualContribution ?? 0),
+      paidPersonally: e ? e.paidPersonally / 100 : (s?.totalExpensesPaid ?? 0),
       estShare: target > 0 && s ? s.expectedContribution : null,
       net,
       txnCount: counts.get(member.id) ?? 0,

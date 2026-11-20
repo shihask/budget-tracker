@@ -132,8 +132,10 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
                     <option value={FUND}>Project Fund (from contributions)</option>
                   </>
                 )}
-                {members.filter(m => m.is_active).map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
+                {/* Only active members for new entries; an inactive member stays visible on
+                    their own existing entry so editing it doesn't blank the field. */}
+                {members.filter(m => m.is_active || m.id === editTxn?.member_id).map(m => (
+                  <option key={m.id} value={m.id}>{m.name}{m.is_active ? '' : ' (inactive)'}</option>
                 ))}
                 {isContribution && <option value={OUTSIDE}>Outside the group</option>}
               </select>
