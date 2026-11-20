@@ -28,11 +28,14 @@ export type SettlementIssue =
   | { kind: 'invalid_participants'; reason: 'none_valid' | 'zero_ratio' | 'malformed'; transactionId: string; description: string | null; date: string }
   // Some ids in a group are not members of this project (deleted, or foreign); the rest share it.
   | { kind: 'deleted_participants'; count: number; transactionId: string; description: string | null; date: string }
+  // A recorded settlement payment that can't be applied: a party that isn't a member of this
+  // project, kitty → kitty or to oneself, a zero/invalid amount — or an unknown transaction type.
+  | { kind: 'invalid_payment'; reason: 'unknown_party' | 'same_party' | 'amount' | 'unknown_type'; transactionId: string; description: string | null; date: string }
   // Informational — they explain the result but don't make it unbalanced.
   | { kind: 'unassigned_contributions'; amount: number }
   | { kind: 'kitty_overspent'; amount: number }
 
-const BLOCKING: SettlementIssue['kind'][] = ['invalid_amount', 'invalid_ratio', 'no_sharers', 'invariant_failed', 'invalid_participants']
+const BLOCKING: SettlementIssue['kind'][] = ['invalid_amount', 'invalid_ratio', 'no_sharers', 'invariant_failed', 'invalid_participants', 'invalid_payment']
 export const isBlocking = (i: SettlementIssue) => BLOCKING.includes(i.kind)
 
 export interface PartyRef {
@@ -49,6 +52,11 @@ export interface SettlementParticipant extends PartyRef {
   paidPersonally: number
   /** Paise. Their slice of the shared cost S — negative when group money exceeds spending. */
   share: number
+  /**
+   * Paise. Recorded settlement payments: + paid out, − received. Members: net = putIn +
+   * paidPersonally − share + settled. The kitty's net is −balance (balance already includes them).
+   */
+  settled: number
   /** Paise. + gets back, − owes. For the kitty: −balance. */
   net: number
 }
@@ -70,11 +78,16 @@ export interface SettlementComputation {
     /** Contributions with no member (paise), treated as group money. */
     unassigned: number
     inflows: number
+    /** Paise paid out of the kitty / topped into it by recorded settlement payments. */
+    paidOut: number
+    toppedUp: number
   }
   totals: { expenses: number; groupMoney: number; sharedCost: number }
   transfers: Transfer[]
   reconciliation: { membersPay: number; kittyPays: number; kittyOwed: number; membersReceive: number }
   issues: SettlementIssue[]
+  /** Valid recorded settlement payments applied. */
+  paymentCount: number
 }
 
 export interface SettlementOptions {
@@ -219,19 +232,30 @@ export function computeSettlement(
   // expenses with an explicit group are split on their own.
   let everyoneExpenses = 0
   const explicit: { t: ProjectTransaction; paise: number }[] = []
+  // Settlement payments are applied after shares and nets (they never touch spending).
+  const payments: { t: ProjectTransaction; paise: number }[] = []
   for (const t of transactions) {
+    const where = { transactionId: t.id, description: t.description ?? null, date: t.transaction_date }
     const p = toPaise(t.amount)
+    if (t.transaction_type === 'settlement') {
+      if (p === null || p <= 0) issues.push({ kind: 'invalid_payment', reason: 'amount', ...where })
+      else payments.push({ t, paise: p })
+      continue
+    }
     if (p === null) { issues.push({ kind: 'invalid_amount', transactionId: t.id, value: t.amount }); continue }
     const owner = t.member_id && known.has(t.member_id) ? t.member_id : null
     if (t.transaction_type === 'contribution') {
       if (owner) putIn.set(owner, (putIn.get(owner) ?? 0) + p)
       else unassigned += p
-    } else {
+    } else if (t.transaction_type === 'expense') {
       expenses += p
       if (owner) paid.set(owner, (paid.get(owner) ?? 0) + p)
       else kittyPaid += p
       if (t.shared_by == null) everyoneExpenses += p
       else explicit.push({ t, paise: p })
+    } else {
+      // Never guess what an unknown row means.
+      issues.push({ kind: 'invalid_payment', reason: 'unknown_type', ...where })
     }
   }
 
@@ -285,18 +309,43 @@ export function computeSettlement(
     allocate(paise, groupWeights).forEach((part, k) => { shares[group[k]] += part })
   }
 
+  // Recorded settlement payments. Parties resolve only against this project's members; NULL
+  // on one side is the kitty. Payer's position rises by the amount, recipient's falls — each
+  // payment sums to zero, so the invariant is untouched.
+  const settled = new Map<string, number>()
+  let kittyPaidOut = 0, kittyToppedUp = 0, paymentCount = 0
+  for (const { t, paise } of payments) {
+    const where = { transactionId: t.id, description: t.description ?? null, date: t.transaction_date }
+    const from = t.member_id ?? null
+    const to = t.to_member_id ?? null
+    if ((from !== null && !known.has(from)) || (to !== null && !known.has(to))) {
+      issues.push({ kind: 'invalid_payment', reason: 'unknown_party', ...where })
+      continue
+    }
+    if (from === to) { // kitty → kitty, or to oneself
+      issues.push({ kind: 'invalid_payment', reason: 'same_party', ...where })
+      continue
+    }
+    if (from === null) kittyPaidOut += paise
+    else settled.set(from, (settled.get(from) ?? 0) + paise)
+    if (to === null) kittyToppedUp += paise
+    else settled.set(to, (settled.get(to) ?? 0) - paise)
+    paymentCount++
+  }
+
   const memberParticipants: SettlementParticipant[] = sorted.map((m, i) => {
-    const pi = putIn.get(m.id) ?? 0, pp = paid.get(m.id) ?? 0
+    const pi = putIn.get(m.id) ?? 0, pp = paid.get(m.id) ?? 0, st = settled.get(m.id) ?? 0
     return {
       kind: 'member', id: m.id, name: m.name, active: m.is_active,
-      putIn: pi, paidPersonally: pp, share: shares[i], net: pi + pp - shares[i] || 0,
+      putIn: pi, paidPersonally: pp, share: shares[i], settled: st, net: pi + pp - shares[i] + st || 0,
     }
   })
   const attributed = memberParticipants.reduce((s, p) => s + p.putIn, 0)
-  const balance = attributed + groupMoney - kittyPaid
+  // Kitty cash: what came in, minus what it paid for, minus settlement payouts, plus top-ups.
+  const balance = attributed + groupMoney - kittyPaid - kittyPaidOut + kittyToppedUp
   const kittyParticipant: SettlementParticipant = {
     kind: 'kitty', id: KITTY_ID, name: 'Kitty', active: true,
-    putIn: 0, paidPersonally: 0, share: 0, net: 0 - balance || 0,
+    putIn: 0, paidPersonally: 0, share: 0, settled: kittyPaidOut - kittyToppedUp, net: 0 - balance || 0,
   }
   const participants = [...memberParticipants, kittyParticipant]
 
@@ -311,7 +360,7 @@ export function computeSettlement(
     return {
       balanced,
       participants,
-      kitty: { balance, unassigned, inflows: inflows ?? 0 },
+      kitty: { balance, unassigned, inflows: inflows ?? 0, paidOut: kittyPaidOut, toppedUp: kittyToppedUp },
       totals: { expenses, groupMoney, sharedCost },
       transfers: plan,
       reconciliation: {
@@ -321,6 +370,7 @@ export function computeSettlement(
         membersReceive: sum(t => t.to.kind === 'member'),
       },
       issues: all,
+      paymentCount,
     }
   }
 
@@ -343,11 +393,11 @@ export function verifyPlan(
   participants: SettlementParticipant[] = [],
 ): { ok: true; transfers: Transfer[] } | { ok: false; detail: string } {
   for (const p of participants) {
-    for (const v of [p.putIn, p.paidPersonally, p.share, p.net]) {
+    for (const v of [p.putIn, p.paidPersonally, p.share, p.settled ?? 0, p.net]) {
       if (!Number.isSafeInteger(v)) return { ok: false, detail: `non-integer paise for ${p.id}` }
     }
     // Members' nets are their breakdown; the kitty's net is −balance by definition.
-    if (p.kind === 'member' && p.putIn + p.paidPersonally - p.share !== p.net) return { ok: false, detail: `breakdown mismatch for ${p.id}` }
+    if (p.kind === 'member' && p.putIn + p.paidPersonally - p.share + (p.settled ?? 0) !== p.net) return { ok: false, detail: `breakdown mismatch for ${p.id}` }
   }
   if (!positions.every(p => Number.isSafeInteger(p.amount))) return { ok: false, detail: 'non-integer position' }
   if (positions.reduce((s, p) => s + p.amount, 0) !== 0) return { ok: false, detail: 'positions do not sum to zero' }

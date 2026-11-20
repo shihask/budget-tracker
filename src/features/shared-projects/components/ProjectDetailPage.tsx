@@ -276,7 +276,11 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
             members={members}
             canEdit={canEdit}
             onAdd={mode => setAddMode(mode)}
-            onEdit={txn => { setEditTxn(txn); setAddMode(txn.transaction_type) }}
+            onEdit={txn => {
+              // Settlement payments are immutable (undo, never edit).
+              if (txn.transaction_type === 'settlement') return
+              setEditTxn(txn); setAddMode(txn.transaction_type)
+            }}
             onDelete={id => data.deleteProjectTransaction(id)}
             onViewAttachment={path => data.getAttachmentUrl(path).then(url => { if (url) window.open(url, '_blank') })}
             onDeleteAttachment={att => data.deleteAttachment(att)}
@@ -303,7 +307,23 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
           />
         )}
         {tab === 'settlement' && (
-          <SettlementTab settlement={settlement} projectName={project.name} />
+          <SettlementTab
+            settlement={settlement}
+            projectName={project.name}
+            transactions={transactions}
+            canEdit={canEdit}
+            onRecordPayment={async (t, form) => {
+              await data.addSettlementPayment({
+                project_id: project.id,
+                from: t.from.kind === 'kitty' ? null : t.from.id,
+                to: t.to.kind === 'kitty' ? null : t.to.id,
+                amount: form.amount,
+                transaction_date: form.date,
+                note: form.note,
+              })
+            }}
+            onUndoPayment={id => data.deleteProjectTransaction(id)}
+          />
         )}
         {tab === 'activity' && (
           <ActivityLogTab activityLog={activityLog} />

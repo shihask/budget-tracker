@@ -3,7 +3,7 @@ import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import type { ColorTokens } from '@/lib/tokens'
 import type { ProjectMember, ProjectTransaction } from '../../types'
-import { describeTransaction, GROUP_MONEY_SOURCE } from '../../lib/transactions'
+import { describeTransaction, GROUP_MONEY_SOURCE, PAYMENT_LABEL } from '../../lib/transactions'
 import { sharedByCount } from '../../lib/sharedBy'
 import { FONT } from '../overview/styles'
 import { kindTile } from './kindTile'
@@ -36,10 +36,12 @@ export function TransactionRow({ txn, attachmentCount, wide, members, onOpen }: 
   // Money into the kitty: a member's contribution or group money.
   const isContrib = v.sign === 1
   const isGroup = v.kind === 'group-money'
+  // A settlement payment moves money between two parties: neutral, no + or −.
+  const isPayment = v.kind === 'settlement'
 
   const amount = (
-    <span style={{ font: `700 14px ${FONT}`, color: isContrib ? c.good : c.ink, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-      {isContrib ? '+' : '−'}{fmt(txn.amount)}
+    <span style={{ font: `700 14px ${FONT}`, color: isContrib ? c.good : isPayment ? c.sub : c.ink, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+      {isContrib ? '+' : isPayment ? '' : '−'}{fmt(txn.amount)}
     </span>
   )
   const clip = attachmentCount > 0 && (
@@ -51,7 +53,9 @@ export function TransactionRow({ txn, attachmentCount, wide, members, onOpen }: 
   // Only for expenses with an explicit group; nothing for Everyone.
   const sharedCount = sharedByCount(txn, members)
   const sharedLabel = sharedCount !== null ? `Shared by ${sharedCount}` : null
-  const who = isContrib
+  const who = isPayment
+    ? <span style={{ color: c.sub }}>{PAYMENT_LABEL}{txn.description ? ` · ${txn.description}` : ''}</span>
+    : isContrib
     ? <span style={{ color: c.sub }}>{isGroup ? GROUP_MONEY_SOURCE : 'Contribution'}{txn.description ? ` · ${txn.description}` : ''}</span>
     : v.kind === 'expense-kitty'
       ? <KittyPill c={c} />
@@ -80,9 +84,9 @@ export function TransactionRow({ txn, attachmentCount, wide, members, onOpen }: 
           {wide && isContrib && !isGroup ? 'Contribution' : v.title}
         </div>
         {wide ? (
-          (isContrib ? txn.description : (v.subtitleCategory || sharedCount)) && (
+          (isPayment ? true : isContrib ? txn.description : (v.subtitleCategory || sharedCount)) && (
             <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {isContrib ? txn.description : [v.subtitleCategory, sharedLabel].filter(Boolean).join(' · ')}
+              {isPayment ? [PAYMENT_LABEL, txn.description].filter(Boolean).join(' · ') : isContrib ? txn.description : [v.subtitleCategory, sharedLabel].filter(Boolean).join(' · ')}
             </div>
           )
         ) : (
@@ -100,7 +104,7 @@ export function TransactionRow({ txn, attachmentCount, wide, members, onOpen }: 
       {wide ? (
         <>
           <div style={{ font: `500 13px ${FONT}`, color: c.sub, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {isGroup ? 'Outside the group' : v.kind === 'expense-kitty' ? <KittyPill c={c} /> : v.memberName}
+            {isPayment ? 'Settlement' : isGroup ? 'Outside the group' : v.kind === 'expense-kitty' ? <KittyPill c={c} /> : v.memberName}
           </div>
           <div style={{ textAlign: 'right' }}>{amount}</div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{clip}</div>

@@ -81,10 +81,12 @@ export function TransactionsTab({ transactions, attachments, members, canEdit, o
     )
   }
 
-  const totalParts = [
-    filters.type !== 'contribution' && `Expenses ${fmt(totals.expenses)}`,
-    filters.type !== 'expense' && `Contributions ${fmt(totals.contributions)}`,
-  ].filter(Boolean).join(' · ')
+  const totalParts = (filters.type === 'settlement'
+    ? [`Payments ${fmt(totals.payments)}`]
+    : [
+      filters.type !== 'contribution' && `Expenses ${fmt(totals.expenses)}`,
+      filters.type !== 'expense' && `Contributions ${fmt(totals.contributions)}`,
+    ]).filter(Boolean).join(' · ')
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', paddingBottom: canEdit && !wide ? 64 : 0 }}>
@@ -119,6 +121,8 @@ export function TransactionsTab({ transactions, attachments, members, canEdit, o
           {TYPE_FILTERS.map(t => {
             const selected = filters.type === t.id
             const count = transactions.filter(x => matchesType(x, t.id)).length
+            // The Payments chip appears only once there are payments.
+            if (t.id === 'settlement' && count === 0 && !selected) return null
             return (
               <Chip key={t.id} c={c} selected={selected} onClick={() => setFilters(f => ({ ...f, type: t.id }))}>
                 {t.label} <span style={{ opacity: 0.7, fontWeight: 600 }}>{count}</span>

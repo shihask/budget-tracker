@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AlertTriangle, ArrowRight, Check, ChevronDown, Info, Share2, Wallet } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import type { ColorTokens } from '@/lib/tokens'
-import type { SettlementResult } from '../../types'
+import type { ProjectTransaction, SettlementResult } from '../../types'
 import type { SettlementComputation, SettlementParticipant, Transfer } from '../../lib/settlement'
 import {
   rs, standing, breakdownLine, kittyLine, summaryLines, equation, headline, notes, transferHint, shareText,
@@ -10,10 +10,19 @@ import {
 } from '../../lib/settlementCopy'
 import { FONT, cardStyle } from '../overview/styles'
 import { Avatar, Badge } from '../members/MemberRow'
+import { RecordPaymentSheet } from './RecordPaymentSheet'
+import { RecordedPayments } from './RecordedPayments'
 
 interface Props {
   settlement: SettlementResult
   projectName: string
+  /** All project transactions — for the Recorded payments list. */
+  transactions?: ProjectTransaction[]
+  /** Owner or editor: may record and undo payments. Viewers and the share link: read-only. */
+  canEdit?: boolean
+  /** Record a payment for a suggested transfer (amount in rupees). */
+  onRecordPayment?: (transfer: Transfer, form: { amount: number; date: string; note: string }) => Promise<void>
+  onUndoPayment?: (id: string) => Promise<void>
 }
 
 const toneColor = (c: ColorTokens, t: Tone) => (t === 'good' ? c.good : t === 'ink' ? c.ink : c.muted)
@@ -21,9 +30,12 @@ const sectionLabel = (c: ColorTokens): React.CSSProperties => ({
   font: `700 11px ${FONT}`, color: c.muted, textTransform: 'uppercase', letterSpacing: '0.05em',
 })
 
-export function SettlementTab({ settlement, projectName }: Props) {
+export function SettlementTab({ settlement, projectName, transactions = [], canEdit = false, onRecordPayment, onUndoPayment }: Props) {
   const d = settlement.detail
+  // The sheet is remounted per opening (key) so it starts from the suggested amount.
+  const [paying, setPaying] = useState<{ key: number; transfer: Transfer | null; open: boolean }>({ key: 0, transfer: null, open: false })
   if (!d) return null
+  const canRecord = canEdit && !!onRecordPayment
   const spent = d.totals.expenses > 0
   const showPlan = spent && d.balanced && d.transfers.length > 0
 
@@ -32,9 +44,20 @@ export function SettlementTab({ settlement, projectName }: Props) {
       <SummaryCard d={d} projectName={projectName} />
       {spent && (
         <div style={{ display: 'grid', gap: 12, alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))' }}>
-          {showPlan && <PlanCard transfers={d.transfers} />}
+          {showPlan && <PlanCard transfers={d.transfers} onMarkPaid={canRecord ? t => setPaying(p => ({ key: p.key + 1, transfer: t, open: true })) : undefined} />}
           <StandingsCard d={d} />
         </div>
+      )}
+      <RecordedPayments transactions={transactions} canEdit={canEdit} onUndo={onUndoPayment} />
+      {canRecord && (
+        <RecordPaymentSheet
+          key={`pay-${paying.key}`}
+          open={paying.open}
+          transfer={paying.transfer}
+          kittyBalance={d.kitty.balance}
+          onClose={() => setPaying(p => ({ ...p, open: false }))}
+          onSave={form => onRecordPayment!(paying.transfer!, form)}
+        />
       )}
     </div>
   )
@@ -153,7 +176,7 @@ function KittyTile({ c, size = 30 }: { c: ColorTokens; size?: number }) {
   )
 }
 
-function PlanCard({ transfers }: { transfers: Transfer[] }) {
+function PlanCard({ transfers, onMarkPaid }: { transfers: Transfer[]; onMarkPaid?: (t: Transfer) => void }) {
   const c = useTheme()
   return (
     <section>
@@ -172,7 +195,17 @@ function PlanCard({ transfers }: { transfers: Transfer[] }) {
                 </div>
                 {hint && <div style={{ font: `500 11px ${FONT}`, color: c.muted, marginTop: 1 }}>{hint}</div>}
               </div>
-              <div style={{ font: `800 14px ${FONT}`, color: c.ink, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{rs(t.amount)}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                <div style={{ font: `800 14px ${FONT}`, color: c.ink, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{rs(t.amount)}</div>
+                {onMarkPaid && (
+                  <button onClick={() => onMarkPaid(t)} style={{
+                    padding: '4px 10px', borderRadius: 999, border: 'none', background: c.accentSoft, color: c.accent,
+                    font: `700 11px ${FONT}`, cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}>
+                    Mark as paid
+                  </button>
+                )}
+              </div>
             </div>
           )
         })}

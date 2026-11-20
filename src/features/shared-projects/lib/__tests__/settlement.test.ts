@@ -146,7 +146,7 @@ describe('scenarios', () => {
     const r = computeSettlement(crew('A', 'B', 'C'), [contrib(2000, null), contrib(2000, 'A'), contrib(2000, 'B'), contrib(2000, 'C'), spend(8000)])
     expectBalanced(r)
     expect(nets(r)).toEqual({ A: 0, B: 0, C: 0, Kitty: 0 })
-    expect(r.kitty).toEqual({ balance: 0, unassigned: 200000, inflows: 0 })
+    expect(r.kitty).toEqual({ balance: 0, unassigned: 200000, inflows: 0, paidOut: 0, toppedUp: 0 })
     expect(r.issues).toContainEqual({ kind: 'unassigned_contributions', amount: 200000 })
   })
   it('12b. mixed: attributed + unassigned + inflow + kitty + personal', () => {
@@ -312,7 +312,7 @@ describe('verifyPlan rejects every broken invariant', () => {
     expect(verifyPlan(positions as Position[], transfers as Transfer[]).ok).toBe(false)
   })
   it('a breakdown that does not add up', () => {
-    const bad = [{ kind: 'member' as const, id: 'a', name: 'A', active: true, putIn: 100, paidPersonally: 0, share: 50, net: 60 }]
+    const bad = [{ kind: 'member' as const, id: 'a', name: 'A', active: true, putIn: 100, paidPersonally: 0, share: 50, settled: 0, net: 60 }]
     expect(verifyPlan(ps, [t(100)], bad).ok).toBe(false)
   })
 })

@@ -61,6 +61,7 @@ export async function loadPublicProject(shareCode: string): Promise<{
   const txnsWithMembers = transactions.map(t => ({
     ...t,
     member: t.member_id ? memberMap.get(t.member_id) : undefined,
+    to_member: t.to_member_id ? memberMap.get(t.to_member_id) : undefined,
   }))
 
   return { project, members, transactions: txnsWithMembers, attachments: attachments ?? [], budgets, activityLog }

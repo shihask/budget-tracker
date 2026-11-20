@@ -172,8 +172,8 @@ describe('moneyLine', () => {
 describe('removalImpact', () => {
   it('counts what a delete would orphan', () => {
     const txns = [tx('contribution', 2000, 'a'), tx('expense', 980, 'a'), tx('expense', 220.5, 'a'), tx('expense', 50, null)]
-    expect(removalImpact('a', txns)).toEqual({ count: 3, contributed: 2000, paidPersonally: 1200.5, atLeast: false })
-    expect(removalImpact('c', txns)).toEqual({ count: 0, contributed: 0, paidPersonally: 0, atLeast: false })
+    expect(removalImpact('a', txns)).toEqual({ count: 3, contributed: 2000, paidPersonally: 1200.5, payments: 0, atLeast: false })
+    expect(removalImpact('c', txns)).toEqual({ count: 0, contributed: 0, paidPersonally: 0, payments: 0, atLeast: false })
   })
   it('sums several contribution rows; zero contributions stay zero', () => {
     const txns = [tx('contribution', 1500, 'a'), tx('contribution', 500, 'a'), tx('expense', 300, 'b')]

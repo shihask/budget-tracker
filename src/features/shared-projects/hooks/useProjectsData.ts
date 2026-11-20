@@ -196,6 +196,7 @@ export function useProjectsData(userId: string) {
     const txnsWithMembers = transactions.map(t => ({
       ...t,
       member: t.member_id ? memberMap.get(t.member_id) : undefined,
+      to_member: t.to_member_id ? memberMap.get(t.to_member_id) : undefined,
     }))
 
     if (mountedRef.current) {
@@ -294,6 +295,7 @@ export function useProjectsData(userId: string) {
     const txn: ProjectTransaction = {
       ...data,
       member: data.member_id ? memberMap.get(data.member_id) : undefined,
+      to_member: data.to_member_id ? memberMap.get(data.to_member_id) : undefined,
     }
 
     setDetail(prev => prev ? {
@@ -331,6 +333,49 @@ export function useProjectsData(userId: string) {
     } : prev)
   }, [detail])
 
+  /**
+   * Record a settlement payment. `from`/`to` are member ids; null = the kitty. Payments are
+   * immutable — undo is deleteProjectTransaction. The database enforces the shape too.
+   */
+  const addSettlementPayment = useCallback(async (form: {
+    project_id: string
+    from: string | null
+    to: string | null
+    amount: number
+    transaction_date: string
+    note?: string
+  }): Promise<ProjectTransaction> => {
+    const amount = round2(form.amount)
+    if (!(amount > 0)) throw new Error('Enter an amount above ₹0.')
+    if (form.from === form.to) throw new Error('The payer and recipient must be different.')
+    const { data, error } = await supabase
+      .from('project_transactions')
+      .insert({
+        project_id: form.project_id,
+        transaction_type: 'settlement',
+        member_id: form.from,
+        to_member_id: form.to,
+        amount,
+        description: form.note?.trim() || null,
+        transaction_date: form.transaction_date,
+      })
+      .select()
+      .single()
+    if (error) throw error
+    const memberMap = detail ? new Map(detail.members.map(m => [m.id, m])) : new Map()
+    const txn: ProjectTransaction = {
+      ...data,
+      member: data.member_id ? memberMap.get(data.member_id) : undefined,
+      to_member: data.to_member_id ? memberMap.get(data.to_member_id) : undefined,
+    }
+    setDetail(prev => prev ? { ...prev, transactions: [txn, ...prev.transactions] } : prev)
+    const name = (id: string | null) => (id ? memberMap.get(id)?.name ?? 'a member' : 'the kitty')
+    logActivity(form.project_id, 'transaction_added',
+      `Recorded a settlement payment of ₹${amount.toLocaleString()} from ${name(form.from)} to ${name(form.to)}`,
+      { transaction_id: data.id, type: 'settlement', amount })
+    return txn
+  }, [detail, logActivity])
+
   const deleteProjectTransaction = useCallback(async (id: string) => {
     const txn = detail?.transactions.find(t => t.id === id)
     const { error } = await supabase.from('project_transactions').delete().eq('id', id)
@@ -341,7 +386,11 @@ export function useProjectsData(userId: string) {
       attachments: prev.attachments.filter(a => a.project_transaction_id !== id),
     } : prev)
     if (txn && detailProjectId) {
-      logActivity(detailProjectId, 'transaction_deleted', `Deleted ${txn.transaction_type} of ₹${txn.amount.toLocaleString()}`, { type: txn.transaction_type, amount: txn.amount })
+      logActivity(detailProjectId, 'transaction_deleted',
+        txn.transaction_type === 'settlement'
+          ? `Undid a settlement payment of ₹${txn.amount.toLocaleString()}`
+          : `Deleted ${txn.transaction_type} of ₹${txn.amount.toLocaleString()}`,
+        { type: txn.transaction_type, amount: txn.amount })
     }
   }, [detail, detailProjectId, logActivity])
 
@@ -529,6 +578,7 @@ export function useProjectsData(userId: string) {
     addProjectTransaction,
     updateProjectTransaction,
     deleteProjectTransaction,
+    addSettlementPayment,
     generateShareCode,
     revokeShareCode,
     addCollaborator,

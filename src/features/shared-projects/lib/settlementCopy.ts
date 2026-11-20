@@ -34,6 +34,10 @@ export function breakdownLine(p: SettlementParticipant): string {
   if (p.share > 0) line += ` − ${rs(p.share)} share of spending`
   else if (p.share < 0) line += ` + ${rs(-p.share)} share of surplus returned`
   else if (!p.active) line += ' · inactive, so no share of spending'
+  // Recorded settlement payments: paying raises your position, receiving lowers it.
+  const st = p.settled ?? 0
+  if (st > 0) line += ` + ${rs(st)} already paid in settlement`
+  else if (st < 0) line += ` − ${rs(-st)} already received in settlement`
   const end = p.net > 0 ? `gets back ${rs(p.net)}` : p.net < 0 ? `owes ${rs(-p.net)}` : 'even'
   return `${line} = ${end}`
 }
@@ -46,6 +50,8 @@ export function kittyLine(d: SettlementComputation): string {
   const parts = [`${rs(fromMembers)} put in by members`]
   if (d.totals.groupMoney > 0) parts.push(`+ ${rs(d.totals.groupMoney)} group money`)
   parts.push(`− ${rs(spentFromKitty)} paid from kitty`)
+  if (d.kitty.paidOut > 0) parts.push(`− ${rs(d.kitty.paidOut)} paid out in settlement`)
+  if (d.kitty.toppedUp > 0) parts.push(`+ ${rs(d.kitty.toppedUp)} topped up in settlement`)
   return `${parts.join(' ')} = balance ${d.kitty.balance < 0 ? '−' : ''}${rs(Math.abs(d.kitty.balance))}`
 }
 
@@ -74,7 +80,7 @@ export function headline(d: SettlementComputation): string {
   if (d.totals.expenses === 0) return 'Nothing spent yet'
   if (!d.balanced) return "Settlement couldn't be verified"
   const n = d.transfers.length
-  if (n === 0) return 'Everyone is even'
+  if (n === 0) return d.paymentCount > 0 ? 'Everyone is even · Trip settled' : 'Everyone is even'
   return `${n} payment${n === 1 ? '' : 's'} settle${n === 1 ? 's' : ''} this trip`
 }
 
@@ -111,8 +117,22 @@ export function notes(d: SettlementComputation): Note[] {
         out.push({ tone: 'info', text: `${rs(i.amount)} is group money: from outside the group (a sponsor, refund or cashback) or from people no longer in this project. It lowers everyone's share and isn't credited to any member.` })
         break
       case 'kitty_overspent':
-        out.push({ tone: 'warn', text: `The kitty's balance is −${rs(i.amount)}. It paid out more than it received, so it needs ${rs(i.amount)} topped up. Usually an expense someone paid personally was marked as paid from the kitty — fixing that expense will credit them instead.` })
+        out.push({
+          tone: 'warn',
+          text: d.kitty.paidOut > 0
+            ? `The kitty's balance is −${rs(i.amount)}. Settlement payments from the kitty were more than it held, so it needs ${rs(i.amount)} topped up.`
+            : `The kitty's balance is −${rs(i.amount)}. It paid out more than it received, so it needs ${rs(i.amount)} topped up. Usually an expense someone paid personally was marked as paid from the kitty — fixing that expense will credit them instead.`,
+        })
         break
+      case 'invalid_payment': {
+        const what = i.reason === 'unknown_type' ? `A transaction (${formatDayHeader(i.date)})` : `A recorded payment (${formatDayHeader(i.date)})`
+        const why = i.reason === 'unknown_party' ? 'involves someone who isn\'t a member of this project'
+          : i.reason === 'same_party' ? 'has the same payer and recipient'
+            : i.reason === 'amount' ? 'has an invalid amount'
+              : 'has a type this version of MoneyPlant doesn\'t recognise'
+        out.push({ tone: 'warn', text: `${what} ${why}, so no payments are suggested.${i.reason === 'unknown_type' ? ' Update the app and try again.' : ' Undo that payment to settle up.'}` })
+        break
+      }
     }
   }
   if (d.balanced && d.totals.sharedCost < 0) {
@@ -132,7 +152,7 @@ export function shareText(d: SettlementComputation, projectName: string): string
   const lines = [`${projectName} — settlement`]
   if (d.totals.expenses === 0) return [...lines, 'Nothing spent yet.'].join('\n')
   if (!d.balanced) return [...lines, "Settlement couldn't be verified yet."].join('\n')
-  if (d.transfers.length === 0) return [...lines, 'Everyone is even.'].join('\n')
+  if (d.transfers.length === 0) return [...lines, d.paymentCount > 0 ? 'Everyone is even. Trip settled.' : 'Everyone is even.'].join('\n')
   for (const t of d.transfers) {
     const hint = t.from.kind === 'kitty' ? ' (from the kitty balance)' : t.to.kind === 'kitty' ? ' (tops up the kitty)' : ''
     lines.push(`${t.from.name} → ${t.to.name}: ${rs(t.amount)}${hint}`)

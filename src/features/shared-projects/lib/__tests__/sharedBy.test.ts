@@ -19,6 +19,18 @@ const spend = (amount: number, who: string | null = null, sharedBy?: unknown, de
 })
 const shares = (r: SettlementComputation) => Object.fromEntries(r.participants.filter(p => p.kind === 'member').map(p => [p.name, p.share / 100]))
 const nets = (r: SettlementComputation) => Object.fromEntries(r.participants.map(p => [p.name, p.net / 100]))
+/** Without the v1.113 payment fields (each checked to be zero first), for parity with older engines. */
+function withoutPaymentFields(r: SettlementComputation) {
+  expect(r.paymentCount).toBe(0)
+  expect([r.kitty.paidOut, r.kitty.toppedUp, ...r.participants.map(p => p.settled)].every(v => v === 0)).toBe(true)
+  const rest: Partial<SettlementComputation> = { ...r }
+  delete rest.paymentCount
+  const kitty: Partial<SettlementComputation['kitty']> = { ...r.kitty }
+  delete kitty.paidOut
+  delete kitty.toppedUp
+  const participants = r.participants.map(p => { const q: Partial<typeof p> = { ...p }; delete q.settled; return q })
+  return { ...rest, kitty, participants }
+}
 const ABCD = () => ['A', 'B', 'C', 'D'].map((n, i) => member(n, i))
 
 function expectBalanced(r: SettlementComputation) {
@@ -45,12 +57,12 @@ describe('parity with v1.111.0 (every expense is Everyone)', () => {
       const txns = Array.from({ length: Math.floor(rnd() * 25) }, () =>
         rnd() < 0.4 ? contrib(Math.round(rnd() * 500000) / 100, who()) : spend(Math.round(rnd() * 500000) / 100, who()))
       const inflows = rnd() < 0.2 ? Math.round(rnd() * 300000) / 100 : 0
-      expect(computeSettlement(members, txns, { kittyInflows: inflows })).toEqual(computeSettlementV111(members, txns, { kittyInflows: inflows }))
+      expect(withoutPaymentFields(computeSettlement(members, txns, { kittyInflows: inflows }))).toEqual(computeSettlementV111(members, txns, { kittyInflows: inflows }))
     }
   })
   it('an explicit shared_by: null is still Everyone', () => {
     const t = [contrib(1000, 'A'), spend(800, null, null), spend(300, 'B')]
-    expect(computeSettlement(ABCD(), t)).toEqual(computeSettlementV111(ABCD(), t))
+    expect(withoutPaymentFields(computeSettlement(ABCD(), t))).toEqual(computeSettlementV111(ABCD(), t))
   })
 })
 

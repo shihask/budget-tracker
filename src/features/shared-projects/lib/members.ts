@@ -93,6 +93,8 @@ export interface RemovalImpact {
   count: number
   contributed: number
   paidPersonally: number
+  /** Settlement payments this member made or received. While > 0 they can't be deleted. */
+  payments: number
   /** The loaded list hit LOADED_ROWS_CAP, so these figures are a lower bound. */
   atLeast: boolean
 }
@@ -103,15 +105,20 @@ export interface RemovalImpact {
  * member_id = id — contributions and expenses alike — becomes member-less.
  */
 export function removalImpact(memberId: string, transactions: ProjectTransaction[]): RemovalImpact {
-  let count = 0, contributed = 0, paidPersonally = 0
+  let count = 0, contributed = 0, paidPersonally = 0, payments = 0
   for (const t of transactions) {
+    if (t.transaction_type === 'settlement') {
+      // Either side of a payment. These block permanent deletion (database-enforced).
+      if (t.member_id === memberId || t.to_member_id === memberId) { count++; payments++ }
+      continue
+    }
     if (t.member_id !== memberId) continue
     count++
     if (t.transaction_type === 'contribution') contributed += t.amount
-    else paidPersonally += t.amount
+    else if (t.transaction_type === 'expense') paidPersonally += t.amount
   }
   return {
-    count, contributed: round2(contributed), paidPersonally: round2(paidPersonally),
+    count, contributed: round2(contributed), paidPersonally: round2(paidPersonally), payments,
     atLeast: transactions.length >= LOADED_ROWS_CAP,
   }
 }

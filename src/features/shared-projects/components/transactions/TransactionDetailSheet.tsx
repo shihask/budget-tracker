@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { FileText, Image, Pencil, Trash2, X } from 'lucide-react'
+import { FileText, Image, Pencil, Trash2, Undo2, X } from 'lucide-react'
 import { useTheme } from '@/lib/theme-context'
 import { fmt } from '@/lib/utils'
 import { BottomSheet } from '@/components/BottomSheet'
 import type { ProjectAttachment, ProjectMember, ProjectTransaction } from '../../types'
-import { describeTransaction, deleteLabel, formatLongDate, GROUP_MONEY_LABEL } from '../../lib/transactions'
+import { describeTransaction, deleteLabel, formatLongDate, GROUP_MONEY_LABEL, PAYMENT_LABEL, paymentParties } from '../../lib/transactions'
 import { resolveSharedBy, sharedByText } from '../../lib/sharedBy'
 import { FONT } from '../overview/styles'
 import { KittyPill } from './TransactionRow'
@@ -43,9 +43,11 @@ export function TransactionDetailSheet({ open, txn, attachments, members, canEdi
   const tile = kindTile(c, v.kind)
   const isContrib = v.sign === 1
   const isGroup = v.kind === 'group-money'
-  const typeLabel = isGroup ? GROUP_MONEY_LABEL : isContrib ? 'Contribution' : 'Expense'
+  const isPayment = v.kind === 'settlement'
+  const typeLabel = isPayment ? PAYMENT_LABEL : isGroup ? GROUP_MONEY_LABEL : isContrib ? 'Contribution' : 'Expense'
   const own = attachments.filter(a => a.project_transaction_id === txn.id)
-  const shared = isContrib ? null : resolveSharedBy(txn.shared_by, members)
+  const shared = isContrib || isPayment ? null : resolveSharedBy(txn.shared_by, members)
+  const parties = isPayment ? paymentParties(txn) : null
 
   const handleDelete = async () => {
     if (!confirm(deleteLabel(txn))) return
@@ -58,7 +60,13 @@ export function TransactionDetailSheet({ open, txn, attachments, members, canEdi
     try { await onDeleteAttachment(att) } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
   }
 
-  const rows: { label: string; value: React.ReactNode }[] = [
+  const rows: { label: string; value: React.ReactNode }[] = isPayment ? [
+    { label: 'From', value: parties!.from },
+    { label: 'To', value: parties!.to },
+    { label: 'Date', value: formatLongDate(txn.transaction_date) },
+    ...(txn.description ? [{ label: 'Note', value: txn.description }] : []),
+    { label: 'In settlement', value: "Moves money between them. Not spending — trip totals and shares don't change." },
+  ] : [
     isGroup
       ? { label: 'From', value: 'Outside the group' }
       : {
@@ -93,7 +101,7 @@ export function TransactionDetailSheet({ open, txn, attachments, members, canEdi
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ font: `800 26px ${FONT}`, color: isContrib ? c.good : c.ink, lineHeight: 1.15 }}>
-              {isContrib ? '+' : '−'}{fmt(txn.amount)}
+              {isContrib ? '+' : isPayment ? '' : '−'}{fmt(txn.amount)}
             </div>
             <div style={{ font: `600 14px ${FONT}`, color: c.sub, marginTop: 2, overflowWrap: 'anywhere' }}>
               {isContrib ? typeLabel : v.title}
@@ -164,17 +172,20 @@ export function TransactionDetailSheet({ open, txn, attachments, members, canEdi
         {/* Actions — owner and editors only */}
         {canEdit && (
           <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-            <button
-              onClick={() => { close(); onEdit(txn) }}
-              disabled={busy}
-              style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '12px 0', borderRadius: 14, border: 'none', background: c.accent, color: '#fff',
-                font: `700 14px ${FONT}`, cursor: 'pointer',
-              }}
-            >
-              <Pencil size={15} /> Edit
-            </button>
+            {/* Payments are immutable: undo, never edit. */}
+            {!isPayment && (
+              <button
+                onClick={() => { close(); onEdit(txn) }}
+                disabled={busy}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '12px 0', borderRadius: 14, border: 'none', background: c.accent, color: '#fff',
+                  font: `700 14px ${FONT}`, cursor: 'pointer',
+                }}
+              >
+                <Pencil size={15} /> Edit
+              </button>
+            )}
             <button
               onClick={handleDelete}
               disabled={busy}
@@ -184,7 +195,9 @@ export function TransactionDetailSheet({ open, txn, attachments, members, canEdi
                 font: `700 14px ${FONT}`, cursor: 'pointer', opacity: busy ? 0.6 : 1,
               }}
             >
-              <Trash2 size={15} /> {busy ? 'Deleting…' : 'Delete'}
+              {isPayment
+                ? <><Undo2 size={15} /> {busy ? 'Undoing…' : 'Undo payment'}</>
+                : <><Trash2 size={15} /> {busy ? 'Deleting…' : 'Delete'}</>}
             </button>
           </div>
         )}

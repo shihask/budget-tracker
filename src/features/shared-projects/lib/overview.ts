@@ -26,7 +26,10 @@ export interface KittyBreakdown {
   kittyFunds: number
   /** Expenses paid from the Project Fund (no member). */
   fundSpent: number
-  /** kittyFunds − fundSpent. Negative when the kitty paid out more than it had. */
+  /** Settlement payments out of the kitty to members / topped into it (not spending). */
+  settledOut: number
+  settledIn: number
+  /** kittyFunds − fundSpent − settledOut + settledIn. Negative when the kitty paid out more than it had. */
   fundRemaining: number
   /** Expenses a member paid from their own pocket. */
   paidPersonally: number
@@ -47,7 +50,15 @@ export function kittyBreakdown(summary: ProjectSummary, transactions: ProjectTra
   const fundSpent = round2(transactions
     .filter(t => t.transaction_type === 'expense' && t.member_id == null)
     .reduce((s, t) => s + t.amount, 0))
-  const fundRemaining = round2(kittyFunds - fundSpent)
+  // Settlement payments move real kitty cash (out to a member, or a top-up in) but are not
+  // spending: they change what's left, never "spent from kitty" or any total.
+  const settledOut = round2(transactions
+    .filter(t => t.transaction_type === 'settlement' && t.member_id == null)
+    .reduce((s, t) => s + t.amount, 0))
+  const settledIn = round2(transactions
+    .filter(t => t.transaction_type === 'settlement' && t.to_member_id == null)
+    .reduce((s, t) => s + t.amount, 0))
+  const fundRemaining = round2(kittyFunds - fundSpent - settledOut + settledIn)
   const paidPersonally = round2(summary.totalExpenses - fundSpent)
 
   let state: KittyState
@@ -56,7 +67,7 @@ export function kittyBreakdown(summary: ProjectSummary, transactions: ProjectTra
   else if (fundRemaining < -PAISE_EPSILON) state = 'overspent'
   else state = 'used'
 
-  return { sources, kittyFunds, fundSpent, fundRemaining, paidPersonally, state }
+  return { sources, kittyFunds, fundSpent, settledOut, settledIn, fundRemaining, paidPersonally, state }
 }
 
 export type BudgetStatus = 'ok' | 'near' | 'over'

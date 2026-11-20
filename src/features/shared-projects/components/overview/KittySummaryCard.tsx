@@ -79,6 +79,8 @@ export function KittySummaryCard({ summary, kitty, onSettle }: Props) {
           <Row c={c} label="Kitty funds" amount={kittyFunds} strong />
           {sources.map(s => <Row key={s.key} c={c} label={s.label} amount={s.amount} indent />)}
           <Row c={c} label="Spent from kitty" amount={fundSpent} />
+          {kitty.settledOut > 0 && <Row c={c} label="Paid out in settlement" amount={kitty.settledOut} />}
+          {kitty.settledIn > 0 && <Row c={c} label="Topped up in settlement" amount={kitty.settledIn} />}
         </div>
         <div>
           <Row c={c} label="Total trip expenses" amount={summary.totalExpenses} strong />

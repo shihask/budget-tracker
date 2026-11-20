@@ -179,7 +179,7 @@ export function PublicProjectPage({ shareCode }: Props) {
           />
         )}
         {tab === 'settlement' && (
-          <SettlementTab settlement={settlement} projectName={project.name} />
+          <SettlementTab settlement={settlement} projectName={project.name} transactions={transactions} canEdit={false} />
         )}
         {tab === 'activity' && (
           <div style={{ maxWidth: 960, margin: '0 auto' }}>

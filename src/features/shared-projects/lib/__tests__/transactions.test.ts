@@ -98,7 +98,7 @@ describe('groupByDay', () => {
 
 describe('resultTotals', () => {
   it('splits expenses and contributions', () => {
-    expect(resultTotals(all)).toEqual({ count: 4, expenses: 21147.08, contributions: 2000 })
+    expect(resultTotals(all)).toEqual({ count: 4, expenses: 21147.08, contributions: 2000, payments: 0 })
   })
 })
 

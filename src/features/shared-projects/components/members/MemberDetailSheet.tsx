@@ -28,6 +28,8 @@ interface Props {
   hideEmail?: boolean
 }
 
+const PAYMENTS_BLOCK_DELETE = "Can't be deleted permanently: they have recorded settlement payments. They stay inactive, and their history is kept."
+
 export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite, onClose, onEdit, onInvite, onRemove, onSetActive, hideEmail = false }: Props) {
   const c = useTheme()
   const [step, setStep] = useState<'view' | 'deactivate' | 'delete'>('view')
@@ -39,6 +41,9 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
   const m = row.member
   const impact = removalImpact(m.id, transactions)
   const hasHistory = impact.count > 0
+  // Recorded settlement payments: permanent delete would reinterpret them, so the database
+  // refuses it; the UI never offers it.
+  const blockedByPayments = impact.payments > 0
   const status = row.net === null ? null : settlementStatus(row.net)
 
   const remove = async () => {
@@ -136,7 +141,11 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
                 )}
               </div>
             )}
-            {canEdit && (
+            {canEdit && (row.inactive && blockedByPayments ? (
+              <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 14, textAlign: 'center', lineHeight: 1.5 }}>
+                {PAYMENTS_BLOCK_DELETE}
+              </div>
+            ) : (
               // Active with history → mark inactive. No history → plain delete. Inactive → only permanent delete is left.
               <button onClick={() => { setStep(!row.inactive && hasHistory ? 'deactivate' : 'delete'); setError(null) }} style={{
                 display: 'block', margin: '14px auto 0', background: 'none', border: 'none', padding: '6px 10px',
@@ -144,7 +153,7 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
               }}>
                 {row.inactive ? 'Delete permanently' : 'Remove member'}
               </button>
-            )}
+            ))}
           </>
         ) : step === 'deactivate' ? (
           /* Remove = mark inactive. Nothing is deleted; it can be undone. */
@@ -175,12 +184,18 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
                 {busy ? 'Removing…' : 'Remove member'}
               </button>
             </div>
-            <button onClick={() => { setStep('delete'); setError(null) }} style={{
-              display: 'block', margin: '12px auto 0', background: 'none', border: 'none', padding: '6px 10px',
-              color: c.muted, font: `600 12px ${FONT}`, cursor: 'pointer', textDecoration: 'underline',
-            }}>
-              Delete permanently instead
-            </button>
+            {blockedByPayments ? (
+              <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 12, textAlign: 'center', lineHeight: 1.5 }}>
+                {PAYMENTS_BLOCK_DELETE}
+              </div>
+            ) : (
+              <button onClick={() => { setStep('delete'); setError(null) }} style={{
+                display: 'block', margin: '12px auto 0', background: 'none', border: 'none', padding: '6px 10px',
+                color: c.muted, font: `600 12px ${FONT}`, cursor: 'pointer', textDecoration: 'underline',
+              }}>
+                Delete permanently instead
+              </button>
+            )}
           </div>
         ) : (
           /* Permanent delete — the hard delete, with its consequences spelled out */

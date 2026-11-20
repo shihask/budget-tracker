@@ -1,7 +1,8 @@
 import type { SettlementComputation } from './lib/settlement'
 
 export type ProjectStatus = 'active' | 'completed' | 'archived'
-export type ProjectTransactionType = 'contribution' | 'expense'
+/** 'settlement' = a recorded settlement payment (v1.113): money moving between two parties. */
+export type ProjectTransactionType = 'contribution' | 'expense' | 'settlement'
 export type ProjectTab = 'overview' | 'expenses' | 'members' | 'settlement' | 'activity'
 export type CollaboratorRole = 'owner' | 'editor' | 'viewer'
 
@@ -48,6 +49,10 @@ export interface ProjectTransaction {
   member?: ProjectMember
   /** Expenses only. Members who shared it (split by share ratio). NULL/absent = everyone active. */
   shared_by?: string[] | null
+  /** Settlement payments only: who received it (member_id is who paid). NULL = the kitty. */
+  to_member_id?: string | null
+  /** Attached on load, like `member`. */
+  to_member?: ProjectMember
 }
 
 export interface ProjectAttachment {
