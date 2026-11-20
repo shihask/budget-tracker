@@ -151,7 +151,7 @@ export function ProjectTransactionSheet({ open, onClose, mode, members, projectI
                 ) : (
                   <>
                     <option value="">Select who paid</option>
-                    <option value={FUND}>Project Fund (from contributions)</option>
+                    <option value={FUND}>Group fund (from contributions)</option>
                   </>
                 )}
                 {/* Only active members for new entries; an inactive member stays visible on

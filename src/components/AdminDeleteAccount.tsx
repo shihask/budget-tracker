@@ -65,7 +65,7 @@ export function AdminDeleteAccount({ user, onDeleted }: { user: AdminUserSummary
             <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink }}>This can't be undone.</div>
             <div style={{ font: '500 12px Plus Jakarta Sans', color: c.sub, marginTop: 6, lineHeight: 1.5 }}>
               Deletes every transaction, account, category, setting, saving, event and uploaded file. Shared
-              projects this person owns are deleted for their collaborators too.
+              Group Expenses groups this person owns are deleted for their collaborators too.
             </div>
             <div style={{ font: '600 12px Plus Jakarta Sans', color: c.ink, marginTop: 12 }}>
               Type <strong style={{ userSelect: 'all' }}>{identifier}</strong> to confirm:

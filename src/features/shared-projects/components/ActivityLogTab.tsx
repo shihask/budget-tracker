@@ -58,7 +58,7 @@ export function ActivityLogTab({ activityLog }: Props) {
         <div style={{ ...cardStyle(c), padding: '20px 16px', textAlign: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><History size={22} color={c.muted} /></div>
           <div style={{ font: `700 14px ${FONT}`, color: c.ink }}>No activity yet</div>
-          <div style={{ font: `500 13px ${FONT}`, color: c.muted, marginTop: 4 }}>Changes to this project will show up here.</div>
+          <div style={{ font: `500 13px ${FONT}`, color: c.muted, marginTop: 4 }}>Changes to this group will show up here.</div>
         </div>
       </div>
     )

@@ -77,9 +77,9 @@ const PAGES: FeaturePage[] = [
   },
   {
     key: 'track_projects',
-    label: 'Projects',
+    label: 'Group Expenses',
     subtitle: 'Split costs, stay in sync',
-    description: 'Organize and split shared expenses across trips, events, and group activities.\n\nCreate a project for a trip, event or shared goal — invite friends or family, log costs as they happen, and see who owes what, all in one place.',
+    description: 'Organize and split shared expenses across trips, events, and group activities.\n\nCreate a group for a trip, event or shared goal — invite friends or family, log costs as they happen, and see who owes what, all in one place.',
     defaultOn: false,
     Icon: FEATURE_ICONS.projects,
   },
@@ -709,7 +709,7 @@ function SharedProjectsPage({ on, onChange }: { on: boolean; onChange: (v: boole
   return (
     <div style={{ width: '100%', maxWidth: PAGE_MAX_WIDTH, textAlign: 'left' }}>
       <PageHeader
-        Icon={FEATURE_ICONS.projects} title="Shared Projects" indigo
+        Icon={FEATURE_ICONS.projects} title="Group Expenses" indigo
         tagline="Make plans together, track expenses together."
         description="Create shared spaces for trips, weddings and group activities. Know who paid, what was spent and who owes what."
       />
@@ -736,7 +736,7 @@ function SharedProjectsPage({ on, onChange }: { on: boolean; onChange: (v: boole
         ))}
       </div>
 
-      <PreferenceCard title="Shared Projects" on={on} onChange={onChange} />
+      <PreferenceCard title="Group Expenses" on={on} onChange={onChange} />
     </div>
   )
 }

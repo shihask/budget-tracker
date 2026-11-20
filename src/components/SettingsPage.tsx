@@ -731,8 +731,8 @@ export function SettingsPage({ accent, dark, layout, incomePattern, salaryDate, 
       {!guest && (
       <div style={rowStyle}>
         <div>
-          <div style={labelStyle}>Projects</div>
-          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Track renovations, events & shared goals</div>
+          <div style={labelStyle}>Group Expenses</div>
+          <div style={{ font: '600 11px Plus Jakarta Sans', color: c.muted, marginTop: 2 }}>Split trip and shared costs with friends</div>
         </div>
         <button
           onClick={() => onTrackProjects(!trackProjects)}

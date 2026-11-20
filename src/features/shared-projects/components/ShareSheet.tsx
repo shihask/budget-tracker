@@ -70,10 +70,10 @@ export function ShareSheet({ open, onClose, project, onGenerateCode, onRevokeCod
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
       <div style={{ padding: '0 4px 16px' }}>
         <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 6 }}>
-          Share Project
+          Share group
         </div>
         <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, marginBottom: 20, lineHeight: 1.5 }}>
-          Generate a public read-only link. Anyone with the link can view the project details, contributions, expenses, and settlement.
+          Generate a public read-only link. Anyone with the link can view the group details, contributions, expenses, and settlement.
         </div>
 
         {(project.is_public || localCode) && shareUrl ? (

@@ -70,10 +70,10 @@ export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
         </div>
         <div style={p}>
           <strong>Financial data you enter.</strong> Accounts, transactions, categories, budgets, bills
-          and commitments, credit cards, borrowings, savings, goals, life events and shared projects.
+          and commitments, credit cards, borrowings, savings, goals, life events and Group Expenses.
         </div>
         <div style={p}>
-          <strong>Files you upload.</strong> Receipt photos, shared-project attachments, and bank
+          <strong>Files you upload.</strong> Receipt photos, Group Expenses receipts, and bank
           statements you import.
         </div>
         <div style={p}>
@@ -135,7 +135,7 @@ export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
           security, so other users cannot see it. The exceptions:
         </div>
         <div style={p}>
-          • <strong>Shared projects</strong>: anything you add to a shared project is visible to its members.
+          • <strong>Group Expenses</strong>: anything you add to a group is visible to its members.
           If you invite someone, we send them an email with your invitation.<br />
           • <strong>Administrators</strong>: for support, a small number of authorized administrators can see
           account-level details (email, feature settings, AI usage and record counts). They cannot see your
@@ -250,14 +250,14 @@ export function TermsOfService({ onBack }: { onBack: () => void }) {
         <div style={h2}>6. Acceptable Use</div>
         <div style={p}>
           Do not use MoneyPlant for illegal activity, attempt to access other users' data, or
-          deliberately overload the service. Only invite people to shared projects who expect to hear
+          deliberately overload the service. Only invite people to groups who expect to hear
           from you. We reserve the right to suspend accounts that violate these terms.
         </div>
 
         <div style={h2}>7. Your Data</div>
         <div style={p}>
           You own all data you enter into MoneyPlant. We do not claim any rights over your financial
-          data. Anything you add to a shared project is visible to that project's members. See our
+          data. Anything you add to a group in Group Expenses is visible to that group's members. See our
           Privacy Policy for how we handle your data.
         </div>
 

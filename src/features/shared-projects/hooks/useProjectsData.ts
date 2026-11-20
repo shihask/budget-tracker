@@ -114,7 +114,7 @@ export function useProjectsData(userId: string) {
     if (error) throw error
     setProjects(prev => [data, ...prev])
     setProjectRoles(prev => new Map(prev).set(data.id, 'owner'))
-    logActivity(data.id, 'project_created', `Created project "${form.name}"`)
+    logActivity(data.id, 'project_created', `Created group "${form.name}"`)
     return data
   }, [userId, logActivity])
 

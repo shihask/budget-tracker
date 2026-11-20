@@ -179,7 +179,7 @@ describe('invalid groups', () => {
     const r = computeSettlement(ABCD(), [spend(500, 'A', ['nobody'], 'Dinner')])
     expect(notes(r)[0]).toEqual({ tone: 'warn', text: '"Dinner" (Wed, 18 Nov) has no one left to share it. Edit who shared it to settle up.' })
     const d = computeSettlement(ABCD(), [spend(300, 'A', ['a', 'gone'])])
-    expect(notes(d).map(x => x.text)).toContain("An expense (Wed, 18 Nov): 1 person who shared it is no longer in this project, so it's split among the rest.")
+    expect(notes(d).map(x => x.text)).toContain("An expense (Wed, 18 Nov): 1 person who shared it is no longer in this group, so it's split among the rest.")
   })
 })
 

@@ -81,16 +81,16 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
     <BottomSheet open={open} onClose={onClose} showHelpButton={false}>
       <div style={{ padding: '0 4px 16px' }}>
         <div style={{ font: '800 20px Plus Jakarta Sans', color: c.ink, marginBottom: 20 }}>
-          {project ? 'Edit Project' : 'New Project'}
+          {project ? 'Edit group' : 'New group'}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <div style={labelStyle}>Project Name</div>
+            <div style={labelStyle}>Group name</div>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. Home Renovation"
+              placeholder="e.g. Goa Trip"
               style={inputStyle}
               autoFocus
             />
@@ -177,7 +177,7 @@ export function ProjectFormSheet({ open, onClose, onSave, project }: Props) {
             opacity: saving ? 0.6 : 1,
           }}
         >
-          {saving ? 'Saving…' : project ? 'Update Project' : 'Create Project'}
+          {saving ? 'Saving…' : project ? 'Save changes' : 'Create group'}
         </button>
       </div>
     </BottomSheet>

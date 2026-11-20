@@ -52,7 +52,7 @@ export function NavMenu({
     // opt-in, so the tile and this row appear and disappear together.
     { section: 'Plan & track', id: 'credit_cards', label: 'Credit Cards', onClick: onCreditCards, hidden: !trackCreditCards },
     { section: 'Plan & track', id: 'events', label: 'Life Events', onClick: onEvents, hidden: !hasEvents },
-    { section: 'Shared', id: 'projects', label: 'Projects', onClick: onProjects, hidden: !trackProjects },
+    { section: 'Shared', id: 'projects', label: 'Group Expenses', onClick: onProjects, hidden: !trackProjects },
     // Not settings-gated: the menu row is how Household is found (same lesson as Life Events).
     { section: 'Shared', id: 'household', label: 'Household', onClick: () => onHousehold?.(), hidden: !onHousehold },
     { section: 'Mint', id: 'grow', label: 'Grow', onClick: onGrow },

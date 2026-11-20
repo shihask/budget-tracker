@@ -136,7 +136,7 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
                     padding: '12px 0', borderRadius: 14, border: `1.5px solid ${c.faint}`, background: 'transparent',
                     color: c.ink, font: `700 14px ${FONT}`, cursor: 'pointer',
                   }}>
-                    <Mail size={15} /> Invite to project
+                    <Mail size={15} /> Invite to group
                   </button>
                 )}
               </div>
@@ -223,7 +223,7 @@ export function MemberDetailSheet({ open, row, transactions, canEdit, canInvite,
               </div>
             ) : (
               <div style={{ font: `600 14px ${FONT}`, color: c.ink, lineHeight: 1.5 }}>
-                Remove {m.name} from this project? They have no transactions, so nothing else changes.
+                Remove {m.name} from this group? They have no transactions, so nothing else changes.
               </div>
             )}
 

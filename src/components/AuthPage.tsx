@@ -138,7 +138,7 @@ const tourFeatures = [
   },
   {
     id: 'projects', icon: FolderOpen,
-    title: 'Shared Projects',
+    title: 'Group Expenses',
     desc: 'Split costs with friends and family for trips or shared households. Track contributions, manage budgets, see who owes whom, and settle up — all in one place.',
     mock: 'projects',
   },
@@ -185,7 +185,7 @@ const badges = [
   { icon: Sprout, label: 'Plant Growth' },
   { icon: Trophy, label: 'Goal Tracking' },
   { icon: Gem, label: 'Life Events' },
-  { icon: FolderOpen, label: 'Shared Projects' },
+  { icon: FolderOpen, label: 'Group Expenses' },
   ...(HOUSEHOLD_ENABLED ? [{ icon: House, label: 'Household' }] as const : []),
   { icon: NotebookPen, label: 'Kakeibo Reflection' },
   { icon: Receipt, label: 'Expense Tracking' },
@@ -218,8 +218,8 @@ const badges = [
 const personas = [
   { icon: Briefcase, title: 'Salaried Employees', desc: 'Know whether you’ll comfortably reach your next salary.' },
   { icon: Users, title: 'Families', desc: HOUSEHOLD_ENABLED
-    ? 'Plan bills, school fees, groceries and savings together. Share a household budget with your partner, and use shared projects to split and settle expenses.'
-    : 'Plan bills, school fees, groceries and savings together. Use shared projects to split and settle expenses.' },
+    ? 'Plan bills, school fees, groceries and savings together. Share a household budget with your partner, and use Group Expenses to split and settle costs with friends.'
+    : 'Plan bills, school fees, groceries and savings together. Use Group Expenses to split and settle costs with friends.' },
   { icon: Zap, title: 'Freelancers & Business', desc: 'Manage variable income, irregular cash flow and business expenses with forecasting.' },
   { icon: GraduationCap, title: 'Students', desc: 'Track spending and stay within budget.' },
 ] as const
@@ -239,7 +239,7 @@ const galleryScreens = [
   { type: 'forecast', label: 'Forecast' },
   { type: 'budget', label: 'Budget' },
   { type: 'goals', label: 'Goals' },
-  { type: 'projects', label: 'Shared Projects' },
+  { type: 'projects', label: 'Group Expenses' },
   ...(HOUSEHOLD_ENABLED ? [{ type: 'household', label: 'Household' }] as const : []),
   { type: 'kakeibo', label: 'Kakeibo' },
   { type: 'analytics', label: 'Analytics' },

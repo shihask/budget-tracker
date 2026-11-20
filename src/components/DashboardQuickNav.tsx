@@ -25,7 +25,7 @@ const SECTION_SHORT: Record<DashboardSectionId, string> = {
   borrowing:       'Borrowings',
   credit_cards:    'Cards',
   events:          'Events',
-  projects:        'Projects',
+  projects:        'Group Expenses',
   analytics:       'Analytics',
   recent_txns:     'Transactions',
 }

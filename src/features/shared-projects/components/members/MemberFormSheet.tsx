@@ -58,7 +58,7 @@ export function MemberFormSheet({ open, member, onClose, onSave }: Props) {
             <input value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" type="email" inputMode="email" style={input}
               onKeyDown={e => { if (e.key === 'Enter') save() }} />
             <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 6 }}>
-              Only needed if you want to invite them to open this project.
+              Only needed if you want to invite them to open this group.
             </div>
           </div>
         </div>

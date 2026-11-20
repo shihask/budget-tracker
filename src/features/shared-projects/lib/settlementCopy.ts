@@ -111,10 +111,10 @@ export function notes(d: SettlementComputation): Note[] {
         break
       }
       case 'deleted_participants':
-        out.push({ tone: 'info', text: `${expenseLabel(i.description, i.date)}: ${i.count} ${i.count === 1 ? 'person' : 'people'} who shared it ${i.count === 1 ? 'is' : 'are'} no longer in this project, so it's split among the rest.` })
+        out.push({ tone: 'info', text: `${expenseLabel(i.description, i.date)}: ${i.count} ${i.count === 1 ? 'person' : 'people'} who shared it ${i.count === 1 ? 'is' : 'are'} no longer in this group, so it's split among the rest.` })
         break
       case 'unassigned_contributions':
-        out.push({ tone: 'info', text: `${rs(i.amount)} is group money: from outside the group (a sponsor, refund or cashback) or from people no longer in this project. It lowers everyone's share and isn't credited to any member.` })
+        out.push({ tone: 'info', text: `${rs(i.amount)} is group money: from outside the group (a sponsor, refund or cashback) or from people no longer in this group. It lowers everyone's share and isn't credited to any member.` })
         break
       case 'kitty_overspent':
         out.push({
@@ -126,7 +126,7 @@ export function notes(d: SettlementComputation): Note[] {
         break
       case 'invalid_payment': {
         const what = i.reason === 'unknown_type' ? `A transaction (${formatDayHeader(i.date)})` : `A recorded payment (${formatDayHeader(i.date)})`
-        const why = i.reason === 'unknown_party' ? 'involves someone who isn\'t a member of this project'
+        const why = i.reason === 'unknown_party' ? 'involves someone who isn\'t a member of this group'
           : i.reason === 'same_party' ? 'has the same payer and recipient'
             : i.reason === 'amount' ? 'has an invalid amount'
               : 'has a type this version of MoneyPlant doesn\'t recognise'

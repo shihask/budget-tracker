@@ -35,7 +35,7 @@ export function CollaboratorInviteSheet({ open, onClose, onInvite, projectName, 
     try {
       await onInvite(email.trim(), role)
       supabase.functions.invoke('send-invite-email', {
-        body: { to_email: email.trim(), project_name: projectName || 'a project', role },
+        body: { to_email: email.trim(), project_name: projectName || 'a group', role },
       }).then(() => {}, () => {})
       setSent(true)
       setTimeout(() => { setSent(false); setEmail(''); setError(null); onClose() }, 1500)
@@ -64,7 +64,7 @@ export function CollaboratorInviteSheet({ open, onClose, onInvite, projectName, 
           Invite Collaborator
         </div>
         <div style={{ font: '500 13px Plus Jakarta Sans', color: c.muted, marginBottom: 20, lineHeight: 1.5 }}>
-          Invite a MoneyPlant user by email. They'll see this project in their Projects list.
+          Invite a MoneyPlant user by email. They'll see this group in their Group Expenses list.
         </div>
 
         {sent ? (
@@ -112,7 +112,7 @@ export function CollaboratorInviteSheet({ open, onClose, onInvite, projectName, 
                   ))}
                 </div>
                 <div style={{ font: '500 11px Plus Jakarta Sans', color: c.muted, marginTop: 6 }}>
-                  {role === 'viewer' ? 'Can view all project data but cannot make changes' : 'Can add transactions, members, and manage budgets'}
+                  {role === 'viewer' ? 'Can view everything in the group but cannot make changes' : 'Can add transactions, members, and manage budgets'}
                 </div>
               </div>
             </div>

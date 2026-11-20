@@ -67,7 +67,7 @@ export function PublicProjectPage({ shareCode }: Props) {
   if (loading) {
     return (
       <div style={{ minHeight: '100dvh', background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ font: '600 16px Plus Jakarta Sans', color: c.muted }}>Loading project…</div>
+        <div style={{ font: '600 16px Plus Jakarta Sans', color: c.muted }}>Loading group…</div>
       </div>
     )
   }
@@ -75,9 +75,9 @@ export function PublicProjectPage({ shareCode }: Props) {
   if (notFound || !project || !summary || !budgetSummary) {
     return (
       <div style={{ minHeight: '100dvh', background: c.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ font: '800 24px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Project Not Found</div>
+        <div style={{ font: '800 24px Plus Jakarta Sans', color: c.ink, marginBottom: 8 }}>Group not found</div>
         <div style={{ font: '500 14px Plus Jakarta Sans', color: c.muted, textAlign: 'center' }}>
-          This project link may have expired or been revoked.
+          This group link may have expired or been revoked.
         </div>
       </div>
     )
@@ -98,7 +98,7 @@ export function PublicProjectPage({ shareCode }: Props) {
       <div style={{ padding: '20px 18px 12px', borderBottom: `1px solid ${c.faint}` }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <div style={{ font: '600 11px Plus Jakarta Sans', color: c.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-            MoneyPlant · Shared Project
+            MoneyPlant · Group Expenses
           </div>
           <div style={{ font: '800 22px Plus Jakarta Sans', color: c.ink, overflowWrap: 'anywhere' }}>{project.name}</div>
           {project.description && (

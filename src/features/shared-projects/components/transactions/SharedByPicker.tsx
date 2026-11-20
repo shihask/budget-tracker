@@ -57,7 +57,7 @@ export function SharedByPicker({ open, members, value, onClose, onDone }: Props)
 
         {resolved.removed > 0 && (
           <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 10 }}>
-            {resolved.removed} {resolved.removed === 1 ? 'person' : 'people'} on this expense {resolved.removed === 1 ? 'is' : 'are'} no longer in the project and will be left out.
+            {resolved.removed} {resolved.removed === 1 ? 'person' : 'people'} on this expense {resolved.removed === 1 ? 'is' : 'are'} no longer in the group and will be left out.
           </div>
         )}
 

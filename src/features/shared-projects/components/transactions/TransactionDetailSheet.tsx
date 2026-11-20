@@ -73,7 +73,7 @@ export function TransactionDetailSheet({ open, txn, attachments, members, canEdi
       : {
         label: isContrib ? 'Contributed by' : 'Paid by',
         value: v.kind === 'expense-kitty'
-          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><KittyPill c={c} />Project fund</span>
+          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><KittyPill c={c} />Group fund</span>
           : v.memberName,
       },
     ...(v.category ? [{ label: 'Category', value: v.category }] : []),
@@ -158,7 +158,7 @@ export function TransactionDetailSheet({ open, txn, attachments, members, canEdi
             </div>
             {!canViewReceipts && (
               <div style={{ font: `500 11px ${FONT}`, color: c.muted, marginTop: 6 }}>
-                Receipts can be opened by project members in MoneyPlant.
+                Receipts can be opened by group members in MoneyPlant.
               </div>
             )}
           </div>

@@ -349,7 +349,7 @@ export function NotificationsSheet({
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ font: '700 14px Plus Jakarta Sans', color: c.ink }}>
-                      Project invitation
+                      Group invitation
                     </div>
                     <div style={{ font: '600 13px Plus Jakarta Sans', color: '#6366F1', marginTop: 2 }}>
                       {invite.project.name}
@@ -371,7 +371,7 @@ export function NotificationsSheet({
                         <button
                           onClick={() => { onViewProject(); onClose() }}
                           style={{ marginLeft: 8, padding: '6px 14px', borderRadius: 8, border: 'none', background: c.accent, color: '#fff', font: '700 12px Plus Jakarta Sans', cursor: 'pointer' }}
-                        >View Project</button>
+                        >View group</button>
                       </div>
                     ) : (
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

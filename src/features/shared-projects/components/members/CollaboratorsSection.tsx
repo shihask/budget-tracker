@@ -20,7 +20,7 @@ export function CollaboratorsSection({ collaborators, isOwner, onInvite, onRemov
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const remove = async (collab: ProjectCollaborator) => {
-    if (!confirm(`Remove ${collab.invited_email || 'this collaborator'} from this project?`)) return
+    if (!confirm(`Remove ${collab.invited_email || 'this collaborator'} from this group?`)) return
     setBusyId(collab.id); setError(null)
     try { await onRemove(collab.id) } catch (e) { setError(errorText(e)) } finally { setBusyId(null) }
   }
@@ -73,7 +73,7 @@ export function CollaboratorsSection({ collaborators, isOwner, onInvite, onRemov
 
       <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 8, lineHeight: 1.5 }}>
         {collaborators.length === 0 && (isOwner ? 'No collaborators yet. ' : 'No other collaborators. ')}
-        Collaborators can open this project in MoneyPlant. Members are just names for splitting costs.
+        Collaborators can open this group in MoneyPlant. Members are just names for splitting costs.
       </div>
     </section>
   )

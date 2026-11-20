@@ -26,7 +26,7 @@ export function PaidByFilterSheet({ open, options, value, onChange, onClose }: P
       <div style={{ padding: '0 4px 12px' }}>
         <div style={{ font: `800 18px ${FONT}`, color: c.ink }}>Paid by</div>
         <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 2, marginBottom: 12 }}>
-          Kitty shows expenses paid from the project fund. A member shows what they paid or contributed.
+          Kitty shows expenses paid from the group fund. A member shows what they paid or contributed.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {options.map(o => {

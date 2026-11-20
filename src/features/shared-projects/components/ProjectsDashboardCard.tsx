@@ -26,13 +26,13 @@ export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll,
           }}>
             <FEATURE_ICONS.projects size={17} color="#fff" aria-hidden />
           </div>
-          <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Projects</div>
+          <div style={{ font: '700 16px Plus Jakarta Sans', color: c.ink }}>Group Expenses</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span onClick={onSeeAll} style={{ font: '600 13px Plus Jakarta Sans', color: c.accent, cursor: 'pointer' }}>See all</span>
           <button
             onClick={onAdd}
-            aria-label="Add project"
+            aria-label="Add group"
             style={{
               width: 28, height: 28, borderRadius: 9, border: 'none',
               background: c.accentSoft, color: c.accent, cursor: 'pointer',
@@ -47,9 +47,9 @@ export function ProjectsDashboardCard({ projects, sharedProjects = [], onSeeAll,
       {projects.length === 0 && sharedProjects.length === 0 ? (
         <div style={{ padding: '20px 0 8px', textAlign: 'center' }}>
           <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}><FEATURE_ICONS.projects size={28} color="#A09890" /></div>
-          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Start Your First Project</div>
+          <div style={{ font: '700 13px Plus Jakarta Sans', color: c.ink, marginBottom: 4 }}>Start your first group</div>
           <div style={{ font: '600 12px Plus Jakarta Sans', color: c.muted, marginBottom: 14, lineHeight: 1.5 }}>Plan a trip, track a renovation or split expenses with friends — all in one place.</div>
-          <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Create a project</button>
+          <button onClick={onAdd} style={{ background: c.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', font: '700 13px Plus Jakarta Sans', cursor: 'pointer' }}>Create a group</button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

@@ -72,7 +72,7 @@ export function CreateMenuSheet({
       icon: <RowIcon Icon={FEATURE_ICONS.savings} />,
     },
     {
-      id: 'project', label: 'Project', onClick: onProject, hidden: !trackProjects,
+      id: 'project', label: 'Group expense', onClick: onProject, hidden: !trackProjects,
       icon: <RowIcon Icon={FEATURE_ICONS.projects} />,
     },
   ]
