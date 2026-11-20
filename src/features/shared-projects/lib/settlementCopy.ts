@@ -161,3 +161,43 @@ export function shareText(d: SettlementComputation, projectName: string): string
   lines.push('Worked out in MoneyPlant')
   return lines.join('\n')
 }
+
+// ── Each person's share ────────────────────────────────────────────────────
+// Read straight from the engine's per-participant `share` (paise), so the Overview line and
+// the Settlement rows can never disagree with Settlement itself. Never total ÷ members.
+
+/** The grey line under a name in "Where everyone stands". */
+export function shareLine(p: SettlementParticipant): string {
+  if (p.share > 0) return `Share ${rs(p.share)}`
+  if (p.share < 0) return `Gets ${rs(-p.share)} of the surplus`
+  return 'No share of spending'
+}
+
+export type PerPersonShare =
+  /** Everyone sharing pays the same; `rounded` when they differ only by the 1-paisa remainder. */
+  | { kind: 'equal'; amount: number; sharers: number; members: number; rounded: boolean; groupMoney: number }
+  | { kind: 'differs'; min: number; max: number; groupMoney: number }
+
+/** Overview's "Each person's share". null when there is nothing honest to show. */
+export function perPersonShare(d: SettlementComputation): PerPersonShare | null {
+  if (!d.balanced || d.totals.expenses <= 0) return null
+  const members = d.participants.filter(p => p.kind === 'member')
+  if (members.length < 2) return null
+  const nonZero = members.filter(p => p.share !== 0)
+  // Group money covered the spending exactly: everyone's share is ₹0.
+  const sharers = nonZero.length > 0 ? nonZero : members
+  const values = sharers.map(p => p.share)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const groupMoney = d.totals.groupMoney
+  // Largest-remainder allocation leaves at most 1 paisa between equal shares.
+  if (max - min > 1) return { kind: 'differs', min, max, groupMoney }
+  const counts = new Map<number, number>()
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1)
+  // The most common value; ties go to the smaller amount, deterministically.
+  const amount = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0]
+  return { kind: 'equal', amount, sharers: sharers.length, members: members.length, rounded: max !== min, groupMoney }
+}
+
+/** Signed rupees for a share range that may cross zero. */
+export const rsSigned = (paise: number) => `${paise < 0 ? '−' : ''}${rs(Math.abs(paise))}`

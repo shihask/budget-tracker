@@ -5,7 +5,7 @@ import type { ColorTokens } from '@/lib/tokens'
 import type { ProjectTransaction, SettlementResult } from '../../types'
 import type { SettlementComputation, SettlementParticipant, Transfer } from '../../lib/settlement'
 import {
-  rs, standing, breakdownLine, kittyLine, summaryLines, equation, headline, notes, transferHint, shareText,
+  rs, standing, breakdownLine, shareLine, kittyLine, summaryLines, equation, headline, notes, transferHint, shareText,
   type Tone,
 } from '../../lib/settlementCopy'
 import { FONT, cardStyle } from '../overview/styles'
@@ -228,7 +228,7 @@ function StandingsCard({ d }: { d: SettlementComputation }) {
       <div style={{ ...sectionLabel(c), margin: '0 4px 8px' }}>Where everyone stands</div>
       <div style={{ ...cardStyle(c), padding: 0, overflow: 'hidden' }}>
         {members.map((p, i) => (
-          <StandingRow key={p.id} p={p} verified={d.balanced} first={i === 0}
+          <StandingRow key={p.id} p={p} verified={d.balanced} showShare={d.balanced && d.totals.expenses > 0} first={i === 0}
             open={open === p.id} onToggle={() => setOpen(o => (o === p.id ? null : p.id))} />
         ))}
         {showKitty && (
@@ -261,8 +261,8 @@ const rowButton = (c: ColorTokens): React.CSSProperties => ({
   border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', color: c.ink, boxSizing: 'border-box',
 })
 
-function StandingRow({ p, verified, first, open, onToggle }: {
-  p: SettlementParticipant; verified: boolean; first: boolean; open: boolean; onToggle: () => void
+function StandingRow({ p, verified, showShare, first, open, onToggle }: {
+  p: SettlementParticipant; verified: boolean; showShare: boolean; first: boolean; open: boolean; onToggle: () => void
 }) {
   const c = useTheme()
   const s = standing(p.net)
@@ -273,9 +273,12 @@ function StandingRow({ p, verified, first, open, onToggle }: {
     <div style={{ borderTop: first ? 'none' : `1px solid ${c.faint}` }}>
       <button onClick={onToggle} aria-expanded={open} style={rowButton(c)}>
         <Avatar c={c} name={p.name} inactive={!p.active} size={30} />
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ font: `600 14px ${FONT}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-          {!p.active && <Badge c={c}>Inactive</Badge>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span style={{ font: `600 14px ${FONT}`, color: c.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+            {!p.active && <Badge c={c}>Inactive</Badge>}
+          </div>
+          {showShare && <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 1 }}>{shareLine(p)}</div>}
         </div>
         {verified && <span style={{ font: `700 13px ${FONT}`, color: toneColor(c, s.tone), whiteSpace: 'nowrap' }}>{s.label}</span>}
         <ChevronDown size={16} color={c.muted} style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : undefined }} />

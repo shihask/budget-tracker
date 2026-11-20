@@ -263,6 +263,7 @@ export function ProjectDetailPage({ project, data, role, onClose, onSwipeProgres
             memberSummaries={memberSummaries}
             transactions={transactions}
             budgetSummary={budgetSummary}
+            settlement={settlement.detail}
             role={role}
             canSettle={tabs.some(t => t.id === 'settlement')}
             onManageBudgets={() => setBudgetManageOpen(true)}

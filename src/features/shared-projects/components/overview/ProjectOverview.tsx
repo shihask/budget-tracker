@@ -3,6 +3,8 @@ import { useTheme } from '@/lib/theme-context'
 import type { Project, ProjectRole, ProjectSummary, MemberSummary, ProjectTransaction, BudgetSummary, ProjectTab } from '../../types'
 import { kittyBreakdown } from '../../lib/overview'
 import { transactionKind } from '../../lib/transactions'
+import { perPersonShare } from '../../lib/settlementCopy'
+import type { SettlementComputation } from '../../lib/settlement'
 import { BudgetBreakdownSection } from '../BudgetBreakdownSection'
 import { KittySummaryCard } from './KittySummaryCard'
 import { TargetProgressCard } from './TargetProgressCard'
@@ -17,6 +19,8 @@ interface Props {
   memberSummaries: MemberSummary[]
   transactions: ProjectTransaction[]
   budgetSummary: BudgetSummary
+  /** The settlement engine's result — the source of "Each person's share". */
+  settlement?: SettlementComputation
   role: ProjectRole
   /** The Settlement tab only exists with ≥ 2 members. */
   canSettle: boolean
@@ -34,7 +38,7 @@ const columns: React.CSSProperties = {
 const stack: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }
 
 export function ProjectOverview({
-  project, summary, memberSummaries, transactions, budgetSummary, role,
+  project, summary, memberSummaries, transactions, budgetSummary, settlement, role,
   canSettle, onManageBudgets, onEditProject, onGoToTab,
 }: Props) {
   const c = useTheme()
@@ -51,7 +55,7 @@ export function ProjectOverview({
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <KittySummaryCard summary={summary} kitty={kitty} onSettle={canSettle ? () => onGoToTab('settlement') : undefined} />
+      <KittySummaryCard summary={summary} kitty={kitty} perPerson={canSettle && settlement ? perPersonShare(settlement) : null} onSettle={canSettle ? () => onGoToTab('settlement') : undefined} />
 
       <div style={columns}>
         {(showTarget || showBudgets) && (

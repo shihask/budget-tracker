@@ -136,6 +136,7 @@ export function PublicProjectPage({ shareCode }: Props) {
             memberSummaries={memberSummaries}
             transactions={transactions}
             budgetSummary={budgetSummary}
+            settlement={settlement.detail}
             role="viewer"
             canSettle={canSettle}
             onManageBudgets={noop}

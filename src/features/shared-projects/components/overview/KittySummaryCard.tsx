@@ -4,19 +4,22 @@ import { fmt } from '@/lib/utils'
 import type { ColorTokens } from '@/lib/tokens'
 import type { ProjectSummary } from '../../types'
 import type { KittyBreakdown } from '../../lib/overview'
+import { rs, rsSigned, type PerPersonShare } from '../../lib/settlementCopy'
 import { FONT, cardStyle } from './styles'
 import { LinkButton } from './ui'
 
 interface Props {
   summary: ProjectSummary
   kitty: KittyBreakdown
+  /** From the settlement engine; null hides the line (unverified, nothing spent, < 2 members). */
+  perPerson?: PerPersonShare | null
   /** Settlement tab exists (≥ 2 members). */
   onSettle?: () => void
 }
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
-export function KittySummaryCard({ summary, kitty, onSettle }: Props) {
+export function KittySummaryCard({ summary, kitty, perPerson, onSettle }: Props) {
   const c = useTheme()
   const { state, fundRemaining, fundSpent, paidPersonally, kittyFunds, sources } = kitty
   const hasKitty = state !== 'none'
@@ -89,6 +92,8 @@ export function KittySummaryCard({ summary, kitty, onSettle }: Props) {
         </div>
       </div>}
 
+      {perPerson && <PerPersonLine c={c} p={perPerson} />}
+
       {(explanation || (onSettle && summary.totalExpenses > 0)) && (
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 12,
@@ -105,6 +110,31 @@ export function KittySummaryCard({ summary, kitty, onSettle }: Props) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// "Each person's share" — the engine's per-member share, never total ÷ members.
+function PerPersonLine({ c, p }: { c: ColorTokens; p: PerPersonShare }) {
+  const after = p.groupMoney > 0 ? `after ${rs(p.groupMoney)} group money` : null
+  let label = "Each person's share"
+  let amount: string
+  let detail: string
+  if (p.kind === 'equal') {
+    if (p.amount < 0) { label = 'Each person gets back'; amount = rs(-p.amount) } else amount = rs(p.amount)
+    const people = p.sharers === p.members ? `${p.members} people` : `${p.sharers} of ${p.members} people`
+    detail = [people, p.amount < 0 && 'from the surplus', after, p.rounded && 'rounded to the paisa'].filter(Boolean).join(' · ')
+  } else {
+    amount = `${rsSigned(p.min)} – ${rsSigned(p.max)}`
+    detail = ['Shares differ', after, 'see Settlement for each person'].filter(Boolean).join(' · ')
+  }
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.faint}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ font: `700 13px ${FONT}`, color: c.ink }}>{label}</div>
+        <div style={{ font: `800 15px ${FONT}`, color: c.ink, whiteSpace: 'nowrap' }}>{amount}</div>
+      </div>
+      <div style={{ font: `500 12px ${FONT}`, color: c.muted, marginTop: 2 }}>{detail}</div>
     </div>
   )
 }
