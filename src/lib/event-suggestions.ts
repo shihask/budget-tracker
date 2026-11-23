@@ -649,6 +649,21 @@ export function validateAiResult(raw: AiEventDetection | null | undefined, sentR
   }
 }
 
+/** The rows a cached AI answer may surface, or null. Rebuilt from the current
+ *  pool, so a row tagged since the answer drops out. AI reads the WHOLE pool,
+ *  not just the fresh signal that triggered it, so it can name a cluster whose
+ *  newest row is weeks old — the same freshness gate as every other path
+ *  applies, or a finished occasion comes back each time the signal changes. */
+export function surfaceableAiRows(
+  txIds: string[],
+  pool: AnalyticsTransaction[],
+  today: string,
+): AnalyticsTransaction[] | null {
+  const byId = new Map(pool.map(t => [t.id, t]))
+  const txs = txIds.map(id => byId.get(id)).filter((t): t is AnalyticsTransaction => !!t)
+  return txs.length >= MIN_SIGNAL_EXPENSES && isFresh(txs, today) ? txs : null
+}
+
 // ── Dismissal ───────────────────────────────────────────────────────────────
 
 /** Hidden when at least half its rows were in a dismissed suggestion. By id,

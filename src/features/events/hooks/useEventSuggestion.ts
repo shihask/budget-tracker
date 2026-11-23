@@ -8,7 +8,7 @@ import { detectLifeEventWithAI } from '@/lib/gemini'
 import type { OnAiUsed } from '@/lib/gemini'
 import {
   suggestionPool, suggestionFingerprint, detectEventSignals, hasEventSignal, signalRows,
-  buildSuggestion, burstSuggestion, validateAiResult, isSuppressed, shiftIso, needsHistory, NOVELTY_LOOKBACK_DAYS,
+  buildSuggestion, burstSuggestion, validateAiResult, surfaceableAiRows, isSuppressed, shiftIso, needsHistory, NOVELTY_LOOKBACK_DAYS,
   isOccasionSpendCategory, groupByName,
 } from '@/lib/event-suggestions'
 import type { EventSuggestion, HistoryRow } from '@/lib/event-suggestions'
@@ -249,13 +249,11 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
     let s: EventSuggestion | null
     if (autopilotEnabled && cacheHit) {
       const r = aiEntry!.result
-      const byId = new Map(pool.map(t => [t.id, t]))
-      // Rebuilt from current rows: a row tagged since the answer drops out.
-      const txs = r ? r.txIds.map(id => byId.get(id)).filter((t): t is NonNullable<typeof t> => !!t) : []
+      const txs = r ? surfaceableAiRows(r.txIds, pool, today) : null
       // AI only ever adds to detection — a better name, extra rows, a burst
       // the phrase detector can't see. Its "no" never hides a suggestion the
       // local detector already stands behind; it does retire a nameless burst.
-      s = r && txs.length >= 2
+      s = r && txs
         ? buildSuggestion('ai', r.name, isEventIconKey(r.icon) ? r.icon : DEFAULT_EVENT_ICON, txs, state.categories, state.events)
         : detection.local
     } else {
@@ -268,7 +266,7 @@ export function useEventSuggestion({ state, userId, autopilotEnabled, allTransac
       s = detection.local ?? (burstPending ? burstSuggestion(detection.burst!, state.categories) : null)
     }
     return s && !isSuppressed(s, dismissed) ? s : null
-  }, [detection, autopilotEnabled, cacheHit, aiEntry, pool, state.categories, state.events, dismissed, signalKey, failedKeys])
+  }, [detection, autopilotEnabled, cacheHit, aiEntry, pool, today, state.categories, state.events, dismissed, signalKey, failedKeys])
 
   const dismiss = useCallback(() => {
     if (!suggestion) return

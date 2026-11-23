@@ -4,7 +4,7 @@ import {
   firstMeaningfulToken, isMerchantCluster, baselineDailySpend, suggestionPool,
   suggestionFingerprint, detectEventSignals, hasEventSignal, signalRows,
   validateAiResult, isSuppressed, matchExistingEvent, shiftIso, MAX_AI_ROWS,
-  burstSuggestion, RELATED_EXPENSES_NAME, isFresh, needsHistory, SUGGESTION_FRESHNESS_DAYS,
+  burstSuggestion, RELATED_EXPENSES_NAME, isFresh, needsHistory, SUGGESTION_FRESHNESS_DAYS, surfaceableAiRows,
 } from '@/lib/event-suggestions'
 import type { HistoryRow } from '@/lib/event-suggestions'
 import type { Category, Group, LifeEvent, Master, Transaction } from '@/types'
@@ -626,5 +626,31 @@ describe('needsHistory', () => {
       tx('Pharmacy', shiftIso(TODAY, -1), 1200, 'medical'),
       tx('MRI scan', TODAY, 3500, 'medical'),
     ]), TODAY)).toBe(true)
+  })
+})
+
+describe('surfaceableAiRows — AI answers obey the freshness gate', () => {
+  // AI reads the whole 30-day pool, so a fresh burst elsewhere could make it
+  // re-name a wedding whose newest expense is 9 days old (seen: "Ramees Wedding",
+  // 12–14 Nov, still offered on 23 Nov).
+  const today = '2026-11-23'
+  const pool = [
+    tx('Mukeeth bday cake', '2026-11-14', 1050, 'gifts', { id: 'm' }),
+    tx('Fireworks Ramees Wedding', '2026-11-14', 1000, 'fun', { id: 'f' }),
+    tx('Dress ramees marriage', '2026-11-12', 385, 'shopping', { id: 'd' }),
+    tx('Taxi kodai trip', '2026-11-20', 900, 'travel', { id: 'k1' }),
+    tx('Hotel kodai trip', '2026-11-21', 3000, 'travel', { id: 'k2' }),
+  ]
+
+  it('drops an answer whose newest row is past the freshness window', () => {
+    expect(surfaceableAiRows(['m', 'f', 'd'], pool, today)).toBeNull()
+  })
+
+  it('keeps a fresh answer, rebuilt from the pool', () => {
+    expect(surfaceableAiRows(['k1', 'k2'], pool, today)?.map(t => t.id)).toEqual(['k1', 'k2'])
+  })
+
+  it('needs at least two rows still in the pool', () => {
+    expect(surfaceableAiRows(['k1', 'gone'], pool, today)).toBeNull()
   })
 })
